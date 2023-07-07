@@ -32,6 +32,8 @@ DECLARE_DEVICE_TYPE(VR4310BE, vr4310be_device)
 DECLARE_DEVICE_TYPE(VR4310LE, vr4310le_device)
 DECLARE_DEVICE_TYPE(R4600BE, r4600be_device)
 DECLARE_DEVICE_TYPE(R4600LE, r4600le_device)
+DECLARE_DEVICE_TYPE(R4640BE, r4640be_device)
+DECLARE_DEVICE_TYPE(R4640LE, r4640le_device)
 DECLARE_DEVICE_TYPE(R4650BE, r4650be_device)
 DECLARE_DEVICE_TYPE(R4650LE, r4650le_device)
 DECLARE_DEVICE_TYPE(R4700BE, r4700be_device)
@@ -281,6 +283,7 @@ protected:
 		MIPS3_TYPE_R4400,
 		MIPS3_TYPE_VR4300,
 		MIPS3_TYPE_R4600,
+		MIPS3_TYPE_R4640,
 		MIPS3_TYPE_R4650,
 		MIPS3_TYPE_R4700,
 		MIPS3_TYPE_TX4925,
@@ -743,6 +746,53 @@ public:
 	// construction/destruction
 	r4600le_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 		: mips3_device(mconfig, R4600LE, tag, owner, clock, MIPS3_TYPE_R4600, ENDIANNESS_LITTLE, 32) // Should be 64 bits
+	{
+	}
+};
+
+class r4640_device : public mips3_device {
+public:
+	// construction/destruction
+	r4640_device(const machine_config& mconfig, device_type type, const char* tag, device_t* owner, uint32_t clock, endianness_t endianness)
+		: mips3_device(mconfig, type, tag, owner, clock, MIPS3_TYPE_R4640, endianness, 32)
+	{
+	}
+
+protected:
+	virtual bool memory_translate(int spacenum, int intention, offs_t& address, address_space*& target_space) override;
+
+	virtual void static_generate_memory_accessor(int mode, int size, bool iswrite, bool ismasked, const char* name, uml::code_handle*& handleptr) override;
+
+	virtual bool RBYTE(offs_t address, uint32_t* result) override;
+	virtual bool RHALF(offs_t address, uint32_t* result) override;
+	virtual bool RWORD(offs_t address, uint32_t* result, bool insn = false) override;
+	virtual bool RWORD_MASKED(offs_t address, uint32_t* result, uint32_t mem_mask) override;
+	virtual bool RDOUBLE(offs_t address, uint64_t* result) override;
+	virtual bool RDOUBLE_MASKED(offs_t address, uint64_t* result, uint64_t mem_mask) override;
+	virtual void WBYTE(offs_t address, uint8_t data) override;
+	virtual void WHALF(offs_t address, uint16_t data) override;
+	virtual void WWORD(offs_t address, uint32_t data) override;
+	virtual void WWORD_MASKED(offs_t address, uint32_t data, uint32_t mem_mask) override;
+	virtual void WDOUBLE(offs_t address, uint64_t data) override;
+	virtual void WDOUBLE_MASKED(offs_t address, uint64_t data, uint64_t mem_mask) override;
+
+	virtual void set_cop0_reg(int idx, uint64_t val) override;
+};
+
+class r4640be_device : public r4640_device {
+public:
+	// construction/destruction
+	r4640be_device(const machine_config& mconfig, const char* tag, device_t* owner, uint32_t clock)
+		: r4640_device(mconfig, R4640BE, tag, owner, clock, ENDIANNESS_BIG)
+	{
+	}
+};
+
+class r4640le_device : public r4640_device {
+public:
+	// construction/destruction
+	r4640le_device(const machine_config& mconfig, const char* tag, device_t* owner, uint32_t clock)
+		: r4640_device(mconfig, R4640LE, tag, owner, clock, ENDIANNESS_LITTLE)
 	{
 	}
 };
