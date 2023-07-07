@@ -126,6 +126,8 @@ DEFINE_DEVICE_TYPE(VR4310BE,  vr4310be_device,  "vr4310be",  "NEC VR4310 (big)")
 DEFINE_DEVICE_TYPE(VR4310LE,  vr4310le_device,  "vr4310le",  "NEC VR4310 (little)")
 DEFINE_DEVICE_TYPE(R4600BE,   r4600be_device,   "r4600be",   "MIPS R4600 (big)")
 DEFINE_DEVICE_TYPE(R4600LE,   r4600le_device,   "r4600le",   "MIPS R4600 (little)")
+DEFINE_DEVICE_TYPE(R4640BE,   r4640be_device,   "r4640be",   "MIPS IDT R4640 (big)")
+DEFINE_DEVICE_TYPE(R4640LE,   r4640le_device,   "r4640le",   "MIPS IDT R4640 (little)")
 DEFINE_DEVICE_TYPE(R4650BE,   r4650be_device,   "r4650be",   "MIPS IDT R4650 (big)")
 DEFINE_DEVICE_TYPE(R4650LE,   r4650le_device,   "r4650le",   "MIPS IDT R4650 (little)")
 DEFINE_DEVICE_TYPE(R4700BE,   r4700be_device,   "r4700be",   "MIPS R4700 (big)")
@@ -1282,6 +1284,12 @@ bool mips3_device::memory_translate(int spacenum, int intention, offs_t &address
 }
 
 bool r4650_device::memory_translate(int spacenum, int intention, offs_t &address, address_space *&target_space)
+{
+	target_space = &space(spacenum);
+	return true;
+}
+
+bool r4640_device::memory_translate(int spacenum, int intention, offs_t &address, address_space *&target_space)
 {
 	target_space = &space(spacenum);
 	return true;
@@ -2570,6 +2578,22 @@ void r4650_device::set_cop0_reg(int idx, uint64_t val)
 		case COP0_R4650_IBound:
 		case COP0_R4650_DBase:
 		case COP0_R4650_DBound:
+			m_core->cpr[0][idx] = val;
+			break;
+		default:
+			mips3_device::set_cop0_reg(idx, val);
+			break;
+	}
+}
+
+void r4640_device::set_cop0_reg(int idx, uint64_t val)
+{
+	switch (idx)
+	{
+		case COP0_R4640_IBase:
+		case COP0_R4640_IBound:
+		case COP0_R4640_DBase:
+		case COP0_R4640_DBound:
 			m_core->cpr[0][idx] = val;
 			break;
 		default:
