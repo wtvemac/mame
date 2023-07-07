@@ -1096,6 +1096,38 @@ void r4650_device::static_generate_memory_accessor(int mode, int size, bool iswr
 	block.end();
 }
 
+void r4640_device::static_generate_memory_accessor(int mode, int size, bool iswrite, bool ismasked, const char *name, uml::code_handle *&handleptr)
+{
+	/* on entry, address is in I0; data for writes is in I1; mask for accesses is in I2 */
+	/* on exit, read result is in I0 */
+	/* routine trashes I0-I3 */
+	uml::code_handle &exception_addrerr = *m_exception[iswrite ? EXCEPTION_ADDRSTORE : EXCEPTION_ADDRLOAD];
+	int label = 1;
+
+	/* begin generating */
+	drcuml_block &block(m_drcuml->begin_block(1024));
+
+	/* add a global entry for this */
+	alloc_handle(*m_drcuml, handleptr, name);
+	UML_HANDLE(block, *handleptr);                                                  // handle  handleptr
+
+	static_generate_memory_mode_checks(block, exception_addrerr, label, mode);
+
+	if (mode == MODE_USER)
+	{
+		int addrok;
+		UML_CMP(block, I0, CPR032(COP0_R4650_DBound));                              // cmp     i0,CPR0[DBound]
+		UML_JMPc(block, COND_LE, addrok = label++);                                 // jle     addrok
+		UML_EXHc(block, COND_G, exception_addrerr, I0);                             // exh     addrerr,i0,ne
+		UML_LABEL(block, addrok);                                                   // addrok:
+		UML_ADD(block, I0, I0, CPR032(COP0_R4650_DBase));                           // add     i0,i0,CPR0[DBase]
+	}
+
+	static_generate_fastram_accessor(block, label, size, iswrite, ismasked);
+	static_generate_memory_rw(block, size, iswrite, ismasked);
+	block.end();
+}
+
 
 /***************************************************************************
     CODE GENERATION
