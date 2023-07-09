@@ -87,7 +87,7 @@
     00c8 - BUS_BOOTMODE          - CPU reset string
     00cc - BUS_USEBOOTMODE       - Enable BOOTMODE
 
-    The SOLO ASIC is split into multiple "units", of which this only emulates the busUnit.
+    The SOLO ASIC is split into multiple "units", of which this currently only emulates the busUnit.
 
 ************************************************************************************************/
 #include "emu.h"
@@ -106,7 +106,8 @@
 DEFINE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device, "solo1_asic", "WebTV SOLO1 ASIC")
 
 solo1_asic_device::solo1_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: device_t(mconfig, SOLO1_ASIC, tag, owner, clock)
+	: device_t(mconfig, SOLO1_ASIC, tag, owner, clock),
+    m_hostcpu(*this, "maincpu")
 {
 }
 
@@ -124,6 +125,11 @@ void solo1_asic_device::regs_map(address_map &map)
     map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // potUnit
     map(0xa000, 0xafff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // sucUnit
     map(0xb000, 0xbfff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // modUnit
+}
+
+void solo1_asic_device::device_add_mconfig(machine_config &config)
+{
+
 }
 
 void solo1_asic_device::device_start()
@@ -185,6 +191,10 @@ uint32_t solo1_asic_device::dma_bus_r(offs_t offset)
         return m_tmr_count;
     case 0x04c: // BUS_TCOMPARE (R/W)
         return m_tmr_compare;
+    case 0x050: // BUS_INTSTAT (Set)
+        break;
+    case 0x054: // BUS_ERRSTAT (R/Set)
+        return m_err_status;
     default:
         printf("Attempted read from unimplemented or reserved register %04x\n", offset);
         break;
@@ -207,13 +217,13 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
         m_int_status = data;
         break;
     case 0x00c: // BUS_INTEN (R/Set)
-        m_int_enable = data;
+        m_int_enable = m_int_enable & data;
         break;
     case 0x010: // BUS_ERRSTAT (W)
         m_err_status = data;
         break;
     case 0x014: // BUS_ERREN (R/Set)
-        m_err_enable = data;
+        m_err_enable = m_err_enable & data;
         break;
     case 0x018: // BUS_ERRADDR (R/W)
         m_err_enable = data;
@@ -232,6 +242,18 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
         break;
     case 0x040: // BUS_LOWWRMASK (R/W)
         m_lomem_wrprot_mask = data;
+        break;
+    case 0x048: // BUS_TCOUNT (R/W)
+        m_tmr_count = data;
+        break;
+    case 0x04c: // BUS_TCOMPARE (R/W)
+        m_tmr_compare = data;
+        break;
+    case 0x050: // BUS_INTSTAT (Set)
+        m_int_status = m_int_status & data;
+        break;
+    case 0x054: // BUS_ERRSTAT (R/Set)
+        m_err_status = m_err_status & data;
         break;
     default:
         printf("Attempted write %08x to unimplemented or reserved register %04x\n", data, offset);
