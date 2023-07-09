@@ -25,6 +25,8 @@ public:
 	solo1_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
     void regs_map(address_map &map);
+
+	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
     
 protected:
 	// device-level overrides
