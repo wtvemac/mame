@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "cpu/mips/mips3.h"
+
 class solo1_asic_device : public device_t
 {
 public:
@@ -83,6 +85,8 @@ private:
 
     uint32_t m_bootmode;
     uint32_t m_use_bootmode;
+
+    required_device<mips3_device> m_hostcpu;
 
     enum
     {
