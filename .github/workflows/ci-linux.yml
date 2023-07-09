@@ -3,13 +3,7 @@ name: CI (Linux)
 on:
   push:
     paths:
-    - '.github/workflows/**'
-    - '3rdparty/**'
-    - 'hash/**'
-    - 'scripts/**'
-    - 'src/**'
-    - 'COPYING'
-    - 'makefile'
+    - '**'
   pull_request:
     paths:
     - '.github/workflows/**'
