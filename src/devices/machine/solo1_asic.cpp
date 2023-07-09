@@ -217,13 +217,13 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
         m_int_status = data;
         break;
     case 0x00c: // BUS_INTEN (R/Set)
-        m_int_enable = m_int_enable & data;
+        m_int_enable = m_int_enable | data;
         break;
     case 0x010: // BUS_ERRSTAT (W)
         m_err_status = data;
         break;
     case 0x014: // BUS_ERREN (R/Set)
-        m_err_enable = m_err_enable & data;
+        m_err_enable = m_err_enable | data;
         break;
     case 0x018: // BUS_ERRADDR (R/W)
         m_err_enable = data;
@@ -250,10 +250,10 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
         m_tmr_compare = data;
         break;
     case 0x050: // BUS_INTSTAT (Set)
-        m_int_status = m_int_status & data;
+        m_int_status = m_int_status | data;
         break;
     case 0x054: // BUS_ERRSTAT (R/Set)
-        m_err_status = m_err_status & data;
+        m_err_status = m_err_status | data;
         break;
     default:
         printf("Attempted write %08x to unimplemented or reserved register %04x\n", data, offset);
