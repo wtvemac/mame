@@ -282,7 +282,7 @@ uint32_t solo1_asic_device::dma_bus_r(offs_t offset)
     case 0x0cc: // BUS_USEBOOTMODE (R/W)
         return m_use_bootmode;
     default:
-        printf("Attempted read from unimplemented or reserved register %04x (misaligned read may also be possible)\n", offset);
+        logerror("Attempted read from misaligned or reserved register %04x!\n", offset);
         break;
     }
     return 0;
@@ -294,7 +294,7 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
     {
     case 0x000: // BUS_CHIPID (R/W)
         // TODO: should this be the expected behavior?
-        printf("Discarding write to BUS_CHIPID\n");
+        logerror("Discarding write to BUS_CHIPID\n");
         break;
     case 0x004: // BUS_CHIPCNTL (R/W)
         m_chip_cntl = data;
@@ -477,7 +477,7 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
         m_use_bootmode = data;
         break;
     default:
-        printf("Attempted write %08x to unimplemented or reserved register %04x (misaligned write may also be possible)\n", data, offset);
+        logerror("Attempted write %08x to misaligned or reserved register %04x\n", data, offset);
         break;
     }
 }
