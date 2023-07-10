@@ -91,6 +91,9 @@ void webtv2_state::webtv2_base(machine_config& config)
 	m_maincpu->set_icache_size(8192);
 	m_maincpu->set_dcache_size(8192);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::webtv2_map);
+
+	SOLO1_ASIC(config, m_soloasic, 0);
+	m_soloasic->set_hostcpu(m_maincpu);
 }
 
 void webtv2_state::webtv2_sony(machine_config& config)
