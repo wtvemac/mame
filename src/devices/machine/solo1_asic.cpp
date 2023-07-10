@@ -114,17 +114,17 @@ solo1_asic_device::solo1_asic_device(const machine_config &mconfig, const char *
 void solo1_asic_device::regs_map(address_map &map)
 {
     map(0x0000, 0x0fff).rw(FUNC(solo1_asic_device::dma_bus_r), FUNC(solo1_asic_device::dma_bus_w)); // busUnit
-    map(0x1000, 0x1fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // rioUnit
-    map(0x2000, 0x2fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // audUnit
-    map(0x3000, 0x3fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // vidUnit
-    map(0x4000, 0x4fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // devUnit
-    map(0x5000, 0x5fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // memUnit
-    map(0x6000, 0x6fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // gfxUnit
-    map(0x7000, 0x7fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // dveUnit
-    map(0x8000, 0x8fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // divUnit
-    map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // potUnit
-    map(0xa000, 0xafff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // sucUnit
-    map(0xb000, 0xbfff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // modUnit
+    //map(0x1000, 0x1fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // rioUnit
+    //map(0x2000, 0x2fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // audUnit
+    //map(0x3000, 0x3fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // vidUnit
+    //map(0x4000, 0x4fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // devUnit
+    //map(0x5000, 0x5fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // memUnit
+    //map(0x6000, 0x6fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // gfxUnit
+    //map(0x7000, 0x7fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // dveUnit
+    //map(0x8000, 0x8fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // divUnit
+    //map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // potUnit
+    //map(0xa000, 0xafff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // sucUnit
+    //map(0xb000, 0xbfff).rw(FUNC(solo1_asic_device::dma_unk_r), FUNC(solo1_asic_device::dma_unk_w)); // modUnit
 }
 
 void solo1_asic_device::device_add_mconfig(machine_config &config)
@@ -482,9 +482,9 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
     }
 }
 
-uint32_t solo1_asic_device::dma_unk_r(offs_t offset)
+/*uint32_t solo1_asic_device::dma_unk_r(offs_t offset)
 {
-    switch(offset/0x1000)
+    switch(offset>>24)
     {
     case SOLO_REGION_BUS:
         printf("Unimplemented busUnit read from %04x\n", offset);
@@ -531,7 +531,7 @@ uint32_t solo1_asic_device::dma_unk_r(offs_t offset)
 
 void solo1_asic_device::dma_unk_w(offs_t offset, uint32_t data)
 {
-    switch(offset/0x1000)
+    switch(offset>>24)
     {
     case SOLO_REGION_BUS:
         printf("Unimplemented busUnit write %04x = %08x\n", offset, data);
@@ -573,4 +573,4 @@ void solo1_asic_device::dma_unk_w(offs_t offset, uint32_t data)
         printf("Unknown SOLO I/O write %04x = %08x\n", offset, data);
         break;
     }
-}
+}*/
