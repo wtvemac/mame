@@ -173,8 +173,12 @@ uint32_t solo1_asic_device::dma_bus_r(offs_t offset)
         return m_int_enable;
     case 0x010: // BUS_ERRSTAT (W)
         break;
+    case 0x110: // BUS_ERRSTAT (Clear)
+        break;
     case 0x014: // BUS_ERREN (R/Set)
         return m_err_enable;
+    case 0x114: // BUS_ERREN (Clear)
+        break;
     case 0x018: // BUS_ERRADDR (R/W)
         return m_err_address;
     case 0x030: // BUS_WDVALUE (R/W)
@@ -195,8 +199,90 @@ uint32_t solo1_asic_device::dma_bus_r(offs_t offset)
         break;
     case 0x054: // BUS_ERRSTAT (R/Set)
         return m_err_status;
+    case 0x058: // BUS_GPINTSTAT (W)
+        break;
+    case 0x05c: // BUS_GPINTEN (R/Set)
+        return m_gpio_int_enable;
+    case 0x15c: // BUS_GPINTEN (Clear)
+        break;
+    case 0x060: // BUS_GPINTSTAT (R/Set)
+        return m_gpio_int_status;
+    case 0x064: // BUS_GPINTPOL (R/W)
+        return m_gpio_int_polling;
+    case 0x068: // BUS_AUDINTSTAT (W)
+        break;
+    case 0x168: // BUS_AUDINTSTAT (Clear)
+        break;
+    case 0x06c: // BUS_AUDINTSTAT (R/Set)
+        return m_aud_int_status;
+    case 0x070: // BUS_AUDINTEN (R/Set)
+        return m_aud_int_enable;
+    case 0x170: // BUS_AUDINTEN (Clear)
+        break;
+    case 0x074: // BUS_DEVINTSTAT (W)
+        break;
+    case 0x174: // BUS_DEVINTSTAT (Clear)
+        break;
+    case 0x078: // BUS_DEVINTSTAT (R/Set)
+        return m_dev_int_status;
+    case 0x07c: // BUS_DEVINTEN (R/Set)
+        return m_dev_int_enable;
+    case 0x17c: // BUS_DEVINTEN (Clear)
+        break;
+    case 0x080: // BUS_VIDINTSTAT (W)
+        break;
+    case 0x180: // BUS_VIDINTSTAT (Clear)
+        break;
+    case 0x084: // BUS_VIDINTSTAT (R/Set)
+        return m_vid_int_status;
+    case 0x088: // BUS_VIDINTEN (R/Set)
+        return m_vid_int_enable;
+    case 0x188: // BUS_VIDINTEN (Clear)
+        break;
+    case 0x08c: // BUS_RIOINTSTAT (W)
+        break;
+    case 0x18c: // BUS_RIOINTSTAT (Clear)
+        break;
+    case 0x094: // BUS_RIOINTPOL (R/W)
+        return m_rio_int_polling;
+    case 0x090: // BUS_RIOINTSTAT (R/Set)
+        return m_rio_int_status;
+    case 0x098: // BUS_DEVINTEN (R/Set)
+        return m_rio_int_enable;
+    case 0x198: // BUS_DEVINTEN (Clear)
+        break;
+    case 0x09c: // BUS_TIMINTSTAT (W)
+        break;
+    case 0x19c: // BUS_TIMINTSTAT (Clear)
+        break;
+    case 0x0a0: // BUS_TIMINTSTAT (R/Set)
+        return m_tim_int_status;
+    case 0x0a4: // BUS_TIMINTEN (R/Set)
+        return m_tim_int_enable;
+    case 0x1a4: // BUS_TIMINTEN (Clear)
+        break;
+    case 0x0a8: // RESETCAUSE (R/Set)
+        return m_reset_cause;
+    case 0x0ac: // RESETCAUSE (Clear)
+        break;
+    case 0x0b0: // BUS_J1FENLADDR (R/W)
+        return m_java1_fence_addr_l;
+    case 0x0b4: // BUS_J1FENHADDR (R/W)
+        return m_java1_fence_addr_h;
+    case 0x0b8: // BUS_J2FENLADDR (R/W)
+        return m_java2_fence_addr_l;
+    case 0x0bc: // BUS_J2FENHADDR (R/W)
+        return m_java2_fence_addr_h;
+    case 0x0c0: // BUS_TOPOFRAM (R/W)
+        return m_memsize;
+    case 0x0c4: // BUS_FENCECNTL (R/W)
+        return m_fence_cntl;
+    case 0x0c8: // BUS_BOOTMODE (R/W)
+        return m_bootmode;
+    case 0x0cc: // BUS_USEBOOTMODE (R/W)
+        return m_use_bootmode;
     default:
-        printf("Attempted read from unimplemented or reserved register %04x\n", offset);
+        printf("Attempted read from unimplemented or reserved register %04x (misaligned read may also be possible)\n", offset);
         break;
     }
     return 0;
@@ -216,14 +302,23 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
     case 0x008: // BUS_INTSTAT (R/W)
         m_int_status = data;
         break;
+    case 0x108: // BUS_INTSTAT (Clear)
+        m_int_status &= ~data;
+        break;
     case 0x00c: // BUS_INTEN (R/Set)
-        m_int_enable = m_int_enable | data;
+        m_int_enable |= data;
         break;
     case 0x010: // BUS_ERRSTAT (W)
         m_err_status = data;
         break;
+    case 0x110: // BUS_ERRSTAT (Clear)
+        m_err_status &= ~data;
+        break;
     case 0x014: // BUS_ERREN (R/Set)
-        m_err_enable = m_err_enable | data;
+        m_err_enable |= data;
+        break;
+    case 0x114: // BUS_ERREN (Clear)
+        m_err_enable &= ~data;
         break;
     case 0x018: // BUS_ERRADDR (R/W)
         m_err_enable = data;
@@ -250,13 +345,139 @@ void solo1_asic_device::dma_bus_w(offs_t offset, uint32_t data)
         m_tmr_compare = data;
         break;
     case 0x050: // BUS_INTSTAT (Set)
-        m_int_status = m_int_status | data;
+        m_int_status |= data;
         break;
     case 0x054: // BUS_ERRSTAT (R/Set)
-        m_err_status = m_err_status | data;
+        m_err_status |= data;
+        break;
+    case 0x058: // BUS_GPINTSTAT (W)
+        m_gpio_int_status = data;
+        break;
+    case 0x158: // BUS_GPINTSTAT (Clear)
+        m_gpio_int_status &= ~data;
+        break;
+    case 0x05c: // BUS_GPINTEN (R/Set)
+        m_gpio_int_enable |= data;
+        break;
+    case 0x15c: // BUS_GPINTEN (Clear)
+        m_gpio_int_enable &= ~data;
+        break;
+    case 0x060: // BUS_GPINTSTAT (W)
+        m_gpio_int_status = data;
+        break;
+    case 0x064: // BUS_GPINTPOL (R/W)
+        m_gpio_int_polling = data;
+        break;
+    case 0x068: // BUS_AUDINTSTAT (W)
+        m_aud_int_status = data;
+        break;
+    case 0x168: // BUS_AUDINTSTAT (Clear)
+        m_aud_int_status &= ~data;
+        break;
+    case 0x06c: // BUS_AUDINTSTAT (R/Set)
+        m_aud_int_status |= data;
+        break;
+    case 0x070: // BUS_AUDINTEN (R/Set)
+        m_aud_int_enable |= data;
+        break;
+    case 0x170: // BUS_AUDINTEN (Clear)
+        m_aud_int_enable &= ~data;
+        break;
+    case 0x074: // BUS_DEVINTSTAT (W)
+        m_dev_int_status = data;
+        break;
+    case 0x174: // BUS_DEVINTSTAT (Clear)
+        m_dev_int_status &= ~data;
+        break;
+    case 0x078: // BUS_DEVINTSTAT (R/Set)
+        m_dev_int_status |= data;
+        break;
+    case 0x07c: // BUS_DEVINTEN (R/Set)
+        m_dev_int_enable |= data;
+        break;
+    case 0x17c: // BUS_DEVINTEN (Clear)
+        m_dev_int_enable &= ~data;
+        break;
+    case 0x080: // BUS_VIDINTSTAT (W)
+        m_vid_int_status = data;
+        break;
+    case 0x180: // BUS_VIDINTSTAT (Clear)
+        m_vid_int_status &= ~data;
+        break;
+    case 0x084: // BUS_VIDINTSTAT (R/Set)
+        m_vid_int_status |= data;
+        break;
+    case 0x088: // BUS_VIDINTEN (R/Set)
+        m_vid_int_enable |= data;
+        break;
+    case 0x188: // BUS_VIDINTEN (Clear)
+        m_vid_int_enable &= ~data;
+        break;
+    case 0x08c: // BUS_RIOINTSTAT (W)
+        m_rio_int_status = data;
+        break;
+    case 0x18c: // BUS_RIOINTSTAT (Clear)
+        m_rio_int_status &= ~data;
+        break;
+    case 0x090: // BUS_RIOINTSTAT (R/Set)
+        m_rio_int_status |= data;
+        break;
+    case 0x094: // BUS_RIOINTPOL (R/W)
+        m_rio_int_polling = data;
+        break;
+    case 0x098: // BUS_RIOINTEN (R/Set)
+        m_rio_int_enable |= data;
+        break;
+    case 0x198: // BUS_RIOINTEN (Clear)
+        m_rio_int_enable &= ~data;
+        break;
+    case 0x09c: // BUS_DEVINTSTAT (W)
+        m_tim_int_status = data;
+        break;
+    case 0x19c: // BUS_DEVINTSTAT (Clear)
+        m_tim_int_status &= ~data;
+        break;
+    case 0x0a0: // BUS_DEVINTSTAT (R/Set)
+        m_tim_int_status |= data;
+        break;
+    case 0x0a4: // BUS_DEVINTEN (R/Set)
+        m_tim_int_enable |= data;
+        break;
+    case 0x1a4: // BUS_DEVINTEN (Clear)
+        m_tim_int_enable &= ~data;
+        break;
+    case 0x0a8: // RESETCAUSE (R/Set)
+        m_reset_cause |= data;
+        break;
+    case 0x0ac: // RESETCAUSE (Clear)
+        m_reset_cause &= ~data;
+        break;
+    case 0x0b0: // BUS_J1FENLADDR (R/W)
+        m_java1_fence_addr_l = data;
+        break;
+    case 0x0b4: // BUS_J1FENHADDR (R/W)
+        m_java1_fence_addr_h = data;
+        break;
+    case 0x0b8: // BUS_J2FENLADDR (R/W)
+        m_java2_fence_addr_l = data;
+        break;
+    case 0x0bc: // BUS_J2FENHADDR (R/W)
+        m_java2_fence_addr_h = data;
+        break;
+    case 0x0c0: // BUS_TOPOFRAM (R/W)
+        m_memsize = data;
+        break;
+    case 0x0c4: // BUS_FENCECNTL (R/W)
+        m_fence_cntl = data;
+        break;
+    case 0x0c8: // BUS_BOOTMODE (R/W)
+        m_bootmode = data;
+        break;
+    case 0x0cc: // BUS_USEBOOTMODE (R/W)
+        m_use_bootmode = data;
         break;
     default:
-        printf("Attempted write %08x to unimplemented or reserved register %04x\n", data, offset);
+        printf("Attempted write %08x to unimplemented or reserved register %04x (misaligned write may also be possible)\n", data, offset);
         break;
     }
 }
