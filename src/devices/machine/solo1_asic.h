@@ -90,7 +90,7 @@ private:
 
     required_device<mips3_device> m_hostcpu;
 
-    enum
+    /*enum
     {
         SOLO_REGION_BUS,
         SOLO_REGION_RIO, // RIO bus
@@ -104,13 +104,13 @@ private:
         SOLO_REGION_POT, // Pixel output
         SOLO_REGION_SUC, // Smart Card and UART
         SOLO_REGION_MOD  // Modem
-    };
+    };*/
 
     uint32_t dma_bus_r(offs_t offset);
     void dma_bus_w(offs_t offset, uint32_t data);
     
-    uint32_t dma_unk_r(offs_t offset);
-    void dma_unk_w(offs_t offset, uint32_t data);
+    //uint32_t dma_unk_r(offs_t offset);
+    //void dma_unk_w(offs_t offset, uint32_t data);
 };
 
 DECLARE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device)
