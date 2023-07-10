@@ -107,7 +107,7 @@ DEFINE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device, "solo1_asic", "WebTV SOLO1 ASI
 
 solo1_asic_device::solo1_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, SOLO1_ASIC, tag, owner, clock),
-    m_hostcpu(*this, "maincpu")
+    m_hostcpu(*this, finder_base::DUMMY_TAG)
 {
 }
 
