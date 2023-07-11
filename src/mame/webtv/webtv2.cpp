@@ -80,9 +80,9 @@ void webtv2_state::webtv2_map(address_map& map)
 	//map(0x07000000, 0x077fffff).ram().share("exp6");
 	//map(0x07800000, 0x07ffffff).ram().share("exp7");
 
-	map(0x1f000000, 0x1f3fffff).rom().region("bank0", 0);
-	map(0x1f400000, 0x1f7fffff).ram().share("diag");
-	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0);
+	map(0x1f000000, 0x1f3fffff).rom().region("bank0", 0); // this should be handled by rioUnit instead of just being static
+	map(0x1f400000, 0x1f7fffff).ram().share("diag"); // this should be handled by rioUnit instead of just being static
+	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0); // this should be handled by rioUnit instead of just being static
 }
 
 void webtv2_state::webtv2_base(machine_config& config)
