@@ -9,85 +9,12 @@
     This implementation is based off of both the archived technical specifications, as well as
     the various reverse-engineering efforts of the WebTV community.
 
-    Bus Registers (from official specification):
-    0000 - BUS_CHIPID            - Chip version
-    0004 - BUS_CHPCNTL           - Chip control
+    The technical specifications that this implementation is based on can be found here:
+    http://wiki.webtv.zone/misc/SOLO1/SOLO1_ASIC_Spec.pdf
 
-    0008 - BUS_INTSTAT           - Interrupt status
-    0108 - BUS_INTSTAT Clear
-    000c - BUS_INTEN             - Interrupt enable (R/set)
-    010c - BUS_INTEN Clear
-
-    0010 - BUS_ERRSTAT Set
-    0110 - BUS_ERRSTAT Clear
-    0014 - BUS_ERREN             - Error enable (R/set)
-    0114 - BUS_ERREN Clear
-    0018 - BUS_ERRADDR           - Error address
-
-    0030 - BUS_WDVALUE           - Watchdog reset value
-
-    0034 - BUS_LOWRDADDR         - Low memory read protection address
-    0038 - BUS_LOWRDMASK         - Low memory read protection mask
-    003c - BUS_LOWWRADDR         - Low memory write protection address
-    0040 - BUS_LOWWRMASK         - Low memory write protection mask
-
-    0048 - BUS_TCOUNT            - Timer counter
-    004c - BUS_TCOMPARE          - Timer compare
-    0050 - BUS_INTSTAT Set
-    0054 - BUS_ERRSTAT           - Error status (R/set)
-
-    0058 - BUS_GPINTSTAT         - GPIO interrupt status (write)
-    0158 - BUS_GPINTSTAT Clear
-    005c - BUS_GPINTEN           - GPIO interrupt enable (R/set)
-    015c - BUS_GPINTEN Clear
-    0060 - BUS_GPINTSTAT         - GPIO interrupt status (R/set)
-    0064 - BUS_GPINTPOL          - GPIO interrupt polling
-
-    0068 - BUS_AUDINTSTAT        - Audio interrupt status (write)
-    0168 - BUS_AUDINTSTAT Clear
-    006c - BUS_AUDINTSTAT        - Audio interrupt status (R/set)
-    0070 - BUS_AUDINTEN          - Audio interrupt enable (R/set)
-    0170 - BUS_AUDINTEN Clear
-
-    0074 - BUS_DEVINTSTAT        - Device interrupt status (write)
-    0174 - BUS_DEVINTSTAT Clear
-    0078 - BUS_DEVINTSTAT        - Device interrupt status (R/set)
-    007c - BUS_DEVINTEN          - Device interrupt enable (R/set)
-    017c - BUS_DEVINTEN Clear
-
-    0080 - BUS_VIDINTSTAT        - Video interrupt status (write)
-    0180 - BUS_VIDINTSTAT Clear
-    0084 - BUS_VIDINTSTAT        - Video interrupt status (R/set)
-    0088 - BUS_VIDINTEN          - Video interrupt enable (R/set)
-    0188 - BUS_VIDINTEN Clear
-
-    008c - BUS_RIOINTSTAT        - RIO bus interrupt status (write)
-    018c - BUS_RIOINTSTAT Clear
-    0090 - BUS_RIOINTSTAT        - RIO bus interrupt status (R/set)
-    0094 - BUS_RIOINTPOL         - RIO bus interrupt polling
-    0098 - BUS_RIOINTEN          - RIO bus interrupt enable (R/set)
-    0198 - BUS_RIOINTEN Clear
-
-    009c - BUS_TIMINTSTAT        - Timing interrupt status (write)
-    019c - BUS_TIMINTSTAT Clear
-    00a0 - BUS_TIMINTSTAT        - Timing interrupt status (R/set)
-    00a4 - BUS_TIMINTEN          - Timing interrupt enable (R/set)
-    01a4 - BUS_TIMINTEN Clear
-
-    00a8 - RESETCAUSE            - Reset cause (R/set)
-    01a8 - RESETCAUSE Clear
-
-    00b0 - BUS_J1FENLADDR        - Java1 R/W protection fence lower bound
-    00b4 - BUS_J1FENHADDR        - Java1 R/W protection fence upper bound
-    00b8 - BUS_J2FENLADDR        - Java2 R/W protection fence lower bound
-    00bc - BUS_J2FENHADDR        - Java2 R/W protection fence upper bound
-    00c0 - BUS_TOPOFRAM          - Total physical memory size
-    00c4 - BUS_FENCECNTL         - Cancel writes to the J1 and J2 valid address ranges
-
-    00c8 - BUS_BOOTMODE          - CPU reset string
-    00cc - BUS_USEBOOTMODE       - Enable BOOTMODE
-
-    The SOLO ASIC is split into multiple "units", of which this currently only emulates the busUnit and the memUnit
+    The SOLO ASIC is split into multiple "units", of which this implementation currently only
+    emulates the busUnit and the memUnit. Depending on how these are used within a SOLO-based
+    system, some units may be in their own devices.
 
 ************************************************************************************************/
 #include "emu.h"
