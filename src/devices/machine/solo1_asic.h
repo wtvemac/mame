@@ -9,6 +9,9 @@
     This implementation is based off of both the archived technical specifications, as well as
     the various reverse-engineering efforts of the WebTV community.
 
+    The technical specifications that this implementation is based on can be found here:
+    http://wiki.webtv.zone/misc/SOLO1/SOLO1_ASIC_Spec.pdf
+
 ************************************************************************************************/
 
 #ifndef MAME_MACHINE_SOLO1_ASIC_H
