@@ -38,6 +38,13 @@ protected:
 	virtual void device_reset() override;
 
 private:
+    required_device<mips3_device> m_hostcpu;
+
+    emu_timer *m_sys_timer;
+    //emu_timer *m_watchdog_timer;
+
+    void sys_tick(s32 param);
+
     /* Begin busUnit registers */
     uint32_t m_bus_chip_id; // SOLO chip ID
     uint32_t m_bus_chip_cntl;
@@ -94,6 +101,48 @@ private:
 
     /* End busUnit registers */
 
+    /* Begin devUnit registers */
+
+    uint32_t m_dev_irold;
+    uint32_t m_dev_led;
+    uint32_t m_dev_id_chip_cntl;
+    uint32_t m_dev_iic_cntl;
+
+    uint32_t m_dev_gpio_in;
+    uint32_t m_dev_gpio_out;
+    uint32_t m_dev_gpio_en;
+
+    uint32_t m_dev_ir_in_sample_int;
+    uint32_t m_dev_ir_in_reject_int;
+    uint32_t m_dev_ir_in_transition_data;
+    uint32_t m_dev_ir_in_status_cntl;
+    
+    uint32_t m_dev_ir_out_fifo;
+    uint32_t m_dev_ir_out_status;
+    uint32_t m_dev_ir_out_period;
+    uint32_t m_dev_ir_out_on;
+    uint32_t m_dev_ir_out_current_period;
+    uint32_t m_dev_ir_out_current_on;
+    uint32_t m_dev_ir_out_current_count;
+
+    uint32_t m_dev_parallel_data;
+    uint32_t m_dev_parallel_ctrl;
+    uint32_t m_dev_parallel_status;
+    uint32_t m_dev_parallel_cnfg;
+    uint32_t m_dev_parallel_fifo_ctrl;
+    uint32_t m_dev_parallel_fifo_status;
+    uint32_t m_dev_parallel_timeout;
+    uint32_t m_dev_parallel_stat2;
+    uint32_t m_dev_parallel_int_enable;
+    uint32_t m_dev_parallel_int_status;
+    uint32_t m_dev_parallel_clr_int;
+    uint32_t m_dev_parallel_enable;
+    
+    uint32_t m_dev_diag;
+    uint32_t m_dev_devdiag;
+
+    /* End devUnit registers */
+
     /* Begin memUnit registers */
 
     uint32_t m_mem_timing; // SDRAM timing parameters
@@ -104,43 +153,41 @@ private:
 
     /* End memUnit registers */
 
-    required_device<mips3_device> m_hostcpu;
+    uint32_t reg_bus_r(offs_t offset);
+    void reg_bus_w(offs_t offset, uint32_t data);
+    
+    //uint32_t reg_rio_r(offs_t offset);
+    //void reg_rio_w(offs_t offset, uint32_t data);
+    
+    //uint32_t reg_aud_r(offs_t offset);
+    //void reg_aud_w(offs_t offset, uint32_t data);
+    
+    //uint32_t reg_vid_r(offs_t offset);
+    //void reg_vid_w(offs_t offset, uint32_t data);
 
-    uint32_t dma_bus_r(offs_t offset);
-    void dma_bus_w(offs_t offset, uint32_t data);
+    uint32_t reg_dev_r(offs_t offset);
+    void reg_dev_w(offs_t offset, uint32_t data);
     
-    //uint32_t dma_rio_r(offs_t offset);
-    //void dma_rio_w(offs_t offset, uint32_t data);
+    uint32_t reg_mem_r(offs_t offset);
+    void reg_mem_w(offs_t offset, uint32_t data);
     
-    //uint32_t dma_aud_r(offs_t offset);
-    //void dma_aud_w(offs_t offset, uint32_t data);
+    //uint32_t reg_gfx_r(offs_t offset);
+    //void reg_gfx_w(offs_t offset, uint32_t data);
     
-    //uint32_t dma_vid_r(offs_t offset);
-    //void dma_vid_w(offs_t offset, uint32_t data);
-
-    //uint32_t dma_dev_r(offs_t offset);
-    //void dma_dev_w(offs_t offset, uint32_t data);
+    //uint32_t reg_dve_r(offs_t offset);
+    //void reg_dve_w(offs_t offset, uint32_t data);
     
-    uint32_t dma_mem_r(offs_t offset);
-    void dma_mem_w(offs_t offset, uint32_t data);
+    //uint32_t reg_div_r(offs_t offset);
+    //void reg_div_w(offs_t offset, uint32_t data);
     
-    //uint32_t dma_gfx_r(offs_t offset);
-    //void dma_gfx_w(offs_t offset, uint32_t data);
+    //uint32_t reg_pot_r(offs_t offset);
+    //void reg_pot_w(offs_t offset, uint32_t data);
     
-    //uint32_t dma_dve_r(offs_t offset);
-    //void dma_dve_w(offs_t offset, uint32_t data);
+    //uint32_t reg_suc_r(offs_t offset);
+    //void reg_suc_w(offs_t offset, uint32_t data);
     
-    //uint32_t dma_div_r(offs_t offset);
-    //void dma_div_w(offs_t offset, uint32_t data);
-    
-    //uint32_t dma_pot_r(offs_t offset);
-    //void dma_pot_w(offs_t offset, uint32_t data);
-    
-    //uint32_t dma_suc_r(offs_t offset);
-    //void dma_suc_w(offs_t offset, uint32_t data);
-    
-    //uint32_t dma_mod_r(offs_t offset);
-    //void dma_mod_w(offs_t offset, uint32_t data);
+    //uint32_t reg_mod_r(offs_t offset);
+    //void reg_mod_w(offs_t offset, uint32_t data);
 };
 
 DECLARE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device)
