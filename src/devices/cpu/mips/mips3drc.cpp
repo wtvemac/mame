@@ -2932,7 +2932,8 @@ bool mips3_device::generate_idt(drcuml_block &block, compiler_state &compiler, c
 		return false;
 	}
 
-	if (m_flavor != MIPS3_TYPE_R4650)
+	/* only enabled on IDT processors */
+	if (m_flavor != MIPS3_TYPE_R4640 && m_flavor != MIPS3_TYPE_R4650)
 		return false;
 
 	switch (opswitch)
