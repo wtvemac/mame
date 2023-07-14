@@ -75,6 +75,7 @@ void solo1_asic_vid_device::device_start()
 {
     screen().set_clock(3.579575_MHz_XTAL);
 	screen().set_size(SOLO1_NTSC_WIDTH, SOLO1_NTSC_HEIGHT);
+    screen().set_refresh_hz(59.94);
 }
 
 void solo1_asic_vid_device::device_reset()
