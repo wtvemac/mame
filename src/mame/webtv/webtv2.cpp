@@ -102,7 +102,7 @@ void webtv2_state::webtv2_base(machine_config& config)
 	SOLO1_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
 
-	m_screen->set_screen_update("solo_vid", FUNC(solo1_asic_vid_device::screen_update));
+	m_screen->set_screen_update("soloasic:solo_vid", FUNC(solo1_asic_vid_device::screen_update));
 }
 
 void webtv2_state::webtv2_sony(machine_config& config)
