@@ -20,6 +20,7 @@
 #pragma once
 
 #include "cpu/mips/mips3.h"
+#include "solo1_asic_vid.h"
 
 class solo1_asic_device : public device_t
 {
@@ -31,26 +32,19 @@ public:
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
     
+    uint32_t m_bus_int_status;
+    uint32_t m_bus_int_enable;
+    
+    
 protected:
 	// device-level overrides
     virtual void device_add_mconfig(machine_config &config) override;
 	virtual void device_start() override;
 	virtual void device_reset() override;
 
-private:
-    required_device<mips3_device> m_hostcpu;
-
-    emu_timer *m_sys_timer;
-    //emu_timer *m_watchdog_timer;
-
-    void sys_tick(s32 param);
-
     /* Begin busUnit registers */
     uint32_t m_bus_chip_id; // SOLO chip ID
     uint32_t m_bus_chip_cntl;
-
-    uint32_t m_bus_int_status;
-    uint32_t m_bus_int_enable;
 
     uint32_t m_bus_err_status;
     uint32_t m_bus_err_enable;
@@ -100,6 +94,20 @@ private:
     uint32_t m_bus_use_bootmode;
 
     /* End busUnit registers */
+
+private:
+    required_device<mips3_device> m_hostcpu;
+    required_device<solo1_asic_vid_device> m_solovid;
+
+    emu_timer *m_sys_timer;
+    //emu_timer *m_watchdog_timer;
+    
+    uint32_t m_compare_armed;
+
+    void solo1_update_cycle_counting();
+
+    void sys_timer_callback(s32 param);
+    //void watchdog_timer_callback(s32 param);
 
     /* Begin devUnit registers */
 
@@ -162,8 +170,8 @@ private:
     //uint32_t reg_aud_r(offs_t offset);
     //void reg_aud_w(offs_t offset, uint32_t data);
     
-    //uint32_t reg_vid_r(offs_t offset);
-    //void reg_vid_w(offs_t offset, uint32_t data);
+    uint32_t reg_vid_r(offs_t offset);
+    void reg_vid_w(offs_t offset, uint32_t data);
 
     uint32_t reg_dev_r(offs_t offset);
     void reg_dev_w(offs_t offset, uint32_t data);
@@ -179,9 +187,9 @@ private:
     
     //uint32_t reg_div_r(offs_t offset);
     //void reg_div_w(offs_t offset, uint32_t data);
-    
-    //uint32_t reg_pot_r(offs_t offset);
-    //void reg_pot_w(offs_t offset, uint32_t data);
+
+    uint32_t reg_pot_r(offs_t offset);
+    void reg_pot_w(offs_t offset, uint32_t data);
     
     //uint32_t reg_suc_r(offs_t offset);
     //void reg_suc_w(offs_t offset, uint32_t data);

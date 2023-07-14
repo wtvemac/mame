@@ -2,7 +2,10 @@
  *
  * WebTV LC2 (1997)
  * 
- * Shorthand for "Low Cost v2", this is the second generation of the WebTV hardware.
+ * The WebTV line of products was an early attempt to bring the Internet to the
+ * television. Later on in its life, it was rebranded as MSN TV.
+ * 
+ * LC2, shorthand for "Low Cost v2", was the second generation of the WebTV hardware.
  * It added graphics acceleration, an on-board printer port, and the ability to use a
  * hard drive, a TV tuner, and satellite receiver circuitry. It uses a custom ASIC
  * designed by WebTV Networks Inc. known as the SOLO chip.
@@ -17,9 +20,6 @@
  * TODO:
  * - Map everything to SOLO1
  * - Much, much more
- *
- * New:
- * 2023/7/7 - Preliminary driver
  * 
  *************************************************************************************/
 
@@ -31,6 +31,9 @@
 #include "main.h"
 #include "screen.h"
 
+#define CPUCLOCK 167000000
+#define SYSCLOCK 83300000
+
 namespace {
 
 class webtv2_state : public driver_device
@@ -40,7 +43,8 @@ public:
 	webtv2_state(const machine_config& mconfig, device_type type, const char* tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
-		m_soloasic(*this, "soloasic")
+		m_soloasic(*this, "soloasic"),
+		m_screen(*this, "screen")
 	{ }
 
 	void webtv2_base(machine_config& config);
@@ -55,6 +59,7 @@ protected:
 private:
 	required_device<mips3_device> m_maincpu;
 	required_device<solo1_asic_device> m_soloasic;
+	required_device<screen_device> m_screen;
 
 	void webtv2_map(address_map& map);
 };
@@ -87,25 +92,29 @@ void webtv2_state::webtv2_map(address_map& map)
 
 void webtv2_state::webtv2_base(machine_config& config)
 {
-	R4640BE(config, m_maincpu, 167000000);
+	R4640BE(config, m_maincpu, CPUCLOCK);
 	m_maincpu->set_icache_size(8192);
 	m_maincpu->set_dcache_size(8192);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::webtv2_map);
+	
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
 
-	SOLO1_ASIC(config, m_soloasic, 0);
+	SOLO1_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
+
+	m_screen->set_screen_update("solo_vid", FUNC(solo1_asic_vid_device::screen_update));
 }
 
 void webtv2_state::webtv2_sony(machine_config& config)
 {
 	webtv2_base(config);
-	// TODO: differentiate manufacturers
+	// TODO: differentiate manufacturers via emulated serial id
 }
 
 void webtv2_state::webtv2_philips(machine_config& config)
 {
 	webtv2_base(config);
-	// TODO: differentiate manufacturers
+	// TODO: differentiate manufacturers via emulated serial id
 }
 
 void webtv2_state::machine_start()
