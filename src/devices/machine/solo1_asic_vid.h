@@ -33,6 +33,8 @@ public:
     uint32_t reg_pot_r(offs_t offset);
     void reg_pot_w(offs_t offset, uint32_t data);
     
+	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
+    
     uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
     
     void hsync_callback(s32 param);
