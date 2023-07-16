@@ -31,19 +31,66 @@
 #define VERBOSE         (LOG_DEFAULT)
 #include "logmacro.h"
 
-#define INTSTAT_FENCE 1 << 2
-#define INTSTAT_TIMER 1 << 3
-#define INTSTAT_SOLO1 1 << 4
-#define INTSTAT_RIO   1 << 5
-#define INTSTAT_AUDIO 1 << 6
-#define INTSTAT_VIDEO 1 << 7
+#define BUS_INTSTAT_VIDEO 1 << 7
+#define BUS_INTSTAT_AUDIO 1 << 6
+#define BUS_INTSTAT_RIO   1 << 5
+#define BUS_INTSTAT_SOLO1 1 << 4
+#define BUS_INTSTAT_TIMER 1 << 3
+#define BUS_INTSTAT_FENCE 1 << 2
+
+#define BUS_GPINTSTAT_15 1 << 17
+#define BUS_GPINTSTAT_14 1 << 16
+#define BUS_GPINTSTAT_13 1 << 15
+#define BUS_GPINTSTAT_12 1 << 14
+#define BUS_GPINTSTAT_11 1 << 13
+#define BUS_GPINTSTAT_10 1 << 12
+#define BUS_GPINTSTAT_9  1 << 11
+#define BUS_GPINTSTAT_8  1 << 10
+#define BUS_GPINTSTAT_7  1 << 9
+#define BUS_GPINTSTAT_6  1 << 8
+#define BUS_GPINTSTAT_5  1 << 7
+#define BUS_GPINTSTAT_4  1 << 6
+#define BUS_GPINTSTAT_3  1 << 5
+#define BUS_GPINTSTAT_2  1 << 4
+#define BUS_GPINTSTAT_1  1 << 3
+#define BUS_GPINTSTAT_0  1 << 2
+
+#define BUS_AUD_INTSTAT_SOFTMODEM_DMA_IN  1 << 6
+#define BUS_AUD_INTSTAT_SOFTMODEM_DMA_OUT 1 << 5
+#define BUS_AUD_INTSTAT_DIV_AUDIO         1 << 4
+#define BUS_AUD_INTSTAT_DMA_IN            1 << 3
+#define BUS_AUD_INTSTAT_DMA_OUT           1 << 2
+
+#define BUS_VID_INTSTAT_DIV 1 << 5 // Interrupt trigger in divUnit
+#define BUS_VID_INTSTAT_GFX 1 << 4 // Interrupt trigger in gfxUnit
+#define BUS_VID_INTSTAT_POT 1 << 3 // Interrupt trigger in potUnit
+#define BUS_VID_INTSTAT_VID 1 << 2 // Interrupt trigger in vidUnit
+
+#define BUS_DEV_INTSTAT_GPIO      1 << 7
+#define BUS_DEV_INTSTAT_UART      1 << 6
+#define BUS_DEV_INTSTAT_SMARTCARD 1 << 5
+#define BUS_DEV_INTSTAT_PARALLEL  1 << 4
+#define BUS_DEV_INTSTAT_IR_OUT    1 << 3
+#define BUS_DEV_INTSTAT_IR_IN     1 << 2
+
+#define BUS_RIO_INTSTAT_DEVICE3 1 << 5 // Device 3 interrupt
+#define BUS_RIO_INTSTAT_DEVICE2 1 << 4 // Device 2 interrupt
+#define BUS_RIO_INTSTAT_DEVICE1 1 << 3 // Device 1 interrupt (typically IDE controller)
+#define BUS_RIO_INTSTAT_DEVICE0 1 << 2 // Device 0 interrupt (typically modem/ethernet)
+
+#define BUS_TIM_INTSTAT_SYSTIMER    1 << 3 // System timer interrupt
+#define BUS_TIM_INTSTAT_BUS_TIMEOUT 1 << 2
+
+#define BUS_RESETCAUSE_SOFTWARE 1 << 2 // Software reset
+#define BUS_RESETCAUSE_WATCHDOG 1 << 1 // Watchdog reset
+#define BUS_RESETCAUSE_SWITCH   1 << 0 // Reset button pressed
 
 DEFINE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device, "solo1_asic", "WebTV SOLO1 ASIC")
 
 solo1_asic_device::solo1_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, SOLO1_ASIC, tag, owner, clock),
     m_hostcpu(*this, finder_base::DUMMY_TAG),
-    m_solovid(*this, finder_base::DUMMY_TAG),
+    m_solovid(*this, "solo_vid"),
     m_sys_timer(nullptr) // when it goes off, timer interrupt fires
 //    m_watchdog_timer(nullptr)
 {
@@ -54,26 +101,26 @@ void solo1_asic_device::regs_map(address_map &map)
     map(0x0000, 0x0fff).rw(FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
     //map(0x1000, 0x1fff).rw(FUNC(solo1_asic_device::reg_rio_r), FUNC(solo1_asic_device::reg_rio_w)); // rioUnit
     //map(0x2000, 0x2fff).rw(FUNC(solo1_asic_device::reg_aud_r), FUNC(solo1_asic_device::reg_aud_w)); // audUnit
-    //map(0x3000, 0x3fff).rw(FUNC(solo1_asic_device::reg_vid_r), FUNC(solo1_asic_device::reg_vid_w)); // vidUnit
+    map(0x3000, 0x3fff).rw(FUNC(solo1_asic_device::reg_vid_r), FUNC(solo1_asic_device::reg_vid_w)); // vidUnit
     map(0x4000, 0x4fff).rw(FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
     map(0x5000, 0x5fff).rw(FUNC(solo1_asic_device::reg_mem_r), FUNC(solo1_asic_device::reg_mem_w)); // memUnit
     //map(0x6000, 0x6fff).rw(FUNC(solo1_asic_device::reg_gfx_r), FUNC(solo1_asic_device::reg_gfx_w)); // gfxUnit
     //map(0x7000, 0x7fff).rw(FUNC(solo1_asic_device::reg_dve_r), FUNC(solo1_asic_device::reg_dve_w)); // dveUnit
     //map(0x8000, 0x8fff).rw(FUNC(solo1_asic_device::reg_div_r), FUNC(solo1_asic_device::reg_div_w)); // divUnit
-    //map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::reg_pot_r), FUNC(solo1_asic_device::reg_pot_w)); // potUnit
+    map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::reg_pot_r), FUNC(solo1_asic_device::reg_pot_w)); // potUnit
     //map(0xa000, 0xafff).rw(FUNC(solo1_asic_device::reg_suc_r), FUNC(solo1_asic_device::reg_suc_w)); // sucUnit
     //map(0xb000, 0xbfff).rw(FUNC(solo1_asic_device::reg_mod_r), FUNC(solo1_asic_device::reg_mod_w)); // modUnit
 }
 
 void solo1_asic_device::device_add_mconfig(machine_config &config)
 {
-
+    SOLO1_ASIC_VID(config, m_solovid, 3.579575_MHz_XTAL*2); // NTSC is assumed
+    m_solovid->set_hostcpu(m_hostcpu);
 }
 
 void solo1_asic_device::device_start()
 {
     m_sys_timer = timer_alloc(FUNC(solo1_asic_device::sys_timer_callback), this);
-    m_solovid->set_clock(3.579575_MHz_XTAL*2); // NTSC is assumed
     m_bus_chip_id = 0x03120000; // SOLO1 chip ID
 }
 
@@ -95,7 +142,7 @@ void solo1_asic_device::device_reset()
 
     m_bus_memsize = 0x04000000;
 
-    m_bus_reset_cause = 1; // reset button hit
+    m_bus_reset_cause = BUS_RESETCAUSE_SWITCH; // reset button hit
 }
 
 void solo1_asic_device::solo1_update_cycle_counting()
@@ -112,8 +159,12 @@ TIMER_CALLBACK_MEMBER(solo1_asic_device::sys_timer_callback)
     m_sys_timer->adjust(attotime::never);
     m_compare_armed = 0;
     m_bus_tmr_count = m_bus_tmr_compare;
-    m_bus_int_status |= 0x4;
-    m_hostcpu->set_input_line(0x0, ASSERT_LINE);
+    if((m_bus_int_enable & BUS_INTSTAT_TIMER)&&(m_bus_tim_int_enable & BUS_TIM_INTSTAT_SYSTIMER))
+    {
+        m_bus_int_status |= BUS_INTSTAT_TIMER;
+        m_bus_tim_int_status |= BUS_TIM_INTSTAT_SYSTIMER;
+        m_hostcpu->set_input_line(0x0, ASSERT_LINE);
+    }
 }
 
 uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
@@ -126,7 +177,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x004: // BUS_CHIPCNTL (R/W)
         return m_bus_chip_cntl;
     case 0x008: // BUS_INTSTAT (R/W)
-        return m_bus_int_status;
+        return m_bus_int_status & m_bus_int_enable; // TODO: is this correct behavior?
     case 0x00c: // BUS_INTEN (R/Set)
         return m_bus_int_enable;
     case 0x010: // BUS_ERRSTAT (W)
@@ -165,7 +216,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x15c: // BUS_GPINTEN (Clear)
         break;
     case 0x060: // BUS_GPINTSTAT (R/Set)
-        return m_bus_gpio_int_status;
+        return m_bus_gpio_int_status & m_bus_gpio_int_enable; // TODO: is this correct behavior?
     case 0x064: // BUS_GPINTPOL (R/W)
         return m_bus_gpio_int_polling;
     case 0x068: // BUS_AUDINTSTAT (W)
@@ -173,7 +224,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x168: // BUS_AUDINTSTAT (Clear)
         break;
     case 0x06c: // BUS_AUDINTSTAT (R/Set)
-        return m_bus_aud_int_status;
+        return m_bus_aud_int_status & m_bus_aud_int_enable; // TODO: is this correct behavior?
     case 0x070: // BUS_AUDINTEN (R/Set)
         return m_bus_aud_int_enable;
     case 0x170: // BUS_AUDINTEN (Clear)
@@ -183,7 +234,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x174: // BUS_DEVINTSTAT (Clear)
         break;
     case 0x078: // BUS_DEVINTSTAT (R/Set)
-        return m_bus_dev_int_status;
+        return m_bus_dev_int_status & m_bus_dev_int_enable; // TODO: is this correct behavior?
     case 0x07c: // BUS_DEVINTEN (R/Set)
         return m_bus_dev_int_enable;
     case 0x17c: // BUS_DEVINTEN (Clear)
@@ -193,7 +244,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x180: // BUS_VIDINTSTAT (Clear)
         break;
     case 0x084: // BUS_VIDINTSTAT (R/Set)
-        return m_bus_vid_int_status;
+        return m_bus_vid_int_status & m_bus_vid_int_enable; // TODO: is this correct behavior?
     case 0x088: // BUS_VIDINTEN (R/Set)
         return m_bus_vid_int_enable;
     case 0x188: // BUS_VIDINTEN (Clear)
@@ -205,7 +256,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x094: // BUS_RIOINTPOL (R/W)
         return m_bus_rio_int_polling;
     case 0x090: // BUS_RIOINTSTAT (R/Set)
-        return m_bus_rio_int_status;
+        return m_bus_rio_int_status & m_bus_rio_int_enable; // TODO: is this correct behavior?
     case 0x098: // BUS_DEVINTEN (R/Set)
         return m_bus_rio_int_enable;
     case 0x198: // BUS_DEVINTEN (Clear)
@@ -215,7 +266,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x19c: // BUS_TIMINTSTAT (Clear)
         break;
     case 0x0a0: // BUS_TIMINTSTAT (R/Set)
-        return m_bus_tim_int_status;
+        return m_bus_tim_int_status & m_bus_tim_int_enable; // TODO: is this correct behavior?
     case 0x0a4: // BUS_TIMINTEN (R/Set)
         return m_bus_tim_int_enable;
     case 0x1a4: // BUS_TIMINTEN (Clear)
@@ -331,82 +382,82 @@ void solo1_asic_device::reg_bus_w(offs_t offset, uint32_t data)
         m_bus_gpio_int_polling = data;
         break;
     case 0x068: // BUS_AUDINTSTAT (W)
-        m_bus_aud_int_status = data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_aud_int_status = data; // TODO: is this correct behavior? also mirror this over to audUnit (solo1_asic_aud)
         break;
     case 0x168: // BUS_AUDINTSTAT (Clear)
-        m_bus_aud_int_status &= ~data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_aud_int_status &= ~data; // TODO: is this correct behavior? also mirror this over to audUnit (solo1_asic_aud)
         break;
     case 0x06c: // BUS_AUDINTSTAT (R/Set)
-        m_bus_aud_int_status |= data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_aud_int_status |= data; // TODO: is this correct behavior? also mirror this over to audUnit (solo1_asic_aud)
         break;
     case 0x070: // BUS_AUDINTEN (R/Set)
-        m_bus_aud_int_enable |= data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_aud_int_enable |= data; // TODO: is this correct behavior? also mirror this over to audUnit (solo1_asic_aud)
         break;
     case 0x170: // BUS_AUDINTEN (Clear)
-        m_bus_aud_int_enable &= ~data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_aud_int_enable &= ~data; // TODO: is this correct behavior? also mirror this over to audUnit (solo1_asic_aud)
         break;
     case 0x074: // BUS_DEVINTSTAT (W)
-        m_bus_dev_int_status = data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_dev_int_status = data; // TODO: is this correct behavior? also mirror this over to devUnit
         break;
     case 0x174: // BUS_DEVINTSTAT (Clear)
-        m_bus_dev_int_status &= ~data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_dev_int_status &= ~data; // TODO: is this correct behavior? also mirror this over to devUnit
         break;
     case 0x078: // BUS_DEVINTSTAT (R/Set)
-        m_bus_dev_int_status |= data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_dev_int_status |= data; // TODO: is this correct behavior? also mirror this over to devUnit
         break;
     case 0x07c: // BUS_DEVINTEN (R/Set)
-        m_bus_dev_int_enable |= data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_dev_int_enable |= data; // TODO: is this correct behavior? also mirror this over to devUnit
         break;
     case 0x17c: // BUS_DEVINTEN (Clear)
-        m_bus_dev_int_enable &= ~data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_dev_int_enable &= ~data; // TODO: is this correct behavior? also mirror this over to devUnit
         break;
     case 0x080: // BUS_VIDINTSTAT (W)
-        m_bus_vid_int_status = data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_vid_int_status = data; // TODO: is this correct behavior? also mirror this over to vidUnit (solo1_asic_vid)
         break;
     case 0x180: // BUS_VIDINTSTAT (Clear)
-        m_bus_vid_int_status &= ~data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_vid_int_status &= ~data; // TODO: is this correct behavior? also mirror this over to vidUnit (solo1_asic_vid)
         break;
     case 0x084: // BUS_VIDINTSTAT (R/Set)
-        m_bus_vid_int_status |= data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_vid_int_status |= data; // TODO: is this correct behavior? also mirror this over to vidUnit (solo1_asic_vid)
         break;
     case 0x088: // BUS_VIDINTEN (R/Set)
-        m_bus_vid_int_enable |= data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_vid_int_enable |= data; // TODO: is this correct behavior? also mirror this over to vidUnit (solo1_asic_vid)
         break;
     case 0x188: // BUS_VIDINTEN (Clear)
-        m_bus_vid_int_enable &= ~data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_vid_int_enable &= ~data; // TODO: is this correct behavior? also mirror this over to vidUnit (solo1_asic_vid)
         break;
     case 0x08c: // BUS_RIOINTSTAT (W)
-        m_bus_rio_int_status = data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_rio_int_status = data; // TODO: is this correct behavior? also mirror this over to rioUnit
         break;
     case 0x18c: // BUS_RIOINTSTAT (Clear)
-        m_bus_rio_int_status &= ~data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_rio_int_status &= ~data; // TODO: is this correct behavior? also mirror this over to rioUnit
         break;
     case 0x090: // BUS_RIOINTSTAT (R/Set)
-        m_bus_rio_int_status |= data; // TODO: remove this redundant variable and use masked intstat instead
+        m_bus_rio_int_status |= data; // TODO: is this correct behavior? also mirror this over to rioUnit
         break;
     case 0x094: // BUS_RIOINTPOL (R/W)
-        m_bus_rio_int_polling = data;
+        m_bus_rio_int_polling = data; // TODO: mirror this over to rioUnit
         break;
     case 0x098: // BUS_RIOINTEN (R/Set)
-        m_bus_rio_int_enable |= data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_rio_int_enable |= data; // TODO: is this correct behavior? also mirror this over to rioUnit
         break;
     case 0x198: // BUS_RIOINTEN (Clear)
-        m_bus_rio_int_enable &= ~data; // TODO: remove this redundant variable and use masked inten instead
+        m_bus_rio_int_enable &= ~data; // TODO: is this correct behavior? also mirror this over to rioUnit
         break;
-    case 0x09c: // BUS_DEVINTSTAT (W)
-        m_bus_tim_int_status = data; // TODO: remove this redundant variable and use masked intstat instead
+    case 0x09c: // BUS_TIMINTSTAT (W)
+        m_bus_tim_int_status = data;
         break;
-    case 0x19c: // BUS_DEVINTSTAT (Clear)
-        m_bus_tim_int_status &= ~data; // TODO: remove this redundant variable and use masked intstat instead
+    case 0x19c: // BUS_TIMINTSTAT (Clear)
+        m_bus_tim_int_status &= ~data; // TODO: is this correct behavior?
         break;
-    case 0x0a0: // BUS_DEVINTSTAT (R/Set)
-        m_bus_tim_int_status |= data; // TODO: remove this redundant variable and use masked intstat instead
+    case 0x0a0: // BUS_TIMINTSTAT (R/Set)
+        m_bus_tim_int_status |= data; // TODO: is this correct behavior?
         break;
-    case 0x0a4: // BUS_DEVINTEN (R/Set)
-        m_bus_tim_int_enable |= data; // TODO: remove this redundant variable and use masked inten instead
+    case 0x0a4: // BUS_TIMINTEN (R/Set)
+        m_bus_tim_int_enable |= data; // TODO: is this correct behavior?
         break;
-    case 0x1a4: // BUS_DEVINTEN (Clear)
-        m_bus_tim_int_enable &= ~data; // TODO: remove this redundant variable and use masked inten instead
+    case 0x1a4: // BUS_TIMINTEN (Clear)
+        m_bus_tim_int_enable &= ~data; // TODO: is this correct behavior?
         break;
     case 0x0a8: // RESETCAUSE (R/Set)
         m_bus_reset_cause |= data; // TODO: is this correct behavior?
