@@ -32,10 +32,6 @@ public:
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
     
-    uint32_t m_bus_int_status;
-    uint32_t m_bus_int_enable;
-    
-    
 protected:
 	// device-level overrides
     virtual void device_add_mconfig(machine_config &config) override;
@@ -45,6 +41,9 @@ protected:
     /* Begin busUnit registers */
     uint32_t m_bus_chip_id; // SOLO chip ID
     uint32_t m_bus_chip_cntl;
+    
+    uint32_t m_bus_int_status;
+    uint32_t m_bus_int_enable;
 
     uint32_t m_bus_err_status;
     uint32_t m_bus_err_enable;

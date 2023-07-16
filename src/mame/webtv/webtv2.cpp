@@ -34,6 +34,9 @@
 #define CPUCLOCK 167000000
 #define SYSCLOCK 83300000
 
+#define SOLO1_NTSC_WIDTH 640
+#define SOLO1_NTSC_HEIGHT 480
+
 namespace {
 
 class webtv2_state : public driver_device
@@ -98,6 +101,8 @@ void webtv2_state::webtv2_base(machine_config& config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::webtv2_map);
 	
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_size(SOLO1_NTSC_WIDTH, SOLO1_NTSC_HEIGHT);
+    m_screen->set_refresh_hz(59.94);
 
 	SOLO1_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);

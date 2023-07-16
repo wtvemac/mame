@@ -35,9 +35,6 @@
 #define VERBOSE         (LOG_DEFAULT)
 #include "logmacro.h"
 
-#define SOLO1_NTSC_WIDTH 640
-#define SOLO1_NTSC_HEIGHT 480
-
 #define POT_INT_SHIFT     1 << 2
 #define POT_INT_VIDHSYNC  1 << 3 // Interrupt fires on hsync
 #define POT_INT_VIDVSYNCO 1 << 4 // Interrupt fires on odd line vsync
@@ -74,8 +71,6 @@ void solo1_asic_vid_device::fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval,
 void solo1_asic_vid_device::device_start()
 {
     screen().set_clock(3.579575_MHz_XTAL);
-	screen().set_size(SOLO1_NTSC_WIDTH, SOLO1_NTSC_HEIGHT);
-    screen().set_refresh_hz(59.94);
 }
 
 void solo1_asic_vid_device::device_reset()
