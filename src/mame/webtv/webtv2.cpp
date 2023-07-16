@@ -71,8 +71,6 @@ void webtv2_state::webtv2_map(address_map& map)
 {
 	map.global_mask(0x1fffffff);
 
-	// TODO: bank0, diag, and bank1 should be mapped to SOLO
-
 	// RAM
 	map(0x00000000, 0x03ffffff).ram().share("mainram");
 
@@ -87,10 +85,19 @@ void webtv2_state::webtv2_map(address_map& map)
 	//map(0x06800000, 0x06ffffff).ram().share("exp5");
 	//map(0x07000000, 0x077fffff).ram().share("exp6");
 	//map(0x07800000, 0x07ffffff).ram().share("exp7");
+	
+	// 0x1d000000 - 0x1d3fffff: secondary device 4 (unassigned)
+	// 0x1d400000 - 0x1d7fffff: secondary device 5 (IDE CD-ROM)
+	// 0x1d800000 - 0x1dbfffff: secondary device 6 (IDE CD-ROM)
+	// 0x1dc00000 - 0x1dffffff: secondary device 7 (unassigned)
 
-	map(0x1f000000, 0x1f3fffff).rom().region("bank0", 0); // this should be handled by rioUnit instead of just being static
-	map(0x1f400000, 0x1f7fffff).ram().share("diag"); // this should be handled by rioUnit instead of just being static
-	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0); // this should be handled by rioUnit instead of just being static
+	// 0x1e000000 - 0x1e3fffff: primary device 0 (modem/ethernet)
+	// 0x1e400000 - 0x1e7fffff: primary device 1 (IDE hard disk)
+	// 0x1e800000 - 0x1ebfffff: primary device 2 (IDE hard disk)
+	// 0x1ec00000 - 0x1effffff: primary device 3 (unassigned)
+
+	map(0x1f000000, 0x1f7fffff).rom().region("bank0", 0); // Flash ROM
+	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0); // Mask ROM
 }
 
 void webtv2_state::webtv2_base(machine_config& config)
@@ -133,9 +140,8 @@ void webtv2_state::machine_reset()
 }
 
 ROM_START( wtv2sony )
-	ROM_REGION32_BE(0x400000, "bank0", 0)
-	ROM_LOAD("2046ndbg.o", 0x000000, 0x200000, CRC(89938464) SHA1(3C614AA2E1457A9D30C7696ADEBB7260D07963E5))
-	ROM_RELOAD(0x200000, 0x200000)
+	ROM_REGION32_BE(0x800000, "bank0", ROMREGION_ERASEFF)
+	// this area is reserved for flash ROM
 
 	ROM_REGION32_BE(0x800000, "bank1", 0)
 	ROM_LOAD("2046ndbg.o", 0x000000, 0x200000, CRC(89938464) SHA1(3C614AA2E1457A9D30C7696ADEBB7260D07963E5))
@@ -145,9 +151,8 @@ ROM_START( wtv2sony )
 ROM_END
 
 ROM_START( wtv2phil )
-	ROM_REGION32_BE(0x400000, "bank0", 0)
-	ROM_LOAD("2046ndbg.o", 0x000000, 0x200000, CRC(89938464) SHA1(3C614AA2E1457A9D30C7696ADEBB7260D07963E5))
-	ROM_RELOAD(0x200000, 0x200000)
+	ROM_REGION32_BE(0x800000, "bank0", ROMREGION_ERASEFF)
+	// this area is reserved for flash ROM
 
 	ROM_REGION32_BE(0x800000, "bank1", 0)
 	ROM_LOAD("2046ndbg.o", 0x000000, 0x200000, CRC(89938464) SHA1(3C614AA2E1457A9D30C7696ADEBB7260D07963E5))
