@@ -31,6 +31,14 @@ public:
     void regs_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
+	template <typename T> void set_solovid(T &&tag) { m_solovid.set_tag(std::forward<T>(tag)); }
+	//template <typename T> void set_soloaud(T &&tag) { m_soloaud.set_tag(std::forward<T>(tag)); }
+
+    void set_aud_int_flag(uint32_t value);
+
+    void set_vid_int_flag(uint32_t value);
+
+    void set_rio_int_flag(uint32_t value);
     
 protected:
 	// device-level overrides
@@ -97,6 +105,7 @@ protected:
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<solo1_asic_vid_device> m_solovid;
+    //required_device<solo1_asic_aud_device> m_soloaud;
 
     emu_timer *m_sys_timer;
     //emu_timer *m_watchdog_timer;
@@ -181,8 +190,8 @@ private:
     //uint32_t reg_gfx_r(offs_t offset);
     //void reg_gfx_w(offs_t offset, uint32_t data);
     
-    //uint32_t reg_dve_r(offs_t offset);
-    //void reg_dve_w(offs_t offset, uint32_t data);
+    uint32_t reg_dve_r(offs_t offset);
+    void reg_dve_w(offs_t offset, uint32_t data);
     
     //uint32_t reg_div_r(offs_t offset);
     //void reg_div_w(offs_t offset, uint32_t data);
