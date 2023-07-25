@@ -161,15 +161,47 @@ void solo1_asic_device::set_rio_int_flag(uint32_t value)
     
 }
 
-void solo1_asic_device::device_add_mconfig(machine_config &config)
-{
-
-}
-
 void solo1_asic_device::device_start()
 {
     m_sys_timer = timer_alloc(FUNC(solo1_asic_device::sys_timer_callback), this);
-    m_bus_chip_id = 0x03120000; // SOLO1 chip ID
+    m_bus_chip_id = 0x03120000; // SOLO1 chip ID - this should not change
+
+    save_item(NAME(m_bus_chip_cntl));
+    save_item(NAME(m_bus_int_status));
+    save_item(NAME(m_bus_int_enable));
+    save_item(NAME(m_bus_err_status));
+    save_item(NAME(m_bus_err_enable));
+    save_item(NAME(m_bus_err_address));
+    save_item(NAME(m_bus_wd_reset_val));
+    save_item(NAME(m_bus_lomem_rdprot_addr));
+    save_item(NAME(m_bus_lomem_rdprot_mask));
+    save_item(NAME(m_bus_lomem_wrprot_addr));
+    save_item(NAME(m_bus_lomem_wrprot_mask));
+    save_item(NAME(m_bus_tmr_compare));
+    //save_item(NAME(m_compare_armed));
+    save_item(NAME(m_bus_gpio_int_status));
+    save_item(NAME(m_bus_gpio_int_enable));
+    save_item(NAME(m_bus_gpio_int_polling));
+    save_item(NAME(m_bus_aud_int_status));
+    save_item(NAME(m_bus_aud_int_enable));
+    save_item(NAME(m_bus_dev_int_status));
+    save_item(NAME(m_bus_dev_int_enable));
+    save_item(NAME(m_bus_vid_int_status));
+    save_item(NAME(m_bus_vid_int_enable));
+    save_item(NAME(m_bus_rio_int_status));
+    save_item(NAME(m_bus_rio_int_enable));
+    save_item(NAME(m_bus_rio_int_polling));
+    save_item(NAME(m_bus_tim_int_status));
+    save_item(NAME(m_bus_tim_int_enable));
+    save_item(NAME(m_bus_reset_cause));
+    save_item(NAME(m_bus_java1_fence_addr_l));
+    save_item(NAME(m_bus_java1_fence_addr_h));
+    save_item(NAME(m_bus_java2_fence_addr_l));
+    save_item(NAME(m_bus_java2_fence_addr_h));
+    save_item(NAME(m_bus_memsize));
+    save_item(NAME(m_bus_fence_cntl));
+    save_item(NAME(m_bus_bootmode));
+    save_item(NAME(m_bus_use_bootmode));
 }
 
 void solo1_asic_device::device_reset()
