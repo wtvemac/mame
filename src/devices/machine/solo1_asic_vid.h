@@ -44,11 +44,13 @@ public:
     void vsync_callback(s32 param);
 
 protected:
+    virtual void device_add_mconfig(machine_config &config) override;
 	virtual void device_start() override;
 	virtual void device_reset() override;
 
 private:
     required_device<mips3_device> m_hostcpu;
+	required_device<screen_device> m_screen;
     
     void fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb);
     uint16_t screen_height;

@@ -42,12 +42,17 @@
 
 #define VID_INT_DMA       1 << 2
 
+#define SOLO1_NTSC_WIDTH 640
+#define SOLO1_NTSC_HEIGHT 480
+#define SOLO1_NTSC_CLOCK 3.579575_MHz_XTAL
+
 DEFINE_DEVICE_TYPE(SOLO1_ASIC_VID, solo1_asic_vid_device, "solo1_asic_vid", "WebTV SOLO1 ASIC (Video)")
 
 solo1_asic_vid_device::solo1_asic_vid_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, SOLO1_ASIC_VID, tag, owner, clock),
 	device_video_interface(mconfig, *this),
-    m_hostcpu(*this, finder_base::DUMMY_TAG)
+    m_hostcpu(*this, finder_base::DUMMY_TAG),
+	m_screen(*this, "screen")
 {
 }
 
@@ -68,9 +73,27 @@ void solo1_asic_vid_device::fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval,
 	}
 }
 
+void solo1_asic_vid_device::device_add_mconfig(machine_config &config)
+{
+    SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+    m_screen->set_size(SOLO1_NTSC_WIDTH, SOLO1_NTSC_HEIGHT);
+	m_screen->set_visarea(0, SOLO1_NTSC_WIDTH - 1, 0, SOLO1_NTSC_HEIGHT - 1);
+	m_screen->set_refresh_hz(59.94);
+    m_screen->set_screen_update(FUNC(solo1_asic_vid_device::screen_update));
+}
+
 void solo1_asic_vid_device::device_start()
 {
-    screen().set_clock(3.579575_MHz_XTAL);
+    //m_screen->set_clock(3.579575_MHz_XTAL);
+    save_item(NAME(m_pot_vstart));
+    save_item(NAME(m_pot_vsize));
+    save_item(NAME(m_pot_blnkcol));
+    save_item(NAME(m_pot_hstart));
+    save_item(NAME(m_pot_hsize));
+    save_item(NAME(m_pot_cntl));
+    save_item(NAME(m_pot_hintline));
+    save_item(NAME(m_pot_int_enable));
+    save_item(NAME(m_pot_int_status));
 }
 
 void solo1_asic_vid_device::device_reset()
@@ -308,4 +331,14 @@ uint32_t solo1_asic_vid_device::screen_update(screen_device &screen, bitmap_rgb3
 {
     // TODO: everything
     return 0;
+}
+
+void solo1_asic_vid_device::hsync_callback(s32 param)
+{
+
+}
+
+void solo1_asic_vid_device::vsync_callback(s32 param)
+{
+
 }
