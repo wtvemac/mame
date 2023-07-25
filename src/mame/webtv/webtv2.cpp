@@ -37,8 +37,6 @@
 #define CPUCLOCK 167000000
 #define SYSCLOCK 83300000
 
-#define SOLO1_NTSC_WIDTH 640
-#define SOLO1_NTSC_HEIGHT 480
 #define SOLO1_NTSC_CLOCK 3.579575_MHz_XTAL
 
 namespace {
@@ -51,10 +49,9 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_soloasic(*this, "solo"),
-    	m_solovid(*this, "solo_vid"),
+    	m_solovid(*this, "solo_vid")
 //    	m_soloaud(*this, "solo_aud"),
-//		m_ata0(*this, "ata"),
-		m_screen(*this, "screen")
+//		m_ata0(*this, "ata")
 	{ }
 
 	void webtv2_base(machine_config& config);
@@ -71,7 +68,6 @@ private:
 	required_device<solo1_asic_device> m_soloasic;
 	required_device<solo1_asic_vid_device> m_solovid;
 //	required_device<solo1_asic_aud_device> m_soloaud;
-	required_device<screen_device> m_screen;
 //	required_device<ata_interface_device> m_ata0;
 
 	void webtv2_map(address_map& map);
@@ -117,18 +113,12 @@ void webtv2_state::webtv2_base(machine_config& config)
 	m_maincpu->set_dcache_size(8192);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::webtv2_map);
 	
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-	m_screen->set_raw(SOLO1_NTSC_CLOCK, SOLO1_NTSC_WIDTH, 0, SOLO1_NTSC_WIDTH, SOLO1_NTSC_HEIGHT, 0, SOLO1_NTSC_HEIGHT);
-	
     SOLO1_ASIC_VID(config, m_solovid, SOLO1_NTSC_CLOCK*2); // NTSC is assumed
 	m_solovid->set_hostcpu(m_maincpu);
 
 	SOLO1_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
-
 	m_soloasic->set_solovid(m_solovid);
-
-	m_screen->set_screen_update("solo_vid", FUNC(solo1_asic_vid_device::screen_update));
 }
 
 void webtv2_state::webtv2_sony(machine_config& config)
