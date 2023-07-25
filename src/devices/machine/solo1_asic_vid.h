@@ -33,6 +33,9 @@ public:
     uint32_t reg_pot_r(offs_t offset);
     void reg_pot_w(offs_t offset, uint32_t data);
     
+    uint32_t reg_dve_r(offs_t offset);
+    void reg_dve_w(offs_t offset, uint32_t data);
+    
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
     
     uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -70,6 +73,15 @@ private:
     uint32_t m_vid_int_status;
     uint32_t m_vid_int_enable;
     uint32_t m_vid_vdata;
+
+    uint32_t m_dve_cntl;
+    uint32_t m_dve_cnfg;
+    uint32_t m_dve_dbdata;
+    uint32_t m_dve_dben;
+    uint32_t m_dve_dtst;
+    uint32_t m_dve_rdfield; // read-only
+    uint32_t m_dve_rdphase; // read-only
+    uint32_t m_dve_filtcntl;
 
     uint32_t m_intstat;
     
