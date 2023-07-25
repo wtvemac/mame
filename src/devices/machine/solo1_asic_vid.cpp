@@ -161,6 +161,71 @@ void solo1_asic_vid_device::reg_pot_w(offs_t offset, uint32_t data)
     }
 }
 
+uint32_t solo1_asic_vid_device::reg_dve_r(offs_t offset)
+{
+    //printf("SOLO read: dveUnit %04x\n", offset*4);
+    switch(offset*4)
+    {
+    case 0x000: // DVE_CNTL (R/W)
+        return m_dve_cntl;
+    case 0x004: // DVE_CNFG (R/W)
+        return m_dve_cnfg;
+    case 0x008: // DVE_DBDATA (R/W)
+        return m_dve_dbdata;
+    case 0x00c: // DVE_DBEN (R/W)
+        return m_dve_dben;
+    case 0x010: // DVE_DTST (R/W)
+        return m_dve_dtst;
+    case 0x014: // DVE_RDFIELD (R)
+        // TODO: return proper value
+        return m_dve_rdfield;
+    case 0x018: // DVE_RDPHASE (R)
+        // TODO: return proper value
+        return m_dve_rdphase;
+    case 0x01c: // DVE_FILTCNTL (R/W)
+        return m_dve_filtcntl;
+    default:
+        logerror("Attempted read from reserved register 7%03x!\n", offset*4);
+        break;
+    }
+    return 0;
+}
+
+void solo1_asic_vid_device::reg_dve_w(offs_t offset, uint32_t data)
+{
+    //printf("SOLO write: dveUnit %08x to %04x\n", data, offset*4);
+    switch(offset*4)
+    {
+    case 0x000: // DVE_CNTL (R/W)
+        m_dve_cntl = data;
+        break;
+    case 0x004: // DVE_CNFG (R/W)
+        m_dve_cnfg = data;
+        break;
+    case 0x008: // DVE_DBDATA (R/W)
+        m_dve_dbdata = data;
+        break;
+    case 0x00c: // DVE_DBEN (R/W)
+        m_dve_dben = data;
+        break;
+    case 0x010: // DVE_DTST (R/W)
+        m_dve_dtst = data;
+        break;
+    case 0x014: // DVE_RDFIELD (R)
+        logerror("Attempted write (%08x) to reserved register 7014 (DVE_RDFIELD)!\n", data);
+        break;
+    case 0x018: // DVE_RDPHASE (R)
+        logerror("Attempted write (%08x) to reserved register 7018 (DVE_RDPHASE)!\n", data);
+        break;
+    case 0x01c: // DVE_FILTCNTL (R/W)
+        m_dve_filtcntl = data;
+        break;
+    default:
+        logerror("Attempted write (%08x) to reserved register 7%03x!\n", data, offset*4);
+        break;
+    }
+}
+
 uint32_t solo1_asic_vid_device::reg_vid_r(offs_t offset)
 {
     //printf("SOLO read: vidUnit %04x\n", offset*4);
