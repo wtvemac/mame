@@ -1,4 +1,4 @@
-/***********************************************************************************************
+/***************************************************************************************************
 
     solo1_asic.cpp
 
@@ -16,7 +16,41 @@
     emulates the busUnit, the memUnit, and the devUnit. Depending on how these are used within a
     SOLO-based system, some units may be in their own devices.
 
-************************************************************************************************/
+    The rioUnit (0xA4001xxx) provides a shared interface to the ROM, asynchronous devices (including
+    the modem, the IDE hard drive, and the IDE CD-ROM), and synchronous devices which plug into the
+    WebTV Port connector (which did not see much use other than for the FIDO/FCS printer interface).
+
+    The audUnit (0xA4002xxx), not handled here, handles audio DMA. The code for those registers
+    will reside in the SOLO1_ASIC_AUD device.
+
+    The vidUnit (0xA4003xxx), not handled here, handles video DMA. The code for those registers
+    reside in the SOLO1_ASIC_VID device.
+
+    The devUnit (0xA4004xxx) handles GPIO, IR input, IR blaster output, front panel LEDs, and the
+    parallel port.
+
+    The memUnit (0xA4005xxx) handles memory timing and other memory-related operations. These
+    registers are only emulated for completeness; they do not currently have an effect on the
+    emulation.
+
+    The gfxUnit (0xA4006xxx), not handled here, is responsible for accelerated graphics. The code
+    for those registers may reside in the SOLO1_ASIC_VID device, although this is still being
+    determined.
+
+    The dveUnit (0xA4007xxx), not handled here, is responsible for digital video encoding. The code
+    for those registers reside in the SOLO1_ASIC_VID device.
+
+    The divUnit (0xA4008xxx) is responsible for video input decoding.
+
+    The potUnit (0xA4009xxx), not handled here, handles low-level video output. The code for those
+    registers reside in the SOLO1_ASIC_VID device.
+
+    The sucUnit (0xA400Axxx) handles serial I/O for both the RS232 port and the SmartCard reader.
+
+    The modUnit (0xA400Bxxx), not handled here, handles softmodem I/O. It's basically a stripped
+    down audUnit.
+
+****************************************************************************************************/
 #include "emu.h"
 #include "solo1_asic.h"
 #include "solo1_asic_vid.h"
@@ -31,12 +65,12 @@
 #define VERBOSE         (LOG_DEFAULT)
 #include "logmacro.h"
 
-#define BUS_INTSTAT_VIDEO 1 << 7
-#define BUS_INTSTAT_AUDIO 1 << 6
-#define BUS_INTSTAT_RIO   1 << 5
-#define BUS_INTSTAT_SOLO1 1 << 4
-#define BUS_INTSTAT_TIMER 1 << 3
-#define BUS_INTSTAT_FENCE 1 << 2
+#define BUS_INTSTAT_VIDEO 1 << 7 // Video interrupt
+#define BUS_INTSTAT_AUDIO 1 << 6 // Audio interrupt
+#define BUS_INTSTAT_RIO   1 << 5 // RIO device interrupt
+#define BUS_INTSTAT_SOLO1 1 << 4 // SOLO1 device interrupt
+#define BUS_INTSTAT_TIMER 1 << 3 // Timer interrupt
+#define BUS_INTSTAT_FENCE 1 << 2 // Fence (error) interrupt
 
 #define BUS_GPINTSTAT_15 1 << 17
 #define BUS_GPINTSTAT_14 1 << 16
@@ -55,23 +89,23 @@
 #define BUS_GPINTSTAT_1  1 << 3
 #define BUS_GPINTSTAT_0  1 << 2
 
-#define BUS_AUD_INTSTAT_SOFTMODEM_DMA_IN  1 << 6
-#define BUS_AUD_INTSTAT_SOFTMODEM_DMA_OUT 1 << 5
-#define BUS_AUD_INTSTAT_DIV_AUDIO         1 << 4
-#define BUS_AUD_INTSTAT_DMA_IN            1 << 3
-#define BUS_AUD_INTSTAT_DMA_OUT           1 << 2
+#define BUS_AUD_INTSTAT_SOFTMODEM_DMA_IN  1 << 6 // modUnit DMA input interrupt
+#define BUS_AUD_INTSTAT_SOFTMODEM_DMA_OUT 1 << 5 // modUnit DMA output interrupt
+#define BUS_AUD_INTSTAT_DIV_AUDIO         1 << 4 // divUnit audio interrupt
+#define BUS_AUD_INTSTAT_DMA_IN            1 << 3 // audUnit DMA input interrupt
+#define BUS_AUD_INTSTAT_DMA_OUT           1 << 2 // audUnit DMA output interrupt
 
 #define BUS_VID_INTSTAT_DIV 1 << 5 // Interrupt trigger in divUnit
 #define BUS_VID_INTSTAT_GFX 1 << 4 // Interrupt trigger in gfxUnit
 #define BUS_VID_INTSTAT_POT 1 << 3 // Interrupt trigger in potUnit
 #define BUS_VID_INTSTAT_VID 1 << 2 // Interrupt trigger in vidUnit
 
-#define BUS_DEV_INTSTAT_GPIO      1 << 7
-#define BUS_DEV_INTSTAT_UART      1 << 6
-#define BUS_DEV_INTSTAT_SMARTCARD 1 << 5
-#define BUS_DEV_INTSTAT_PARALLEL  1 << 4
-#define BUS_DEV_INTSTAT_IR_OUT    1 << 3
-#define BUS_DEV_INTSTAT_IR_IN     1 << 2
+#define BUS_DEV_INTSTAT_GPIO      1 << 7 // GPIO interrupt
+#define BUS_DEV_INTSTAT_UART      1 << 6 // sucUnit UART interrupt (RS232)
+#define BUS_DEV_INTSTAT_SMARTCARD 1 << 5 // sucUnit SmartCard interrupt
+#define BUS_DEV_INTSTAT_PARALLEL  1 << 4 // devUnit Parallel interrupt
+#define BUS_DEV_INTSTAT_IR_OUT    1 << 3 // devUnit IR output interrupt
+#define BUS_DEV_INTSTAT_IR_IN     1 << 2 // devUnit IR input interrupt
 
 #define BUS_RIO_INTSTAT_DEVICE3 1 << 5 // Device 3 interrupt
 #define BUS_RIO_INTSTAT_DEVICE2 1 << 4 // Device 2 interrupt
@@ -79,7 +113,7 @@
 #define BUS_RIO_INTSTAT_DEVICE0 1 << 2 // Device 0 interrupt (typically modem/ethernet)
 
 #define BUS_TIM_INTSTAT_SYSTIMER    1 << 3 // System timer interrupt
-#define BUS_TIM_INTSTAT_BUS_TIMEOUT 1 << 2
+#define BUS_TIM_INTSTAT_BUS_TIMEOUT 1 << 2 // Bus timeout interrupt
 
 #define BUS_RESETCAUSE_SOFTWARE 1 << 2 // Software reset
 #define BUS_RESETCAUSE_WATCHDOG 1 << 1 // Watchdog reset
@@ -90,7 +124,7 @@ DEFINE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device, "solo1_asic", "WebTV SOLO1 ASI
 solo1_asic_device::solo1_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, SOLO1_ASIC, tag, owner, clock),
     m_hostcpu(*this, finder_base::DUMMY_TAG),
-    m_solovid(*this, "solo_vid"),
+    m_solovid(*this, finder_base::DUMMY_TAG),
     m_sys_timer(nullptr) // when it goes off, timer interrupt fires
 //    m_watchdog_timer(nullptr)
 {
@@ -105,17 +139,31 @@ void solo1_asic_device::regs_map(address_map &map)
     map(0x4000, 0x4fff).rw(FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
     map(0x5000, 0x5fff).rw(FUNC(solo1_asic_device::reg_mem_r), FUNC(solo1_asic_device::reg_mem_w)); // memUnit
     //map(0x6000, 0x6fff).rw(FUNC(solo1_asic_device::reg_gfx_r), FUNC(solo1_asic_device::reg_gfx_w)); // gfxUnit
-    //map(0x7000, 0x7fff).rw(FUNC(solo1_asic_device::reg_dve_r), FUNC(solo1_asic_device::reg_dve_w)); // dveUnit
+    map(0x7000, 0x7fff).rw(FUNC(solo1_asic_device::reg_dve_r), FUNC(solo1_asic_device::reg_dve_w)); // dveUnit
     //map(0x8000, 0x8fff).rw(FUNC(solo1_asic_device::reg_div_r), FUNC(solo1_asic_device::reg_div_w)); // divUnit
     map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::reg_pot_r), FUNC(solo1_asic_device::reg_pot_w)); // potUnit
     //map(0xa000, 0xafff).rw(FUNC(solo1_asic_device::reg_suc_r), FUNC(solo1_asic_device::reg_suc_w)); // sucUnit
     //map(0xb000, 0xbfff).rw(FUNC(solo1_asic_device::reg_mod_r), FUNC(solo1_asic_device::reg_mod_w)); // modUnit
 }
 
+void solo1_asic_device::set_aud_int_flag(uint32_t value)
+{
+
+}
+
+void solo1_asic_device::set_vid_int_flag(uint32_t value)
+{
+
+}
+
+void solo1_asic_device::set_rio_int_flag(uint32_t value)
+{
+    
+}
+
 void solo1_asic_device::device_add_mconfig(machine_config &config)
 {
-    SOLO1_ASIC_VID(config, m_solovid, 3.579575_MHz_XTAL*2); // NTSC is assumed
-    m_solovid->set_hostcpu(m_hostcpu);
+
 }
 
 void solo1_asic_device::device_start()
@@ -132,6 +180,18 @@ void solo1_asic_device::device_reset()
 
     m_bus_int_status = 0;
     m_bus_int_enable = 0;
+
+    m_bus_aud_int_enable = 0;
+    m_bus_aud_int_status = 0;
+    
+    m_bus_vid_int_enable = 0;
+    m_bus_vid_int_status = 0;
+    
+    m_bus_rio_int_enable = 0;
+    m_bus_rio_int_status = 0;
+
+    m_bus_tim_int_enable = 0;
+    m_bus_tim_int_status = 0;
 
     m_bus_java1_fence_addr_l = 0;
     m_bus_java1_fence_addr_h = 0;
@@ -760,6 +820,16 @@ void solo1_asic_device::reg_mem_w(offs_t offset, uint32_t data)
         break;
     }
     //printf("\n");
+}
+
+uint32_t solo1_asic_device::reg_dve_r(offs_t offset)
+{
+    return m_solovid->reg_dve_r(offset);
+}
+
+void solo1_asic_device::reg_dve_w(offs_t offset, uint32_t data)
+{
+    m_solovid->reg_dve_w(offset, data);
 }
 
 uint32_t solo1_asic_device::reg_pot_r(offs_t offset)
