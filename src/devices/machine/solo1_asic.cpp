@@ -52,6 +52,7 @@
 
 ****************************************************************************************************/
 #include "emu.h"
+
 #include "solo1_asic.h"
 #include "solo1_asic_vid.h"
 
@@ -119,12 +120,15 @@
 #define BUS_RESETCAUSE_WATCHDOG 1 << 1 // Watchdog reset
 #define BUS_RESETCAUSE_SWITCH   1 << 0 // Reset button pressed
 
+#define SOLO1_NTSC_CLOCK 3.579575_MHz_XTAL
+
 DEFINE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device, "solo1_asic", "WebTV SOLO1 ASIC")
 
 solo1_asic_device::solo1_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, SOLO1_ASIC, tag, owner, clock),
+	device_serial_interface(mconfig, *this),
     m_hostcpu(*this, finder_base::DUMMY_TAG),
-    m_solovid(*this, finder_base::DUMMY_TAG),
+//    m_solovid(*this, finder_base::DUMMY_TAG),
     m_sys_timer(nullptr) // when it goes off, timer interrupt fires
 //    m_watchdog_timer(nullptr)
 {
@@ -135,30 +139,33 @@ void solo1_asic_device::regs_map(address_map &map)
     map(0x0000, 0x0fff).rw(FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
     //map(0x1000, 0x1fff).rw(FUNC(solo1_asic_device::reg_rio_r), FUNC(solo1_asic_device::reg_rio_w)); // rioUnit
     //map(0x2000, 0x2fff).rw(FUNC(solo1_asic_device::reg_aud_r), FUNC(solo1_asic_device::reg_aud_w)); // audUnit
-    map(0x3000, 0x3fff).rw(FUNC(solo1_asic_device::reg_vid_r), FUNC(solo1_asic_device::reg_vid_w)); // vidUnit
+//    map(0x3000, 0x3fff).rw(FUNC(solo1_asic_device::reg_vid_r), FUNC(solo1_asic_device::reg_vid_w)); // vidUnit
     map(0x4000, 0x4fff).rw(FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
     map(0x5000, 0x5fff).rw(FUNC(solo1_asic_device::reg_mem_r), FUNC(solo1_asic_device::reg_mem_w)); // memUnit
     //map(0x6000, 0x6fff).rw(FUNC(solo1_asic_device::reg_gfx_r), FUNC(solo1_asic_device::reg_gfx_w)); // gfxUnit
-    map(0x7000, 0x7fff).rw(FUNC(solo1_asic_device::reg_dve_r), FUNC(solo1_asic_device::reg_dve_w)); // dveUnit
+//    map(0x7000, 0x7fff).rw(FUNC(solo1_asic_device::reg_dve_r), FUNC(solo1_asic_device::reg_dve_w)); // dveUnit
     //map(0x8000, 0x8fff).rw(FUNC(solo1_asic_device::reg_div_r), FUNC(solo1_asic_device::reg_div_w)); // divUnit
-    map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::reg_pot_r), FUNC(solo1_asic_device::reg_pot_w)); // potUnit
+//    map(0x9000, 0x9fff).rw(FUNC(solo1_asic_device::reg_pot_r), FUNC(solo1_asic_device::reg_pot_w)); // potUnit
     //map(0xa000, 0xafff).rw(FUNC(solo1_asic_device::reg_suc_r), FUNC(solo1_asic_device::reg_suc_w)); // sucUnit
     //map(0xb000, 0xbfff).rw(FUNC(solo1_asic_device::reg_mod_r), FUNC(solo1_asic_device::reg_mod_w)); // modUnit
 }
 
 void solo1_asic_device::set_aud_int_flag(uint32_t value)
 {
-
+    m_bus_int_status |= BUS_INTSTAT_AUDIO;
+    m_bus_aud_int_status |= value;
 }
 
 void solo1_asic_device::set_vid_int_flag(uint32_t value)
 {
-
+    m_bus_int_status |= BUS_INTSTAT_VIDEO;
+    m_bus_vid_int_status |= value;
 }
 
 void solo1_asic_device::set_rio_int_flag(uint32_t value)
 {
-    
+    m_bus_int_status |= BUS_INTSTAT_RIO;
+    m_bus_rio_int_status |= value;
 }
 
 void solo1_asic_device::device_start()
@@ -261,7 +268,7 @@ TIMER_CALLBACK_MEMBER(solo1_asic_device::sys_timer_callback)
 
 uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
 {
-    //printf("SOLO read: busUnit %04x\n", offset*4);
+    LOGMASKED(LOG_READS, "busUnit: read %04x\n", offset*4);
     switch(offset*4)
     {
     case 0x000: // BUS_CHIPID (R/W)
@@ -392,11 +399,11 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
 
 void solo1_asic_device::reg_bus_w(offs_t offset, uint32_t data)
 {
-    //printf("SOLO write: busUnit %08x to %04x\n", data, offset*4);
+    LOGMASKED(LOG_WRITES, "busUnit: write %08x to %04x\n", data, offset*4);
     switch(offset*4)
     {
     case 0x000: // BUS_CHIPID (R/W)
-        logerror("Discarding write (%08x) to BUS_CHIPID\n", data); // Presumed behavior, there is no real need to write to this register
+        logerror("Attempted write (%08x) to read-only register 0000 (BUS_CHIPID)\n", data); // Presumed behavior, there is no real need to write to this register
         break;
     case 0x004: // BUS_CHIPCNTL (R/W)
         m_bus_chip_cntl = data;
@@ -589,7 +596,7 @@ void solo1_asic_device::reg_bus_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_device::reg_dev_r(offs_t offset)
 {
-    //printf("SOLO read: devUnit %04x\n", offset*4);
+    LOGMASKED(LOG_READS, "devUnit: read 4%03x\n", offset*4);
     switch(offset*4)
     {
     case 0x000: // DEV_IROLD (R/W)
@@ -669,7 +676,7 @@ uint32_t solo1_asic_device::reg_dev_r(offs_t offset)
 
 void solo1_asic_device::reg_dev_w(offs_t offset, uint32_t data)
 {
-    //printf("SOLO write: devUnit %08x to %04x\n", data, offset*4);
+    LOGMASKED(LOG_WRITES, "devUnit: write %08x to 4%03x\n", data, offset*4);
     switch(offset*4)
     {
     case 0x000: // DEV_IROLD (R/W)
@@ -784,7 +791,7 @@ void solo1_asic_device::reg_dev_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_device::reg_mem_r(offs_t offset)
 {
-    //printf("SOLO read: memUnit %04x\n", offset*4);
+    LOGMASKED(LOG_READS, "memUnit: read 5%03x\n", offset*4);
     switch(offset*4)
     {
     case 0x000: // MEM_TIMING (R/W)
@@ -806,7 +813,7 @@ uint32_t solo1_asic_device::reg_mem_r(offs_t offset)
 
 void solo1_asic_device::reg_mem_w(offs_t offset, uint32_t data)
 {
-    //printf("SOLO write: memUnit %08x to %04x", data, offset*4);
+    LOGMASKED(LOG_WRITES, "memUnit: write %08x to 5%03x", data, offset*4);
     switch(offset*4)
     {
     case 0x000: // MEM_TIMING (R/W)
@@ -823,38 +830,14 @@ void solo1_asic_device::reg_mem_w(offs_t offset, uint32_t data)
         break;
     case 0x010: // MEM_CMD (R/W)
         m_mem_cmd = data;
-        /*switch(data>>28) {
-        case 0x2:
-            printf(" (MRS)");
-            break;
-        case 0x4:
-            printf(" (REF)");
-            break;
-        case 0x8:
-            printf(" (PALL)");
-            break;
-        case 0x9:
-            printf(" (PD_ENTRY)");
-            break;
-        case 0xa:
-            printf(" (PD_EXIT)");
-            break;
-        case 0xd:
-            printf(" (SELF_ENTRY)");
-            break;
-        case 0xe:
-            printf(" (SELF_EXIT)");
-            break;
-        }*/
         break;
     default:
         logerror("Attempted write (%08x) to reserved register 5%03x!\n", data, offset*4);
         break;
     }
-    //printf("\n");
 }
 
-uint32_t solo1_asic_device::reg_dve_r(offs_t offset)
+/*uint32_t solo1_asic_device::reg_dve_r(offs_t offset)
 {
     return m_solovid->reg_dve_r(offset);
 }
@@ -882,4 +865,4 @@ uint32_t solo1_asic_device::reg_vid_r(offs_t offset)
 void solo1_asic_device::reg_vid_w(offs_t offset, uint32_t data)
 {
     m_solovid->reg_vid_w(offset, data);
-}
+}*/

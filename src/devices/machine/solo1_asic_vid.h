@@ -20,6 +20,7 @@
 #pragma once
 
 #include "cpu/mips/mips3.h"
+#include "solo1_asic.h"
 
 class solo1_asic_vid_device : public device_t, public device_video_interface
 {
@@ -40,8 +41,14 @@ public:
     
     uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
     
-    void hsync_callback(s32 param);
-    void vsync_callback(s32 param);
+    auto hsync_callback() { return m_hsync_cb.bind(); }
+    auto vsync_callback() { return m_vsync_cb.bind(); }
+
+    void update_h_int_line();
+    
+    uint32_t m_pot_hintline; // Line where the interrupt happened
+    uint32_t m_pot_int_enable;
+    uint32_t m_pot_int_status;
 
 protected:
     virtual void device_add_mconfig(machine_config &config) override;
@@ -50,6 +57,7 @@ protected:
 
 private:
     required_device<mips3_device> m_hostcpu;
+    //solo1_asic_device *m_soloasic;
 	required_device<screen_device> m_screen;
     
     void fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb);
@@ -61,9 +69,6 @@ private:
     uint32_t m_pot_hstart; // Horizontal starting pixel
     uint32_t m_pot_hsize; // Horizontal size
     uint32_t m_pot_cntl;
-    uint32_t m_pot_hintline; // Line where the interrupt happened
-    uint32_t m_pot_int_enable;
-    uint32_t m_pot_int_status;
     uint32_t m_pot_cline; // Current line
 
     uint32_t m_vid_cstart;
@@ -88,6 +93,9 @@ private:
     uint32_t m_intstat;
     
 	bitmap_yuy16 buffer;
+    
+	devcb_write_line   m_hsync_cb;
+	devcb_write_line   m_vsync_cb;
 };
 
 DECLARE_DEVICE_TYPE(SOLO1_ASIC_VID, solo1_asic_vid_device)
