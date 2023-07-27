@@ -35,16 +35,11 @@
 #define VERBOSE         (LOG_DEFAULT)
 #include "logmacro.h"
 
-#define POT_INT_SHIFT     1 << 2
-#define POT_INT_VIDHSYNC  1 << 3 // Interrupt fires on hsync
-#define POT_INT_VIDVSYNCO 1 << 4 // Interrupt fires on odd line vsync
-#define POT_INT_VIDVSYNCE 1 << 5 // Interrupt fires on even line vsync
-
 #define VID_INT_DMA       1 << 2
+
 
 #define SOLO1_NTSC_WIDTH 640
 #define SOLO1_NTSC_HEIGHT 480
-#define SOLO1_NTSC_CLOCK 3.579575_MHz_XTAL
 
 DEFINE_DEVICE_TYPE(SOLO1_ASIC_VID, solo1_asic_vid_device, "solo1_asic_vid", "WebTV SOLO1 ASIC (Video)")
 
@@ -52,8 +47,12 @@ solo1_asic_vid_device::solo1_asic_vid_device(const machine_config &mconfig, cons
 	: device_t(mconfig, SOLO1_ASIC_VID, tag, owner, clock),
 	device_video_interface(mconfig, *this),
     m_hostcpu(*this, finder_base::DUMMY_TAG),
-	m_screen(*this, "screen")
+    //m_soloasic(*this, finder_base::DUMMY_TAG),
+	m_screen(*this, "screen"),
+    m_hsync_cb(*this),
+	m_vsync_cb(*this)
 {
+    //m_soloasic = dynamic_cast<solo1_asic_device *>(owner);
 }
 
 void solo1_asic_vid_device::fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb)
@@ -80,6 +79,7 @@ void solo1_asic_vid_device::device_add_mconfig(machine_config &config)
 	m_screen->set_visarea(0, SOLO1_NTSC_WIDTH - 1, 0, SOLO1_NTSC_HEIGHT - 1);
 	m_screen->set_refresh_hz(59.94);
     m_screen->set_screen_update(FUNC(solo1_asic_vid_device::screen_update));
+    set_clock(m_screen->clock()*2); // internal clock is always set to double the pixel clock
 }
 
 void solo1_asic_vid_device::device_start()
@@ -98,12 +98,18 @@ void solo1_asic_vid_device::device_start()
 
 void solo1_asic_vid_device::device_reset()
 {
+	m_hsync_cb(false);
+	m_vsync_cb(false);
+    m_pot_int_enable = 0;
+    m_pot_int_status = 0;
     m_vid_dmacntl = 0;
+    m_vid_int_enable = 0;
+    m_vid_int_status = 0;
 }
 
 uint32_t solo1_asic_vid_device::reg_pot_r(offs_t offset)
 {
-    //printf("SOLO read: potUnit %04x\n", offset*4);
+    LOGMASKED(LOG_READS, "potUnit: read 9%03x\n", offset*4);
     switch(offset*4)
     {
     case 0x080: // POT_VSTART (R/W)
@@ -139,7 +145,7 @@ uint32_t solo1_asic_vid_device::reg_pot_r(offs_t offset)
 
 void solo1_asic_vid_device::reg_pot_w(offs_t offset, uint32_t data)
 {
-    //printf("SOLO write: potUnit %08x to %04x\n", data, offset*4);
+    LOGMASKED(LOG_WRITES, "potUnit: write %08x to 9%03x\n", data, offset*4);
     switch(offset*4)
     {
     case 0x080: // POT_VSTART (R/W)
@@ -186,7 +192,7 @@ void solo1_asic_vid_device::reg_pot_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_vid_device::reg_dve_r(offs_t offset)
 {
-    //printf("SOLO read: dveUnit %04x\n", offset*4);
+    LOGMASKED(LOG_READS, "dveUnit: read 7%03x\n", offset*4);
     switch(offset*4)
     {
     case 0x000: // DVE_CNTL (R/W)
@@ -216,7 +222,7 @@ uint32_t solo1_asic_vid_device::reg_dve_r(offs_t offset)
 
 void solo1_asic_vid_device::reg_dve_w(offs_t offset, uint32_t data)
 {
-    //printf("SOLO write: dveUnit %08x to %04x\n", data, offset*4);
+    LOGMASKED(LOG_WRITES, "dveUnit: write %08x to 7%03x\n", data, offset*4);
     switch(offset*4)
     {
     case 0x000: // DVE_CNTL (R/W)
@@ -251,7 +257,7 @@ void solo1_asic_vid_device::reg_dve_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_vid_device::reg_vid_r(offs_t offset)
 {
-    //printf("SOLO read: vidUnit %04x\n", offset*4);
+    LOGMASKED(LOG_READS, "vidUnit: read 3%03x\n", offset*4);
     switch(offset*4)
     {
     case 0x000: // VID_CSTART (R/W)
@@ -285,7 +291,7 @@ uint32_t solo1_asic_vid_device::reg_vid_r(offs_t offset)
 
 void solo1_asic_vid_device::reg_vid_w(offs_t offset, uint32_t data)
 {
-    //printf("SOLO write: vidUnit %08x to %04x\n", data, offset*4);
+    LOGMASKED(LOG_WRITES, "vidUnit: write %08x to 3%03x\n", data, offset*4);
     switch(offset*4)
     {
     case 0x000: // VID_CSTART (R/W)
@@ -333,12 +339,7 @@ uint32_t solo1_asic_vid_device::screen_update(screen_device &screen, bitmap_rgb3
     return 0;
 }
 
-void solo1_asic_vid_device::hsync_callback(s32 param)
+void solo1_asic_vid_device::update_h_int_line()
 {
-
-}
-
-void solo1_asic_vid_device::vsync_callback(s32 param)
-{
-
+    m_pot_hintline = m_screen->vpos();
 }
