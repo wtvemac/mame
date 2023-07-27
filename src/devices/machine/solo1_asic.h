@@ -19,10 +19,12 @@
 
 #pragma once
 
+#include "diserial.h"
+
 #include "cpu/mips/mips3.h"
 #include "solo1_asic_vid.h"
 
-class solo1_asic_device : public device_t
+class solo1_asic_device : public device_t, public device_serial_interface
 {
 public:
 	// construction/destruction
@@ -31,14 +33,27 @@ public:
     void regs_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
-	template <typename T> void set_solovid(T &&tag) { m_solovid.set_tag(std::forward<T>(tag)); }
+	//template <typename T> void set_solovid(T &&tag) { m_solovid.set_tag(std::forward<T>(tag)); }
 	//template <typename T> void set_soloaud(T &&tag) { m_soloaud.set_tag(std::forward<T>(tag)); }
 
     void set_aud_int_flag(uint32_t value);
-
     void set_vid_int_flag(uint32_t value);
-
     void set_rio_int_flag(uint32_t value);
+
+    uint32_t reg_bus_r(offs_t offset);
+    void reg_bus_w(offs_t offset, uint32_t data);
+    
+    //uint32_t reg_rio_r(offs_t offset);
+    //void reg_rio_w(offs_t offset, uint32_t data);
+
+    uint32_t reg_dev_r(offs_t offset);
+    void reg_dev_w(offs_t offset, uint32_t data);
+    
+    uint32_t reg_mem_r(offs_t offset);
+    void reg_mem_w(offs_t offset, uint32_t data);
+    
+    //uint32_t reg_suc_r(offs_t offset);
+    //void reg_suc_w(offs_t offset, uint32_t data);
     
 protected:
 	// device-level overrides
@@ -103,7 +118,7 @@ protected:
 
 private:
     required_device<mips3_device> m_hostcpu;
-    required_device<solo1_asic_vid_device> m_solovid;
+    //required_device<solo1_asic_vid_device> m_solovid;
     //required_device<solo1_asic_aud_device> m_soloaud;
 
     emu_timer *m_sys_timer;
@@ -167,24 +182,14 @@ private:
     uint32_t m_mem_cmd; // SDRAM commands
 
     /* End memUnit registers */
+    
+    /*
 
-    uint32_t reg_bus_r(offs_t offset);
-    void reg_bus_w(offs_t offset, uint32_t data);
-    
-    //uint32_t reg_rio_r(offs_t offset);
-    //void reg_rio_w(offs_t offset, uint32_t data);
-    
     //uint32_t reg_aud_r(offs_t offset);
     //void reg_aud_w(offs_t offset, uint32_t data);
     
     uint32_t reg_vid_r(offs_t offset);
     void reg_vid_w(offs_t offset, uint32_t data);
-
-    uint32_t reg_dev_r(offs_t offset);
-    void reg_dev_w(offs_t offset, uint32_t data);
-    
-    uint32_t reg_mem_r(offs_t offset);
-    void reg_mem_w(offs_t offset, uint32_t data);
     
     //uint32_t reg_gfx_r(offs_t offset);
     //void reg_gfx_w(offs_t offset, uint32_t data);
@@ -198,11 +203,10 @@ private:
     uint32_t reg_pot_r(offs_t offset);
     void reg_pot_w(offs_t offset, uint32_t data);
     
-    //uint32_t reg_suc_r(offs_t offset);
-    //void reg_suc_w(offs_t offset, uint32_t data);
-    
     //uint32_t reg_mod_r(offs_t offset);
     //void reg_mod_w(offs_t offset, uint32_t data);
+
+    */
 };
 
 DECLARE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device)
