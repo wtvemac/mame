@@ -33,8 +33,6 @@ public:
     void regs_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
-	//template <typename T> void set_solovid(T &&tag) { m_solovid.set_tag(std::forward<T>(tag)); }
-	//template <typename T> void set_soloaud(T &&tag) { m_soloaud.set_tag(std::forward<T>(tag)); }
 
     void set_aud_int_flag(uint32_t value);
     void set_vid_int_flag(uint32_t value);
@@ -118,8 +116,6 @@ protected:
 
 private:
     required_device<mips3_device> m_hostcpu;
-    //required_device<solo1_asic_vid_device> m_solovid;
-    //required_device<solo1_asic_aud_device> m_soloaud;
 
     emu_timer *m_sys_timer;
     //emu_timer *m_watchdog_timer;
@@ -128,8 +124,8 @@ private:
 
     void solo1_update_cycle_counting();
 
-    void sys_timer_callback(s32 param);
-    //void watchdog_timer_callback(s32 param);
+    TIMER_CALLBACK_MEMBER(sys_timer_callback);
+    //TIMER_CALLBACK_MEMBER(watchdog_timer_callback);
 
     /* Begin devUnit registers */
 
@@ -182,31 +178,20 @@ private:
     uint32_t m_mem_cmd; // SDRAM commands
 
     /* End memUnit registers */
-    
-    /*
 
-    //uint32_t reg_aud_r(offs_t offset);
-    //void reg_aud_w(offs_t offset, uint32_t data);
-    
-    uint32_t reg_vid_r(offs_t offset);
-    void reg_vid_w(offs_t offset, uint32_t data);
-    
-    //uint32_t reg_gfx_r(offs_t offset);
-    //void reg_gfx_w(offs_t offset, uint32_t data);
-    
-    uint32_t reg_dve_r(offs_t offset);
-    void reg_dve_w(offs_t offset, uint32_t data);
-    
-    //uint32_t reg_div_r(offs_t offset);
-    //void reg_div_w(offs_t offset, uint32_t data);
+    /* Begin sucUnit registers */
 
-    uint32_t reg_pot_r(offs_t offset);
-    void reg_pot_w(offs_t offset, uint32_t data);
-    
-    //uint32_t reg_mod_r(offs_t offset);
-    //void reg_mod_w(offs_t offset, uint32_t data);
+    uint32_t m_sucgpu_tff_hr; // TX FIFO data
+    uint32_t m_sucgpu_tff_hrsrw; // TX FIFO data (debug)
+    uint32_t m_sucgpu_tff_trg; // TX FIFO trigger level
+    uint32_t m_sucgpu_tff_cnt; // Current number of entries in TX FIFO
+    uint32_t m_sucgpu_tff_max; // Maximum TX FIFO depth
+    uint32_t m_sucgpu_tff_ctl;
+    uint32_t m_sucgpu_tff_sta;
+    uint32_t m_sucgpu_tff_gcr;
 
-    */
+    /* End sucUnit registers */
+    
 };
 
 DECLARE_DEVICE_TYPE(SOLO1_ASIC, solo1_asic_device)

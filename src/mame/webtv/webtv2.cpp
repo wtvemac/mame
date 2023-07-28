@@ -36,10 +36,10 @@
 #define CPUCLOCK 167000000
 #define SYSCLOCK 83300000
 
-#define POT_INT_SHIFT     1 << 2
+#define POT_INT_SHIFT     1 << 2 // SOLO1 never sets this bit
 #define POT_INT_VIDHSYNC  1 << 3 // Interrupt fires on hsync
-#define POT_INT_VIDVSYNCO 1 << 4 // Interrupt fires on odd line vsync
-#define POT_INT_VIDVSYNCE 1 << 5 // Interrupt fires on even line vsync
+#define POT_INT_VIDVSYNCO 1 << 4 // Interrupt fires on odd field vsync
+#define POT_INT_VIDVSYNCE 1 << 5 // Interrupt fires on even field vsync
 
 #define BUS_VID_INTSTAT_POT 1 << 3 // Interrupt trigger in potUnit
 #define BUS_VID_INTSTAT_VID 1 << 2 // Interrupt trigger in vidUnit
@@ -173,7 +173,6 @@ void webtv2_state::solo_hsync_callback(uint16_t data)
 	if(data==0) return;
     if(m_solovid->m_pot_int_enable&POT_INT_VIDHSYNC)
     {
-        m_solovid->update_h_int_line();
         m_solovid->m_pot_int_status |= POT_INT_VIDHSYNC;
         m_soloasic->set_vid_int_flag(BUS_VID_INTSTAT_POT);
         m_maincpu->set_input_line(0x0, ASSERT_LINE);
@@ -183,8 +182,7 @@ void webtv2_state::solo_hsync_callback(uint16_t data)
 void webtv2_state::solo_vsync_callback(uint16_t data)
 {
 	if(data==0) return;
-    m_solovid->update_h_int_line(); // NOT CONFIRMED TO BE CORRECT BEHAVIOR
-    if(m_solovid->m_pot_hintline%2 == 0)
+    if(m_solovid->isEvenField())
     {
         // even
         if(m_solovid->m_pot_int_enable&POT_INT_VIDVSYNCE)
