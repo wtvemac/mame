@@ -22,6 +22,7 @@
 
 ************************************************************************************************/
 #include "emu.h"
+#include "render.h"
 #include "solo1_asic_vid.h"
 #include "screen.h"
 
@@ -37,9 +38,21 @@
 
 #define VID_INT_DMA       1 << 2
 
-
 #define SOLO1_NTSC_WIDTH 640
 #define SOLO1_NTSC_HEIGHT 480
+
+#define POT_CNTL_DVE_USE_GFX_444  1 << 11
+#define POT_CNTL_DVE_CRCBSEL      1 << 10
+#define POT_CNTL_DVE_HALF_SHIFT   1 << 9
+#define POT_CNTL_HFIELD_LINE      1 << 8
+#define POT_CNTL_VID_SYNC_EN      1 << 7
+#define POT_CNTL_VID_DOUT_EN      1 << 6
+#define POT_CNTL_HALF_SHIFT       1 << 5
+#define POT_CNTL_INVERT_CRCB      1 << 4
+#define POT_CNTL_USE_GFXUNIT      1 << 3
+#define POT_CNTL_SOFT_RESET       1 << 2
+#define POT_CNTL_PROGRESSIVE_SCAN 1 << 1
+#define POT_CNTL_ENABLE_OUTPUTS   1 << 0
 
 DEFINE_DEVICE_TYPE(SOLO1_ASIC_VID, solo1_asic_vid_device, "solo1_asic_vid", "WebTV SOLO1 ASIC (Video)")
 
@@ -78,6 +91,7 @@ void solo1_asic_vid_device::device_add_mconfig(machine_config &config)
     m_screen->set_size(SOLO1_NTSC_WIDTH, SOLO1_NTSC_HEIGHT);
 	m_screen->set_visarea(0, SOLO1_NTSC_WIDTH - 1, 0, SOLO1_NTSC_HEIGHT - 1);
 	m_screen->set_refresh_hz(59.94);
+    
     m_screen->set_screen_update(FUNC(solo1_asic_vid_device::screen_update));
     set_clock(m_screen->clock()*2); // internal clock is always set to double the pixel clock
 }
@@ -113,15 +127,15 @@ uint32_t solo1_asic_vid_device::reg_pot_r(offs_t offset)
     switch(offset*4)
     {
     case 0x080: // POT_VSTART (R/W)
-        return m_pot_vstart;
+        return m_pot_vstart&2047;
     case 0x084: // POT_VSIZE (R/W)
-        return m_pot_vsize;
+        return m_pot_vsize&2047;
     case 0x088: // POT_BLNKCOL (R/W)
         return m_pot_blnkcol;
     case 0x08c: // POT_HSTART (R/W)
-        return m_pot_hstart;
+        return m_pot_hstart&2047;
     case 0x090: // POT_HSIZE (R/W)
-        return m_pot_hsize;
+        return m_pot_hsize&2047;
     case 0x094: // POT_CNTL (R/W)
         return m_pot_cntl;
     case 0x098: // POT_HINTLINE (R/W)
@@ -135,7 +149,7 @@ uint32_t solo1_asic_vid_device::reg_pot_r(offs_t offset)
     case 0x0a8: // POT_INTSTAT (Clear)
         break;
     case 0x0ac: // POT_CLINE (R/W)
-        return m_pot_cline;
+        return m_pot_cline&2047;
     default:
         logerror("Attempted read from reserved register 9%03x!\n", offset*4);
         break;
@@ -149,25 +163,44 @@ void solo1_asic_vid_device::reg_pot_w(offs_t offset, uint32_t data)
     switch(offset*4)
     {
     case 0x080: // POT_VSTART (R/W)
-        m_pot_vstart = data;
+        m_pot_vstart = data&2047;
+        if(m_pot_vstart+m_pot_vsize > SOLO1_NTSC_HEIGHT) {
+            popmessage("Vertical window size is OUT OF RANGE!");
+        }
+        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
         break;
     case 0x084: // POT_VSIZE (R/W)
-        m_pot_vsize = data;
+        m_pot_vsize = data&2047;
+        if(m_pot_vstart+m_pot_vsize > SOLO1_NTSC_HEIGHT) {
+            popmessage("Vertical window size is OUT OF RANGE!");
+        }
+        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
         break;
     case 0x088: // POT_BLNKCOL (R/W)
         m_pot_blnkcol = data;
         break;
     case 0x08c: // POT_HSTART (R/W)
-        m_pot_hstart = data;
+        m_pot_hstart = data&2047;
+        if(m_pot_hstart+m_pot_hsize > SOLO1_NTSC_WIDTH) {
+            popmessage("Horizontal window is OUT OF RANGE!");
+        }
+        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
         break;
     case 0x090: // POT_HSIZE (R/W)
-        m_pot_hsize = data;
+        m_pot_hsize = data&2047;
+        if(m_pot_hstart+m_pot_hsize > SOLO1_NTSC_WIDTH) {
+            popmessage("Horizontal window is OUT OF RANGE!");
+        }
+        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
         break;
     case 0x094: // POT_CNTL (R/W)
         m_pot_cntl = data;
+        if(m_pot_cntl&POT_CNTL_USE_GFXUNIT) {
+            popmessage("gfxUnit source NOT IMPLEMENTED!");
+        }
         break;
     case 0x098: // POT_HINTLINE (R/W)
-        m_pot_hintline = data;
+        m_pot_hintline = data&2047;
         break;
     case 0x09c: // POT_INTEN (R/Set)
         m_pot_int_enable |= data; // TODO: is this correct behavior?
@@ -335,11 +368,20 @@ void solo1_asic_vid_device::reg_vid_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_vid_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-    // TODO: everything
+    m_videotex->set_bitmap(m_videobitmap, m_videobitmap.cliprect(), TEXFORMAT_YUY16);
+
+    // reset the screen contents
+    screen.container().empty();
+
+    // add the video texture
+    rgb_t videocolor = 0xffffffff; // Fully visible, white
+    if (m_pot_cntl&POT_CNTL_ENABLE_OUTPUTS == 0)
+        videocolor = 0xff000000; // Blank the texture's RGB of the texture
+    m_screen->container().add_quad(0.0f, 0.0f, 1.0f, 1.0f, videocolor, m_videotex, PRIMFLAG_BLENDMODE(BLENDMODE_NONE) | PRIMFLAG_SCREENTEX(1));
     return 0;
 }
 
-void solo1_asic_vid_device::update_h_int_line()
+bool solo1_asic_vid_device::isEvenField()
 {
-    m_pot_hintline = m_screen->vpos();
+    return false;
 }
