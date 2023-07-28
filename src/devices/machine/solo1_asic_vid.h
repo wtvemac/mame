@@ -44,7 +44,9 @@ public:
     auto hsync_callback() { return m_hsync_cb.bind(); }
     auto vsync_callback() { return m_vsync_cb.bind(); }
 
-    void update_h_int_line();
+
+
+    bool isEvenField();
     
     uint32_t m_pot_hintline; // Line where the interrupt happened
     uint32_t m_pot_int_enable;
@@ -57,7 +59,6 @@ protected:
 
 private:
     required_device<mips3_device> m_hostcpu;
-    //solo1_asic_device *m_soloasic;
 	required_device<screen_device> m_screen;
     
     void fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb);
@@ -92,10 +93,15 @@ private:
 
     uint32_t m_intstat;
     
-	bitmap_yuy16 buffer;
+	bitmap_yuy16        m_videobitmap;
+	render_texture *    m_videotex;             // texture for the video
+	palette_t *         m_videopalette;         // palette for the video
     
 	devcb_write_line   m_hsync_cb;
 	devcb_write_line   m_vsync_cb;
+
+    TIMER_CALLBACK_MEMBER(vsync_on);
+    TIMER_CALLBACK_MEMBER(vsync_off);
 };
 
 DECLARE_DEVICE_TYPE(SOLO1_ASIC_VID, solo1_asic_vid_device)
