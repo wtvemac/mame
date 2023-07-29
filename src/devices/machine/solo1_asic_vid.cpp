@@ -62,6 +62,7 @@ solo1_asic_vid_device::solo1_asic_vid_device(const machine_config &mconfig, cons
     m_hostcpu(*this, finder_base::DUMMY_TAG),
     //m_soloasic(*this, finder_base::DUMMY_TAG),
 	m_screen(*this, "screen"),
+    m_videobitmap(SOLO1_NTSC_WIDTH, SOLO1_NTSC_HEIGHT),
     m_hsync_cb(*this),
 	m_vsync_cb(*this)
 {
@@ -375,7 +376,7 @@ uint32_t solo1_asic_vid_device::screen_update(screen_device &screen, bitmap_rgb3
 
     // add the video texture
     rgb_t videocolor = 0xffffffff; // Fully visible, white
-    if (m_pot_cntl&POT_CNTL_ENABLE_OUTPUTS == 0)
+    if ((m_pot_cntl&POT_CNTL_ENABLE_OUTPUTS) == 0)
         videocolor = 0xff000000; // Blank the texture's RGB of the texture
     m_screen->container().add_quad(0.0f, 0.0f, 1.0f, 1.0f, videocolor, m_videotex, PRIMFLAG_BLENDMODE(BLENDMODE_NONE) | PRIMFLAG_SCREENTEX(1));
     return 0;
