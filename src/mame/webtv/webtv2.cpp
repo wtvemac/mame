@@ -87,7 +87,7 @@ void webtv2_state::webtv2_map(address_map& map)
 	map.global_mask(0x1fffffff);
 
 	// RAM
-	map(0x00000000, 0x03ffffff).ram().share("mainram");
+	map(0x00000000, 0x03ffffff).ram().share("mainram"); // TODO: make the size definable; all 64MB is allocated currently
 
 	// SOLO registers
 	//map(0x04000000, 0x047fffff).m(m_soloasic, FUNC(solo1_asic_device::regs_map)).share("solo_regs");
@@ -137,7 +137,6 @@ void webtv2_state::webtv2_base(machine_config& config)
 
 	SOLO1_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
-	//m_soloasic->set_solovid(m_solovid);
 	
     SOLO1_ASIC_VID(config, m_solovid, 0); // clock freq will be set internally during screen initialization
 	m_solovid->set_hostcpu(m_maincpu);
