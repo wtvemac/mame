@@ -46,7 +46,7 @@ public:
 
 
 
-    bool isEvenField();
+    bool is_even_field();
     
     uint32_t m_pot_hintline; // Line where the interrupt happened
     uint32_t m_pot_int_enable;
