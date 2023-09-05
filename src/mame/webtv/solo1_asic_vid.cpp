@@ -94,7 +94,7 @@ void solo1_asic_vid_device::device_add_mconfig(machine_config &config)
 	m_screen->set_refresh_hz(59.94);
     
     m_screen->set_screen_update(FUNC(solo1_asic_vid_device::screen_update));
-    set_clock(m_screen->clock()*2); // internal clock is always set to double the pixel clock
+    set_clock(m_screen->clock() * 2); // internal clock is always set to double the pixel clock
 }
 
 void solo1_asic_vid_device::device_start()
@@ -120,23 +120,26 @@ void solo1_asic_vid_device::device_reset()
     m_vid_dmacntl = 0;
     m_vid_int_enable = 0;
     m_vid_int_status = 0;
+    
+	m_videobitmap.fill(0x0000);
 }
 
 uint32_t solo1_asic_vid_device::reg_pot_r(offs_t offset)
 {
-    LOGMASKED(LOG_READS, "potUnit: read 9%03x\n", offset*4);
-    switch(offset*4)
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
+    LOGMASKED(LOG_READS, "potUnit: read 9%03x\n", offset * 4);
+    switch(offset * 4)
     {
     case 0x080: // POT_VSTART (R/W)
-        return m_pot_vstart&2047;
+        return m_pot_vstart & 2047;
     case 0x084: // POT_VSIZE (R/W)
-        return m_pot_vsize&2047;
+        return m_pot_vsize & 2047;
     case 0x088: // POT_BLNKCOL (R/W)
         return m_pot_blnkcol;
     case 0x08c: // POT_HSTART (R/W)
-        return m_pot_hstart&2047;
+        return m_pot_hstart & 2047;
     case 0x090: // POT_HSIZE (R/W)
-        return m_pot_hsize&2047;
+        return m_pot_hsize & 2047;
     case 0x094: // POT_CNTL (R/W)
         return m_pot_cntl;
     case 0x098: // POT_HINTLINE (R/W)
@@ -150,9 +153,9 @@ uint32_t solo1_asic_vid_device::reg_pot_r(offs_t offset)
     case 0x0a8: // POT_INTSTAT (Clear)
         break;
     case 0x0ac: // POT_CLINE (R/W)
-        return m_pot_cline&2047;
+        return m_pot_cline & 2047;
     default:
-        logerror("Attempted read from reserved register 9%03x!\n", offset*4);
+        logerror("Attempted read from reserved register 9%03x!\n", offset * 4);
         break;
     }
     return 0;
@@ -160,48 +163,54 @@ uint32_t solo1_asic_vid_device::reg_pot_r(offs_t offset)
 
 void solo1_asic_vid_device::reg_pot_w(offs_t offset, uint32_t data)
 {
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
     LOGMASKED(LOG_WRITES, "potUnit: write %08x to 9%03x\n", data, offset*4);
-    switch(offset*4)
+    switch(offset * 4)
     {
     case 0x080: // POT_VSTART (R/W)
-        m_pot_vstart = data&2047;
-        if(m_pot_vstart+m_pot_vsize > SOLO1_NTSC_HEIGHT) {
+        m_pot_vstart = data & 2047;
+        if(m_pot_vstart + m_pot_vsize > SOLO1_NTSC_HEIGHT)
+        {
             popmessage("Vertical window size is OUT OF RANGE!");
         }
-        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
+        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart + m_pot_hsize, m_pot_vstart, m_pot_vstart + m_pot_vsize);
         break;
     case 0x084: // POT_VSIZE (R/W)
-        m_pot_vsize = data&2047;
-        if(m_pot_vstart+m_pot_vsize > SOLO1_NTSC_HEIGHT) {
+        m_pot_vsize = data & 2047;
+        if(m_pot_vstart + m_pot_vsize > SOLO1_NTSC_HEIGHT)
+        {
             popmessage("Vertical window size is OUT OF RANGE!");
         }
-        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
+        m_screen->set_visible_area(m_pot_hstart, m_pot_hstart + m_pot_hsize, m_pot_vstart, m_pot_vstart + m_pot_vsize);
         break;
     case 0x088: // POT_BLNKCOL (R/W)
         m_pot_blnkcol = data;
         break;
     case 0x08c: // POT_HSTART (R/W)
-        m_pot_hstart = data&2047;
-        if(m_pot_hstart+m_pot_hsize > SOLO1_NTSC_WIDTH) {
+        m_pot_hstart = data & 2047;
+        if(m_pot_hstart + m_pot_hsize > SOLO1_NTSC_WIDTH)
+        {
             popmessage("Horizontal window is OUT OF RANGE!");
         }
         m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
         break;
     case 0x090: // POT_HSIZE (R/W)
-        m_pot_hsize = data&2047;
-        if(m_pot_hstart+m_pot_hsize > SOLO1_NTSC_WIDTH) {
+        m_pot_hsize = data & 2047;
+        if(m_pot_hstart + m_pot_hsize > SOLO1_NTSC_WIDTH)
+        {
             popmessage("Horizontal window is OUT OF RANGE!");
         }
         m_screen->set_visible_area(m_pot_hstart, m_pot_hstart+m_pot_hsize, m_pot_vstart, m_pot_vstart+m_pot_vsize);
         break;
     case 0x094: // POT_CNTL (R/W)
         m_pot_cntl = data;
-        if(m_pot_cntl&POT_CNTL_USE_GFXUNIT) {
+        if(m_pot_cntl & POT_CNTL_USE_GFXUNIT)
+        {
             popmessage("gfxUnit source NOT IMPLEMENTED!");
         }
         break;
     case 0x098: // POT_HINTLINE (R/W)
-        m_pot_hintline = data&2047;
+        m_pot_hintline = data & 2047;
         break;
     case 0x09c: // POT_INTEN (R/Set)
         m_pot_int_enable |= data; // TODO: is this correct behavior?
@@ -226,8 +235,9 @@ void solo1_asic_vid_device::reg_pot_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_vid_device::reg_dve_r(offs_t offset)
 {
-    LOGMASKED(LOG_READS, "dveUnit: read 7%03x\n", offset*4);
-    switch(offset*4)
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
+    LOGMASKED(LOG_READS, "dveUnit: read 7%03x\n", offset * 4);
+    switch(offset * 4)
     {
     case 0x000: // DVE_CNTL (R/W)
         return m_dve_cntl;
@@ -248,7 +258,7 @@ uint32_t solo1_asic_vid_device::reg_dve_r(offs_t offset)
     case 0x01c: // DVE_FILTCNTL (R/W)
         return m_dve_filtcntl;
     default:
-        logerror("Attempted read from reserved register 7%03x!\n", offset*4);
+        logerror("Attempted read from reserved register 7%03x!\n", offset * 4);
         break;
     }
     return 0;
@@ -256,8 +266,9 @@ uint32_t solo1_asic_vid_device::reg_dve_r(offs_t offset)
 
 void solo1_asic_vid_device::reg_dve_w(offs_t offset, uint32_t data)
 {
-    LOGMASKED(LOG_WRITES, "dveUnit: write %08x to 7%03x\n", data, offset*4);
-    switch(offset*4)
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
+    LOGMASKED(LOG_WRITES, "dveUnit: write %08x to 7%03x\n", data, offset * 4);
+    switch(offset * 4)
     {
     case 0x000: // DVE_CNTL (R/W)
         m_dve_cntl = data;
@@ -284,15 +295,16 @@ void solo1_asic_vid_device::reg_dve_w(offs_t offset, uint32_t data)
         m_dve_filtcntl = data;
         break;
     default:
-        logerror("Attempted write (%08x) to reserved register 7%03x!\n", data, offset*4);
+        logerror("Attempted write (%08x) to reserved register 7%03x!\n", data, offset * 4);
         break;
     }
 }
 
 uint32_t solo1_asic_vid_device::reg_vid_r(offs_t offset)
 {
-    LOGMASKED(LOG_READS, "vidUnit: read 3%03x\n", offset*4);
-    switch(offset*4)
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
+    LOGMASKED(LOG_READS, "vidUnit: read 3%03x\n", offset * 4);
+    switch(offset * 4)
     {
     case 0x000: // VID_CSTART (R/W)
         return m_vid_cstart;
@@ -317,7 +329,7 @@ uint32_t solo1_asic_vid_device::reg_vid_r(offs_t offset)
     case 0x13c: // VID_INTEN (Clear)
         break;
     default:
-        logerror("Attempted read from reserved register 3%03x!\n", offset*4);
+        logerror("Attempted read from reserved register 3%03x!\n", offset * 4);
         break;
     }
     return 0;
@@ -325,8 +337,9 @@ uint32_t solo1_asic_vid_device::reg_vid_r(offs_t offset)
 
 void solo1_asic_vid_device::reg_vid_w(offs_t offset, uint32_t data)
 {
-    LOGMASKED(LOG_WRITES, "vidUnit: write %08x to 3%03x\n", data, offset*4);
-    switch(offset*4)
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
+    LOGMASKED(LOG_WRITES, "vidUnit: write %08x to 3%03x\n", data, offset * 4);
+    switch(offset * 4)
     {
     case 0x000: // VID_CSTART (R/W)
         logerror("Attempted write to read-only register 3000 (VID_CSTART)\n");
@@ -362,13 +375,14 @@ void solo1_asic_vid_device::reg_vid_w(offs_t offset, uint32_t data)
         m_vid_int_enable &= ~data; // TODO: is this correct behavior?
         break;
     default:
-        logerror("Attempted write (%08x) to reserved register 3%03x!\n", data, offset*4);
+        logerror("Attempted write (%08x) to reserved register 3%03x!\n", data, offset * 4);
         break;
     }
 }
 
 uint32_t solo1_asic_vid_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+    /*
     m_videotex->set_bitmap(m_videobitmap, m_videobitmap.cliprect(), TEXFORMAT_YUY16);
 
     // reset the screen contents
@@ -379,10 +393,11 @@ uint32_t solo1_asic_vid_device::screen_update(screen_device &screen, bitmap_rgb3
     if ((m_pot_cntl&POT_CNTL_ENABLE_OUTPUTS) == 0)
         videocolor = 0xff000000; // Blank the texture's RGB of the texture
     m_screen->container().add_quad(0.0f, 0.0f, 1.0f, 1.0f, videocolor, m_videotex, PRIMFLAG_BLENDMODE(BLENDMODE_NONE) | PRIMFLAG_SCREENTEX(1));
+    */
     return 0;
 }
 
-bool solo1_asic_vid_device::isEvenField()
+bool solo1_asic_vid_device::is_even_field()
 {
     return false;
 }
