@@ -31,6 +31,12 @@ public:
 	solo1_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
     void regs_map(address_map &map);
+    
+    void bus_unit_map(address_map &map);
+    //void rio_unit_map(address_map &map);
+    void dev_unit_map(address_map &map);
+    void mem_unit_map(address_map &map);
+    //void suc_unit_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 

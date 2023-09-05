@@ -25,10 +25,12 @@
 #include "emu.h"
 
 #include "cpu/mips/mips3.h"
-#include "machine/solo1_asic.h"
-#include "machine/solo1_asic_vid.h"
+#include "solo1_asic.h"
+#include "solo1_asic_vid.h"
 #include "bus/ata/ataintf.h"
 #include "bus/ata/hdd.h"
+
+#include "webtv.lh"
 
 #include "main.h"
 #include "screen.h"
@@ -56,9 +58,12 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_soloasic(*this, "solo"),
-    	m_solovid(*this, "solo_vid")
+    	m_solovid(*this, "solo_vid"),
 //    	m_soloaud(*this, "solo_aud"),
-//		m_ata0(*this, "ata")
+//		m_ata0(*this, "ata"),
+		m_power_led(*this, "power_led"),
+		m_connect_led(*this, "connect_led"),
+		m_message_led(*this, "message_led")
 	{ }
 
 	void webtv2_base(machine_config& config);
@@ -79,30 +84,76 @@ private:
 //	required_device<solo1_asic_aud_device> m_soloaud;
 //	required_device<ata_interface_device> m_ata0;
 
+	output_finder<1> m_power_led;
+	output_finder<1> m_connect_led;
+	output_finder<1> m_message_led;
+
+	enum
+	{
+		LED_POWER = 0x4,
+		LED_CONNECTED = 0x2,
+		LED_MESSAGE = 0x1
+	};
+
+	void led_w(uint32_t data);
+	uint32_t led_r();
+
 	void webtv2_map(address_map& map);
 };
 
-void webtv2_state::webtv2_map(address_map& map)
+void webtv2_state::led_w(uint32_t data)
+{
+}
+
+uint32_t webtv2_state::led_r()
+{
+    return 0;
+}
+
+void webtv2_state::webtv2_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
 
 	// RAM
-	map(0x00000000, 0x03ffffff).ram().share("mainram"); // TODO: make the size definable; all 64MB is allocated currently
+	map(0x00000000, 0x03ffffff).ram().share("mainram"); // TODO: allocating all 64MB is inaccurate to retail hardware!
 
-	// SOLO registers
-	//map(0x04000000, 0x047fffff).m(m_soloasic, FUNC(solo1_asic_device::regs_map)).share("solo_regs");
+	// SOLO
+	// busUnit: 0x04000000 - 0x04000fff
+	map(0x04000000, 0x04000004).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
+	//map(0x0)
+	map(0x04000008, 0x04000fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
 
-	map(0x04000000, 0x04000fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
+	// rioUnit: 0x04001000 - 0x04001fff
     //map(0x04001000, 0x04001fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_rio_r), FUNC(solo1_asic_device::reg_rio_w)); // rioUnit
+
+	// audUnit: 0x04002000 - 0x04002fff
     //map(0x04002000, 0x04002fff).rw(m_soloaud, FUNC(solo1_asic_aud_device::reg_aud_r), FUNC(solo1_asic_aud_device::reg_aud_w)); // audUnit
+
+	// vidUnit: 0x04003000 - 0x04003fff
     map(0x04003000, 0x04003fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_vid_r), FUNC(solo1_asic_vid_device::reg_vid_w)); // vidUnit
+
+	// devUnit: 0x04004000 - 0x04004fff
     map(0x04004000, 0x04004fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
+
+	// memUnit: 0x04005000 - 0x04005fff
     map(0x04005000, 0x04005fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_mem_r), FUNC(solo1_asic_device::reg_mem_w)); // memUnit
+
+	// gfxUnit: 0x04006000 - 0x04006fff
     //map(0x04006000, 0x04006fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_gfx_r), FUNC(solo1_asic_vid_device::reg_gfx_w)); // gfxUnit
+
+	// dveUnit: 0x04007000 - 0x04007fff
     map(0x04007000, 0x04007fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_dve_r), FUNC(solo1_asic_vid_device::reg_dve_w)); // dveUnit
+
+	// divUnit: 0x04008000 - 0x04008fff
     //map(0x04008000, 0x04008fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_div_r), FUNC(solo1_asic_device::reg_div_w)); // divUnit
+
+	// potUnit: 0x04009000 - 0x04009fff
     map(0x04009000, 0x04009fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_pot_r), FUNC(solo1_asic_vid_device::reg_pot_w)); // potUnit
+
+	// sucUnit: 0x0400a000 - 0x0400afff
     //map(0x0400a000, 0x0400afff).rw(m_soloasic, FUNC(solo1_asic_device::reg_suc_r), FUNC(solo1_asic_device::reg_suc_w)); // sucUnit
+
+	// modUnit: 0x0400b000 - 0x0400bfff
     //map(0x0400b000, 0x0400bfff).rw(m_soloaud, FUNC(solo1_asic_aud_device::reg_mod_r), FUNC(solo1_asic_aud_device::reg_mod_w)); // modUnit
 
 	// expansion device areas
@@ -130,6 +181,8 @@ void webtv2_state::webtv2_map(address_map& map)
 
 void webtv2_state::webtv2_base(machine_config& config)
 {
+	config.set_default_layout(layout_webtv);
+
 	R4640BE(config, m_maincpu, CPUCLOCK);
 	m_maincpu->set_icache_size(8192);
 	m_maincpu->set_dcache_size(8192);
@@ -174,21 +227,21 @@ void webtv2_state::solo_hsync_callback(uint16_t data)
     {
         m_solovid->m_pot_int_status |= POT_INT_VIDHSYNC;
         m_soloasic->set_vid_int_flag(BUS_VID_INTSTAT_POT);
-        m_maincpu->set_input_line(0x0, ASSERT_LINE);
+        m_maincpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
     }
 }
 
 void webtv2_state::solo_vsync_callback(uint16_t data)
 {
 	if(data==0) return;
-    if(m_solovid->isEvenField())
+    if(m_solovid->is_even_field())
     {
         // even
         if(m_solovid->m_pot_int_enable&POT_INT_VIDVSYNCE)
         {
             m_solovid->m_pot_int_status |= POT_INT_VIDVSYNCE;
             m_soloasic->set_vid_int_flag(BUS_VID_INTSTAT_POT);
-            m_maincpu->set_input_line(0x0, ASSERT_LINE);
+            m_maincpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
         }
     }
     else
@@ -198,7 +251,7 @@ void webtv2_state::solo_vsync_callback(uint16_t data)
         {
             m_solovid->m_pot_int_status |= POT_INT_VIDVSYNCO;
             m_soloasic->set_vid_int_flag(BUS_VID_INTSTAT_POT);
-            m_maincpu->set_input_line(0x0, ASSERT_LINE);
+            m_maincpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
         }
     }
 }
@@ -234,5 +287,5 @@ ROM_END
 }
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE        INPUT  CLASS         INIT        COMPANY               FULLNAME                        FLAGS
-CONS( 1997, wtv2sony,      0,      0, webtv2_sony,       0, webtv2_state, empty_init, "Sony",               "INT-W200 WebTV Plus Receiver", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-CONS( 1997, wtv2phil,      0,      0, webtv2_philips,    0, webtv2_state, empty_init, "Philips-Magnavox",   "MAT972 WebTV Plus Receiver",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+CONS( 1997, wtv2sony,      0,      0, webtv2_sony,       0, webtv2_state, empty_init, "Sony",               "INT-W200 WebTV Plus Receiver", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_MICROPHONE | MACHINE_NODEVICE_PRINTER )
+CONS( 1997, wtv2phil,      0,      0, webtv2_philips,    0, webtv2_state, empty_init, "Philips-Magnavox",   "MAT972 WebTV Plus Receiver",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_MICROPHONE | MACHINE_NODEVICE_PRINTER )
