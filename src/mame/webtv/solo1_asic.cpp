@@ -262,14 +262,15 @@ TIMER_CALLBACK_MEMBER(solo1_asic_device::sys_timer_callback)
     {
         m_bus_int_status |= BUS_INTSTAT_TIMER;
         m_bus_tim_int_status |= BUS_TIM_INTSTAT_SYSTIMER;
-        m_hostcpu->set_input_line(0x0, ASSERT_LINE);
+        m_hostcpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
     }
 }
 
 uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
 {
-    LOGMASKED(LOG_READS, "busUnit: read %04x\n", offset*4);
-    switch(offset*4)
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
+    LOGMASKED(LOG_READS, "busUnit: read %04x\n", offset * 4);
+    switch(offset * 4)
     {
     case 0x000: // BUS_CHIPID (R/W)
         return m_bus_chip_id;
@@ -391,7 +392,7 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
     case 0x0cc: // BUS_USEBOOTMODE (R/W)
         return m_bus_use_bootmode;
     default:
-        logerror("Attempted read from reserved register 0%03x!\n", offset*4);
+        logerror("Attempted read from reserved register 0%03x!\n", offset * 4);
         break;
     }
     return 0;
@@ -399,8 +400,9 @@ uint32_t solo1_asic_device::reg_bus_r(offs_t offset)
 
 void solo1_asic_device::reg_bus_w(offs_t offset, uint32_t data)
 {
-    LOGMASKED(LOG_WRITES, "busUnit: write %08x to %04x\n", data, offset*4);
-    switch(offset*4)
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
+    LOGMASKED(LOG_WRITES, "busUnit: write %08x to %04x\n", data, offset * 4);
+    switch(offset * 4)
     {
     case 0x000: // BUS_CHIPID (R/W)
         logerror("Attempted write (%08x) to read-only register 0000 (BUS_CHIPID)\n", data); // Presumed behavior, there is no real need to write to this register
@@ -596,8 +598,9 @@ void solo1_asic_device::reg_bus_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_device::reg_dev_r(offs_t offset)
 {
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
     LOGMASKED(LOG_READS, "devUnit: read 4%03x\n", offset*4);
-    switch(offset*4)
+    switch(offset * 4)
     {
     case 0x000: // DEV_IROLD (R/W)
         return m_dev_irold;
@@ -676,6 +679,7 @@ uint32_t solo1_asic_device::reg_dev_r(offs_t offset)
 
 void solo1_asic_device::reg_dev_w(offs_t offset, uint32_t data)
 {
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
     LOGMASKED(LOG_WRITES, "devUnit: write %08x to 4%03x\n", data, offset*4);
     switch(offset*4)
     {
@@ -791,6 +795,7 @@ void solo1_asic_device::reg_dev_w(offs_t offset, uint32_t data)
 
 uint32_t solo1_asic_device::reg_mem_r(offs_t offset)
 {
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
     LOGMASKED(LOG_READS, "memUnit: read 5%03x\n", offset*4);
     switch(offset*4)
     {
@@ -813,6 +818,7 @@ uint32_t solo1_asic_device::reg_mem_r(offs_t offset)
 
 void solo1_asic_device::reg_mem_w(offs_t offset, uint32_t data)
 {
+    // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
     LOGMASKED(LOG_WRITES, "memUnit: write %08x to 5%03x", data, offset*4);
     switch(offset*4)
     {
