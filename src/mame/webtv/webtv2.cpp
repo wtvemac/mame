@@ -119,8 +119,8 @@ void webtv2_state::webtv2_map(address_map &map)
 
 	// SOLO
 	// busUnit: 0x04000000 - 0x04000fff
-	map(0x04000000, 0x04000004).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
-	//map(0x0)
+	map(0x04000000, 0x04000003).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
+	map(0x04000004, 0x04000007).rw(FUNC(led_r), FUNC(led_w));
 	map(0x04000008, 0x04000fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
 
 	// rioUnit: 0x04001000 - 0x04001fff
