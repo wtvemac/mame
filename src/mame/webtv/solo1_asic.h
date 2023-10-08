@@ -50,6 +50,9 @@ public:
     //uint32_t reg_rio_r(offs_t offset);
     //void reg_rio_w(offs_t offset, uint32_t data);
 
+    uint32_t reg_dev_irold_r(offs_t offset);
+    void reg_dev_irold_w(offs_t offset, uint32_t data);
+
     uint32_t reg_dev_r(offs_t offset);
     void reg_dev_w(offs_t offset, uint32_t data);
     
