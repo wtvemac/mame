@@ -599,12 +599,14 @@ void solo1_asic_device::reg_bus_w(offs_t offset, uint32_t data)
 uint32_t solo1_asic_device::reg_dev_r(offs_t offset)
 {
     // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
-    LOGMASKED(LOG_READS, "devUnit: read 4%03x\n", offset*4);
-    switch(offset * 4)
+    LOGMASKED(LOG_READS, "devUnit: read 4%03x\n", (offset+2)*4);
+    switch((offset+2) * 4)
     {
     case 0x000: // DEV_IROLD (R/W)
+        // TODO: Remove this case! This isn't used anymore!
         return m_dev_irold;
     case 0x004: // DEV_LED (R/W)
+        // TODO: Remove this case! This isn't used anymore!
         return m_dev_led;
     case 0x008: // DEV_IDCNTL (R/W)
         return m_dev_id_chip_cntl;
@@ -677,18 +679,30 @@ uint32_t solo1_asic_device::reg_dev_r(offs_t offset)
     return 0;
 }
 
+uint32_t solo1_asic_device::reg_dev_irold_r(offs_t offset)
+{
+    return m_dev_irold;
+}
+
+void solo1_asic_device::reg_dev_irold_w(offs_t offset, uint32_t data)
+{
+    m_dev_irold = data;
+}
+
 void solo1_asic_device::reg_dev_w(offs_t offset, uint32_t data)
 {
     // TODO: split this out into multiple handlers! using a giant switch statement for this is just ugly
-    LOGMASKED(LOG_WRITES, "devUnit: write %08x to 4%03x\n", data, offset*4);
-    switch(offset*4)
+    LOGMASKED(LOG_WRITES, "devUnit: write %08x to 4%03x\n", data, (offset+2)*4);
+    switch((offset+2)*4)
     {
     case 0x000: // DEV_IROLD (R/W)
+        // TODO: Remove this case! This isn't used anymore!
         m_dev_irold = data;
         break;
     case 0x004: // DEV_LED (R/W)
+        // TODO: Remove this case! This isn't used anymore!
         m_dev_led = data;
-        popmessage("LEDs: %d %d %d", (~data)&0x4/0x4, (~data)&0x2/0x2, (~data)&0x1);
+        popmessage("[DEBUG] LEDs: %d %d %d", (~data)&0x4/0x4, (~data)&0x2/0x2, (~data)&0x1);
         break;
     case 0x008: // DEV_IDCNTL (R/W)
         m_dev_id_chip_cntl = data;
