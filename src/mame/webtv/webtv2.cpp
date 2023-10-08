@@ -103,6 +103,9 @@ private:
 
 void webtv2_state::led_w(uint32_t data)
 {
+	m_power_led[0] = BIT(~data, 2);
+	m_connect_led[0] = BIT(~data, 1);
+	m_message_led[0] = BIT(~data, 0);
 }
 
 uint32_t webtv2_state::led_r()
@@ -119,9 +122,7 @@ void webtv2_state::webtv2_map(address_map &map)
 
 	// SOLO
 	// busUnit: 0x04000000 - 0x04000fff
-	map(0x04000000, 0x04000003).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
-	map(0x04000004, 0x04000007).rw(FUNC(led_r), FUNC(led_w));
-	map(0x04000008, 0x04000fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
+	map(0x04000000, 0x04000fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
 
 	// rioUnit: 0x04001000 - 0x04001fff
     //map(0x04001000, 0x04001fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_rio_r), FUNC(solo1_asic_device::reg_rio_w)); // rioUnit
@@ -133,7 +134,9 @@ void webtv2_state::webtv2_map(address_map &map)
     map(0x04003000, 0x04003fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_vid_r), FUNC(solo1_asic_vid_device::reg_vid_w)); // vidUnit
 
 	// devUnit: 0x04004000 - 0x04004fff
-    map(0x04004000, 0x04004fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
+    map(0x04004000, 0x04004003).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
+	map(0x04004004, 0x04004007).rw(FUNC(led_r), FUNC(led_w));
+	map(0x04004008, 0x04004fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
 
 	// memUnit: 0x04005000 - 0x04005fff
     map(0x04005000, 0x04005fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_mem_r), FUNC(solo1_asic_device::reg_mem_w)); // memUnit
