@@ -5478,17 +5478,3 @@ if (MACHINES["SUN1_MMU"]~=null) then
 		MAME_DIR .. "src/devices/machine/sun1_mmu.h",
 	}
 end
-
----------------------------------------------------
---
---@src/devices/machine/solo1_asic.h,MACHINES["SOLO1_ASIC"] = true
----------------------------------------------------
-
-if (MACHINES["SOLO1_ASIC"]~=null) then
-	files {
-		MAME_DIR .. "src/devices/machine/solo1_asic_vid.cpp",
-		MAME_DIR .. "src/devices/machine/solo1_asic_vid.h",
-		MAME_DIR .. "src/devices/machine/solo1_asic.cpp",
-		MAME_DIR .. "src/devices/machine/solo1_asic.h",
-	}
-end
