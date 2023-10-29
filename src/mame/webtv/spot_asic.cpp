@@ -51,12 +51,19 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 
 void spot_asic_device::bus_unit_map(address_map &map)
 {
-    // TODO: map out busUnit!
+    map(0x000, 0x003).r(FUNC(spot_asic_device::reg_0000_r));
+    map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_0004_r), FUNC(spot_asic_device::reg_0004_w));
+    map(0x008, 0x00b).r(FUNC(spot_asic_device::reg_0008_r));
+    map(0x108, 0x10b).w(FUNC(spot_asic_device::reg_0108_w));
+    map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_000c_r), FUNC(spot_asic_device::reg_000c_w));
+    map(0x10c, 0x10f).w(FUNC(spot_asic_device::reg_010c_w));
+    // TODO: map out the rest of busUnit!
 }
 
 void spot_asic_device::rom_unit_map(address_map &map)
 {
-    // TODO: map out romUnit!
+    map(0x000, 0x003).r(FUNC(spot_asic_device::reg_1000_r));
+    // TODO: map out the rest of romUnit!
 }
 
 void spot_asic_device::aud_unit_map(address_map &map)
@@ -76,7 +83,7 @@ void spot_asic_device::dev_unit_map(address_map &map)
 
 void spot_asic_device::mem_unit_map(address_map &map)
 {
-    // TODO: map out memUnit! these appear to be unchanged in SOLO1, 
+    // TODO: map out memUnit! these appear to be unchanged in SOLO1
 }
 
 void spot_asic_device::device_start()
@@ -85,4 +92,55 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
+}
+
+uint32_t spot_asic_device::reg_0000_r()
+{
+	logerror("%s: reg_0000_r (BUS_CHIPID)\n", machine().describe_context());
+    return 0x10100000;
+}
+
+uint32_t spot_asic_device::reg_0004_r()
+{
+	logerror("%s: reg_0004_r (BUS_CHIPCNTL)\n", machine().describe_context());
+    return 0x00000000;
+}
+
+void spot_asic_device::reg_0004_w(uint32_t data)
+{
+	logerror("%s: reg_0004_w %08x (BUS_CHIPCNTL)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_0008_r()
+{
+	logerror("%s: reg_0008_r (BUS_INTSTAT)\n", machine().describe_context());
+    return 0x00000000;
+}
+
+void spot_asic_device::reg_0108_w(uint32_t data)
+{
+	logerror("%s: reg_0108_w %08x (BUS_INTSTAT clear)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_000c_r()
+{
+	logerror("%s: reg_000c_r (BUS_INTEN)\n", machine().describe_context());
+    return 0x00000000;
+}
+
+void spot_asic_device::reg_000c_w(uint32_t data)
+{
+	logerror("%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
+}
+
+void spot_asic_device::reg_010c_w(uint32_t data)
+{
+	logerror("%s: reg_000c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_1000_r()
+{
+	logerror("%s: reg_1000_r (ROM_SYSCONF)\n", machine().describe_context());
+    // The values here correspond to a retail FCS board, with flash ROM in bank 0 and mask ROM in bank 1
+    return 0x2BECBF8F;
 }
