@@ -20,6 +20,8 @@
 #include "emu.h"
 
 #include "cpu/mips/mips3.h"
+#include "machine/ds2401.h"
+#include "machine/intelfsh.h"
 #include "spot_asic.h"
 
 #include "webtv.lh"
@@ -27,7 +29,7 @@
 #include "main.h"
 #include "screen.h"
 
-#define CPUCLOCK 112000000
+#define SYSCLOCK 56000000 // TODO: confirm this is correct
 
 class webtv1_state : public driver_device
 {
@@ -36,7 +38,7 @@ public:
 	webtv1_state(const machine_config& mconfig, device_type type, const char* tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
-		//m_spotasic(*this, "spot"),
+		m_spotasic(*this, "spot"),
 		m_power_led(*this, "power_led"),
 		m_connect_led(*this, "connect_led"),
 		m_message_led(*this, "message_led")
@@ -52,7 +54,7 @@ protected:
     
 private:
 	required_device<mips3_device> m_maincpu;
-	//required_device<spot_asic_device> m_spotasic;
+	required_device<spot_asic_device> m_spotasic;
 
 	output_finder<1> m_power_led;
 	output_finder<1> m_connect_led;
@@ -68,16 +70,43 @@ private:
 	void led_w(uint32_t data);
 	uint32_t led_r();
 
+	void bank0_flash_w(offs_t offset, uint32_t data);
+	uint32_t bank0_flash_r(offs_t offset);
+
 	void webtv1_map(address_map& map);
 };
+
+void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
+{
+	// WebTV FCS uses two AMD AM29F800BT chips on the board for storing its software.
+	// One chip is for the lower 16 bits (labeled U0504), and the other is for the upper 16 bits (labeled U0503).
+	// In addition, the bytes are also flipped.
+	logerror("%s: bank0_flash_w 0x1f%06x = %08x\n", machine().describe_context(), offset, data);
+}
+
+uint32_t webtv1_state::bank0_flash_r(offs_t offset)
+{
+	logerror("%s: bank0_flash_r 0x1f%06x\n", machine().describe_context(), offset);
+    return 0xFFFFFFFF;
+}
 
 void webtv1_state::webtv1_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
 
 	// RAM
-	map(0x00000000, 0x007fffff).ram().share("mainram"); // TODO: allocating all 8MB is inaccurate to retail hardware!
-	
+	map(0x00000000, 0x007fffff).ram().share("ram"); // TODO: allocating all 8MB is inaccurate to retail hardware! ideally you'd want to mirror 2MB or 4MB depending on configuration
+
+	// SPOT
+	map(0x04000000, 0x04000fff).m(m_spotasic, FUNC(spot_asic_device::bus_unit_map));
+	map(0x04001000, 0x04001fff).m(m_spotasic, FUNC(spot_asic_device::rom_unit_map));
+	map(0x04002000, 0x04002fff).m(m_spotasic, FUNC(spot_asic_device::aud_unit_map));
+	map(0x04003000, 0x04003fff).m(m_spotasic, FUNC(spot_asic_device::vid_unit_map));
+	map(0x04004000, 0x04004fff).m(m_spotasic, FUNC(spot_asic_device::dev_unit_map));
+	map(0x04005000, 0x04005fff).m(m_spotasic, FUNC(spot_asic_device::mem_unit_map));
+
+	// ROM
+	map(0x1f000000, 0x1f3fffff).rw(FUNC(bank0_flash_r), FUNC(bank0_flash_w)).share("bank0");
 	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0); // Mask ROM
 }
 
@@ -85,25 +114,30 @@ void webtv1_state::webtv1_base(machine_config &config)
 {
 	config.set_default_layout(layout_webtv);
 
-	R4640BE(config, m_maincpu, CPUCLOCK);
-	m_maincpu->set_icache_size(8192);
-	m_maincpu->set_dcache_size(8192);
+	R4640BE(config, m_maincpu, SYSCLOCK*2);
+	m_maincpu->set_icache_size(0x2000);
+	m_maincpu->set_dcache_size(0x2000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_map);
 
-	//SPOT_ASIC(config, m_spotasic, SYSCLOCK);
-	//m_spotasic->set_hostcpu(m_maincpu);
+	SPOT_ASIC(config, m_spotasic, SYSCLOCK);
+	m_spotasic->set_hostcpu(m_maincpu);
+	
+	AMD_29F800B_16BIT(config, "bank0_flash0");
+	AMD_29F800B_16BIT(config, "bank0_flash1");
+
+	DS2401(config, "serial_id", 0);
 }
 
 void webtv1_state::webtv1_sony(machine_config& config)
 {
+	// manufacturer is determined by the contents of DS2401
 	webtv1_base(config);
-	// TODO: differentiate manufacturers via emulated serial id
 }
 
 void webtv1_state::webtv1_philips(machine_config& config)
 {
+	// manufacturer is determined by the contents of DS2401
 	webtv1_base(config);
-	// TODO: differentiate manufacturers via emulated serial id
 }
 
 void webtv1_state::machine_start()
@@ -117,21 +151,27 @@ void webtv1_state::machine_reset()
 }
 
 ROM_START( wtv1sony )
+	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
+	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, CRC(46E0DE7D) SHA1(E885D37209093FAA5BFF97853BBB848D803DB011))
+
 	ROM_REGION32_BE(0x800000, "bank1", 0)
-	ROM_LOAD("bootrom.o", 0x000000, 0x200000, CRC(71C321DB) SHA1(6A39E064FB2312D70728B8105DE990762226BD07))
+	ROM_LOAD("bootrom.o", 0x000000, 0x200000, CRC(71C321DB) SHA1(6A39E064FB2312D70728B8105DE990762226BD07)) /* pre-decoded */
 	ROM_RELOAD(0x200000, 0x200000)
 	ROM_RELOAD(0x400000, 0x200000)
 	ROM_RELOAD(0x600000, 0x200000)
 ROM_END
 
 ROM_START( wtv1phil )
+	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
+	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, CRC(2E214B26) SHA1(53FCC9E7986953CC0CF149B29FC14A245EEA4E17))
+
 	ROM_REGION32_BE(0x800000, "bank1", 0)
-	ROM_LOAD("bootrom.o", 0x000000, 0x200000, CRC(71C321DB) SHA1(6A39E064FB2312D70728B8105DE990762226BD07))
+	ROM_LOAD("bootrom.o", 0x000000, 0x200000, CRC(71C321DB) SHA1(6A39E064FB2312D70728B8105DE990762226BD07)) /* pre-decoded */
 	ROM_RELOAD(0x200000, 0x200000)
 	ROM_RELOAD(0x400000, 0x200000)
 	ROM_RELOAD(0x600000, 0x200000)
 ROM_END
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE        INPUT  CLASS         INIT        COMPANY               FULLNAME                            FLAGS
-CONS( 1996, wtv1sony,      0,      0, webtv1_sony,       0, webtv1_state, empty_init, "Sony",               "INT-W100 WebTV Internet Terminal", MACHINE_IS_SKELETON )
-CONS( 1996, wtv1phil,      0,      0, webtv1_philips,    0, webtv1_state, empty_init, "Philips-Magnavox",   "MAT960 WebTV Internet Terminal",   MACHINE_IS_SKELETON )
+CONS( 1996, wtv1sony,      0,      0, webtv1_sony,       0, webtv1_state, empty_init, "Sony",               "INT-W100 WebTV Internet Terminal", MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
+CONS( 1996, wtv1phil,      0,      0, webtv1_philips,    0, webtv1_state, empty_init, "Philips-Magnavox",   "MAT960 WebTV Internet Terminal",   MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
