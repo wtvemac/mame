@@ -20,6 +20,14 @@
 #include "diserial.h"
 
 #include "cpu/mips/mips3.h"
+
+#define ERR_F1READ  1 << 6
+#define ERR_F1WRITE 1 << 5
+#define ERR_F2READ  1 << 4
+#define ERR_F2WRITE 1 << 3
+#define ERR_TIMEOUT 1 << 2
+#define ERR_OW      1 << 0 // double-fault
+
 class spot_asic_device : public device_t, public device_serial_interface
 {
 public:
@@ -40,7 +48,16 @@ protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
 
-    // TODO: implement register variables!
+    uint32_t m_fence1_lower_addr;
+    uint32_t m_fence1_upper_addr;
+    uint32_t m_fence2_lower_addr;
+    uint32_t m_fence2_upper_addr;
+
+    uint8_t m_intenable;
+    uint8_t m_intstat;
+    
+    uint8_t m_errenable;
+    uint8_t m_errstat;
 
 private:
     required_device<mips3_device> m_hostcpu;
@@ -54,6 +71,27 @@ private:
 
     TIMER_CALLBACK_MEMBER(sys_timer_callback);
     //TIMER_CALLBACK_MEMBER(watchdog_timer_callback);
+
+    // BUS_CHIPID (read-only) - Indicates the SPOT chip revision
+    uint32_t reg_0000_r();
+
+    // BUS_CHIPID (R/W)
+    uint32_t reg_0004_r();
+    void reg_0004_w(uint32_t data);
+
+    // BUS_INTSTAT (read-only)
+    uint32_t reg_0008_r();
+    // BUS_INTSTAT (clear)
+    void reg_0108_w(uint32_t data);
+
+    // BUS_INTEN (R/Set)
+    uint32_t reg_000c_r();
+    void reg_000c_w(uint32_t data);
+    // BUS_INTEN (clear)
+    void reg_010c_w(uint32_t data);
+    
+    // ROM_SYSCONF (read-only) - Contains various system parameters.
+    uint32_t reg_1000_r();
 };
 
 DECLARE_DEVICE_TYPE(SPOT_ASIC, spot_asic_device)

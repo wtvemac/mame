@@ -16,9 +16,11 @@
  * This driver would not have been possible without the efforts of the WebTV community
  * to preserve technical specifications, as well as the various reverse-engineering
  * efforts that were made.
-
+ * 
  * The technical specifications that this implementation is based on can be found here:
  * http://wiki.webtv.zone/misc/SOLO1/SOLO1_ASIC_Spec.pdf
+ * 
+ * NOTE: This driver is currently on hold in preparation of refactoring.
  * 
  ***************************************************************************************/
 
