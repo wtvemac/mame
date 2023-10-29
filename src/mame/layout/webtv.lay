@@ -29,13 +29,13 @@
 		</screen>
 		<collection name="Status LEDs" visible="yes">
 		    <element ref="text_power"><bounds x="5" y="485" width="25" height="10" /></element>
-			<element name="powerled" ref="power_led"><bounds x="10" y="500" width="20" height="20" /></element>
+			<element name="powerled" ref="power_led"><bounds x="10" y="510" width="20" height="20" /></element>
 
-		    <element ref="text_connect"><bounds x="30" y="485" width="25" height="10" /></element>
-			<element name="connectled" ref="connect_led"><bounds x="35" y="500" width="20" height="20" /></element>
+		    <element ref="text_connect"><bounds x="40" y="485" width="25" height="10" /></element>
+			<element name="connectled" ref="connect_led"><bounds x="40" y="510" width="20" height="20" /></element>
             
-		    <element ref="text_message"><bounds x="55" y="485" width="25" height="10" /></element>
-			<element name="messageled" ref="message_led"><bounds x="60" y="500" width="20" height="20" /></element>
+		    <element ref="text_message"><bounds x="65" y="485" width="25" height="10" /></element>
+			<element name="messageled" ref="message_led"><bounds x="65" y="510" width="20" height="20" /></element>
 		</collection>
     </view>
 </mamelayout>
