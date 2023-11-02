@@ -8,17 +8,21 @@
  * FCS, shorthand for First Customer Ship, was the first generation of WebTV hardware.
  * Its ASIC, known as SPOT or FIDO, is much simpler than SOLO.
  * 
- * A typical retail configuration uses an R4640 clocked at 112MHz, with 2MB of on-board
- * RAM, 2MB of flash memory for the software, and 2MB of ROM.
+ * A typical retail configuration uses a MIPS IDT R4640 clocked at 112MHz, with 2MB of
+ * on-board RAM, 2MB of flash memory (using two 16-bit 1MB AMD 29F800B chips) for the
+ * updatable software, and 2MB of mask ROM.
  * 
  * This driver would not have been possible without the efforts of the WebTV community
  * to preserve technical specifications, as well as the various reverse-engineering
  * efforts that were made.
  * 
+ * Current status: Breaks at bfc0c030, a little before the memory check.
+ * 
  ***************************************************************************************/
 
 #include "emu.h"
 
+#include "bus/pc_kbd/keyboards.h"
 #include "cpu/mips/mips3.h"
 #include "machine/ds2401.h"
 #include "machine/intelfsh.h"
@@ -39,6 +43,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_spotasic(*this, "spot"),
+		m_serial_id(*this, "serial_id"),
 		m_power_led(*this, "power_led"),
 		m_connect_led(*this, "connect_led"),
 		m_message_led(*this, "message_led")
@@ -55,6 +60,7 @@ protected:
 private:
 	required_device<mips3_device> m_maincpu;
 	required_device<spot_asic_device> m_spotasic;
+	required_device<ds2401_device> m_serial_id;
 
 	output_finder<1> m_power_led;
 	output_finder<1> m_connect_led;
@@ -66,9 +72,6 @@ private:
 		LED_CONNECTED = 0x2,
 		LED_MESSAGE = 0x1
 	};
-
-	void led_w(uint32_t data);
-	uint32_t led_r();
 
 	void bank0_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank0_flash_r(offs_t offset);
@@ -95,7 +98,7 @@ void webtv1_state::webtv1_map(address_map &map)
 	map.global_mask(0x1fffffff);
 
 	// RAM
-	map(0x00000000, 0x007fffff).ram().share("ram"); // TODO: allocating all 8MB is inaccurate to retail hardware! ideally you'd want to mirror 2MB or 4MB depending on configuration
+	map(0x00000000, 0x007fffff).ram().share("ram"); // 8MB is not accurate to retail hardware! It does successfully get through the rest of the boot process
 
 	// SPOT
 	map(0x04000000, 0x04000fff).m(m_spotasic, FUNC(spot_asic_device::bus_unit_map));
@@ -118,14 +121,15 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_maincpu->set_icache_size(0x2000);
 	m_maincpu->set_dcache_size(0x2000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_map);
-
-	SPOT_ASIC(config, m_spotasic, SYSCLOCK);
-	m_spotasic->set_hostcpu(m_maincpu);
 	
 	AMD_29F800B_16BIT(config, "bank0_flash0");
 	AMD_29F800B_16BIT(config, "bank0_flash1");
 
-	DS2401(config, "serial_id", 0);
+	DS2401(config, m_serial_id, 0);
+
+	SPOT_ASIC(config, m_spotasic, SYSCLOCK);
+	m_spotasic->set_hostcpu(m_maincpu);
+	m_spotasic->set_serial_id(m_serial_id);
 }
 
 void webtv1_state::webtv1_sony(machine_config& config)
