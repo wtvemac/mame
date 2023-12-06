@@ -29,6 +29,19 @@
 #define ERR_TIMEOUT 1 << 2
 #define ERR_OW      1 << 0 // double-fault
 
+#define BUS_INT_VIDINT 1 << 7 // vidUnit interrupt (program should read VID_INTSTAT)
+#define BUS_INT_DEVKBD 1 << 6 // keyboard IRQ
+#define BUS_INT_DEVMOD 1 << 5 // modem IRQ
+#define BUS_INT_DEVIR  1 << 4 // IR data ready to read
+#define BUS_INT_DEVSMC 1 << 3 // SmartCard inserted
+#define BUS_INT_AUDDMA 1 << 2 // audUnit DMA completion
+
+#define VID_INT_FIDO   1 << 6 // TODO: docs don't have info on FIDO mode! figure this out!
+#define VID_INT_VSYNCE 1 << 5 // even field VSYNC
+#define VID_INT_VSYNCO 1 << 4 // odd field VSYNC
+#define VID_INT_HSYNC  1 << 3 // HSYNC on line specified by VID_HINTLINE
+#define VID_INT_DMA    1 << 2 // vidUnit DMA completion
+
 class spot_asic_device : public device_t, public device_serial_interface
 {
 public:
@@ -61,6 +74,9 @@ protected:
     uint8_t m_errenable;
     uint8_t m_errstat;
 
+    uint16_t m_timeout_count;
+    uint16_t m_timeout_compare;
+
     uint32_t m_memcntl;
     uint32_t m_memrefcnt;
     uint32_t m_memdata;
@@ -92,6 +108,21 @@ private:
     uint32_t reg_000c_r(); // BUS_INTEN (read)
     void reg_000c_w(uint32_t data); // BUS_INTEN (set)
     void reg_010c_w(uint32_t data); // BUS_INTEN (clear)
+    uint32_t reg_0010_r(); // BUS_ERRSTAT (read)
+    void reg_0110_w(uint32_t data); // BUS_ERRSTAT (clear)
+    uint32_t reg_0014_r(); // BUS_ERREN_S (read)
+    void reg_0014_w(uint32_t data); // BUS_ERREN_S (write)
+    void reg_0114_w(uint32_t data); // BUS_ERREN_C (clear)
+    uint32_t reg_0018_r(); // BUS_ERRADDR (read-only)
+    void reg_0118_w(uint32_t data); // BUS_WDREG_C (clear)
+    uint32_t reg_001c_r(); // BUS_FENADDR1 (read)
+    void reg_001c_w(uint32_t data); // BUS_FENADDR1 (write)
+    uint32_t reg_0020_r(); // BUS_FENMASK1 (read)
+    void reg_0020_w(uint32_t data); // BUS_FENMASK1 (write)
+    uint32_t reg_0024_r(); // BUS_FENADDR1 (read)
+    void reg_0024_w(uint32_t data); // BUS_FENADDR1 (write)
+    uint32_t reg_0028_r(); // BUS_FENMASK2 (read)
+    void reg_0028_w(uint32_t data); // BUS_FENMASK2 (write)
     
     /* romUnit registers */
 
@@ -103,7 +134,51 @@ private:
 
     /* audUnit registers */
 
+    uint32_t reg_2000_r(); // AUD_CSTART (read-only)
+    uint32_t reg_2004_r(); // AUD_CSIZE (read-only)
+    uint32_t reg_2008_r(); // AUD_CCONFIG (read)
+    void reg_2008_w(uint32_t data); // AUD_CCONFIG (write)
+    uint32_t reg_200c_r(); // AUD_CCNT (read-only)
+    uint32_t reg_2010_r(); // AUD_NSTART (read)
+    void reg_2010_w(uint32_t data); // AUD_NSTART (write)
+    uint32_t reg_2014_r(); // AUD_NSIZE (read)
+    void reg_2014_w(uint32_t data); // AUD_NSIZE (write)
+    uint32_t reg_2018_r(); // AUD_NCONFIG (read)
+    void reg_2018_w(uint32_t data); // AUD_NCONFIG (write)
+    uint32_t reg_201c_r(); // AUD_DMACNTL (read)
+    void reg_201c_w(uint32_t data); // AUD_DMACNTL (write)
+
     /* vidUnit registers */
+
+    uint32_t reg_3000_r(); // VID_CSTART (read-only)
+    uint32_t reg_3004_r(); // VID_CSIZE (read-only)
+    uint32_t reg_3008_r(); // VID_CCNT (read-only)
+    uint32_t reg_300c_r(); // VID_NSTART (read)
+    void reg_300c_w(uint32_t data); // VID_NSTART (write)
+    uint32_t reg_3010_r(); // VID_NSIZE (read)
+    void reg_3010_w(uint32_t data); // VID_NSIZE (write)
+    uint32_t reg_3014_r(); // VID_DMACNTL (read)
+    void reg_3014_w(uint32_t data); // VID_DMACNTL (write)
+    uint32_t reg_3018_r(); // VID_FCNTL (read)
+    void reg_3018_w(uint32_t data); // VID_FCNTL (write)
+    uint32_t reg_301c_r(); // VID_BLNKCOL (read)
+    void reg_301c_w(uint32_t data); // VID_BLNKCOL (write)
+    uint32_t reg_3020_r(); // VID_HSTART (read)
+    void reg_3020_w(uint32_t data); // VID_HSTART (write)
+    uint32_t reg_3024_r(); // VID_HSIZE (read)
+    void reg_3024_w(uint32_t data); // VID_HSIZE (write)
+    uint32_t reg_3028_r(); // VID_VSTART (read)
+    void reg_3028_w(uint32_t data); // VID_VSTART (write)
+    uint32_t reg_302c_r(); // VID_VSIZE (read)
+    void reg_302c_w(uint32_t data); // VID_VSIZE (write)
+    uint32_t reg_3030_r(); // VID_HINTLINE (read)
+    void reg_3030_w(uint32_t data); // VID_HINTLINE (write)
+    uint32_t reg_3034_r(); // VID_CLINE (read-only)
+    uint32_t reg_3038_r(); // VID_INTSTAT (read)
+    void reg_3138_w(uint32_t data); // VID_INTSTAT (clear)
+    uint32_t reg_303c_r(); // VID_INTEN_S (read)
+    void reg_303c_w(uint32_t data); // VID_INTEN_S (write)
+    void reg_313c_w(uint32_t data); // VID_INTEN_C (clear)
 
     /* devUnit registers */
 
