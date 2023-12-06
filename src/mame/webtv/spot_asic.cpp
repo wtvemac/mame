@@ -104,6 +104,11 @@ void spot_asic_device::device_start()
     m_memrefcnt = 0x0400;
     m_memdata = 0x0;
     m_memtiming = 0xadbadffa;
+    m_intenable = 0x0;
+    m_intstat = 0x0;
+    m_errenable = 0x0;
+    m_errstat = 0x0;
+    m_timeout_compare = 0xffff;
 }
 
 void spot_asic_device::device_reset()
@@ -112,6 +117,11 @@ void spot_asic_device::device_reset()
     m_memrefcnt = 0x0400;
     m_memdata = 0x0;
     m_memtiming = 0xadbadffa;
+    m_intenable = 0x0;
+    m_intstat = 0x0;
+    m_errenable = 0x0;
+    m_errstat = 0x0;
+    m_timeout_compare = 0xffff;
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -188,6 +198,24 @@ void spot_asic_device::reg_1008_w(uint32_t data)
     logerror("%s: reg_1008_w %08x (ROM_CNTL1)\n", machine().describe_context(), data);
 }
 
+uint32_t spot_asic_device::reg_3000_r()
+{
+    logerror("%s: reg_3000_r (VID_CSTART)\n", machine().describe_context());
+    return 0;
+}
+
+uint32_t spot_asic_device::reg_3004_r()
+{
+    logerror("%s: reg_3004_r (VID_CSIZE)\n", machine().describe_context());
+    return 0;
+}
+
+uint32_t spot_asic_device::reg_3008_r()
+{
+    logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
+    return 0;
+}
+
 uint32_t spot_asic_device::reg_4000_r()
 {
     logerror("%s: reg_4000_r (DEV_IRDATA)\n", machine().describe_context());
@@ -229,7 +257,7 @@ uint32_t spot_asic_device::reg_400c_r()
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
     logerror("%s: reg_400c_w %08x (DEV_NVCNTL)\n", machine().describe_context(), data);
-    // TODO: add NVRAM
+    // TODO: Check what kind of EEPROM is required
 }
 
 uint32_t spot_asic_device::reg_4010_r()
