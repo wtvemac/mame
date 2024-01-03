@@ -13,18 +13,15 @@
     http://wiki.webtv.zone/misc/SOLO1/SOLO1_ASIC_Spec.pdf
 
     The SOLO ASIC is split into multiple "units", of which this implementation currently only
-    emulates the busUnit, the memUnit, and the devUnit. Depending on how these are used within a
-    SOLO-based system, some units may be in their own devices.
+    emulates the busUnit, the memUnit, and the devUnit.
 
     The rioUnit (0xA4001xxx) provides a shared interface to the ROM, asynchronous devices (including
     the modem, the IDE hard drive, and the IDE CD-ROM), and synchronous devices which plug into the
     WebTV Port connector (which did not see much use other than for the FIDO/FCS printer interface).
 
-    The audUnit (0xA4002xxx), not handled here, handles audio DMA. The code for those registers
-    will reside in the SOLO1_ASIC_AUD device.
+    The audUnit (0xA4002xxx) handles audio DMA.
 
-    The vidUnit (0xA4003xxx), not handled here, handles video DMA. The code for those registers
-    reside in the SOLO1_ASIC_VID device.
+    The vidUnit (0xA4003xxx) handles video DMA.
 
     The devUnit (0xA4004xxx) handles GPIO, IR input, IR blaster output, front panel LEDs, and the
     parallel port.
@@ -33,22 +30,17 @@
     registers are only emulated for completeness; they do not currently have an effect on the
     emulation.
 
-    The gfxUnit (0xA4006xxx), not handled here, is responsible for accelerated graphics. The code
-    for those registers may reside in the SOLO1_ASIC_VID device, although this is still being
-    determined.
+    The gfxUnit (0xA4006xxx) is responsible for accelerated graphics.
 
-    The dveUnit (0xA4007xxx), not handled here, is responsible for digital video encoding. The code
-    for those registers reside in the SOLO1_ASIC_VID device.
+    The dveUnit (0xA4007xxx) is responsible for digital video encoding.
 
     The divUnit (0xA4008xxx) is responsible for video input decoding.
 
-    The potUnit (0xA4009xxx), not handled here, handles low-level video output. The code for those
-    registers reside in the SOLO1_ASIC_VID device.
+    The potUnit (0xA4009xxx) handles low-level video output.
 
     The sucUnit (0xA400Axxx) handles serial I/O for both the RS232 port and the SmartCard reader.
 
-    The modUnit (0xA400Bxxx), not handled here, handles softmodem I/O. It's basically a stripped
-    down audUnit.
+    The modUnit (0xA400Bxxx) handles softmodem I/O. It's basically a stripped down audUnit.
 
 ****************************************************************************************************/
 #include "emu.h"

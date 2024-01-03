@@ -4,7 +4,7 @@
 
     WebTV Networks Inc. SPOT ASIC
 
-    This ASIC controls most of the I/O on the 1st generation WebTV hardware.It is also referred
+    This ASIC controls most of the I/O on the 1st generation WebTV hardware. It is also referred
     to as FIDO on the actual chip that implements the SPOT logic.
 
     This implementation is based off of both the archived technical specifications, as well as
@@ -58,7 +58,16 @@ void spot_asic_device::bus_unit_map(address_map &map)
     map(0x108, 0x10b).w(FUNC(spot_asic_device::reg_0108_w));
     map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_000c_r), FUNC(spot_asic_device::reg_000c_w));
     map(0x10c, 0x10f).w(FUNC(spot_asic_device::reg_010c_w));
-    // TODO: map out the rest of busUnit!
+    //map(0x010, 0x013).r(FUNC(spot_asic_device::reg_0010_r));
+    //map(0x110, 0x113).w(FUNC(spot_asic_device::reg_0110_w));
+    //map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0014_w));
+    //map(0x114, 0x117).w(FUNC(spot_asic_device::reg_0114_w));
+    //map(0x018, 0x01b).r(FUNC(spot_asic_device::reg_0018_r));
+    //map(0x118, 0x11b).w(FUNC(spot_asic_device::reg_0118_w));
+    //map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_001c_r), FUNC(spot_asic_device::reg_001c_w));
+    //map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_0020_r), FUNC(spot_asic_device::reg_0020_w));
+    //map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_0024_r), FUNC(spot_asic_device::reg_0024_w));
+    //map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_0028_r), FUNC(spot_asic_device::reg_0028_w));
 }
 
 void spot_asic_device::rom_unit_map(address_map &map)
@@ -70,12 +79,36 @@ void spot_asic_device::rom_unit_map(address_map &map)
 
 void spot_asic_device::aud_unit_map(address_map &map)
 {
-    // TODO: map out audUnit!
+    //map(0x000, 0x003).r(FUNC(spot_asic_device::reg_2000_r));
+    //map(0x004, 0x007).r(FUNC(spot_asic_device::reg_2004_r));
+    //map(0x008, 0x00b).rw(FUNC(spot_asic_device::reg_2008_r), FUNC(spot_asic_device::reg_2008_w));
+    //map(0x00c, 0x00f).r(FUNC(spot_asic_device::reg_200c_r));
+    //map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_2010_r), FUNC(spot_asic_device::reg_2010_w));
+    //map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_2014_r), FUNC(spot_asic_device::reg_2014_w));
+    //map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_2018_r), FUNC(spot_asic_device::reg_2018_w));
+    //map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_201c_r), FUNC(spot_asic_device::reg_201c_w));
 }
 
 void spot_asic_device::vid_unit_map(address_map &map)
 {
-    // TODO: map out vidUnit!
+    map(0x000, 0x003).r(FUNC(spot_asic_device::reg_3000_r));
+    map(0x004, 0x007).r(FUNC(spot_asic_device::reg_3004_r));
+    map(0x008, 0x00b).r(FUNC(spot_asic_device::reg_3008_r));
+    //map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_300c_r), FUNC(spot_asic_device::reg_300c_w));
+    //map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_3010_r), FUNC(spot_asic_device::reg_3010_w));
+    //map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_3014_r), FUNC(spot_asic_device::reg_3014_w));
+    //map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_3018_r), FUNC(spot_asic_device::reg_3018_w));
+    //map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_301c_r), FUNC(spot_asic_device::reg_301c_w));
+    //map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_3020_r), FUNC(spot_asic_device::reg_3020_w));
+    //map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_3024_r), FUNC(spot_asic_device::reg_3024_w));
+    //map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_3028_r), FUNC(spot_asic_device::reg_3028_w));
+    //map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_302c_r), FUNC(spot_asic_device::reg_302c_w));
+    //map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_3030_r), FUNC(spot_asic_device::reg_3030_w));
+    //map(0x034, 0x037).r(FUNC(spot_asic_device::reg_3034_r));
+    //map(0x038, 0x03b).r(FUNC(spot_asic_device::reg_3038_r));
+    //map(0x138, 0x13b).w(FUNC(spot_asic_device::reg_3138_w));
+    //map(0x03c, 0x03f).rw(FUNC(spot_asic_device::reg_303c_r), FUNC(spot_asic_device::reg_303c_w));
+    //map(0x13c, 0x13f).w(FUNC(spot_asic_device::reg_313c_w));
 }
 
 void spot_asic_device::dev_unit_map(address_map &map)
@@ -86,7 +119,22 @@ void spot_asic_device::dev_unit_map(address_map &map)
     map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_400c_r), FUNC(spot_asic_device::reg_400c_w));
     map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_4010_r), FUNC(spot_asic_device::reg_4010_w));
     map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_4014_r), FUNC(spot_asic_device::reg_4014_w));
-    // TODO: map out the rest of devUnit!
+    //map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_4020_r), FUNC(spot_asic_device::reg_4020_w));
+    //map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_4024_r), FUNC(spot_asic_device::reg_4024_w));
+    //map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_4028_r), FUNC(spot_asic_device::reg_4028_w));
+    //map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_402c_r), FUNC(spot_asic_device::reg_402c_w));
+    //map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_4030_r), FUNC(spot_asic_device::reg_4030_w));
+    //map(0x034, 0x037).rw(FUNC(spot_asic_device::reg_4034_r), FUNC(spot_asic_device::reg_4034_w));
+    //map(0x038, 0x03b).rw(FUNC(spot_asic_device::reg_4038_r), FUNC(spot_asic_device::reg_4038_w));
+    //map(0x03c, 0x03f).rw(FUNC(spot_asic_device::reg_403c_r), FUNC(spot_asic_device::reg_403c_w));
+    //map(0x040, 0x043).rw(FUNC(spot_asic_device::reg_4040_r), FUNC(spot_asic_device::reg_4040_w));
+    //map(0x044, 0x047).rw(FUNC(spot_asic_device::reg_4044_r), FUNC(spot_asic_device::reg_4044_w));
+    //map(0x048, 0x04b).rw(FUNC(spot_asic_device::reg_4048_r), FUNC(spot_asic_device::reg_4048_w));
+    //map(0x04c, 0x04f).rw(FUNC(spot_asic_device::reg_404c_r), FUNC(spot_asic_device::reg_404c_w));
+    //map(0x050, 0x053).rw(FUNC(spot_asic_device::reg_4050_r), FUNC(spot_asic_device::reg_4050_w));
+    //map(0x054, 0x057).rw(FUNC(spot_asic_device::reg_4054_r), FUNC(spot_asic_device::reg_4054_w));
+    //map(0x058, 0x05b).rw(FUNC(spot_asic_device::reg_4058_r), FUNC(spot_asic_device::reg_4058_w));
+    //map(0x05c, 0x05f).rw(FUNC(spot_asic_device::reg_405c_r), FUNC(spot_asic_device::reg_405c_w));
 }
 
 void spot_asic_device::mem_unit_map(address_map &map)
@@ -94,7 +142,7 @@ void spot_asic_device::mem_unit_map(address_map &map)
     map(0x000, 0x003).rw(FUNC(spot_asic_device::reg_5000_r), FUNC(spot_asic_device::reg_5000_w));
     map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_5004_r), FUNC(spot_asic_device::reg_5004_w));
     map(0x008, 0x00b).rw(FUNC(spot_asic_device::reg_5008_r), FUNC(spot_asic_device::reg_5008_w));
-    map(0x00c, 0x00f).w(FUNC(spot_asic_device::reg_500c_w));
+    map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_500c_r), FUNC(spot_asic_device::reg_500c_w)); // write only register, but read handler is hooked up to debug behavior
     map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_5010_r), FUNC(spot_asic_device::reg_5010_w));
 }
 
@@ -316,6 +364,13 @@ void spot_asic_device::reg_5008_w(uint32_t data)
 {
     logerror("%s: reg_5008_w %08x (MEM_DATA)\n", machine().describe_context(), data);
     m_memdata = data;
+}
+
+uint32_t spot_asic_device::reg_500c_r()
+{
+    logerror("%s: reg_500c_r (MEM_CMD - not a readable register!)\n", machine().describe_context());
+    // This is defined as a write-only register, yet the WebTV software reads from it? Still need to see how this behaves on real hardware.
+    return 0;
 }
 
 void spot_asic_device::reg_500c_w(uint32_t data)

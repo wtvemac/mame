@@ -11,7 +11,8 @@
  * designed by WebTV Networks Inc. known as the SOLO chip.
  *
  * The original LC2 boards used a MIPS IDT R4640 clocked at 167MHz, although later
- * board revisions switched to a MIPS RM5230.
+ * board revisions switched to a MIPS RM5230, although some LC2 dev boards and trial
+ * run boards had RM5230s back when the retail models still used the R4640.
  * 
  * This driver would not have been possible without the efforts of the WebTV community
  * to preserve technical specifications, as well as the various reverse-engineering
@@ -19,6 +20,14 @@
  * 
  * The technical specifications that this implementation is based on can be found here:
  * http://wiki.webtv.zone/misc/SOLO1/SOLO1_ASIC_Spec.pdf
+ * 
+ * Stuff that still needs to be done:
+ * - Different configurations for disk units and flash units (since there is one known
+ * surviving trial unit in a flash-only configuration)
+ * - Support for PAL emulation
+ * - Video output
+ * - Audio output
+ * - Dummy emulation of tuner (required for booting Plus ROMs all the way)
  * 
  * NOTE: This driver is currently on hold in preparation of refactoring.
  * 
