@@ -44,6 +44,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_spotasic(*this, "spot"),
 		m_serial_id(*this, "serial_id"),
+		m_nvram(*this, "nvram"),
 		m_power_led(*this, "power_led"),
 		m_connect_led(*this, "connect_led"),
 		m_message_led(*this, "message_led")
@@ -61,6 +62,7 @@ private:
 	required_device<mips3_device> m_maincpu;
 	required_device<spot_asic_device> m_spotasic;
 	required_device<ds2401_device> m_serial_id;
+	required_device<i2cmem_device> m_nvram;
 
 	output_finder<1> m_power_led;
 	output_finder<1> m_connect_led;
@@ -127,9 +129,14 @@ void webtv1_state::webtv1_base(machine_config &config)
 
 	DS2401(config, m_serial_id, 0);
 
+	I2C_24C01(config, m_nvram, 0);
+	m_nvram->set_e0(0);
+	m_nvram->set_wc(1);
+
 	SPOT_ASIC(config, m_spotasic, SYSCLOCK);
 	m_spotasic->set_hostcpu(m_maincpu);
 	m_spotasic->set_serial_id(m_serial_id);
+	m_spotasic->set_nvram(m_nvram);
 }
 
 void webtv1_state::webtv1_sony(machine_config& config)
