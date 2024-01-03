@@ -46,6 +46,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	device_serial_interface(mconfig, *this),
     m_hostcpu(*this, finder_base::DUMMY_TAG),
     m_serial_id(*this, finder_base::DUMMY_TAG),
+    m_nvram(*this, finder_base::DUMMY_TAG),
     m_sys_timer(nullptr) // when it goes off, timer interrupt fires
 {
 }
@@ -157,6 +158,7 @@ void spot_asic_device::device_start()
     m_errenable = 0x0;
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
+    m_nvcntl = 0x0;
 }
 
 void spot_asic_device::device_reset()
@@ -170,6 +172,7 @@ void spot_asic_device::device_reset()
     m_errenable = 0x0;
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
+    m_nvcntl = 0x0;
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -264,48 +267,61 @@ uint32_t spot_asic_device::reg_3008_r()
     return 0;
 }
 
+// Read IR receiver chip
 uint32_t spot_asic_device::reg_4000_r()
 {
     logerror("%s: reg_4000_r (DEV_IRDATA)\n", machine().describe_context());
-    // TODO: figure out what kind of IR controller this should probe
+    // TODO: This seems to have been handled by a PIC16CR54AT. We do not have the ROM for this chip, so its behavior will need to be emulated at a high level.
     return 0;
 }
 
+// Read LED states
 uint32_t spot_asic_device::reg_4004_r()
 {
     logerror("%s: reg_4004_r (DEV_LED)\n", machine().describe_context());
     return 0;
 }
 
+// Update LED states
 void spot_asic_device::reg_4004_w(uint32_t data)
 {
     logerror("%s: reg_4004_w %08x (DEV_LED)\n", machine().describe_context(), data);
     // TODO: write to the LED devices!
 }
 
+// Read from DS2401
 uint32_t spot_asic_device::reg_4008_r()
 {
     logerror("%s: reg_4008_r (DEV_IDCNTL)\n", machine().describe_context());
     return (m_serial_id->read() + (m_serial_id_tx << 1));
 }
 
+// Write to DS2401
 void spot_asic_device::reg_4008_w(uint32_t data)
 {
     m_serial_id_tx = BIT(data, 1);
     logerror("%s: reg_4008_w %08x - write %d (DEV_IDCNTL)\n", machine().describe_context(), data, m_serial_id_tx);
-    m_serial_id->write(m_serial_id_tx);
+    m_serial_id->write(m_serial_id_tx ? ASSERT_LINE : CLEAR_LINE);
 }
 
+// Read from I2C EEPROM device (24C01A?)
 uint32_t spot_asic_device::reg_400c_r()
 {
     logerror("%s: reg_400c_r (DEV_NVCNTL)\n", machine().describe_context());
-    return 0;
+    return (m_nvcntl & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN))) + (m_nvram->read_sda() * NVCNTL_SDA_W) + (m_nvram->read_sda() * NVCNTL_SDA_R);
 }
 
+// Write to I2C EEPROM device
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
     logerror("%s: reg_400c_w %08x (DEV_NVCNTL)\n", machine().describe_context(), data);
-    // TODO: Check what kind of EEPROM is required
+    m_nvram->write_scl((data & NVCNTL_SCL) ? ASSERT_LINE : CLEAR_LINE);
+    if (data & NVCNTL_WRITE_EN) {
+        logerror("Writing %d to NVRAM...\n", machine().describe_context(), (data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
+        m_nvram->write_sda((data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
+    }
+    m_nvcntl = data & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN) + (NVCNTL_SDA_W) + (NVCNTL_SDA_R));
+    
 }
 
 uint32_t spot_asic_device::reg_4010_r()
