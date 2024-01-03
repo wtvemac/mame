@@ -97,6 +97,9 @@ private:
 
     TIMER_CALLBACK_MEMBER(sys_timer_callback);
     //TIMER_CALLBACK_MEMBER(watchdog_timer_callback);
+    
+    TIMER_CALLBACK_MEMBER(vid_dma_complete);
+    //TIMER_CALLBACK_MEMBER(aud_dma_complete);
 
     /* busUnit registers */
 
@@ -213,6 +216,23 @@ private:
     uint32_t reg_403c_r(); // DEV_KBD7 (read)
     void reg_403c_w(uint32_t data); // DEV_KBD7 (write)
 
+    uint32_t reg_4040_r(); // DEV_MOD0 (read)
+    void reg_4040_w(uint32_t data); // DEV_MOD0 (write)
+    uint32_t reg_4044_r(); // DEV_MOD1 (read)
+    void reg_4044_w(uint32_t data); // DEV_MOD1 (write)
+    uint32_t reg_4048_r(); // DEV_MOD2 (read)
+    void reg_4048_w(uint32_t data); // DEV_MOD2 (write)
+    uint32_t reg_404c_r(); // DEV_MOD3 (read)
+    void reg_404c_w(uint32_t data); // DEV_MOD3 (write)
+    uint32_t reg_4050_r(); // DEV_MOD4 (read)
+    void reg_4050_w(uint32_t data); // DEV_MOD4 (write)
+    uint32_t reg_4054_r(); // DEV_MOD5 (read)
+    void reg_4054_w(uint32_t data); // DEV_MOD5 (write)
+    uint32_t reg_4058_r(); // DEV_MOD6 (read)
+    void reg_4058_w(uint32_t data); // DEV_MOD6 (write)
+    uint32_t reg_405c_r(); // DEV_MOD7 (read)
+    void reg_405c_w(uint32_t data); // DEV_MOD7 (write)
+
     /* memUnit registers */
 
     uint32_t reg_5000_r(); // MEM_CNTL (read)
@@ -221,6 +241,7 @@ private:
     void reg_5004_w(uint32_t data); // MEM_REFCNT (write)
     uint32_t reg_5008_r(); // MEM_DATA (read)
     void reg_5008_w(uint32_t data); // MEM_DATA (write)
+    uint32_t reg_500c_r(); // MEM_CMD (defined as write-only, but software reads from it???)
     void reg_500c_w(uint32_t data); // MEM_CMD (write-only)
     uint32_t reg_5010_r(); // MEM_TIMING (read)
     void reg_5010_w(uint32_t data); // MEM_TIMING (write)
