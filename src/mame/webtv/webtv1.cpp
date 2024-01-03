@@ -98,7 +98,7 @@ void webtv1_state::webtv1_map(address_map &map)
 	map.global_mask(0x1fffffff);
 
 	// RAM
-	map(0x00000000, 0x007fffff).ram().share("ram"); // 8MB is not accurate to retail hardware! It does successfully get through the rest of the boot process
+	map(0x00000000, 0x007fffff).ram().share("ram"); // 8MB is not accurate to retail hardware! Ideally this would be 2MB or 4MB, mirrored across this memory space
 
 	// SPOT
 	map(0x04000000, 0x04000fff).m(m_spotasic, FUNC(spot_asic_device::bus_unit_map));
@@ -109,7 +109,7 @@ void webtv1_state::webtv1_map(address_map &map)
 	map(0x04005000, 0x04005fff).m(m_spotasic, FUNC(spot_asic_device::mem_unit_map));
 
 	// ROM
-	map(0x1f000000, 0x1f3fffff).rw(FUNC(bank0_flash_r), FUNC(bank0_flash_w)).share("bank0");
+	map(0x1f000000, 0x1f3fffff).rw(FUNC(bank0_flash_r), FUNC(bank0_flash_w)).share("bank0"); // Flash ROM, 4MB (retail configuration 2MB)
 	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0); // Mask ROM
 }
 
