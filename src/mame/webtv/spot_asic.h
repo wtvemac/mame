@@ -48,7 +48,7 @@
 #define NVCNTL_SDA_W    1 << 1
 #define NVCNTL_SDA_R    1 << 0
 
-class spot_asic_device : public device_t, public device_serial_interface
+class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
 public:
 	// construction/destruction
@@ -64,9 +64,12 @@ public:
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
+    
+    uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 protected:
 	// device-level overrides
+    virtual void device_add_mconfig(machine_config &config) override;
 	virtual void device_start() override;
 	virtual void device_reset() override;
 
@@ -91,10 +94,24 @@ protected:
 
     uint8_t m_nvcntl;
 
+    uint8_t m_fcntl;
+    
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<ds2401_device> m_serial_id;
     required_device<i2cmem_device> m_nvram;
+
+	required_device<screen_device> m_screen;
+    
+    void fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb);
+    
+	bitmap_yuy16        m_videobitmap;
+	render_texture *    m_videotex;             // texture for the video
+	palette_t *         m_videopalette;         // palette for the video
+    
+    
+	devcb_write_line   m_hsync_cb;
+	devcb_write_line   m_vsync_cb;
 
     emu_timer *m_sys_timer;
     //emu_timer *m_watchdog_timer;

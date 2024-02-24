@@ -27,7 +27,9 @@
 ****************************************************************************************************/
 #include "emu.h"
 
+#include "render.h"
 #include "spot_asic.h"
+#include "screen.h"
 
 #define LOG_UNKNOWN     (1U << 1)
 #define LOG_READS       (1U << 2)
@@ -39,16 +41,41 @@
 #define VERBOSE         (LOG_DEFAULT)
 #include "logmacro.h"
 
+#define SPOT_NTSC_WIDTH 640
+#define SPOT_NTSC_HEIGHT 480
+
 DEFINE_DEVICE_TYPE(SPOT_ASIC, spot_asic_device, "spot_asic", "WebTV SPOT ASIC")
 
 spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, SPOT_ASIC, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
+	device_video_interface(mconfig, *this),
     m_hostcpu(*this, finder_base::DUMMY_TAG),
     m_serial_id(*this, finder_base::DUMMY_TAG),
     m_nvram(*this, finder_base::DUMMY_TAG),
+	m_screen(*this, "screen"),
+    m_videobitmap(SPOT_NTSC_WIDTH, SPOT_NTSC_HEIGHT),
+    m_hsync_cb(*this),
+	m_vsync_cb(*this),
     m_sys_timer(nullptr) // when it goes off, timer interrupt fires
 {
+}
+
+void spot_asic_device::fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb)
+{
+	uint16_t color0 = (yval << 8) | cb;
+	uint16_t color1 = (yval << 8) | cr;
+
+	// write 32 bits of color (2 pixels at a time)
+	for (int y = 0; y < bitmap.height(); y++)
+	{
+		uint16_t *dest = &bitmap.pix(y);
+		for (int x = 0; x < bitmap.width() / 2; x++)
+		{
+			*dest++ = color0;
+			*dest++ = color1;
+		}
+	}
 }
 
 void spot_asic_device::bus_unit_map(address_map &map)
@@ -147,6 +174,17 @@ void spot_asic_device::mem_unit_map(address_map &map)
     map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_5010_r), FUNC(spot_asic_device::reg_5010_w));
 }
 
+void spot_asic_device::device_add_mconfig(machine_config &config)
+{
+    SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+    m_screen->set_size(SPOT_NTSC_WIDTH, SPOT_NTSC_HEIGHT);
+	m_screen->set_visarea(0, SPOT_NTSC_WIDTH - 1, 0, SPOT_NTSC_HEIGHT - 1);
+	m_screen->set_refresh_hz(59.94);
+    
+    m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
+    set_clock(m_screen->clock() * 2); // internal clock is always set to double the pixel clock
+}
+
 void spot_asic_device::device_start()
 {
     m_memcntl = 0b11;
@@ -218,6 +256,12 @@ void spot_asic_device::reg_000c_w(uint32_t data)
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
 	logerror("%s: reg_000c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_0010_r()
+{
+	logerror("%s: reg_0010_r (BUS_ERRSTAT)\n", machine().describe_context());
+    return m_errstat;
 }
 
 uint32_t spot_asic_device::reg_1000_r()
@@ -317,7 +361,7 @@ void spot_asic_device::reg_400c_w(uint32_t data)
     logerror("%s: reg_400c_w %08x (DEV_NVCNTL)\n", machine().describe_context(), data);
     m_nvram->write_scl((data & NVCNTL_SCL) ? ASSERT_LINE : CLEAR_LINE);
     if (data & NVCNTL_WRITE_EN) {
-        logerror("Writing %d to NVRAM...\n", machine().describe_context(), (data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
+        logerror("%s: Writing %01x to NVRAM...\n", machine().describe_context(), (data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
         m_nvram->write_sda((data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
     }
     m_nvcntl = data & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN) + (NVCNTL_SDA_W) + (NVCNTL_SDA_R));
@@ -385,7 +429,7 @@ void spot_asic_device::reg_5008_w(uint32_t data)
 uint32_t spot_asic_device::reg_500c_r()
 {
     logerror("%s: reg_500c_r (MEM_CMD - not a readable register!)\n", machine().describe_context());
-    // This is defined as a write-only register, yet the WebTV software reads from it? Still need to see how this behaves on real hardware.
+    // FIXME: This is defined as a write-only register, yet the WebTV software reads from it? Still need to see what the software expects from this.
     return 0;
 }
 
@@ -404,4 +448,21 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 {
     logerror("%s: reg_500c_w %08x (MEM_TIMING)\n", machine().describe_context(), data);
     m_memtiming = data;
+}
+
+uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+    /*
+    m_videotex->set_bitmap(m_videobitmap, m_videobitmap.cliprect(), TEXFORMAT_YUY16);
+
+    // reset the screen contents
+    screen.container().empty();
+
+    // add the video texture
+    rgb_t videocolor = 0xffffffff; // Fully visible, white
+    if ((m_pot_cntl&POT_CNTL_ENABLE_OUTPUTS) == 0)
+        videocolor = 0xff000000; // Blank the texture's RGB of the texture
+    m_screen->container().add_quad(0.0f, 0.0f, 1.0f, 1.0f, videocolor, m_videotex, PRIMFLAG_BLENDMODE(BLENDMODE_NONE) | PRIMFLAG_SCREENTEX(1));
+    */
+    return 0;
 }
