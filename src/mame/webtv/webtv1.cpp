@@ -1,3 +1,6 @@
+// license:BSD-3-Clause
+// copyright-holders:FairPlay137
+
 /***************************************************************************************
  *
  * WebTV FCS (1996)
@@ -16,7 +19,12 @@
  * to preserve technical specifications, as well as the various reverse-engineering
  * efforts that were made.
  * 
- * Current status: Breaks at bfc0c030, a little before the memory check.
+ * Known issues:
+ * - The CPU gets thrown into the exception handler loop at bfc0c030, a little before
+ *   the memory check. This has to be manually bypassed to continue the boot process.
+ * 
+ * Not emulated yet:
+ * - Keyboard controller (it seems to be a Winbond W83C42)
  * 
  ***************************************************************************************/
 
