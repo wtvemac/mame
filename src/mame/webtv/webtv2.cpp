@@ -149,7 +149,7 @@ void webtv2_state::webtv2_map(address_map &map)
 
 	// devUnit: 0x04004000 - 0x04004fff
     map(0x04004000, 0x04004003).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
-	map(0x04004004, 0x04004007).rw(FUNC(led_r), FUNC(led_w));
+	map(0x04004004, 0x04004007).rw(FUNC(webtv2_state::led_r), FUNC(webtv2_state::led_w));
 	map(0x04004008, 0x04004fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
 
 	// memUnit: 0x04005000 - 0x04005fff
