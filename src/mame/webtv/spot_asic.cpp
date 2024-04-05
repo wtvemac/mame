@@ -139,7 +139,7 @@ void spot_asic_device::vid_unit_map(address_map &map)
     //map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_3028_r), FUNC(spot_asic_device::reg_3028_w));
     //map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_302c_r), FUNC(spot_asic_device::reg_302c_w));
     //map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_3030_r), FUNC(spot_asic_device::reg_3030_w));
-    //map(0x034, 0x037).r(FUNC(spot_asic_device::reg_3034_r));
+    map(0x034, 0x037).r(FUNC(spot_asic_device::reg_3034_r));
     //map(0x038, 0x03b).r(FUNC(spot_asic_device::reg_3038_r));
     //map(0x138, 0x13b).w(FUNC(spot_asic_device::reg_3138_w));
     //map(0x03c, 0x03f).rw(FUNC(spot_asic_device::reg_303c_r), FUNC(spot_asic_device::reg_303c_w));
@@ -213,6 +213,7 @@ void spot_asic_device::device_start()
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
     m_nvcntl = 0x0;
+    m_cline_hack = 0x0;
     m_ledstate = 0xFFFFFFFF;
 }
 
@@ -329,6 +330,16 @@ uint32_t spot_asic_device::reg_3008_r()
     logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
     return 0;
 }
+
+uint32_t spot_asic_device::reg_3034_r()
+{
+    logerror("%s: reg_3034_r (VID_CLINE)\n", machine().describe_context());
+
+    // Older spot builds uses the VBL to calculate the CPU speed.
+    // The calculated CPU speed gets used everywhere in the build so this is a hack to temp fix bootup issues.
+    return (m_cline_hack++) & 0x1ffff; // 0x1ffff is arbitrary. I just set it to this since it gets a MHz I'm happy with
+}
+
 
 // Read IR receiver chip
 uint32_t spot_asic_device::reg_4000_r()
