@@ -103,6 +103,7 @@ protected:
 
     uint8_t m_fcntl;
     
+    uint32_t m_cline_hack;
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<ds2401_device> m_serial_id;
