@@ -134,10 +134,10 @@ void spot_asic_device::vid_unit_map(address_map &map)
     map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_3014_r), FUNC(spot_asic_device::reg_3014_w));
     //map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_3018_r), FUNC(spot_asic_device::reg_3018_w));
     //map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_301c_r), FUNC(spot_asic_device::reg_301c_w));
-    //map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_3020_r), FUNC(spot_asic_device::reg_3020_w));
-    //map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_3024_r), FUNC(spot_asic_device::reg_3024_w));
-    //map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_3028_r), FUNC(spot_asic_device::reg_3028_w));
-    //map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_302c_r), FUNC(spot_asic_device::reg_302c_w));
+    map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_3020_r), FUNC(spot_asic_device::reg_3020_w));
+    map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_3024_r), FUNC(spot_asic_device::reg_3024_w));
+    map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_3028_r), FUNC(spot_asic_device::reg_3028_w));
+    map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_302c_r), FUNC(spot_asic_device::reg_302c_w));
     map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_3030_r), FUNC(spot_asic_device::reg_3030_w));
     map(0x034, 0x037).r(FUNC(spot_asic_device::reg_3034_r));
     //map(0x038, 0x03b).r(FUNC(spot_asic_device::reg_3038_r));
@@ -213,11 +213,15 @@ void spot_asic_device::device_start()
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
     m_nvcntl = 0x0;
-    m_cline_hack = 0x0;
-    m_hintline = 0x0;
     m_vid_nstart = 0x0;
     m_vid_nsize = 0x0;
     m_vid_dmacntl = 0x0;
+    m_vid_hstart = 0x0;
+    m_vid_hsize = 0x0;
+    m_vid_vstart = 0x0;
+    m_vid_vsize = 0x0;
+    m_vid_hintline = 0x0;
+    m_vid_cline = 0x0;
     m_ledstate = 0xFFFFFFFF;
 }
 
@@ -233,10 +237,15 @@ void spot_asic_device::device_reset()
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
     m_nvcntl = 0x0;
-    m_hintline = 0x0;
     m_vid_nstart = 0x0;
     m_vid_nsize = 0x0;
     m_vid_dmacntl = 0x0;
+    m_vid_hstart = 0x0;
+    m_vid_hsize = 0x0;
+    m_vid_vstart = 0x0;
+    m_vid_vsize = 0x0;
+    m_vid_hintline = 0x0;
+    m_vid_cline = 0x0;
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -378,15 +387,67 @@ void spot_asic_device::reg_3014_w(uint32_t data)
     logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
 }
 
+uint32_t spot_asic_device::reg_3020_r()
+{
+    logerror("%s: reg_3020_r (VID_HSTART)\n", machine().describe_context());
+    return m_vid_hstart;
+}
+
+void spot_asic_device::reg_3020_w(uint32_t data)
+{
+    m_vid_hstart = data;
+    printf("m_vid_hstart=%08x\n", m_vid_hstart);
+    logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_3024_r()
+{
+    logerror("%s: reg_3024_r (VID_HSIZE)\n", machine().describe_context());
+    return m_vid_hsize;
+}
+
+void spot_asic_device::reg_3024_w(uint32_t data)
+{
+    m_vid_hsize = data;
+    printf("m_vid_hsize=%08x\n", m_vid_hsize);
+    logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_3028_r()
+{
+    logerror("%s: reg_3028_r (VID_VSTART)\n", machine().describe_context());
+    return m_vid_vstart;
+}
+
+void spot_asic_device::reg_3028_w(uint32_t data)
+{
+    m_vid_vstart = data;
+    printf("m_vid_vstart=%08x\n", m_vid_vstart);
+    logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_302c_r()
+{
+    logerror("%s: reg_302c_r (VID_VSIZE)\n", machine().describe_context());
+    return m_vid_vsize;
+}
+
+void spot_asic_device::reg_302c_w(uint32_t data)
+{
+    m_vid_vsize = data;
+    printf("m_vid_vsize=%08x\n", m_vid_hsize);
+    logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
+}
+
 uint32_t spot_asic_device::reg_3030_r()
 {
     logerror("%s: reg_3030_r (VID_HINTLINE)\n", machine().describe_context());
-    return m_hintline;
+    return m_vid_hintline;
 }
 
 void spot_asic_device::reg_3030_w(uint32_t data)
 {
-    m_hintline = data;
+    m_vid_hintline = data;
     logerror("%s: reg_3030_w %08x (VID_HINTLINE)\n", machine().describe_context(), data);
 }
 
@@ -396,7 +457,7 @@ uint32_t spot_asic_device::reg_3034_r()
 
     // Older spot builds uses the VBL to calculate the CPU speed.
     // The calculated CPU speed gets used everywhere in the build so this is a hack to temp fix bootup issues.
-    return (m_cline_hack++) & 0x1ffff; // 0x1ffff is arbitrary. I just set it to this since it gets a MHz I'm happy with
+    return (m_vid_cline++) & 0x1ffff; // 0x1ffff is arbitrary. I just set it to this since it gets a MHz I'm happy with
 }
 
 
