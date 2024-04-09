@@ -181,7 +181,6 @@ ROM_START( wtv1sony )
 	ROM_LOAD("bootrom.o", 0x000000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
 	ROM_RELOAD(0x200000, 0x200000)
 	ROM_RELOAD(0x400000, 0x200000)
-	ROM_RELOAD(0x600000, 0x200000)
 ROM_END
 
 ROM_START( wtv1phil )
@@ -192,7 +191,6 @@ ROM_START( wtv1phil )
 	ROM_LOAD("bootrom.o", 0x000000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
 	ROM_RELOAD(0x200000, 0x200000)
 	ROM_RELOAD(0x400000, 0x200000)
-	ROM_RELOAD(0x600000, 0x200000)
 ROM_END
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE        INPUT  CLASS         INIT        COMPANY               FULLNAME                            FLAGS
