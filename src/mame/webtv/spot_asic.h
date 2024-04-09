@@ -48,6 +48,11 @@
 #define VID_INT_HSYNC  1 << 3 // HSYNC on line specified by VID_HINTLINE
 #define VID_INT_DMA    1 << 2 // vidUnit DMA completion
 
+#define VID_DMACNTL_ITRLEN 1 << 3
+#define VID_DMACNTL_DMAEN  1 << 2
+#define VID_DMACNTL_NV     1 << 1
+#define VID_DMACNTL_NVF    1 << 0
+
 #define NVCNTL_SCL      1 << 3
 #define NVCNTL_WRITE_EN 1 << 2
 #define NVCNTL_SDA_W    1 << 1
@@ -105,6 +110,9 @@ protected:
     
     uint32_t m_cline_hack;
     uint32_t m_hintline;
+    uint32_t m_vid_nstart;
+    uint32_t m_vid_nsize;
+    uint32_t m_vid_dmacntl;
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<ds2401_device> m_serial_id;
