@@ -129,9 +129,9 @@ void spot_asic_device::vid_unit_map(address_map &map)
     map(0x000, 0x003).r(FUNC(spot_asic_device::reg_3000_r));
     map(0x004, 0x007).r(FUNC(spot_asic_device::reg_3004_r));
     map(0x008, 0x00b).r(FUNC(spot_asic_device::reg_3008_r));
-    //map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_300c_r), FUNC(spot_asic_device::reg_300c_w));
-    //map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_3010_r), FUNC(spot_asic_device::reg_3010_w));
-    //map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_3014_r), FUNC(spot_asic_device::reg_3014_w));
+    map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_300c_r), FUNC(spot_asic_device::reg_300c_w));
+    map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_3010_r), FUNC(spot_asic_device::reg_3010_w));
+    map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_3014_r), FUNC(spot_asic_device::reg_3014_w));
     //map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_3018_r), FUNC(spot_asic_device::reg_3018_w));
     //map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_301c_r), FUNC(spot_asic_device::reg_301c_w));
     //map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_3020_r), FUNC(spot_asic_device::reg_3020_w));
@@ -214,6 +214,10 @@ void spot_asic_device::device_start()
     m_timeout_compare = 0xffff;
     m_nvcntl = 0x0;
     m_cline_hack = 0x0;
+    m_hintline = 0x0;
+    m_vid_nstart = 0x0;
+    m_vid_nsize = 0x0;
+    m_vid_dmacntl = 0x0;
     m_ledstate = 0xFFFFFFFF;
 }
 
@@ -229,6 +233,10 @@ void spot_asic_device::device_reset()
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
     m_nvcntl = 0x0;
+    m_hintline = 0x0;
+    m_vid_nstart = 0x0;
+    m_vid_nsize = 0x0;
+    m_vid_dmacntl = 0x0;
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -329,6 +337,45 @@ uint32_t spot_asic_device::reg_3008_r()
 {
     logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
     return 0;
+}
+
+uint32_t spot_asic_device::reg_300c_r()
+{
+    logerror("%s: reg_300c_r (VID_NSTART)\n", machine().describe_context());
+    return m_vid_nstart;
+}
+
+void spot_asic_device::reg_300c_w(uint32_t data)
+{
+    m_vid_nstart = data;
+    printf("m_vid_nstart=%08x\n", m_vid_nstart);
+    logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_3010_r()
+{
+    logerror("%s: reg_3010_r (VID_NSIZE)\n", machine().describe_context());
+    return m_vid_nsize;
+}
+
+void spot_asic_device::reg_3010_w(uint32_t data)
+{
+    m_vid_nsize = data;
+    printf("m_vid_nsize=%08x\n", m_vid_nsize);
+    logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_3014_r()
+{
+    logerror("%s: reg_3014_r (VID_DMACNTL)\n", machine().describe_context());
+    return m_vid_dmacntl;
+}
+
+void spot_asic_device::reg_3014_w(uint32_t data)
+{
+    m_vid_dmacntl = data;
+    printf("m_vid_dmacntl=%08x\n", m_vid_dmacntl);
+    logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3030_r()
