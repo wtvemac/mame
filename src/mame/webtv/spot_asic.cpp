@@ -138,7 +138,7 @@ void spot_asic_device::vid_unit_map(address_map &map)
     //map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_3024_r), FUNC(spot_asic_device::reg_3024_w));
     //map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_3028_r), FUNC(spot_asic_device::reg_3028_w));
     //map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_302c_r), FUNC(spot_asic_device::reg_302c_w));
-    //map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_3030_r), FUNC(spot_asic_device::reg_3030_w));
+    map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_3030_r), FUNC(spot_asic_device::reg_3030_w));
     map(0x034, 0x037).r(FUNC(spot_asic_device::reg_3034_r));
     //map(0x038, 0x03b).r(FUNC(spot_asic_device::reg_3038_r));
     //map(0x138, 0x13b).w(FUNC(spot_asic_device::reg_3138_w));
@@ -329,6 +329,18 @@ uint32_t spot_asic_device::reg_3008_r()
 {
     logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
     return 0;
+}
+
+uint32_t spot_asic_device::reg_3030_r()
+{
+    logerror("%s: reg_3030_r (VID_HINTLINE)\n", machine().describe_context());
+    return m_hintline;
+}
+
+void spot_asic_device::reg_3030_w(uint32_t data)
+{
+    m_hintline = data;
+    logerror("%s: reg_3030_w %08x (VID_HINTLINE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3034_r()
