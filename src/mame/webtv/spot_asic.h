@@ -108,11 +108,16 @@ protected:
 
     uint8_t m_fcntl;
     
-    uint32_t m_cline_hack;
-    uint32_t m_hintline;
     uint32_t m_vid_nstart;
     uint32_t m_vid_nsize;
     uint32_t m_vid_dmacntl;
+    uint32_t m_vid_hstart;
+    uint32_t m_vid_hsize;
+    uint32_t m_vid_vstart;
+    uint32_t m_vid_vsize;
+    uint32_t m_vid_cline;
+    uint32_t m_vid_hintline;
+
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<ds2401_device> m_serial_id;
