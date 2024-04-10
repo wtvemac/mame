@@ -118,6 +118,9 @@ protected:
     uint32_t m_vid_cline;
     uint32_t m_vid_hintline;
 
+    uint8_t emc_bitcount;
+    uint8_t emc_byte;
+    uint32_t emc_vbltimer;
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<ds2401_device> m_serial_id;
