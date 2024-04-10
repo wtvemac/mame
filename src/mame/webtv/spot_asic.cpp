@@ -223,6 +223,10 @@ void spot_asic_device::device_start()
     m_vid_hintline = 0x0;
     m_vid_cline = 0x0;
     m_ledstate = 0xFFFFFFFF;
+
+    emc_bitcount = 0x0;
+    emc_byte = 0x0;
+    emc_vbltimer = 0x0;
 }
 
 void spot_asic_device::device_reset()
@@ -246,6 +250,10 @@ void spot_asic_device::device_reset()
     m_vid_vsize = 0x0;
     m_vid_hintline = 0x0;
     m_vid_cline = 0x0;
+
+    emc_bitcount = 0x0;
+    emc_byte = 0x0;
+    emc_vbltimer = 0x0;
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -435,7 +443,7 @@ uint32_t spot_asic_device::reg_302c_r()
 void spot_asic_device::reg_302c_w(uint32_t data)
 {
     m_vid_vsize = data;
-    printf("m_vid_vsize=%08x\n", m_vid_hsize);
+    printf("m_vid_vsize=%08x\n", m_vid_vsize);
     logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
 
@@ -532,8 +540,35 @@ uint32_t spot_asic_device::reg_4010_r()
 
 void spot_asic_device::reg_4010_w(uint32_t data)
 {
+    //m_smartcard->ins8250_w(1, (data >> 0x05) & 0x1); // SCCLK or UART_TXD
+    //m_smartcard->ins8250_w(1, (data >> 0x02) & 0x1); // SCDATA0EN or UART_DTR
+    //m_smartcard->ins8250_w(1, (data >> 0x01) & 0x1); // SCRESET or UART_RTS
+
+    if(emc_bitcount == 0) {
+        if(data != 0) {
+            emc_bitcount -= 1;
+        }
+    } else if(emc_bitcount == 1) {
+        if(data == 0) {
+            emc_bitcount -= 2;
+        }
+    } else if(emc_bitcount <= 9) {
+        if(data == 0) {
+            emc_byte |= 1 << (emc_bitcount - 2);
+        } // 0x20
+    } else {
+        if(data == 0) {
+            printf("%c", emc_byte);
+        }
+
+        emc_byte = 0x00;
+        emc_bitcount = -1;
+    }
+    
+    emc_bitcount++;
+
     logerror("%s: reg_4010_w %08x (DEV_SCCNTL)\n", machine().describe_context(), data);
-}
+}    
 
 uint32_t spot_asic_device::reg_4014_r()
 {
@@ -722,6 +757,71 @@ void spot_asic_device::set_bus_irq(uint8_t mask, int state)
 
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+    uint32_t adder = 0x72D80;//0x73f00;//0x72D80;
+    uint32_t ystart = 0;
+    uint32_t ymax = 420;
+    uint32_t xstart = 0;
+    uint32_t xmax = 560;
+    //uint32_t adder = 0x0;
+
+    if(m_vid_dmacntl & VID_DMACNTL_DMAEN) {
+        //uint16_t *m_displayram = (uint16_t *)memshare(":ram")->ptr();
+        
+        if(0) {
+            /*for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
+            {
+                address_space &space = m_hostcpu->space(AS_PROGRAM);
+
+                uint32_t *colorptr = &m_frameColor[frame_addr_from_xy(0, y, false)];
+                std::copy(colorptr + (cliprect.min_x * 2), colorptr + ((cliprect.max_x + 1) * 2), &bitmap.pix(y, cliprect.min_x));
+            }*/
+        } else {
+            address_space &space = m_hostcpu->space(AS_PROGRAM);
+
+            uint32_t bpp = 4;
+            int actual_y = 0;
+            for (int y = ystart; y < ymax; y++) {
+                uint32_t *line = &bitmap.pix(y);
+
+                if((y%2) == 0) {
+                    for (int x = xstart; x < (xmax / 2); x++) {
+                        uint32_t pixel1 = space.read_dword(m_vid_nstart + adder + (actual_y * (xmax) * bpp) + ((xmax / 2) * bpp) + (x * bpp));
+
+                        /*uint8_t y = (pixel1 >> 0x18) & 0xff;
+                        uint8_t u = (pixel1 >> 0x10) & 0xff;
+                        uint8_t v = (pixel1 >> 0x00) & 0xff;
+                        uint8_t uvg = u;
+                        y -= 0x10;//kBlackY;
+                        y = (((y << 8) + (1<<7)) / (0xEB - 0x10));//kRangeY);
+                        uint8_t r = (y + v)   & 0xff;
+                        uint8_t g = (y - uvg) & 0xff;
+                        uint8_t b = (y + u)   & 0xff;
+                        uint32_t pixel2 = (r<<0x18) | (g<<0x10) | (b);*/
+
+                        *line++ = pixel1;
+                        *line++ = pixel1+1;
+                    }
+
+                    actual_y++;
+                } else {
+                    for (int x = 0; x < (xmax / 2); x++) {
+                        uint32_t pixel1 = space.read_dword(m_vid_nstart + adder + (actual_y * (xmax) * bpp) + (x * bpp));
+
+                        *line++ = pixel1;
+                        *line++ = pixel1;
+                    }
+
+                    /*if((y%2) == 0) {
+                        actual_y++;
+                    }*/
+                }
+            }
+        }
+
+
+        //printf("SCREEN UPDATE %08x -> %08x: %p:%08x\n", m_vid_nstart, m_vid_nsize, m_displayram, *m_displayram);
+    }
+
     /*
     m_videotex->set_bitmap(m_videobitmap, m_videobitmap.cliprect(), TEXFORMAT_YUY16);
 
