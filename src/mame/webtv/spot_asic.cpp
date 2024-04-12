@@ -755,6 +755,30 @@ void spot_asic_device::set_bus_irq(uint8_t mask, int state)
     }
 }
 
+uint32_t spot_asic_device::ycbycr_to_rgb32_value(uint32_t ycbycr_val, bool secondPixel)
+{
+    uint8_t y = (ycbycr_val >> 0x18) & 0xff;
+    if(secondPixel)
+    {
+        y = (ycbycr_val >> 0x08) & 0xff;
+    }
+    uint8_t cb = (ycbycr_val >> 0x10) & 0xff;
+    uint8_t cr = (ycbycr_val >> 0x00) & 0xff;
+
+    int8_t scb = cb - 128;
+    int8_t scr = cr - 128;
+
+    int32_t ir = static_cast<int32_t>(y + 1.402 * scr);
+    int32_t ig = static_cast<int32_t>(y - 0.34414 * scb - 0.71414 * scr);
+    int32_t ib = static_cast<int32_t>(y + 1.772 * scb);
+
+    uint8_t r = std::max(0, std::min(255, ir));
+    uint8_t g = std::max(0, std::min(255, ig));
+    uint8_t b = std::max(0, std::min(255, ib));
+    
+    return (r<<0x10) | (g<<0x08) | (b);
+}
+
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
     uint32_t adder = 0x72D80;//0x73f00;//0x72D80;
@@ -798,8 +822,8 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
                         uint8_t b = (y + u)   & 0xff;
                         uint32_t pixel2 = (r<<0x18) | (g<<0x10) | (b);*/
 
-                        *line++ = pixel1;
-                        *line++ = pixel1+1;
+                        *line++ = ycbycr_to_rgb32_value(pixel1, false);
+                        *line++ = ycbycr_to_rgb32_value(pixel1, true);
                     }
 
                     actual_y++;
@@ -807,8 +831,8 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
                     for (int x = 0; x < (xmax / 2); x++) {
                         uint32_t pixel1 = space.read_dword(m_vid_nstart + adder + (actual_y * (xmax) * bpp) + (x * bpp));
 
-                        *line++ = pixel1;
-                        *line++ = pixel1;
+                        *line++ = ycbycr_to_rgb32_value(pixel1, false);
+                        *line++ = ycbycr_to_rgb32_value(pixel1, true);
                     }
 
                     /*if((y%2) == 0) {
