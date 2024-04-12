@@ -28,14 +28,14 @@
 			<bounds x="0" y="0" width="640" height="480" />
 		</screen>
 		<collection name="Status LEDs" visible="yes">
-		    <element ref="text_power"><bounds x="5" y="485" width="25" height="10" /></element>
-			<element name="powerled" ref="power_led"><bounds x="10" y="510" width="20" height="20" /></element>
+		    <element ref="text_power"><bounds x="0" y="485" width="30" height="10" /></element>
+			<element name="power_led" ref="power_led"><bounds x="5" y="495" width="20" height="20" /></element>
 
-		    <element ref="text_connect"><bounds x="40" y="485" width="25" height="10" /></element>
-			<element name="connectled" ref="connect_led"><bounds x="40" y="510" width="20" height="20" /></element>
+		    <element ref="text_connect"><bounds x="35" y="485" width="30" height="10" /></element>
+			<element name="connect_led" ref="connect_led"><bounds x="40" y="495" width="20" height="20" /></element>
             
-		    <element ref="text_message"><bounds x="65" y="485" width="25" height="10" /></element>
-			<element name="messageled" ref="message_led"><bounds x="65" y="510" width="20" height="20" /></element>
+		    <element ref="text_message"><bounds x="70" y="485" width="30" height="10" /></element>
+			<element name="message_led" ref="message_led"><bounds x="75" y="495" width="20" height="20" /></element>
 		</collection>
     </view>
 </mamelayout>
