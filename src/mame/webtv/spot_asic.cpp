@@ -44,9 +44,6 @@
 #define VERBOSE         (LOG_DEFAULT)
 #include "logmacro.h"
 
-#define SPOT_NTSC_WIDTH 640
-#define SPOT_NTSC_HEIGHT 480
-
 DEFINE_DEVICE_TYPE(SPOT_ASIC, spot_asic_device, "spot_asic", "WebTV SPOT ASIC")
 
 spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
@@ -61,28 +58,8 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
     m_power_led(*this, "power_led"),
     m_connect_led(*this, "connect_led"),
     m_message_led(*this, "message_led"),
-    m_videobitmap(SPOT_NTSC_WIDTH, SPOT_NTSC_HEIGHT),
-    m_hsync_cb(*this),
-	m_vsync_cb(*this),
     m_sys_timer(nullptr) // when it goes off, timer interrupt fires
 {
-}
-
-void spot_asic_device::fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb)
-{
-	uint16_t color0 = (yval << 8) | cb;
-	uint16_t color1 = (yval << 8) | cr;
-
-	// write 32 bits of color (2 pixels at a time)
-	for (int y = 0; y < bitmap.height(); y++)
-	{
-		uint16_t *dest = &bitmap.pix(y);
-		for (int x = 0; x < bitmap.width() / 2; x++)
-		{
-			*dest++ = color0;
-			*dest++ = color1;
-		}
-	}
 }
 
 void spot_asic_device::bus_unit_map(address_map &map)
@@ -184,10 +161,10 @@ void spot_asic_device::mem_unit_map(address_map &map)
 void spot_asic_device::device_add_mconfig(machine_config &config)
 {
     SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-    m_screen->set_size(SPOT_NTSC_WIDTH, SPOT_NTSC_HEIGHT);
-	m_screen->set_visarea(0, SPOT_NTSC_WIDTH - 1, 0, SPOT_NTSC_HEIGHT - 1);
+    m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
+	m_screen->set_visarea(0, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_HEIGHT);
 	m_screen->set_refresh_hz(59.94);
-    
+
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
     set_clock(m_screen->clock() * 2); // internal clock is always set to double the pixel clock
 
@@ -232,6 +209,13 @@ void spot_asic_device::device_start()
 void spot_asic_device::device_reset()
 {
     spot_asic_device::device_start();
+}
+
+void spot_asic_device::refresh_screen_config()
+{
+    m_screen->set_size(m_vid_hsize, m_vid_vsize);
+    m_screen->set_visarea(0, m_vid_hsize, 0, m_vid_vsize);
+    m_screen->set_refresh_hz(59.94);
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -343,7 +327,7 @@ uint32_t spot_asic_device::reg_300c_r()
 void spot_asic_device::reg_300c_w(uint32_t data)
 {
     m_vid_nstart = data;
-    printf("m_vid_nstart=%08x\n", m_vid_nstart);
+
     logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
 }
 
@@ -356,7 +340,7 @@ uint32_t spot_asic_device::reg_3010_r()
 void spot_asic_device::reg_3010_w(uint32_t data)
 {
     m_vid_nsize = data;
-    printf("m_vid_nsize=%08x\n", m_vid_nsize);
+
     logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
 }
 
@@ -369,7 +353,7 @@ uint32_t spot_asic_device::reg_3014_r()
 void spot_asic_device::reg_3014_w(uint32_t data)
 {
     m_vid_dmacntl = data;
-    printf("m_vid_dmacntl=%08x\n", m_vid_dmacntl);
+
     logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
 }
 
@@ -382,7 +366,9 @@ uint32_t spot_asic_device::reg_3020_r()
 void spot_asic_device::reg_3020_w(uint32_t data)
 {
     m_vid_hstart = data;
-    printf("m_vid_hstart=%08x\n", m_vid_hstart);
+
+    spot_asic_device::refresh_screen_config();
+    
     logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
 }
 
@@ -395,7 +381,9 @@ uint32_t spot_asic_device::reg_3024_r()
 void spot_asic_device::reg_3024_w(uint32_t data)
 {
     m_vid_hsize = data;
-    printf("m_vid_hsize=%08x\n", m_vid_hsize);
+
+    spot_asic_device::refresh_screen_config();
+
     logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
 }
 
@@ -408,7 +396,9 @@ uint32_t spot_asic_device::reg_3028_r()
 void spot_asic_device::reg_3028_w(uint32_t data)
 {
     m_vid_vstart = data;
-    printf("m_vid_vstart=%08x\n", m_vid_vstart);
+    
+    spot_asic_device::refresh_screen_config();
+
     logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
 }
 
@@ -421,7 +411,9 @@ uint32_t spot_asic_device::reg_302c_r()
 void spot_asic_device::reg_302c_w(uint32_t data)
 {
     m_vid_vsize = data;
-    printf("m_vid_vsize=%08x\n", m_vid_vsize);
+    
+    spot_asic_device::refresh_screen_config();
+
     logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
 
@@ -735,20 +727,17 @@ void spot_asic_device::set_bus_irq(uint8_t mask, int state)
 
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-    uint32_t adder = m_vid_nsize;
-    uint32_t ystart = 0;
-    uint32_t ymax = m_vid_vsize + 2;
-    uint32_t xstart = 0;
-    uint32_t xmax = m_vid_hsize;
-
     if(m_vid_dmacntl & VID_DMACNTL_DMAEN) {
+        uint32_t vid_base = m_vid_nstart + m_vid_nsize;
+        uint32_t vid_offset = vid_base;
+
         address_space &space = m_hostcpu->space(AS_PROGRAM);
 
-        for (int y = ystart; y < ymax; y++) {
+        for (int y = 0; y < m_vid_vsize; y++) {
             uint32_t *line = &bitmap.pix(y);
 
-            for (int x = xstart; x < xmax; x += 2) {
-                uint32_t pixel = space.read_dword(m_vid_nstart + adder + (y * (xmax) * VID_BYTES_PER_PIXEL) + (x * VID_BYTES_PER_PIXEL));
+            for (int x = 0; x < m_vid_hsize; x += 2) {
+                uint32_t pixel = space.read_dword(vid_offset);
 
                 int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
                 int32_t u  = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
@@ -774,6 +763,8 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
                     | std::clamp(y2 - g, 0x00, 0xff) << 0x08
                     | std::clamp(y2 + b, 0x00, 0xff)
                 );
+
+                vid_offset += 2 * VID_BYTES_PER_PIXEL;
             }
         }
     }
