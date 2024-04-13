@@ -135,7 +135,6 @@ private:
     required_device<ds2401_device> m_serial_id;
     required_device<i2cmem_device> m_nvram;
     required_device<kbdc8042_device> m_kbdc;
-
 	required_device<screen_device> m_screen;
     
 	output_finder<> m_power_led;
@@ -144,16 +143,6 @@ private:
     
 	void irq_keyboard_w(int state);
     
-    void fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb);
-    
-	bitmap_yuy16        m_videobitmap;
-	render_texture *    m_videotex;             // texture for the video
-	palette_t *         m_videopalette;         // palette for the video
-    
-    
-	devcb_write_line   m_hsync_cb;
-	devcb_write_line   m_vsync_cb;
-
     emu_timer *m_sys_timer;
     //emu_timer *m_watchdog_timer;
     
@@ -163,6 +152,7 @@ private:
 
     void set_bus_irq(uint8_t mask, int state);
 
+    void refresh_screen_config();
     void spot_update_cycle_counting();
 
     TIMER_CALLBACK_MEMBER(sys_timer_callback);
