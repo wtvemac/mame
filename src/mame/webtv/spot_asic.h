@@ -42,6 +42,15 @@
 #define BUS_INT_DEVSMC 1 << 3 // SmartCard inserted
 #define BUS_INT_AUDDMA 1 << 2 // audUnit DMA completion
 
+#define VID_Y_BLACK         0x10
+#define VID_Y_WHITE         0xeb
+#define VID_Y_RANGE         (VID_Y_WHITE - VID_Y_BLACK)
+#define VID_UV_OFFSET       0x80
+#define VID_BYTES_PER_PIXEL 2
+#define VID_DEFAULT_WIDTH   560
+#define VID_DEFAULT_HEIGHT  420
+
+
 #define VID_INT_FIDO   1 << 6 // TODO: docs don't have info on FIDO mode! figure this out!
 #define VID_INT_VSYNCE 1 << 5 // even field VSYNC
 #define VID_INT_VSYNCO 1 << 4 // odd field VSYNC
@@ -75,7 +84,6 @@ public:
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
 
-    uint32_t ycbycr_to_rgb32_value(uint32_t ycbycr_val, bool secondPixel);
     uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 protected:

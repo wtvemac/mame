@@ -217,9 +217,9 @@ void spot_asic_device::device_start()
     m_vid_nsize = 0x0;
     m_vid_dmacntl = 0x0;
     m_vid_hstart = 0x0;
-    m_vid_hsize = 0x0;
+    m_vid_hsize = VID_DEFAULT_WIDTH;
     m_vid_vstart = 0x0;
-    m_vid_vsize = 0x0;
+    m_vid_vsize = VID_DEFAULT_HEIGHT;
     m_vid_hintline = 0x0;
     m_vid_cline = 0x0;
     m_ledstate = 0xFFFFFFFF;
@@ -231,29 +231,7 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-    m_memcntl = 0b11;
-    m_memrefcnt = 0x0400;
-    m_memdata = 0x0;
-    m_memtiming = 0xadbadffa;
-    m_intenable = 0x0;
-    m_intstat = 0x0;
-    m_errenable = 0x0;
-    m_errstat = 0x0;
-    m_timeout_compare = 0xffff;
-    m_nvcntl = 0x0;
-    m_vid_nstart = 0x0;
-    m_vid_nsize = 0x0;
-    m_vid_dmacntl = 0x0;
-    m_vid_hstart = 0x0;
-    m_vid_hsize = 0x0;
-    m_vid_vstart = 0x0;
-    m_vid_vsize = 0x0;
-    m_vid_hintline = 0x0;
-    m_vid_cline = 0x0;
-
-    emc_bitcount = 0x0;
-    emc_byte = 0x0;
-    emc_vbltimer = 0x0;
+    spot_asic_device::device_start();
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -755,108 +733,50 @@ void spot_asic_device::set_bus_irq(uint8_t mask, int state)
     }
 }
 
-uint32_t spot_asic_device::ycbycr_to_rgb32_value(uint32_t ycbycr_val, bool secondPixel)
-{
-    uint8_t y = (ycbycr_val >> 0x18) & 0xff;
-    if(secondPixel)
-    {
-        y = (ycbycr_val >> 0x08) & 0xff;
-    }
-    uint8_t cb = (ycbycr_val >> 0x10) & 0xff;
-    uint8_t cr = (ycbycr_val >> 0x00) & 0xff;
-
-    int8_t scb = cb - 128;
-    int8_t scr = cr - 128;
-
-    int32_t ir = static_cast<int32_t>(y + 1.402 * scr);
-    int32_t ig = static_cast<int32_t>(y - 0.34414 * scb - 0.71414 * scr);
-    int32_t ib = static_cast<int32_t>(y + 1.772 * scb);
-
-    uint8_t r = std::max(0, std::min(255, ir));
-    uint8_t g = std::max(0, std::min(255, ig));
-    uint8_t b = std::max(0, std::min(255, ib));
-    
-    return (r<<0x10) | (g<<0x08) | (b);
-}
-
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-    uint32_t adder = 0x72D80;//0x73f00;//0x72D80;
+    uint32_t adder = m_vid_nsize;
     uint32_t ystart = 0;
-    uint32_t ymax = 420;
+    uint32_t ymax = m_vid_vsize + 2;
     uint32_t xstart = 0;
-    uint32_t xmax = 560;
-    //uint32_t adder = 0x0;
+    uint32_t xmax = m_vid_hsize;
 
     if(m_vid_dmacntl & VID_DMACNTL_DMAEN) {
-        //uint16_t *m_displayram = (uint16_t *)memshare(":ram")->ptr();
-        
-        if(0) {
-            /*for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
-            {
-                address_space &space = m_hostcpu->space(AS_PROGRAM);
+        address_space &space = m_hostcpu->space(AS_PROGRAM);
 
-                uint32_t *colorptr = &m_frameColor[frame_addr_from_xy(0, y, false)];
-                std::copy(colorptr + (cliprect.min_x * 2), colorptr + ((cliprect.max_x + 1) * 2), &bitmap.pix(y, cliprect.min_x));
-            }*/
-        } else {
-            address_space &space = m_hostcpu->space(AS_PROGRAM);
+        for (int y = ystart; y < ymax; y++) {
+            uint32_t *line = &bitmap.pix(y);
 
-            uint32_t bpp = 4;
-            int actual_y = 0;
-            for (int y = ystart; y < ymax; y++) {
-                uint32_t *line = &bitmap.pix(y);
+            for (int x = xstart; x < xmax; x += 2) {
+                uint32_t pixel = space.read_dword(m_vid_nstart + adder + (y * (xmax) * VID_BYTES_PER_PIXEL) + (x * VID_BYTES_PER_PIXEL));
 
-                if((y%2) == 0) {
-                    for (int x = xstart; x < (xmax / 2); x++) {
-                        uint32_t pixel1 = space.read_dword(m_vid_nstart + adder + (actual_y * (xmax) * bpp) + ((xmax / 2) * bpp) + (x * bpp));
+                int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
+                int32_t u  = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
+                int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
+                int32_t v  = ((pixel >> 0x00) & 0xff) - VID_UV_OFFSET;
 
-                        /*uint8_t y = (pixel1 >> 0x18) & 0xff;
-                        uint8_t u = (pixel1 >> 0x10) & 0xff;
-                        uint8_t v = (pixel1 >> 0x00) & 0xff;
-                        uint8_t uvg = u;
-                        y -= 0x10;//kBlackY;
-                        y = (((y << 8) + (1<<7)) / (0xEB - 0x10));//kRangeY);
-                        uint8_t r = (y + v)   & 0xff;
-                        uint8_t g = (y - uvg) & 0xff;
-                        uint8_t b = (y + u)   & 0xff;
-                        uint32_t pixel2 = (r<<0x18) | (g<<0x10) | (b);*/
+                y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+                y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
 
-                        *line++ = ycbycr_to_rgb32_value(pixel1, false);
-                        *line++ = ycbycr_to_rgb32_value(pixel1, true);
-                    }
+                int32_t r = ((0x166 * v) + VID_UV_OFFSET) >> 8;
+                int32_t b = ((0x1C7 * u) + VID_UV_OFFSET) >> 8;
+                int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
 
-                    actual_y++;
-                } else {
-                    for (int x = 0; x < (xmax / 2); x++) {
-                        uint32_t pixel1 = space.read_dword(m_vid_nstart + adder + (actual_y * (xmax) * bpp) + (x * bpp));
 
-                        *line++ = ycbycr_to_rgb32_value(pixel1, false);
-                        *line++ = ycbycr_to_rgb32_value(pixel1, true);
-                    }
+                *line++ = (
+                      std::clamp(y1 + r, 0x00, 0xff) << 0x10
+                    | std::clamp(y1 - g, 0x00, 0xff) << 0x08
+                    | std::clamp(y1 + b, 0x00, 0xff)
+                );
 
-                    /*if((y%2) == 0) {
-                        actual_y++;
-                    }*/
-                }
+                *line++ = (
+                      std::clamp(y2 + r, 0x00, 0xff) << 0x10
+                    | std::clamp(y2 - g, 0x00, 0xff) << 0x08
+                    | std::clamp(y2 + b, 0x00, 0xff)
+                );
             }
         }
-
-
-        //printf("SCREEN UPDATE %08x -> %08x: %p:%08x\n", m_vid_nstart, m_vid_nsize, m_displayram, *m_displayram);
     }
 
-    /*
-    m_videotex->set_bitmap(m_videobitmap, m_videobitmap.cliprect(), TEXFORMAT_YUY16);
-
-    // reset the screen contents
-    screen.container().empty();
-
-    // add the video texture
-    rgb_t videocolor = 0xffffffff; // Fully visible, white
-    if ((m_pot_cntl&POT_CNTL_ENABLE_OUTPUTS) == 0)
-        videocolor = 0xff000000; // Blank the texture's RGB of the texture
-    m_screen->container().add_quad(0.0f, 0.0f, 1.0f, 1.0f, videocolor, m_videotex, PRIMFLAG_BLENDMODE(BLENDMODE_NONE) | PRIMFLAG_SCREENTEX(1));
-    */
     return 0;
 }
