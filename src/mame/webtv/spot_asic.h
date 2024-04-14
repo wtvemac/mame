@@ -135,6 +135,9 @@ protected:
     uint32_t m_vid_vstart;
     uint32_t m_vid_vsize;
     uint32_t m_vid_blank_color;
+    uint32_t m_vid_cstart;
+    uint32_t m_vid_csize;
+    uint32_t m_vid_ccnt;
     uint32_t m_vid_cline;
     uint32_t m_vid_hintline;
 
