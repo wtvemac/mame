@@ -28,6 +28,15 @@
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 
+#define SYSCONFIG_ROMTYP0    1 << 31
+#define SYSCONFIG_ROMMODE0   1 << 30
+#define SYSCONFIG_ROMTYP1    1 << 27
+#define SYSCONFIG_ROMMODE1   1 << 26
+#define SYSCONFIG_AUDDACMODE 1 << 17
+#define SYSCONFIG_VIDCLKSRC  1 << 16
+#define SYSCONFIG_CPUBUFF    1 << 13
+#define SYSCONFIG_NTSC       1 << 11
+
 #define ERR_F1READ  1 << 6
 #define ERR_F1WRITE 1 << 5
 #define ERR_F2READ  1 << 4
@@ -68,7 +77,6 @@
 #define VID_INT_VSYNCO 1 << 4 // odd field VSYNC
 #define VID_INT_HSYNC  1 << 3 // HSYNC on line specified by VID_HINTLINE
 #define VID_INT_DMA    1 << 2 // vidUnit DMA completion
-
 
 #define VID_FCNTL_UVSELSWAP  1 << 7
 #define VID_FCNTL_CRCBINVERT 1 << 6
@@ -113,6 +121,10 @@ protected:
     virtual void device_add_mconfig(machine_config &config) override;
 	virtual void device_start() override;
 	virtual void device_reset() override;
+    void activate_ntsc_screen();
+    void activate_pal_screen();
+
+    uint32_t m_sysconfig;
 
     uint32_t m_fence1_lower_addr;
     uint32_t m_fence1_upper_addr;
