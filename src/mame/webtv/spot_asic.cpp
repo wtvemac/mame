@@ -110,7 +110,7 @@ void spot_asic_device::vid_unit_map(address_map &map)
     map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_3010_r), FUNC(spot_asic_device::reg_3010_w));
     map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_3014_r), FUNC(spot_asic_device::reg_3014_w));
     //map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_3018_r), FUNC(spot_asic_device::reg_3018_w));
-    //map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_301c_r), FUNC(spot_asic_device::reg_301c_w));
+    map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_301c_r), FUNC(spot_asic_device::reg_301c_w));
     map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_3020_r), FUNC(spot_asic_device::reg_3020_w));
     map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_3024_r), FUNC(spot_asic_device::reg_3024_w));
     map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_3028_r), FUNC(spot_asic_device::reg_3028_w));
@@ -163,7 +163,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
     SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
     m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
 	m_screen->set_visarea(0, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_HEIGHT);
-	m_screen->set_refresh_hz(59.94);
+	m_screen->set_refresh_hz(VID_DEFAULT_HZ);
 
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
     set_clock(m_screen->clock() * 2); // internal clock is always set to double the pixel clock
@@ -193,10 +193,11 @@ void spot_asic_device::device_start()
     m_vid_nstart = 0x0;
     m_vid_nsize = 0x0;
     m_vid_dmacntl = 0x0;
-    m_vid_hstart = 0x0;
-    m_vid_hsize = VID_DEFAULT_WIDTH;
-    m_vid_vstart = 0x0;
-    m_vid_vsize = VID_DEFAULT_HEIGHT;
+    m_vid_hstart = VID_DEFAULT_HSTART;
+    m_vid_hsize = VID_DEFAULT_HSIZE;
+    m_vid_vstart = VID_DEFAULT_VSTART;
+    m_vid_vsize = VID_DEFAULT_VSIZE;
+    m_vid_blank_color = VID_DEFAULT_COLOR;
     m_vid_hintline = 0x0;
     m_vid_cline = 0x0;
     m_ledstate = 0xFFFFFFFF;
@@ -211,11 +212,46 @@ void spot_asic_device::device_reset()
     spot_asic_device::device_start();
 }
 
-void spot_asic_device::refresh_screen_config()
+void spot_asic_device::validate_active_area()
 {
-    m_screen->set_size(m_vid_hsize, m_vid_vsize);
-    m_screen->set_visarea(0, m_vid_hsize, 0, m_vid_vsize);
-    m_screen->set_refresh_hz(59.94);
+    printf("1.m_vid_hsize=%08x, m_vid_hstart=%08x, m_vid_vsize=%08x, m_vid_vstart=%08x\n", m_vid_hsize, m_vid_hstart, m_vid_vsize, m_vid_vstart);
+
+    // hsize and vsize changes will break the screen but it would break on hardware.
+
+    // The active h size can't be larger than the screen width.
+    if(m_vid_hsize > m_screen->width())
+    {
+        m_vid_hsize = m_screen->width();
+    }
+
+    // The active v size can't be larger than the screen height.
+    if(m_vid_vsize > m_screen->height())
+    {
+        m_vid_vsize = m_screen->height();
+    }
+
+    // hsize and vsize need to be a multiple of 2
+    m_vid_hsize = (m_vid_hsize / 2) * 2;
+    m_vid_vsize = (m_vid_vsize / 2) * 2;
+
+    // The active h offset (hstart) can't push the active area off the screen.
+    if((m_vid_hstart + m_vid_hsize) > m_screen->width())
+    {
+        m_vid_hstart = (m_screen->width() - m_vid_hsize) / 2; // to screen center
+    }
+    
+
+    // The active v offset (vstart) can't push the active area off the screen.
+    if((m_vid_vstart + m_vid_vsize) > m_screen->height())
+    {
+        m_vid_vstart = (m_screen->height() - m_vid_vsize) / 2; // to screen center
+    }
+
+    // hstart and vstart need to be a multiple of 8
+    m_vid_hstart = (m_vid_hstart / 8) * 8;
+    m_vid_vstart = (m_vid_vstart / 8) * 8;
+
+    printf("2.m_vid_hsize=%08x, m_vid_hstart=%08x, m_vid_vsize=%08x, m_vid_vstart=%08x\n\n", m_vid_hsize, m_vid_hstart, m_vid_vsize, m_vid_vstart);
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -357,6 +393,20 @@ void spot_asic_device::reg_3014_w(uint32_t data)
     logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
 }
 
+uint32_t spot_asic_device::reg_301c_r()
+{
+    logerror("%s: reg_301c_r (VID_BLNKCOL)\n", machine().describe_context());
+    return m_vid_blank_color;
+}
+
+void spot_asic_device::reg_301c_w(uint32_t data)
+{
+    m_vid_blank_color = data;
+    printf("m_vid_blank_color=%08x",data);
+
+    logerror("%s: reg_301c_r %08x (VID_BLNKCOL)\n", machine().describe_context(), data);
+}
+
 uint32_t spot_asic_device::reg_3020_r()
 {
     logerror("%s: reg_3020_r (VID_HSTART)\n", machine().describe_context());
@@ -367,8 +417,8 @@ void spot_asic_device::reg_3020_w(uint32_t data)
 {
     m_vid_hstart = data;
 
-    spot_asic_device::refresh_screen_config();
-    
+    spot_asic_device::validate_active_area();
+
     logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
 }
 
@@ -382,7 +432,7 @@ void spot_asic_device::reg_3024_w(uint32_t data)
 {
     m_vid_hsize = data;
 
-    spot_asic_device::refresh_screen_config();
+    spot_asic_device::validate_active_area();
 
     logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
 }
@@ -396,9 +446,9 @@ uint32_t spot_asic_device::reg_3028_r()
 void spot_asic_device::reg_3028_w(uint32_t data)
 {
     m_vid_vstart = data;
-    
-    spot_asic_device::refresh_screen_config();
 
+    spot_asic_device::validate_active_area();
+    
     logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
 }
 
@@ -411,9 +461,9 @@ uint32_t spot_asic_device::reg_302c_r()
 void spot_asic_device::reg_302c_w(uint32_t data)
 {
     m_vid_vsize = data;
-    
-    spot_asic_device::refresh_screen_config();
 
+    spot_asic_device::validate_active_area();
+    
     logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
 
@@ -435,7 +485,7 @@ uint32_t spot_asic_device::reg_3034_r()
 
     // Older spot builds uses the VBL to calculate the CPU speed.
     // The calculated CPU speed gets used everywhere in the build so this is a hack to temp fix bootup issues.
-    return (m_vid_cline++) & 0x1ffff; // 0x1ffff is arbitrary. I just set it to this since it gets a MHz I'm happy with
+    return m_vid_cline; // 0x1ffff is arbitrary. I just set it to this since it gets a MHz I'm happy with
 }
 
 
@@ -727,45 +777,68 @@ void spot_asic_device::set_bus_irq(uint8_t mask, int state)
 
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-    if(m_vid_dmacntl & VID_DMACNTL_DMAEN) {
-        uint32_t vid_base = m_vid_nstart + m_vid_nsize;
-        uint32_t vid_offset = vid_base;
+    uint16_t screen_width = bitmap.width();
+    uint16_t screen_height =  bitmap.height();
+    
+    uint32_t vid_base = m_vid_nstart + m_vid_nsize;
+    uint32_t vid_offset = vid_base;
 
-        address_space &space = m_hostcpu->space(AS_PROGRAM);
+    address_space &space = m_hostcpu->space(AS_PROGRAM);
 
-        for (int y = 0; y < m_vid_vsize; y++) {
-            uint32_t *line = &bitmap.pix(y);
+    for (int y = 0; y < screen_height; y++)
+    {
+        uint32_t *line = &bitmap.pix(y);
 
-            for (int x = 0; x < m_vid_hsize; x += 2) {
-                uint32_t pixel = space.read_dword(vid_offset);
+        for (int x = 0; x < screen_width; x += 2)
+        {
+            uint32_t pixel = 0x00000000;
 
-                int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
-                int32_t u  = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
-                int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
-                int32_t v  = ((pixel >> 0x00) & 0xff) - VID_UV_OFFSET;
+            bool is_active_area = (
+                y >= m_vid_vstart
+                && y < (m_vid_vstart + m_vid_vsize)
 
-                y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
-                y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+                && x >= m_vid_hstart
+                && x < (m_vid_hstart + m_vid_hsize)
+            );
 
-                int32_t r = ((0x166 * v) + VID_UV_OFFSET) >> 8;
-                int32_t b = ((0x1C7 * u) + VID_UV_OFFSET) >> 8;
-                int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
-
-
-                *line++ = (
-                      std::clamp(y1 + r, 0x00, 0xff) << 0x10
-                    | std::clamp(y1 - g, 0x00, 0xff) << 0x08
-                    | std::clamp(y1 + b, 0x00, 0xff)
-                );
-
-                *line++ = (
-                      std::clamp(y2 + r, 0x00, 0xff) << 0x10
-                    | std::clamp(y2 - g, 0x00, 0xff) << 0x08
-                    | std::clamp(y2 + b, 0x00, 0xff)
-                );
+            if(m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
+            {
+                pixel = space.read_dword(vid_offset);
 
                 vid_offset += 2 * VID_BYTES_PER_PIXEL;
             }
+            else
+            {
+                int32_t blnkY = (m_vid_blank_color >> 0x10) & 0xff;
+                int32_t blnkCr = (m_vid_blank_color >> 0x08) & 0xff;
+                int32_t blnkCb = m_vid_blank_color & 0xff;
+
+                pixel =  blnkY << 0x18 | blnkCb << 0x10 | blnkY << 0x08 | blnkCr;
+            }
+
+            int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
+            int32_t Cb  = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
+            int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
+            int32_t Cr  = ((pixel) & 0xff) - VID_UV_OFFSET;
+
+            y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+            y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+
+            int32_t r = ((0x166 * Cr) + VID_UV_OFFSET) >> 8;
+            int32_t b = ((0x1C7 * Cb) + VID_UV_OFFSET) >> 8;
+            int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
+
+            *line++ = (
+                std::clamp(y1 + r, 0x00, 0xff) << 0x10
+                | std::clamp(y1 - g, 0x00, 0xff) << 0x08
+                | std::clamp(y1 + b, 0x00, 0xff)
+            );
+
+            *line++ = (
+                std::clamp(y2 + r, 0x00, 0xff) << 0x10
+                | std::clamp(y2 - g, 0x00, 0xff) << 0x08
+                | std::clamp(y2 + b, 0x00, 0xff)
+            );
         }
     }
 
