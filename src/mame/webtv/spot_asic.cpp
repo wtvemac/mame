@@ -162,11 +162,10 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 {
     SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
     m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
-	m_screen->set_visarea(0, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_HEIGHT);
-	m_screen->set_refresh_hz(VID_DEFAULT_HZ);
+    m_screen->set_visarea(0, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_HEIGHT);
+    m_screen->set_refresh_hz(VID_DEFAULT_HZ);
 
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
-    set_clock(m_screen->clock() * 2); // internal clock is always set to double the pixel clock
 
 	KBDC8042(config, m_kbdc);
 	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
@@ -203,6 +202,8 @@ void spot_asic_device::device_start()
     m_vid_csize = 0x0;
     m_vid_ccnt = 0x0;
     m_vid_cline = 0x0;
+    m_vid_cline_cyccnt = 0x0;
+    m_vid_cline_direct = false;
     m_ledstate = 0xFFFFFFFF;
 
     emc_bitcount = 0x0;
@@ -401,7 +402,6 @@ uint32_t spot_asic_device::reg_301c_r()
 void spot_asic_device::reg_301c_w(uint32_t data)
 {
     m_vid_blank_color = data;
-    printf("m_vid_blank_color=%08x",data);
 
     logerror("%s: reg_301c_r %08x (VID_BLNKCOL)\n", machine().describe_context(), data);
 }
@@ -480,11 +480,44 @@ void spot_asic_device::reg_3030_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_3034_r()
 {
+    if(!m_vid_cline_direct)
+    {
+        /*
+            Builds uses this to calculate the CPU speed. 
+            
+            Emulation has this decoupled so it doesn't work. I'll try to accomidate the CPU speed calculation but use the correct value set in screen_update on an interrupt.
+
+            The build uses the time it takes to draw one frames as a time base (33.3333ms for two fields @ 60hz) then counts the number of CPU cycles it takes to do that
+
+            speed = cycles * (2 clock ticks / cycle) * (2 fields or 1 frame) / (33.3333 ms) * (1000 ms/s)
+
+            Steps:
+
+            1. The build grabs the current line position.
+            2. The build waits until the next line then grabs the current cycle count.
+            3. The build waits until it returns to the line position in step 1 then grabs the current cycle count again.
+            4. The cycle count different between steps 3 and 1 is made. We should be able to compute the CPU clock speed using the frame rate.
+
+            Then the build takes that and multiplies it by 12, 10 or 120 for whatever reason. I assume to adjust for any counter error.
+        */
+
+        uint32_t clocks_per_frame = (m_hostcpu->clock() / 2) / ATTOSECONDS_TO_HZ(m_screen->refresh_attoseconds());
+        uint32_t current_cyccnt = m_hostcpu->total_cycles();
+
+        if(m_vid_cline_cyccnt == 0 || (current_cyccnt - m_vid_cline_cyccnt) >= clocks_per_frame)
+        {
+            m_vid_cline = 0;
+            m_vid_cline_cyccnt = current_cyccnt;
+        }
+        else
+        {
+            m_vid_cline = 1;
+        }
+    }
+
     logerror("%s: reg_3034_r (VID_CLINE)\n", machine().describe_context());
 
-    // Older spot builds uses the VBL to calculate the CPU speed.
-    // The calculated CPU speed gets used everywhere in the build so this is a hack to temp fix bootup issues.
-    return m_vid_cline; // 0x1ffff is arbitrary. I just set it to this since it gets a MHz I'm happy with
+    return m_vid_cline;
 }
 
 
@@ -781,13 +814,15 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
     m_vid_cstart = m_vid_nstart;
     m_vid_csize = m_vid_nsize;
-    m_vid_ccnt = m_vid_cstart + m_vid_csize;
+    m_vid_ccnt = m_vid_cstart;// + m_vid_csize;
 
     address_space &space = m_hostcpu->space(AS_PROGRAM);
 
     for (int y = 0; y < screen_height; y++)
     {
         uint32_t *line = &bitmap.pix(y);
+
+        m_vid_cline = y;
 
         for (int x = 0; x < screen_width; x += 2)
         {
