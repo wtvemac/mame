@@ -161,9 +161,15 @@ void spot_asic_device::mem_unit_map(address_map &map)
 void spot_asic_device::device_add_mconfig(machine_config &config)
 {
     SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-    m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
-    m_screen->set_visarea(0, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_HEIGHT);
-    m_screen->set_refresh_hz(VID_DEFAULT_HZ);
+    if(m_sysconfig & SYSCONFIG_NTSC)
+    {
+        spot_asic_device::activate_ntsc_screen();
+    }
+    else
+    {
+        m_vid_fcntl |= VID_FCNTL_PAL;
+        spot_asic_device::activate_pal_screen();
+    }
 
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
 
@@ -177,8 +183,23 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
 }
 
+void spot_asic_device::activate_ntsc_screen()
+{
+    m_screen->set_size(NTSC_SCREEN_WIDTH, NTSC_SCREEN_HEIGHT);
+    m_screen->set_visarea(0, NTSC_SCREEN_WIDTH, 0, NTSC_SCREEN_HEIGHT);
+    m_screen->set_refresh_hz(NTSC_SCREEN_HZ);
+}
+
+void spot_asic_device::activate_pal_screen()
+{
+    m_screen->set_size(PAL_SCREEN_WIDTH, PAL_SCREEN_HEIGHT);
+    m_screen->set_visarea(0, PAL_SCREEN_WIDTH, 0, PAL_SCREEN_HEIGHT);
+    m_screen->set_refresh_hz(PAL_SCREEN_HZ);
+}
+
 void spot_asic_device::device_start()
 {
+    m_sysconfig = 0x2becbf8f;
     m_memcntl = 0b11;
     m_memrefcnt = 0x0400;
     m_memdata = 0x0;
@@ -312,7 +333,7 @@ uint32_t spot_asic_device::reg_1000_r()
 {
 	logerror("%s: reg_1000_r (ROM_SYSCONF)\n", machine().describe_context());
     // The values here correspond to a retail FCS board, with flash ROM in bank 0 and mask ROM in bank 1
-    return 0x2becbf8f;
+    return m_sysconfig;
 }
 
 uint32_t spot_asic_device::reg_1004_r()
@@ -402,6 +423,18 @@ uint32_t spot_asic_device::reg_3018_r()
 
 void spot_asic_device::reg_3018_w(uint32_t data)
 {
+    if((m_vid_fcntl ^ data) & VID_FCNTL_PAL)
+    {
+        if(data & VID_FCNTL_PAL)
+        {
+            spot_asic_device::activate_pal_screen();
+        }
+        else
+        {
+            spot_asic_device::activate_ntsc_screen();
+        }
+    }
+    
     m_vid_fcntl = data;
 
     printf("m_vid_fcntl=%08x\n", m_vid_fcntl);
@@ -830,7 +863,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
     m_vid_cstart = m_vid_nstart;
     m_vid_csize = m_vid_nsize;
-    m_vid_ccnt = m_vid_cstart;// + m_vid_csize;
+    m_vid_ccnt = m_vid_cstart + m_vid_csize;
 
     address_space &space = m_hostcpu->space(AS_PROGRAM);
 
@@ -852,7 +885,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
                 && x < (m_vid_hstart + m_vid_hsize)
             );
 
-            if(m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
+            if(m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
             {
                 pixel = space.read_dword(m_vid_ccnt);
 
@@ -860,9 +893,20 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
             }
             else
             {
-                int32_t blnkY = (m_vid_blank_color >> 0x10) & 0xff;
-                int32_t blnkCr = (m_vid_blank_color >> 0x08) & 0xff;
-                int32_t blnkCb = m_vid_blank_color & 0xff;
+                uint32_t blank_color = 0x0;
+
+                if(m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
+                {
+                    blank_color = m_vid_blank_color;
+                }
+                else
+                {
+                    blank_color = VID_DEFAULT_COLOR;
+                }
+
+                int32_t blnkY = (blank_color >> 0x10) & 0xff;
+                int32_t blnkCr = (blank_color >> 0x08) & 0xff;
+                int32_t blnkCb = blank_color & 0xff;
 
                 pixel =  blnkY << 0x18 | blnkCb << 0x10 | blnkY << 0x08 | blnkCr;
             }
