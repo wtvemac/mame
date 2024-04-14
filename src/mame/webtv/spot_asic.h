@@ -42,14 +42,24 @@
 #define BUS_INT_DEVSMC 1 << 3 // SmartCard inserted
 #define BUS_INT_AUDDMA 1 << 2 // audUnit DMA completion
 
+#define NTSC_SCREEN_WIDTH  640
+#define NTSC_SCREEN_HEIGHT 480
+#define PAL_SCREEN_WIDTH   768
+#define PAL_SCREEN_HEIGHT  560
+
 #define VID_Y_BLACK         0x10
 #define VID_Y_WHITE         0xeb
 #define VID_Y_RANGE         (VID_Y_WHITE - VID_Y_BLACK)
 #define VID_UV_OFFSET       0x80
 #define VID_BYTES_PER_PIXEL 2
-#define VID_DEFAULT_WIDTH   560
-#define VID_DEFAULT_HEIGHT  420
-
+#define VID_DEFAULT_WIDTH   NTSC_SCREEN_WIDTH
+#define VID_DEFAULT_HEIGHT  NTSC_SCREEN_HEIGHT
+#define VID_DEFAULT_HZ      59.94
+#define VID_DEFAULT_HSTART  0
+#define VID_DEFAULT_HSIZE   560
+#define VID_DEFAULT_VSTART  0
+#define VID_DEFAULT_VSIZE   420
+#define VID_DEFAULT_COLOR   (VID_Y_BLACK << 0x10) | (VID_UV_OFFSET << 0x08) | VID_UV_OFFSET;
 
 #define VID_INT_FIDO   1 << 6 // TODO: docs don't have info on FIDO mode! figure this out!
 #define VID_INT_VSYNCE 1 << 5 // even field VSYNC
@@ -124,6 +134,7 @@ protected:
     uint32_t m_vid_hsize;
     uint32_t m_vid_vstart;
     uint32_t m_vid_vsize;
+    uint32_t m_vid_blank_color;
     uint32_t m_vid_cline;
     uint32_t m_vid_hintline;
 
@@ -152,7 +163,7 @@ private:
 
     void set_bus_irq(uint8_t mask, int state);
 
-    void refresh_screen_config();
+    void validate_active_area();
     void spot_update_cycle_counting();
 
     TIMER_CALLBACK_MEMBER(sys_timer_callback);
