@@ -69,6 +69,16 @@
 #define VID_INT_HSYNC  1 << 3 // HSYNC on line specified by VID_HINTLINE
 #define VID_INT_DMA    1 << 2 // vidUnit DMA completion
 
+
+#define VID_FCNTL_UVSELSWAP  1 << 7
+#define VID_FCNTL_CRCBINVERT 1 << 6
+#define VID_FCNTL_FIDO       1 << 5
+#define VID_FCNTL_GAMMA      1 << 4
+#define VID_FCNTL_BLNKCOLEN  1 << 3
+#define VID_FCNTL_INTERLACE  1 << 2
+#define VID_FCNTL_PAL        1 << 1
+#define VID_FCNTL_VIDENAB    1 << 0
+
 #define VID_DMACNTL_ITRLEN 1 << 3
 #define VID_DMACNTL_DMAEN  1 << 2
 #define VID_DMACNTL_NV     1 << 1
@@ -136,6 +146,7 @@ protected:
     uint32_t m_vid_hsize;
     uint32_t m_vid_vstart;
     uint32_t m_vid_vsize;
+    uint32_t m_vid_fcntl;
     uint32_t m_vid_blank_color;
     uint32_t m_vid_cstart;
     uint32_t m_vid_csize;
