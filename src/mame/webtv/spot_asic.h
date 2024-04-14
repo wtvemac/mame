@@ -44,8 +44,10 @@
 
 #define NTSC_SCREEN_WIDTH  640
 #define NTSC_SCREEN_HEIGHT 480
+#define NTSC_SCREEN_HZ     60
 #define PAL_SCREEN_WIDTH   768
 #define PAL_SCREEN_HEIGHT  560
+#define PAL_SCREEN_HZ      50
 
 #define VID_Y_BLACK         0x10
 #define VID_Y_WHITE         0xeb
@@ -54,7 +56,7 @@
 #define VID_BYTES_PER_PIXEL 2
 #define VID_DEFAULT_WIDTH   NTSC_SCREEN_WIDTH
 #define VID_DEFAULT_HEIGHT  NTSC_SCREEN_HEIGHT
-#define VID_DEFAULT_HZ      59.94
+#define VID_DEFAULT_HZ      NTSC_SCREEN_HZ
 #define VID_DEFAULT_HSTART  0
 #define VID_DEFAULT_HSIZE   560
 #define VID_DEFAULT_VSTART  0
@@ -139,6 +141,8 @@ protected:
     uint32_t m_vid_csize;
     uint32_t m_vid_ccnt;
     uint32_t m_vid_cline;
+    uint32_t m_vid_cline_cyccnt;
+    bool m_vid_cline_direct;
     uint32_t m_vid_hintline;
 
     uint8_t emc_bitcount;
