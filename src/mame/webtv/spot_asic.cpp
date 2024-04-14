@@ -161,15 +161,9 @@ void spot_asic_device::mem_unit_map(address_map &map)
 void spot_asic_device::device_add_mconfig(machine_config &config)
 {
     SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-    if(m_sysconfig & SYSCONFIG_NTSC)
-    {
-        spot_asic_device::activate_ntsc_screen();
-    }
-    else
-    {
-        m_vid_fcntl |= VID_FCNTL_PAL;
-        spot_asic_device::activate_pal_screen();
-    }
+    m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
+    m_screen->set_visarea(0, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_HEIGHT);
+    m_screen->set_refresh_hz(VID_DEFAULT_HZ);
 
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
 
@@ -231,6 +225,16 @@ void spot_asic_device::device_start()
     emc_bitcount = 0x0;
     emc_byte = 0x0;
     emc_vbltimer = 0x0;
+
+    if(m_sysconfig & SYSCONFIG_NTSC)
+    {
+        spot_asic_device::activate_ntsc_screen();
+    }
+    else
+    {
+        m_vid_fcntl |= VID_FCNTL_PAL;
+        spot_asic_device::activate_pal_screen();
+    }
 }
 
 void spot_asic_device::device_reset()
@@ -560,9 +564,10 @@ uint32_t spot_asic_device::reg_3034_r()
         }
         else
         {
-            m_vid_cline = 1;
+            m_vid_cline++;
         }
     }
+
 
     logerror("%s: reg_3034_r (VID_CLINE)\n", machine().describe_context());
 
