@@ -109,7 +109,7 @@ void spot_asic_device::vid_unit_map(address_map &map)
     map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_300c_r), FUNC(spot_asic_device::reg_300c_w));
     map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_3010_r), FUNC(spot_asic_device::reg_3010_w));
     map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_3014_r), FUNC(spot_asic_device::reg_3014_w));
-    //map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_3018_r), FUNC(spot_asic_device::reg_3018_w));
+    map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_3018_r), FUNC(spot_asic_device::reg_3018_w));
     map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_301c_r), FUNC(spot_asic_device::reg_301c_w));
     map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_3020_r), FUNC(spot_asic_device::reg_3020_w));
     map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_3024_r), FUNC(spot_asic_device::reg_3024_w));
@@ -196,6 +196,7 @@ void spot_asic_device::device_start()
     m_vid_hsize = VID_DEFAULT_HSIZE;
     m_vid_vstart = VID_DEFAULT_VSTART;
     m_vid_vsize = VID_DEFAULT_VSIZE;
+    m_vid_fcntl = 0x0;
     m_vid_blank_color = VID_DEFAULT_COLOR;
     m_vid_hintline = 0x0;
     m_vid_cstart = 0x0;
@@ -391,6 +392,21 @@ void spot_asic_device::reg_3014_w(uint32_t data)
     m_vid_dmacntl = data;
 
     logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_3018_r()
+{
+    logerror("%s: reg_3018_r (VID_FCNTL)\n", machine().describe_context());
+    return m_vid_fcntl;
+}
+
+void spot_asic_device::reg_3018_w(uint32_t data)
+{
+    m_vid_fcntl = data;
+
+    printf("m_vid_fcntl=%08x\n", m_vid_fcntl);
+
+    logerror("%s: reg_3018_w %08x (VID_FCNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_301c_r()
