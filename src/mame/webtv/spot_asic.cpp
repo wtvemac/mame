@@ -214,8 +214,6 @@ void spot_asic_device::device_reset()
 
 void spot_asic_device::validate_active_area()
 {
-    printf("1.m_vid_hsize=%08x, m_vid_hstart=%08x, m_vid_vsize=%08x, m_vid_vstart=%08x\n", m_vid_hsize, m_vid_hstart, m_vid_vsize, m_vid_vstart);
-
     // hsize and vsize changes will break the screen but it would break on hardware.
 
     // The active h size can't be larger than the screen width.
@@ -250,8 +248,6 @@ void spot_asic_device::validate_active_area()
     // hstart and vstart need to be a multiple of 8
     m_vid_hstart = (m_vid_hstart / 8) * 8;
     m_vid_vstart = (m_vid_vstart / 8) * 8;
-
-    printf("2.m_vid_hsize=%08x, m_vid_hstart=%08x, m_vid_vsize=%08x, m_vid_vstart=%08x\n\n", m_vid_hsize, m_vid_hstart, m_vid_vsize, m_vid_vstart);
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -779,7 +775,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 {
     uint16_t screen_width = bitmap.width();
     uint16_t screen_height =  bitmap.height();
-    
+
     uint32_t vid_base = m_vid_nstart + m_vid_nsize;
     uint32_t vid_offset = vid_base;
 
