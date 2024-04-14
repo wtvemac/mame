@@ -199,6 +199,9 @@ void spot_asic_device::device_start()
     m_vid_vsize = VID_DEFAULT_VSIZE;
     m_vid_blank_color = VID_DEFAULT_COLOR;
     m_vid_hintline = 0x0;
+    m_vid_cstart = 0x0;
+    m_vid_csize = 0x0;
+    m_vid_ccnt = 0x0;
     m_vid_cline = 0x0;
     m_ledstate = 0xFFFFFFFF;
 
@@ -335,19 +338,19 @@ void spot_asic_device::reg_1008_w(uint32_t data)
 uint32_t spot_asic_device::reg_3000_r()
 {
     logerror("%s: reg_3000_r (VID_CSTART)\n", machine().describe_context());
-    return 0;
+    return m_vid_cstart;
 }
 
 uint32_t spot_asic_device::reg_3004_r()
 {
     logerror("%s: reg_3004_r (VID_CSIZE)\n", machine().describe_context());
-    return 0;
+    return m_vid_csize;
 }
 
 uint32_t spot_asic_device::reg_3008_r()
 {
     logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
-    return 0;
+    return m_vid_ccnt;
 }
 
 uint32_t spot_asic_device::reg_300c_r()
@@ -776,8 +779,9 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
     uint16_t screen_width = bitmap.width();
     uint16_t screen_height =  bitmap.height();
 
-    uint32_t vid_base = m_vid_nstart + m_vid_nsize;
-    uint32_t vid_offset = vid_base;
+    m_vid_cstart = m_vid_nstart;
+    m_vid_csize = m_vid_nsize;
+    m_vid_ccnt = m_vid_cstart + m_vid_csize;
 
     address_space &space = m_hostcpu->space(AS_PROGRAM);
 
@@ -799,9 +803,9 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
             if(m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
             {
-                pixel = space.read_dword(vid_offset);
+                pixel = space.read_dword(m_vid_ccnt);
 
-                vid_offset += 2 * VID_BYTES_PER_PIXEL;
+                m_vid_ccnt += 2 * VID_BYTES_PER_PIXEL;
             }
             else
             {
