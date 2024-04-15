@@ -162,7 +162,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 {
     SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
     m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
-    m_screen->set_visarea(0, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_HEIGHT);
+    m_screen->set_visarea(0, VID_DEFAULT_WIDTH - 1, 0, VID_DEFAULT_HEIGHT - 1);
     m_screen->set_refresh_hz(VID_DEFAULT_HZ);
 
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
@@ -180,14 +180,14 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 void spot_asic_device::activate_ntsc_screen()
 {
     m_screen->set_size(NTSC_SCREEN_WIDTH, NTSC_SCREEN_HEIGHT);
-    m_screen->set_visarea(0, NTSC_SCREEN_WIDTH, 0, NTSC_SCREEN_HEIGHT);
+    m_screen->set_visarea(0, NTSC_SCREEN_WIDTH - 1, 0, NTSC_SCREEN_HEIGHT - 1);
     m_screen->set_refresh_hz(NTSC_SCREEN_HZ);
 }
 
 void spot_asic_device::activate_pal_screen()
 {
     m_screen->set_size(PAL_SCREEN_WIDTH, PAL_SCREEN_HEIGHT);
-    m_screen->set_visarea(0, PAL_SCREEN_WIDTH, 0, PAL_SCREEN_HEIGHT);
+    m_screen->set_visarea(0, PAL_SCREEN_WIDTH - 1, 0, PAL_SCREEN_HEIGHT - 1);
     m_screen->set_refresh_hz(PAL_SCREEN_HZ);
 }
 
