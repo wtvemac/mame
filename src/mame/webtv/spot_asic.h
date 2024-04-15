@@ -33,7 +33,7 @@
 #define SYSCONFIG_ROMTYP0    1 << 31 // ROM bank 0 is present
 #define SYSCONFIG_ROMMODE0   1 << 30 // ROM bank 0 supports page mode
 #define SYSCONFIG_ROMTYP1    1 << 27 // ROM bank 1 is present
-#define SYSCONFIG_ROMMODE1   1 << 26 // ROM bank 1 is present
+#define SYSCONFIG_ROMMODE1   1 << 26 // ROM bank 1 supports page mode
 #define SYSCONFIG_AUDDACMODE 1 << 17 // use external DAC clock
 #define SYSCONFIG_VIDCLKSRC  1 << 16 // use external video encoder clock
 #define SYSCONFIG_CPUBUFF    1 << 13 // 0=50% output buffer strength, 1=83% output buffer strength
@@ -81,7 +81,7 @@
 #define VID_INT_DMA    1 << 2 // vidUnit DMA completion
 
 #define VID_FCNTL_UVSELSWAP  1 << 7 // UV is swapped. 1=YCbYCr, 0=YCrYCb
-#define VID_FCNTL_CRCBINVERT 1 << 6 // inver MSB Cb and Cb
+#define VID_FCNTL_CRCBINVERT 1 << 6 // invert MSB Cb and Cb
 #define VID_FCNTL_FIDO       1 << 5 // enable FIDO mode. details unknown
 #define VID_FCNTL_GAMMA      1 << 4 // enable gamma correction
 #define VID_FCNTL_BLNKCOLEN  1 << 3 // enable VID_BLANK color
