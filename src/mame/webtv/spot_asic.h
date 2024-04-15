@@ -30,20 +30,20 @@
 
 #define CAN_REDEFINE_SCREEN  true
 
-#define SYSCONFIG_ROMTYP0    1 << 31
-#define SYSCONFIG_ROMMODE0   1 << 30
-#define SYSCONFIG_ROMTYP1    1 << 27
-#define SYSCONFIG_ROMMODE1   1 << 26
-#define SYSCONFIG_AUDDACMODE 1 << 17
-#define SYSCONFIG_VIDCLKSRC  1 << 16
-#define SYSCONFIG_CPUBUFF    1 << 13
-#define SYSCONFIG_NTSC       1 << 11
+#define SYSCONFIG_ROMTYP0    1 << 31 // ROM bank 0 is present
+#define SYSCONFIG_ROMMODE0   1 << 30 // ROM bank 0 supports page mode
+#define SYSCONFIG_ROMTYP1    1 << 27 // ROM bank 1 is present
+#define SYSCONFIG_ROMMODE1   1 << 26 // ROM bank 1 is present
+#define SYSCONFIG_AUDDACMODE 1 << 17 // use external DAC clock
+#define SYSCONFIG_VIDCLKSRC  1 << 16 // use external video encoder clock
+#define SYSCONFIG_CPUBUFF    1 << 13 // 0=50% output buffer strength, 1=83% output buffer strength
+#define SYSCONFIG_NTSC       1 << 11 // use NTSC mode
 
-#define ERR_F1READ  1 << 6
-#define ERR_F1WRITE 1 << 5
-#define ERR_F2READ  1 << 4
-#define ERR_F2WRITE 1 << 3
-#define ERR_TIMEOUT 1 << 2
+#define ERR_F1READ  1 << 6 // BUS_FENADDR1 read fence check error
+#define ERR_F1WRITE 1 << 5 // BUS_FENADDR1 write fence check error
+#define ERR_F2READ  1 << 4 // BUS_FENADDR2 read fence check error
+#define ERR_F2WRITE 1 << 3 // BUS_FENADDR2 write fence check error
+#define ERR_TIMEOUT 1 << 2 // io timeout error
 #define ERR_OW      1 << 0 // double-fault
 
 #define BUS_INT_VIDINT 1 << 7 // vidUnit interrupt (program should read VID_INTSTAT)
@@ -80,19 +80,19 @@
 #define VID_INT_HSYNC  1 << 3 // HSYNC on line specified by VID_HINTLINE
 #define VID_INT_DMA    1 << 2 // vidUnit DMA completion
 
-#define VID_FCNTL_UVSELSWAP  1 << 7
-#define VID_FCNTL_CRCBINVERT 1 << 6
-#define VID_FCNTL_FIDO       1 << 5
-#define VID_FCNTL_GAMMA      1 << 4
-#define VID_FCNTL_BLNKCOLEN  1 << 3
-#define VID_FCNTL_INTERLACE  1 << 2
-#define VID_FCNTL_PAL        1 << 1
-#define VID_FCNTL_VIDENAB    1 << 0
+#define VID_FCNTL_UVSELSWAP  1 << 7 // UV is swapped. 1=YCbYCr, 0=YCrYCb
+#define VID_FCNTL_CRCBINVERT 1 << 6 // inver MSB Cb and Cb
+#define VID_FCNTL_FIDO       1 << 5 // enable FIDO mode. details unknown
+#define VID_FCNTL_GAMMA      1 << 4 // enable gamma correction
+#define VID_FCNTL_BLNKCOLEN  1 << 3 // enable VID_BLANK color
+#define VID_FCNTL_INTERLACE  1 << 2 // interlaced video enabled
+#define VID_FCNTL_PAL        1 << 1 // PAL mode enabled
+#define VID_FCNTL_VIDENAB    1 << 0 // video output enable
 
-#define VID_DMACNTL_ITRLEN 1 << 3
-#define VID_DMACNTL_DMAEN  1 << 2
-#define VID_DMACNTL_NV     1 << 1
-#define VID_DMACNTL_NVF    1 << 0
+#define VID_DMACNTL_ITRLEN 1 << 3 // interlaced video in DMA channel
+#define VID_DMACNTL_DMAEN  1 << 2 // DMA channel enabled
+#define VID_DMACNTL_NV     1 << 1 // DMA next registers are valid
+#define VID_DMACNTL_NVF    1 << 0 // DMA next registers are always valid
 
 #define NVCNTL_SCL      1 << 3
 #define NVCNTL_WRITE_EN 1 << 2
