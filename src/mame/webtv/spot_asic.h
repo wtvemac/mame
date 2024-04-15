@@ -28,6 +28,8 @@
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 
+#define CAN_REDEFINE_SCREEN  true
+
 #define SYSCONFIG_ROMTYP0    1 << 31
 #define SYSCONFIG_ROMMODE0   1 << 30
 #define SYSCONFIG_ROMTYP1    1 << 27

@@ -226,14 +226,17 @@ void spot_asic_device::device_start()
     emc_byte = 0x0;
     emc_vbltimer = 0x0;
 
-    if(m_sysconfig & SYSCONFIG_NTSC)
+    if(CAN_REDEFINE_SCREEN)
     {
-        spot_asic_device::activate_ntsc_screen();
-    }
-    else
-    {
-        m_vid_fcntl |= VID_FCNTL_PAL;
-        spot_asic_device::activate_pal_screen();
+        if(m_sysconfig & SYSCONFIG_NTSC)
+        {
+            spot_asic_device::activate_ntsc_screen();
+        }
+        else
+        {
+            m_vid_fcntl |= VID_FCNTL_PAL;
+            spot_asic_device::activate_pal_screen();
+        }
     }
 }
 
@@ -576,15 +579,18 @@ uint32_t spot_asic_device::reg_3018_r()
 
 void spot_asic_device::reg_3018_w(uint32_t data)
 {
-    if((m_vid_fcntl ^ data) & VID_FCNTL_PAL)
+    if(CAN_REDEFINE_SCREEN)
     {
-        if(data & VID_FCNTL_PAL)
+        if((m_vid_fcntl ^ data) & VID_FCNTL_PAL)
         {
-            spot_asic_device::activate_pal_screen();
-        }
-        else
-        {
-            spot_asic_device::activate_ntsc_screen();
+            if(data & VID_FCNTL_PAL)
+            {
+                spot_asic_device::activate_pal_screen();
+            }
+            else
+            {
+                spot_asic_device::activate_ntsc_screen();
+            }
         }
     }
     
