@@ -56,7 +56,11 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
     m_hostcpu(*this, finder_base::DUMMY_TAG),
     m_serial_id(*this, finder_base::DUMMY_TAG),
     m_nvram(*this, finder_base::DUMMY_TAG),
+    m_kbdc(*this, "kbdc"),
 	m_screen(*this, "screen"),
+    m_power_led(*this, "power_led"),
+    m_connect_led(*this, "connect_led"),
+    m_message_led(*this, "message_led"),
     m_videobitmap(SPOT_NTSC_WIDTH, SPOT_NTSC_HEIGHT),
     m_hsync_cb(*this),
 	m_vsync_cb(*this),
@@ -150,14 +154,14 @@ void spot_asic_device::dev_unit_map(address_map &map)
     map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_400c_r), FUNC(spot_asic_device::reg_400c_w));
     map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_4010_r), FUNC(spot_asic_device::reg_4010_w));
     map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_4014_r), FUNC(spot_asic_device::reg_4014_w));
-    //map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_4020_r), FUNC(spot_asic_device::reg_4020_w));
-    //map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_4024_r), FUNC(spot_asic_device::reg_4024_w));
-    //map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_4028_r), FUNC(spot_asic_device::reg_4028_w));
-    //map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_402c_r), FUNC(spot_asic_device::reg_402c_w));
-    //map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_4030_r), FUNC(spot_asic_device::reg_4030_w));
-    //map(0x034, 0x037).rw(FUNC(spot_asic_device::reg_4034_r), FUNC(spot_asic_device::reg_4034_w));
-    //map(0x038, 0x03b).rw(FUNC(spot_asic_device::reg_4038_r), FUNC(spot_asic_device::reg_4038_w));
-    //map(0x03c, 0x03f).rw(FUNC(spot_asic_device::reg_403c_r), FUNC(spot_asic_device::reg_403c_w));
+    map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_4020_r), FUNC(spot_asic_device::reg_4020_w));
+    map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_4024_r), FUNC(spot_asic_device::reg_4024_w));
+    map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_4028_r), FUNC(spot_asic_device::reg_4028_w));
+    map(0x02c, 0x02f).rw(FUNC(spot_asic_device::reg_402c_r), FUNC(spot_asic_device::reg_402c_w));
+    map(0x030, 0x033).rw(FUNC(spot_asic_device::reg_4030_r), FUNC(spot_asic_device::reg_4030_w));
+    map(0x034, 0x037).rw(FUNC(spot_asic_device::reg_4034_r), FUNC(spot_asic_device::reg_4034_w));
+    map(0x038, 0x03b).rw(FUNC(spot_asic_device::reg_4038_r), FUNC(spot_asic_device::reg_4038_w));
+    map(0x03c, 0x03f).rw(FUNC(spot_asic_device::reg_403c_r), FUNC(spot_asic_device::reg_403c_w));
     //map(0x040, 0x043).rw(FUNC(spot_asic_device::reg_4040_r), FUNC(spot_asic_device::reg_4040_w));
     //map(0x044, 0x047).rw(FUNC(spot_asic_device::reg_4044_r), FUNC(spot_asic_device::reg_4044_w));
     //map(0x048, 0x04b).rw(FUNC(spot_asic_device::reg_4048_r), FUNC(spot_asic_device::reg_4048_w));
@@ -186,6 +190,16 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
     
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
     set_clock(m_screen->clock() * 2); // internal clock is always set to double the pixel clock
+
+	KBDC8042(config, m_kbdc);
+	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
+	m_kbdc->input_buffer_full_callback().set(FUNC(spot_asic_device::irq_keyboard_w));
+	m_kbdc->system_reset_callback().set_inputline(":maincpu", INPUT_LINE_RESET);
+    // TODO: does WebTV require Gate A20 to be implemented? if so, how should it be implemented?
+	m_kbdc->set_keyboard_tag("at_keyboard");
+
+	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
+	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
 }
 
 void spot_asic_device::device_start()
@@ -200,6 +214,7 @@ void spot_asic_device::device_start()
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
     m_nvcntl = 0x0;
+    m_ledstate = 0xFFFFFFFF;
 }
 
 void spot_asic_device::device_reset()
@@ -237,28 +252,31 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 uint32_t spot_asic_device::reg_0008_r()
 {
 	logerror("%s: reg_0008_r (BUS_INTSTAT)\n", machine().describe_context());
-    return 0x00000000;
+    return m_intstat;
 }
 
 void spot_asic_device::reg_0108_w(uint32_t data)
 {
 	logerror("%s: reg_0108_w %08x (BUS_INTSTAT clear)\n", machine().describe_context(), data);
+    m_intstat &= (~data) & 0xFF;
 }
 
 uint32_t spot_asic_device::reg_000c_r()
 {
 	logerror("%s: reg_000c_r (BUS_INTEN)\n", machine().describe_context());
-    return 0x00000000;
+    return m_intenable;
 }
 
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
 	logerror("%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
+    m_intenable = data & 0xFF;
 }
 
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
-	logerror("%s: reg_000c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
+	logerror("%s: reg_010c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
+    m_intenable &= (~data) & 0xFF;
 }
 
 uint32_t spot_asic_device::reg_0010_r()
@@ -326,14 +344,20 @@ uint32_t spot_asic_device::reg_4000_r()
 uint32_t spot_asic_device::reg_4004_r()
 {
     logerror("%s: reg_4004_r (DEV_LED)\n", machine().describe_context());
-    return 0;
+    m_power_led = BIT(m_ledstate, 2);
+    m_connect_led = BIT(m_ledstate, 1);
+    m_message_led = BIT(m_ledstate, 0);
+    return m_ledstate;
 }
 
 // Update LED states
 void spot_asic_device::reg_4004_w(uint32_t data)
 {
     logerror("%s: reg_4004_w %08x (DEV_LED)\n", machine().describe_context(), data);
-    // TODO: write to the LED devices!
+    m_ledstate = data;
+    m_power_led = !BIT(m_ledstate, 2);
+    m_connect_led = !BIT(m_ledstate, 1);
+    m_message_led = !BIT(m_ledstate, 0);
 }
 
 // Read from DS2401
@@ -391,6 +415,102 @@ uint32_t spot_asic_device::reg_4014_r()
 void spot_asic_device::reg_4014_w(uint32_t data)
 {
     logerror("%s: reg_4014_w %08x (DEV_EXTTIME)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_4020_r()
+{
+    logerror("%s: reg_4020_r (DEV_KBD0)\n", machine().describe_context());
+    return m_kbdc->data_r(0x0);
+}
+
+void spot_asic_device::reg_4020_w(uint32_t data)
+{
+    logerror("%s: reg_4020_w %08x (DEV_KBD0)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x0, data & 0xFF);
+}
+
+uint32_t spot_asic_device::reg_4024_r()
+{
+    logerror("%s: reg_4024_r (DEV_KBD1)\n", machine().describe_context());
+    return m_kbdc->data_r(0x1);
+}
+
+void spot_asic_device::reg_4024_w(uint32_t data)
+{
+    logerror("%s: reg_4024_w %08x (DEV_KBD1)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x1, data & 0xFF);
+}
+
+uint32_t spot_asic_device::reg_4028_r()
+{
+    logerror("%s: reg_4028_r (DEV_KBD2)\n", machine().describe_context());
+    return m_kbdc->data_r(0x2);
+}
+
+void spot_asic_device::reg_4028_w(uint32_t data)
+{
+    logerror("%s: reg_4028_w %08x (DEV_KBD2)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x2, data & 0xFF);
+}
+
+uint32_t spot_asic_device::reg_402c_r()
+{
+    logerror("%s: reg_402c_r (DEV_KBD3)\n", machine().describe_context());
+    return m_kbdc->data_r(0x3);
+}
+
+void spot_asic_device::reg_402c_w(uint32_t data)
+{
+    logerror("%s: reg_402c_w %08x (DEV_KBD3)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x3, data & 0xFF);
+}
+
+uint32_t spot_asic_device::reg_4030_r()
+{
+    logerror("%s: reg_4030_r (DEV_KBD4)\n", machine().describe_context());
+    return m_kbdc->data_r(0x4);
+}
+
+void spot_asic_device::reg_4030_w(uint32_t data)
+{
+    logerror("%s: reg_4030_w %08x (DEV_KBD4)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x4, data & 0xFF);
+}
+
+uint32_t spot_asic_device::reg_4034_r()
+{
+    logerror("%s: reg_4034_r (DEV_KBD5)\n", machine().describe_context());
+    return m_kbdc->data_r(0x5);
+}
+
+void spot_asic_device::reg_4034_w(uint32_t data)
+{
+    logerror("%s: reg_4034_w %08x (DEV_KBD5)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x5, data & 0xFF);
+}
+
+uint32_t spot_asic_device::reg_4038_r()
+{
+    logerror("%s: reg_4038_r (DEV_KBD6)\n", machine().describe_context());
+    return m_kbdc->data_r(0x6);
+}
+
+void spot_asic_device::reg_4038_w(uint32_t data)
+{
+    logerror("%s: reg_4038_w %08x (DEV_KBD6)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x6, data & 0xFF);
+}
+
+uint32_t spot_asic_device::reg_403c_r()
+{
+    logerror("%s: reg_403c_r (DEV_KBD7)\n", machine().describe_context());
+    return m_kbdc->data_r(0x7);
+}
+
+void spot_asic_device::reg_403c_w(uint32_t data)
+{
+    logerror("%s: reg_403c_w %08x (DEV_KBD7)\n", machine().describe_context(), data);
+    m_kbdc->data_w(0x7, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_5000_r()
@@ -451,6 +571,24 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 {
     logerror("%s: reg_500c_w %08x (MEM_TIMING)\n", machine().describe_context(), data);
     m_memtiming = data;
+}
+
+void spot_asic_device::irq_keyboard_w(int state)
+{
+    set_bus_irq(BUS_INT_DEVKBD, state);
+}
+
+void spot_asic_device::set_bus_irq(uint8_t mask, int state)
+{
+    if (m_intenable & mask)
+    {
+        if (state)
+            m_intstat |= mask;
+        else
+            m_intstat &= ~(mask);
+        
+        m_hostcpu->set_input_line(MIPS3_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
+    }
 }
 
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
