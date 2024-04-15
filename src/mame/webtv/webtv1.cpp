@@ -52,10 +52,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_spotasic(*this, "spot"),
 		m_serial_id(*this, "serial_id"),
-		m_nvram(*this, "nvram"),
-		m_power_led(*this, "power_led"),
-		m_connect_led(*this, "connect_led"),
-		m_message_led(*this, "message_led")
+		m_nvram(*this, "nvram")
 	{ }
 
 	void webtv1_base(machine_config& config);
@@ -71,17 +68,6 @@ private:
 	required_device<spot_asic_device> m_spotasic;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
-
-	output_finder<1> m_power_led;
-	output_finder<1> m_connect_led;
-	output_finder<1> m_message_led;
-
-	enum
-	{
-		LED_POWER = 0x4,
-		LED_CONNECTED = 0x2,
-		LED_MESSAGE = 0x1
-	};
 
 	void bank0_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank0_flash_r(offs_t offset);
