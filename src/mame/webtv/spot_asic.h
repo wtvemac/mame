@@ -23,6 +23,8 @@
 #include "diserial.h"
 
 #include "cpu/mips/mips3.h"
+#include "machine/8042kbdc.h"
+#include "machine/at_keybc.h"
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 
@@ -97,14 +99,23 @@ protected:
 
     uint8_t m_nvcntl;
 
+    uint32_t m_ledstate;
+
     uint8_t m_fcntl;
     
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<ds2401_device> m_serial_id;
     required_device<i2cmem_device> m_nvram;
+    required_device<kbdc8042_device> m_kbdc;
 
 	required_device<screen_device> m_screen;
+    
+	output_finder<> m_power_led;
+	output_finder<> m_connect_led;
+	output_finder<> m_message_led;
+    
+	void irq_keyboard_w(int state);
     
     void fillbitmap_yuy16(bitmap_yuy16 &bitmap, uint8_t yval, uint8_t cr, uint8_t cb);
     
@@ -122,6 +133,8 @@ private:
     uint32_t m_compare_armed;
 
     int m_serial_id_tx;
+
+    void set_bus_irq(uint8_t mask, int state);
 
     void spot_update_cycle_counting();
 
