@@ -193,6 +193,37 @@ void spot_asic_device::activate_pal_screen()
 
 void spot_asic_device::device_start()
 {
+    m_power_led.resolve();
+    m_connect_led.resolve();
+    m_message_led.resolve();
+
+    spot_asic_device::device_reset();
+
+    save_item(NAME(m_intenable));
+    save_item(NAME(m_intstat));
+    save_item(NAME(m_errenable));
+    save_item(NAME(m_errstat));
+    save_item(NAME(m_vid_nstart));
+    save_item(NAME(m_vid_nsize));
+    save_item(NAME(m_vid_dmacntl));
+    save_item(NAME(m_vid_hstart));
+    save_item(NAME(m_vid_hsize));
+    save_item(NAME(m_vid_vstart));
+    save_item(NAME(m_vid_vsize));
+    save_item(NAME(m_vid_fcntl));
+    save_item(NAME(m_vid_blank_color));
+    save_item(NAME(m_vid_hintline));
+    save_item(NAME(m_vid_cstart));
+    save_item(NAME(m_vid_csize));
+    save_item(NAME(m_vid_ccnt));
+    save_item(NAME(m_vid_cline));
+    save_item(NAME(m_vid_cline_cyccnt));
+    save_item(NAME(m_vid_cline_direct));
+    save_item(NAME(m_ledstate));
+}
+
+void spot_asic_device::device_reset()
+{
     m_sysconfig = 0x2becbf8f;
     m_memcntl = 0b11;
     m_memrefcnt = 0x0400;
@@ -238,11 +269,6 @@ void spot_asic_device::device_start()
             spot_asic_device::activate_pal_screen();
         }
     }
-}
-
-void spot_asic_device::device_reset()
-{
-    spot_asic_device::device_start();
 }
 
 void spot_asic_device::validate_active_area()
