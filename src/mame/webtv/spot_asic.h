@@ -28,8 +28,6 @@
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 
-#define CAN_REDEFINE_SCREEN  true
-
 #define SYSCONFIG_ROMTYP0    1 << 31 // ROM bank 0 is present
 #define SYSCONFIG_ROMMODE0   1 << 30 // ROM bank 0 supports page mode
 #define SYSCONFIG_ROMTYP1    1 << 27 // ROM bank 1 is present
@@ -39,8 +37,10 @@
 #define SYSCONFIG_CPUBUFF    1 << 13 // 0=50% output buffer strength, 1=83% output buffer strength
 #define SYSCONFIG_NTSC       1 << 11 // use NTSC mode
 
-#define EMUCONFIG_PBUFF0 0  // Render the screen using data exactly at nstart. Only seen in the prealpha bootrom.
-#define EMUCONFIG_PBUFF1 1 << 0 // Render the screen using data one buffer length beyond nstart. Seems to be what they settled on.
+#define EMUCONFIG_PBUFF0         0  // Render the screen using data exactly at nstart. Only seen in the prealpha bootrom.
+#define EMUCONFIG_PBUFF1         1 << 0 // Render the screen using data one buffer length beyond nstart. Seems to be what they settled on.
+#define EMUCONFIG_BANGSERIAL     1 << 2
+#define EMUCONFIG_SCREEN_UPDATES 1 << 3
 
 #define ERR_F1READ  1 << 6 // BUS_FENADDR1 read fence check error
 #define ERR_F1WRITE 1 << 5 // BUS_FENADDR1 write fence check error
