@@ -274,9 +274,17 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( emu_config )
 	PORT_START("emu_config")
 
-	PORT_CONFNAME(0x01, 0x01, "pbuff_index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
+	PORT_CONFNAME(0x03, 0x01, "pbuff_index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
 	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
 	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
+
+	PORT_CONFNAME(0x04, 0x01, "enable_bangserial")
+	PORT_CONFSETTING(0x00, "Normal smartcard operation")
+	PORT_CONFSETTING(0x01, "Process smartcard bangserial data")
+
+	PORT_CONFNAME(0x08, 0x01, "allow_screen_size_updates")
+	PORT_CONFSETTING(0x00, "Don't update screen size after initial configuration")
+	PORT_CONFSETTING(0x01, "Allow updating screen size updates")
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( webtv1_input )
