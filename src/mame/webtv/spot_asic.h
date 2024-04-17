@@ -173,9 +173,8 @@ protected:
     bool m_vid_cline_direct;
     uint32_t m_vid_hintline;
 
-    uint8_t emc_bitcount;
-    uint8_t emc_byte;
-    uint32_t emc_vbltimer;
+    uint16_t m_smrtcrd_serial_bitmask = 0x0;
+    uint16_t m_smrtcrd_serial_rxdata = 0x0;
 private:
     required_device<mips3_device> m_hostcpu;
     required_device<ds2401_device> m_serial_id;
