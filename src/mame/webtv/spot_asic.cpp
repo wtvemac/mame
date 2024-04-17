@@ -613,18 +613,15 @@ uint32_t spot_asic_device::reg_3018_r()
 
 void spot_asic_device::reg_3018_w(uint32_t data)
 {
-    if(CAN_REDEFINE_SCREEN)
+    if(m_emu_config->read() & EMUCONFIG_SCREEN_UPDATES && (m_vid_fcntl ^ data) & VID_FCNTL_PAL)
     {
-        if((m_vid_fcntl ^ data) & VID_FCNTL_PAL)
+        if(data & VID_FCNTL_PAL)
         {
-            if(data & VID_FCNTL_PAL)
-            {
-                spot_asic_device::activate_pal_screen();
-            }
-            else
-            {
-                spot_asic_device::activate_ntsc_screen();
-            }
+            spot_asic_device::activate_pal_screen();
+        }
+        else
+        {
+            spot_asic_device::activate_ntsc_screen();
         }
     }
     
@@ -859,23 +856,26 @@ uint32_t spot_asic_device::reg_4010_r()
 
 void spot_asic_device::reg_4010_w(uint32_t data)
 {
-    m_smrtcrd_serial_bitmask = (m_smrtcrd_serial_bitmask << 1) | 1;
-    m_smrtcrd_serial_rxdata = (m_smrtcrd_serial_rxdata << 1) | (data == 0);
-
-    // There's 2 start bits (1 high and 1 low), 8 data bits and 1 stop bit.
-    if((m_smrtcrd_serial_bitmask & 0x7ff) == 0x7ff)
+    if(m_emu_config->read() & EMUCONFIG_BANGSERIAL)
     {
-        uint8_t rxbyte = (m_smrtcrd_serial_rxdata >> 1);
+        m_smrtcrd_serial_bitmask = (m_smrtcrd_serial_bitmask << 1) | 1;
+        m_smrtcrd_serial_rxdata = (m_smrtcrd_serial_rxdata << 1) | (data == 0);
 
-        // This reverses the bit order
-        rxbyte = (rxbyte & 0xf0) >> 4 | (rxbyte & 0x0f) << 4; // Divide byte into 2 nibbles and swap them
-        rxbyte = (rxbyte & 0xcc) >> 2 | (rxbyte & 0x33) << 2; // Divide nibble into 2 bits and swap them
-        rxbyte = (rxbyte & 0xaa) >> 1 | (rxbyte & 0x55) << 1; // Divide again and swap the remaining bits
+        // There's 2 start bits (1 high and 1 low), 8 data bits and 1 stop bit.
+        if((m_smrtcrd_serial_bitmask & 0x7ff) == 0x7ff)
+        {
+            uint8_t rxbyte = (m_smrtcrd_serial_rxdata >> 1);
 
-        osd_printf_verbose("%c", rxbyte);
+            // This reverses the bit order
+            rxbyte = (rxbyte & 0xf0) >> 4 | (rxbyte & 0x0f) << 4; // Divide byte into 2 nibbles and swap them
+            rxbyte = (rxbyte & 0xcc) >> 2 | (rxbyte & 0x33) << 2; // Divide nibble into 2 bits and swap them
+            rxbyte = (rxbyte & 0xaa) >> 1 | (rxbyte & 0x55) << 1; // Divide again and swap the remaining bits
 
-        m_smrtcrd_serial_bitmask = 0x0;
-        m_smrtcrd_serial_rxdata = 0x0;
+            osd_printf_verbose("%c", rxbyte);
+
+            m_smrtcrd_serial_bitmask = 0x0;
+            m_smrtcrd_serial_rxdata = 0x0;
+        }
     }
 
     logerror("%s: reg_4010_w %08x (DEV_SCCNTL)\n", machine().describe_context(), data);
