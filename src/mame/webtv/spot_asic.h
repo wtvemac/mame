@@ -172,6 +172,8 @@ protected:
     uint32_t m_vid_cline_cyccnt;
     bool m_vid_cline_direct;
     uint32_t m_vid_hintline;
+    uint32_t m_vid_intenable;
+    uint32_t m_vid_intstat;
 
     uint16_t m_smrtcrd_serial_bitmask = 0x0;
     uint16_t m_smrtcrd_serial_rxdata = 0x0;
