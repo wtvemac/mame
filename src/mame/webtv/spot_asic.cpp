@@ -55,12 +55,16 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
     m_nvram(*this, finder_base::DUMMY_TAG),
     m_kbdc(*this, "kbdc"),
 	m_screen(*this, "screen"),
+    m_sys_config(*owner, "sys_config"),
+    m_emu_config(*owner, "emu_config"),
     m_power_led(*this, "power_led"),
     m_connect_led(*this, "connect_led"),
     m_message_led(*this, "message_led"),
     m_sys_timer(nullptr) // when it goes off, timer interrupt fires
 {
 }
+
+DECLARE_INPUT_CHANGED_MEMBER(pbuff_index_changed);
 
 void spot_asic_device::bus_unit_map(address_map &map)
 {
@@ -224,7 +228,6 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-    m_sysconfig = 0x2becbf8f;
     m_memcntl = 0b11;
     m_memrefcnt = 0x0400;
     m_memdata = 0x0;
@@ -235,6 +238,7 @@ void spot_asic_device::device_reset()
     m_errstat = 0x0;
     m_timeout_compare = 0xffff;
     m_nvcntl = 0x0;
+
     m_vid_nstart = 0x0;
     m_vid_nsize = 0x0;
     m_vid_dmacntl = 0x0;
@@ -251,24 +255,12 @@ void spot_asic_device::device_reset()
     m_vid_cline = 0x0;
     m_vid_cline_cyccnt = 0x0;
     m_vid_cline_direct = false;
+
     m_ledstate = 0xFFFFFFFF;
 
     emc_bitcount = 0x0;
     emc_byte = 0x0;
     emc_vbltimer = 0x0;
-
-    if(CAN_REDEFINE_SCREEN)
-    {
-        if(m_sysconfig & SYSCONFIG_NTSC)
-        {
-            spot_asic_device::activate_ntsc_screen();
-        }
-        else
-        {
-            m_vid_fcntl |= VID_FCNTL_PAL;
-            spot_asic_device::activate_pal_screen();
-        }
-    }
 }
 
 void spot_asic_device::validate_active_area()
@@ -307,6 +299,18 @@ void spot_asic_device::validate_active_area()
     // hstart and vstart need to be a multiple of 8
     m_vid_hstart = (m_vid_hstart / 8) * 8;
     m_vid_vstart = (m_vid_vstart / 8) * 8;
+}
+
+void spot_asic_device::pixel_buffer_index_update()
+{
+    if(m_emu_config->read() & EMUCONFIG_PBUFF1)
+    {
+        m_vid_ccntstart = m_vid_nstart + m_vid_nsize;
+    }
+    else
+    {
+        m_vid_ccntstart = m_vid_nstart;
+    }
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -442,7 +446,7 @@ uint32_t spot_asic_device::reg_1000_r()
 {
 	logerror("%s: reg_1000_r (ROM_SYSCONF)\n", machine().describe_context());
     // The values here correspond to a retail FCS board, with flash ROM in bank 0 and mask ROM in bank 1
-    return m_sysconfig;
+    return m_sys_config->read();
 }
 
 uint32_t spot_asic_device::reg_1004_r()
@@ -592,6 +596,11 @@ uint32_t spot_asic_device::reg_3014_r()
 
 void spot_asic_device::reg_3014_w(uint32_t data)
 {
+    if((m_vid_dmacntl ^ data) & VID_DMACNTL_NV && data & VID_DMACNTL_NV)
+    {
+        spot_asic_device::pixel_buffer_index_update();
+    }
+
     m_vid_dmacntl = data;
 
     logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
@@ -1156,7 +1165,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
     m_vid_cstart = m_vid_nstart;
     m_vid_csize = m_vid_nsize;
-    m_vid_ccnt = m_vid_cstart + m_vid_csize;
+    m_vid_ccnt = m_vid_ccntstart;
 
     address_space &space = m_hostcpu->space(AS_PROGRAM);
 
