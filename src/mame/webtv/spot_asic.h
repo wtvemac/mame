@@ -39,6 +39,9 @@
 #define SYSCONFIG_CPUBUFF    1 << 13 // 0=50% output buffer strength, 1=83% output buffer strength
 #define SYSCONFIG_NTSC       1 << 11 // use NTSC mode
 
+#define EMUCONFIG_PBUFF0 0  // Render the screen using data exactly at nstart. Only seen in the prealpha bootrom.
+#define EMUCONFIG_PBUFF1 1 << 0 // Render the screen using data one buffer length beyond nstart. Seems to be what they settled on.
+
 #define ERR_F1READ  1 << 6 // BUS_FENADDR1 read fence check error
 #define ERR_F1WRITE 1 << 5 // BUS_FENADDR1 write fence check error
 #define ERR_F2READ  1 << 4 // BUS_FENADDR2 read fence check error
@@ -118,6 +121,7 @@ public:
 
     uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
+    void pixel_buffer_index_update();
 protected:
 	// device-level overrides
     virtual void device_add_mconfig(machine_config &config) override;
@@ -125,8 +129,6 @@ protected:
 	virtual void device_reset() override;
     void activate_ntsc_screen();
     void activate_pal_screen();
-
-    uint32_t m_sysconfig;
 
     uint32_t m_fence1_lower_addr;
     uint32_t m_fence1_upper_addr;
@@ -152,7 +154,7 @@ protected:
     uint32_t m_ledstate;
 
     uint8_t m_fcntl;
-    
+
     uint32_t m_vid_nstart;
     uint32_t m_vid_nsize;
     uint32_t m_vid_dmacntl;
@@ -164,6 +166,7 @@ protected:
     uint32_t m_vid_blank_color;
     uint32_t m_vid_cstart;
     uint32_t m_vid_csize;
+    uint32_t m_vid_ccntstart; // This is used to toggle the pixel buffer index
     uint32_t m_vid_ccnt;
     uint32_t m_vid_cline;
     uint32_t m_vid_cline_cyccnt;
@@ -180,6 +183,9 @@ private:
     required_device<kbdc8042_device> m_kbdc;
 	required_device<screen_device> m_screen;
     
+	required_ioport m_sys_config;
+	required_ioport m_emu_config;
+
 	output_finder<> m_power_led;
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
