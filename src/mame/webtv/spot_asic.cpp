@@ -258,9 +258,8 @@ void spot_asic_device::device_reset()
 
     m_ledstate = 0xFFFFFFFF;
 
-    emc_bitcount = 0x0;
-    emc_byte = 0x0;
-    emc_vbltimer = 0x0;
+    m_smrtcrd_serial_bitmask = 0x0;
+    m_smrtcrd_serial_rxdata = 0x0;
 }
 
 void spot_asic_device::validate_active_area()
@@ -860,35 +859,27 @@ uint32_t spot_asic_device::reg_4010_r()
 
 void spot_asic_device::reg_4010_w(uint32_t data)
 {
-    //m_smartcard->ins8250_w(1, (data >> 0x05) & 0x1); // SCCLK or UART_TXD
-    //m_smartcard->ins8250_w(1, (data >> 0x02) & 0x1); // SCDATA0EN or UART_DTR
-    //m_smartcard->ins8250_w(1, (data >> 0x01) & 0x1); // SCRESET or UART_RTS
+    m_smrtcrd_serial_bitmask = (m_smrtcrd_serial_bitmask << 1) | 1;
+    m_smrtcrd_serial_rxdata = (m_smrtcrd_serial_rxdata << 1) | (data == 0);
 
-    if(emc_bitcount == 0) {
-        if(data != 0) {
-            emc_bitcount -= 1;
-        }
-    } else if(emc_bitcount == 1) {
-        if(data == 0) {
-            emc_bitcount -= 2;
-        }
-    } else if(emc_bitcount <= 9) {
-        if(data == 0) {
-            emc_byte |= 1 << (emc_bitcount - 2);
-        } // 0x20
-    } else {
-        if(data == 0) {
-            printf("%c", emc_byte);
-        }
+    // There's 2 start bits (1 high and 1 low), 8 data bits and 1 stop bit.
+    if((m_smrtcrd_serial_bitmask & 0x7ff) == 0x7ff)
+    {
+        uint8_t rxbyte = (m_smrtcrd_serial_rxdata >> 1);
 
-        emc_byte = 0x00;
-        emc_bitcount = -1;
+        // This reverses the bit order
+        rxbyte = (rxbyte & 0xf0) >> 4 | (rxbyte & 0x0f) << 4; // Divide byte into 2 nibbles and swap them
+        rxbyte = (rxbyte & 0xcc) >> 2 | (rxbyte & 0x33) << 2; // Divide nibble into 2 bits and swap them
+        rxbyte = (rxbyte & 0xaa) >> 1 | (rxbyte & 0x55) << 1; // Divide again and swap the remaining bits
+
+        osd_printf_verbose("%c", rxbyte);
+
+        m_smrtcrd_serial_bitmask = 0x0;
+        m_smrtcrd_serial_rxdata = 0x0;
     }
-    
-    emc_bitcount++;
 
     logerror("%s: reg_4010_w %08x (DEV_SCCNTL)\n", machine().describe_context(), data);
-}    
+}
 
 uint32_t spot_asic_device::reg_4014_r()
 {
