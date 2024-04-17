@@ -56,7 +56,9 @@ public:
 		m_flash0(*this, "bank0_flash0"), // labeled U0501, contains upper bits
 		m_flash1(*this, "bank0_flash1")  // labeled U0502, contains lower bits
 	{ }
-
+	
+	DECLARE_INPUT_CHANGED_MEMBER(pbuff_index_changed);
+	
 	void webtv1_base(machine_config& config);
 	void webtv1_sony(machine_config& config);
 	void webtv1_philips(machine_config& config);
@@ -173,6 +175,115 @@ void webtv1_state::machine_reset()
 
 }
 
+INPUT_CHANGED_MEMBER(webtv1_state::pbuff_index_changed)
+{
+	m_spotasic->pixel_buffer_index_update();
+}
+
+// Sysconfig options are usually configured via resistors on the board.
+static INPUT_PORTS_START( sys_config )
+	PORT_START("sys_config")
+
+	PORT_DIPUNUSED_DIPLOC(0x01, 0x01, "SW1:1")
+	PORT_DIPUNUSED_DIPLOC(0x02, 0x02, "SW1:2")
+	
+	PORT_DIPNAME(0x0c, 0x0c, "brd_typ")
+	PORT_DIPSETTING(0x00, "Reserved")
+	PORT_DIPSETTING(0x04, "Reserved")
+	PORT_DIPSETTING(0x08, "Trial-type board")
+	PORT_DIPSETTING(0x0c, "FCS board")
+
+	PORT_DIPNAME(0xf0, 0x80, "brd_rev");
+
+	PORT_DIPUNUSED_DIPLOC(0x100, 0x100, "SW1:8")
+	PORT_DIPUNUSED_DIPLOC(0x200, 0x200, "SW1:9")
+	PORT_DIPUNUSED_DIPLOC(0x400, 0x400, "SW1:10")
+
+	PORT_DIPNAME(0x800, 0x800, "ntsc");
+	PORT_DIPSETTING(0x000, "PAL mode w/ 14.75MHz pixel clock")
+	PORT_DIPSETTING(0x800, "NTSC mode w/ 12.26MHz pixel clock")
+
+	PORT_DIPUNUSED_DIPLOC(0x1000, 0x1000, "SW1:12")
+
+	PORT_DIPNAME(0x2000, 0x2000, "cpu_buff")
+	PORT_DIPSETTING(0x0000, "83% CPU output buffers on reset")
+	PORT_DIPSETTING(0x2000, "50% CPU output buffers on reset")
+
+	PORT_DIPNAME(0xc000, 0x8000, "cpu_mult");
+	PORT_DIPSETTING(0x0000, "CPU clock = 5X bus clock")
+	PORT_DIPSETTING(0x4000, "CPU clock = 4X bus clock")
+	PORT_DIPSETTING(0x8000, "CPU clock = 2X bus clock")
+	PORT_DIPSETTING(0xc000, "CPU clock = 3X bus clock")
+
+	PORT_DIPNAME(0x10000, 0x00000, "vid_clk_src")
+	PORT_DIPSETTING(0x00000, "Use external video clock")
+	PORT_DIPSETTING(0x10000, "SPOT controlled video clock")
+
+	PORT_DIPNAME(0x20000, 0x00000, "aud_dac_mode")
+	PORT_DIPSETTING(0x00000, "SPOT controlled DAC clock")
+	PORT_DIPSETTING(0x20000, "Use external DAC clock")
+
+	PORT_DIPNAME(0xc0000, 0xc0000, "aud_ac_typ");
+	PORT_DIPSETTING(0x00000, "Reserved")
+	PORT_DIPSETTING(0x40000, "Reserved")
+	PORT_DIPSETTING(0x80000, "Reserved")
+	PORT_DIPSETTING(0xc0000, "AKM 4310/4309")
+	
+	PORT_DIPNAME(0x300000, 0x200000, "mem_vend")
+	PORT_DIPSETTING(0x000000, "Other")
+	PORT_DIPSETTING(0x100000, "Samsung")
+	PORT_DIPSETTING(0x200000, "Fujitsu")
+	PORT_DIPSETTING(0x300000, "NEC")
+
+	PORT_DIPNAME(0xc00000, 0xC00000, "mem_spd")
+	PORT_DIPSETTING(0x000000, "100MHz parts")
+	PORT_DIPSETTING(0x400000, "66MHz parts")
+	PORT_DIPSETTING(0x800000, "77MHz parts")
+	PORT_DIPSETTING(0xc00000, "83MHz parts")
+
+	PORT_DIPNAME(0x3000000, 0x3000000, "rom1_spd")
+	PORT_DIPSETTING(0x0000000, "200ns/100ns")
+	PORT_DIPSETTING(0x1000000, "100ns/50ns")
+	PORT_DIPSETTING(0x2000000, "90ns/45ns")
+	PORT_DIPSETTING(0x3000000, "120ns/60ns")
+
+	PORT_DIPNAME(0x4000000, 0x0000000, "rom1_mode")
+	PORT_DIPSETTING(0x0000000, "ROM1 page mode not supported")
+	PORT_DIPSETTING(0x4000000, "ROM1 page mode supported")
+
+	PORT_DIPNAME(0x8000000, 0x8000000, "rom1_typ")
+	PORT_DIPSETTING(0x0000000, "ROM1 flash ROM is present")
+	PORT_DIPSETTING(0x8000000, "ROM1 mask ROM is present")
+	
+	PORT_DIPNAME(0x30000000, 0x20000000, "rom0_spd")
+	PORT_DIPSETTING(0x00000000, "200ns/100ns")
+	PORT_DIPSETTING(0x10000000, "100ns/50ns")
+	PORT_DIPSETTING(0x20000000, "90ns/45ns")
+	PORT_DIPSETTING(0x30000000, "120ns/60ns")
+
+	PORT_DIPNAME(0x40000000, 0x00000000, "rom0_mode")
+	PORT_DIPSETTING(0x00000000, "ROM0 page mode not supported")
+	PORT_DIPSETTING(0x40000000, "ROM0 page mode supported")
+
+	PORT_DIPNAME(0x80000000, 0x00000000, "rom0_typ")
+	PORT_DIPSETTING(0x00000000, "ROM0 flash ROM is present")
+	PORT_DIPSETTING(0x80000000, "ROM0 mask ROM is present")
+INPUT_PORTS_END
+
+// This is emulator-specific config options that go beyond sysconfig offers.
+static INPUT_PORTS_START( emu_config )
+	PORT_START("emu_config")
+
+	PORT_CONFNAME(0x01, 0x01, "pbuff_index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
+	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
+	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( webtv1_input )
+	PORT_INCLUDE(sys_config)
+	PORT_INCLUDE(emu_config)
+INPUT_PORTS_END
+
 ROM_START( wtv1sony )
 	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
 	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
@@ -193,6 +304,6 @@ ROM_START( wtv1phil )
 	ROM_RELOAD(0x400000, 0x200000)
 ROM_END
 
-//    YEAR  NAME      PARENT  COMPAT  MACHINE        INPUT  CLASS         INIT        COMPANY               FULLNAME                            FLAGS
-CONS( 1996, wtv1sony,      0,      0, webtv1_sony,       0, webtv1_state, empty_init, "Sony",               "INT-W100 WebTV Internet Terminal", MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
-CONS( 1996, wtv1phil,      0,      0, webtv1_philips,    0, webtv1_state, empty_init, "Philips-Magnavox",   "MAT960 WebTV Internet Terminal",   MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
+//    YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT         CLASS         INIT        COMPANY               FULLNAME                            FLAGS
+CONS( 1996, wtv1sony,      0,      0, webtv1_sony,    webtv1_input, webtv1_state, empty_init, "Sony",               "INT-W100 WebTV Internet Terminal", MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
+CONS( 1996, wtv1phil,      0,      0, webtv1_philips, webtv1_input, webtv1_state, empty_init, "Philips-Magnavox",   "MAT960 WebTV Internet Terminal",   MACHINE_NOT_WORKING + MACHINE_NO_SOUND )

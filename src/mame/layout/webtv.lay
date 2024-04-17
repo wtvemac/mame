@@ -22,7 +22,23 @@
 	<element name="text_message">
         <text string="MESSAGE"><color red="0.6" green="0.6" blue="0.6" /></text>
     </element>
-    
+
+	<element name="sel_pbuff_title">
+		<text string="Pixel Buff">
+			<color red="0.6" green="0.6" blue="0.6" />
+		</text>
+	</element>
+	<element name="sel_pbuff" defstate="0">
+		<text state="1" string="B0">
+			<color red="0.66" green="0.66" blue="0.66"/>
+			<bounds x="0.05" y="0.05" width="0.90" height="0.90"/>
+		</text>
+		<text state="0" string="B1">
+			<color red="0.86" green="0.86" blue="0.86"/>
+			<bounds x="0.05" y="0.05" width="0.90" height="0.90"/>
+		</text>
+	</element>
+
 	<view name="Default Layout">
 		<screen index="0">
 			<bounds x="0" y="0" width="640" height="480" />
@@ -36,6 +52,10 @@
             
 		    <element ref="text_message"><bounds x="70" y="485" width="30" height="10" /></element>
 			<element name="message_led" ref="message_led"><bounds x="75" y="495" width="20" height="20" /></element>
+		</collection>
+		<collection name="Software State" visible="yes">
+		    <element ref="sel_pbuff_title"><bounds x="610" y="485" width="30" height="10" /></element>
+			<element ref="sel_pbuff" inputtag="emu_config" inputmask="0x01"><bounds x="615" y="495" width="20" height="20" /></element>
 		</collection>
     </view>
 </mamelayout>
