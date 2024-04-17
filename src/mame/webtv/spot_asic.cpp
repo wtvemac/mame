@@ -761,28 +761,31 @@ uint32_t spot_asic_device::reg_3034_r()
 uint32_t spot_asic_device::reg_3038_r()
 {
     logerror("%s: reg_3038_r (VID_INTSTAT read)\n", machine().describe_context());
-    return 0;
+    return m_vid_intstat;
 }
 
 void spot_asic_device::reg_3138_w(uint32_t data)
 {
     logerror("%s: reg_3138_w %08x (VID_INTSTAT clear)\n", machine().describe_context(), data);
+     m_vid_intstat &= (~data) & 0xff;
 }
 
 uint32_t spot_asic_device::reg_303c_r()
 {
     logerror("%s: reg_303c_r (VID_INTEN_S)\n", machine().describe_context());
-    return 0;
+    return m_vid_intenable;
 }
 
 void spot_asic_device::reg_303c_w(uint32_t data)
 {
     logerror("%s: reg_303c_w %08x (VID_INTEN_S)\n", machine().describe_context(), data);
+    m_vid_intenable = data & 0xff;
 }
 
 void spot_asic_device::reg_313c_w(uint32_t data)
 {
     logerror("%s: reg_313c_w %08x (VID_INTEN_C clear)\n", machine().describe_context(), data);
+     m_vid_intenable &= (~data) & 0xff;
 }
 
 // Read IR receiver chip
