@@ -191,6 +191,7 @@ private:
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
     
+    void irq_vidunit_w(int state);
 	void irq_keyboard_w(int state);
     
     emu_timer *m_sys_timer;
