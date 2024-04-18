@@ -338,6 +338,12 @@ uint32_t spot_asic_device::reg_0008_r()
 void spot_asic_device::reg_0108_w(uint32_t data)
 {
 	logerror("%s: reg_0108_w %08x (BUS_INTSTAT clear)\n", machine().describe_context(), data);
+
+    if(data & BUS_INT_VIDINT)
+    {
+        spot_asic_device::irq_vidunit_w(0);
+    }
+
     m_intstat &= (~data) & 0xFF;
 }
 
@@ -356,6 +362,7 @@ void spot_asic_device::reg_000c_w(uint32_t data)
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
 	logerror("%s: reg_010c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
+
     m_intenable &= (~data) & 0xFF;
 }
 
@@ -1134,6 +1141,13 @@ void spot_asic_device::reg_5010_w(uint32_t data)
     m_memtiming = data;
 }
 
+// The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
+
+void spot_asic_device::irq_vidunit_w(int state)
+{
+    set_bus_irq(BUS_INT_VIDINT, state);
+}
+
 void spot_asic_device::irq_keyboard_w(int state)
 {
     set_bus_irq(BUS_INT_DEVKBD, state);
@@ -1168,6 +1182,11 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
         uint32_t *line = &bitmap.pix(y);
 
         m_vid_cline = y;
+
+        if(m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_intenable & VID_INT_HSYNC && m_vid_hintline == m_vid_cline)
+        {
+            spot_asic_device::irq_vidunit_w(1);
+        }
 
         for (int x = 0; x < screen_width; x += 2)
         {
