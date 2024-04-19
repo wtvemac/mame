@@ -1206,6 +1206,7 @@ void spot_asic_device::set_vid_irq(uint8_t mask, int state)
         spot_asic_device::set_bus_irq(BUS_INT_VIDINT, state);
     }
 }
+
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
     uint16_t screen_width = bitmap.width();
@@ -1230,7 +1231,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
         for (int x = 0; x < screen_width; x += 2)
         {
-            uint32_t pixel = 0x00000000;
+            int32_t pixel = VID_DEFAULT_COLOR;
 
             bool is_active_area = (
                 y >= m_vid_vstart
@@ -1246,24 +1247,9 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
                 m_vid_ccnt += 2 * VID_BYTES_PER_PIXEL;
             }
-            else
+            else if (m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
             {
-                uint32_t blank_color = 0x0;
-
-                if(m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
-                {
-                    blank_color = m_vid_blank_color;
-                }
-                else
-                {
-                    blank_color = VID_DEFAULT_COLOR;
-                }
-
-                int32_t blnkY = (blank_color >> 0x10) & 0xff;
-                int32_t blnkCr = (blank_color >> 0x08) & 0xff;
-                int32_t blnkCb = blank_color & 0xff;
-
-                pixel =  blnkY << 0x18 | blnkCb << 0x10 | blnkY << 0x08 | blnkCr;
+                pixel = m_vid_blank_color | (((m_vid_blank_color >> 0x08) & 0xff) << 0x18);
             }
 
             int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
