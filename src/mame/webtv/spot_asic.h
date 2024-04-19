@@ -192,8 +192,8 @@ private:
 	output_finder<> m_power_led;
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
-    
-    void irq_vidunit_w(int state);
+
+    void vblank_irq(int state);
 	void irq_keyboard_w(int state);
     
     emu_timer *m_sys_timer;
@@ -204,6 +204,7 @@ private:
     int m_serial_id_tx;
 
     void set_bus_irq(uint8_t mask, int state);
+    void set_vid_irq(uint8_t mask, int state);
 
     void validate_active_area();
     void spot_update_cycle_counting();
