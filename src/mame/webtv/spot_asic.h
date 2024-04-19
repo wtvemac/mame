@@ -75,7 +75,7 @@
 #define VID_DEFAULT_HSIZE   560
 #define VID_DEFAULT_VSTART  0
 #define VID_DEFAULT_VSIZE   420
-#define VID_DEFAULT_COLOR   (VID_Y_BLACK << 0x10) | (VID_UV_OFFSET << 0x08) | VID_UV_OFFSET;
+#define VID_DEFAULT_COLOR   (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
 
 #define VID_INT_FIDO   1 << 6 // TODO: docs don't have info on FIDO mode! figure this out!
 #define VID_INT_VSYNCE 1 << 5 // even field VSYNC
