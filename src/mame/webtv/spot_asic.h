@@ -166,7 +166,6 @@ protected:
     uint32_t m_vid_blank_color;
     uint32_t m_vid_cstart;
     uint32_t m_vid_csize;
-    uint32_t m_vid_ccntstart; // This is used to toggle the pixel buffer index
     uint32_t m_vid_ccnt;
     uint32_t m_vid_cline;
     uint32_t m_vid_cline_cyccnt;
@@ -174,6 +173,9 @@ protected:
     uint32_t m_vid_hintline;
     uint32_t m_vid_intenable;
     uint32_t m_vid_intstat;
+
+    uint32_t m_vid_drawstart;
+    uint32_t m_vid_drawvsize;
 
     uint16_t m_smrtcrd_serial_bitmask = 0x0;
     uint16_t m_smrtcrd_serial_rxdata = 0x0;
