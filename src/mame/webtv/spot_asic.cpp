@@ -168,8 +168,8 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
     m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
     m_screen->set_visarea(0, VID_DEFAULT_WIDTH - 1, 0, VID_DEFAULT_HEIGHT - 1);
     m_screen->set_refresh_hz(VID_DEFAULT_HZ);
-
     m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
+    m_screen->screen_vblank().set(FUNC(spot_asic_device::vblank_irq));
 
 	KBDC8042(config, m_kbdc);
 	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
@@ -361,7 +361,7 @@ void spot_asic_device::reg_0108_w(uint32_t data)
 
     if(data & BUS_INT_VIDINT)
     {
-        spot_asic_device::irq_vidunit_w(0);
+        spot_asic_device::set_vid_irq(0xf, 0);
     }
 
     m_intstat &= (~data) & 0xFF;
@@ -1167,14 +1167,16 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 
 // The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
 
-void spot_asic_device::irq_vidunit_w(int state)
+void spot_asic_device::vblank_irq(int state) 
 {
-    set_bus_irq(BUS_INT_VIDINT, state);
+    // Not to spec but does get the intended result.
+    // All video interrupts are classed the same in the ROM.
+    spot_asic_device::set_vid_irq(VID_INT_VSYNCO, 1);
 }
 
 void spot_asic_device::irq_keyboard_w(int state)
 {
-    set_bus_irq(BUS_INT_DEVKBD, state);
+    spot_asic_device::set_bus_irq(BUS_INT_DEVKBD, state);
 }
 
 void spot_asic_device::set_bus_irq(uint8_t mask, int state)
@@ -1190,6 +1192,20 @@ void spot_asic_device::set_bus_irq(uint8_t mask, int state)
     }
 }
 
+void spot_asic_device::set_vid_irq(uint8_t mask, int state)
+{
+    if (m_vid_intenable & mask)
+    {
+        if (state)
+            m_vid_intstat |= mask;
+        else
+            m_vid_intstat &= ~(mask);
+
+        m_intenable |= BUS_INT_VIDINT;
+
+        spot_asic_device::set_bus_irq(BUS_INT_VIDINT, state);
+    }
+}
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
     uint16_t screen_width = bitmap.width();
@@ -1207,9 +1223,9 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
         m_vid_cline = y;
 
-        if(m_vid_intenable & VID_INT_HSYNC && m_vid_hintline == m_vid_cline)
+        if(m_vid_cline == m_vid_hintline)
         {
-            spot_asic_device::irq_vidunit_w(1);
+            spot_asic_device::set_vid_irq(VID_INT_HSYNC, 1);
         }
 
         for (int x = 0; x < screen_width; x += 2)
@@ -1275,6 +1291,8 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
             );
         }
     }
+
+    spot_asic_device::set_vid_irq(VID_INT_DMA, 1);
 
     return 0;
 }
