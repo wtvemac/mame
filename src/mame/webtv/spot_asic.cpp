@@ -256,6 +256,9 @@ void spot_asic_device::device_reset()
     m_vid_cline_cyccnt = 0x0;
     m_vid_cline_direct = false;
 
+    m_vid_drawstart = 0x0;
+    m_vid_drawvsize = m_vid_vsize;
+
     m_ledstate = 0xFFFFFFFF;
 
     m_smrtcrd_serial_bitmask = 0x0;
@@ -298,17 +301,34 @@ void spot_asic_device::validate_active_area()
     // hstart and vstart need to be a multiple of 8
     m_vid_hstart = (m_vid_hstart / 8) * 8;
     m_vid_vstart = (m_vid_vstart / 8) * 8;
+
+    spot_asic_device::pixel_buffer_index_update();
 }
 
 void spot_asic_device::pixel_buffer_index_update()
 {
+    uint32_t screen_lines = m_vid_vsize;
+    uint32_t screen_buffer_size = m_vid_nsize;
+
+    if(m_vid_fcntl & VID_FCNTL_INTERLACE)
+    {
+        // Interlace mode splits the buffer into two halfs. We can capture both halfs if we double the line count.
+        screen_buffer_size = (screen_buffer_size * 2);
+        screen_lines = (screen_lines * 2);
+    }
+
+    m_vid_drawstart = m_vid_nstart;
+
     if(m_emu_config->read() & EMUCONFIG_PBUFF1)
     {
-        m_vid_ccntstart = m_vid_nstart + m_vid_nsize;
+        m_vid_drawstart += screen_buffer_size;
+        m_vid_drawstart -= (m_vid_hsize * VID_BYTES_PER_PIXEL);
+        m_vid_drawvsize = screen_lines;
     }
     else
     {
-        m_vid_ccntstart = m_vid_nstart;
+        m_vid_drawstart += 2 * (m_vid_hsize * VID_BYTES_PER_PIXEL);
+        m_vid_drawvsize = screen_lines - 2;
     }
 }
 
@@ -578,6 +598,8 @@ void spot_asic_device::reg_300c_w(uint32_t data)
 {
     m_vid_nstart = data;
 
+    spot_asic_device::validate_active_area();
+
     logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
 }
 
@@ -590,6 +612,8 @@ uint32_t spot_asic_device::reg_3010_r()
 void spot_asic_device::reg_3010_w(uint32_t data)
 {
     m_vid_nsize = data;
+
+    spot_asic_device::validate_active_area();
 
     logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
 }
@@ -1173,7 +1197,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
     m_vid_cstart = m_vid_nstart;
     m_vid_csize = m_vid_nsize;
-    m_vid_ccnt = m_vid_ccntstart;
+    m_vid_ccnt = m_vid_drawstart;
 
     address_space &space = m_hostcpu->space(AS_PROGRAM);
 
@@ -1183,7 +1207,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
         m_vid_cline = y;
 
-        if(m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_intenable & VID_INT_HSYNC && m_vid_hintline == m_vid_cline)
+        if(m_vid_intenable & VID_INT_HSYNC && m_vid_hintline == m_vid_cline)
         {
             spot_asic_device::irq_vidunit_w(1);
         }
@@ -1194,7 +1218,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
             bool is_active_area = (
                 y >= m_vid_vstart
-                && y < (m_vid_vstart + m_vid_vsize)
+                && y < (m_vid_vstart + m_vid_drawvsize)
 
                 && x >= m_vid_hstart
                 && x < (m_vid_hstart + m_vid_hsize)
