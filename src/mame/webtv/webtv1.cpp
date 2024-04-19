@@ -52,7 +52,9 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_spotasic(*this, "spot"),
 		m_serial_id(*this, "serial_id"),
-		m_nvram(*this, "nvram")
+		m_nvram(*this, "nvram"),
+		m_flash0(*this, "bank0_flash0"), // labeled U0501, contains upper bits
+		m_flash1(*this, "bank0_flash1")  // labeled U0502, contains lower bits
 	{ }
 
 	void webtv1_base(machine_config& config);
@@ -69,6 +71,9 @@ private:
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 
+	required_device<amd_29f800b_16bit_device> m_flash0;
+	required_device<amd_29f800b_16bit_device> m_flash1;
+
 	void bank0_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank0_flash_r(offs_t offset);
 
@@ -78,15 +83,28 @@ private:
 void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
 {
 	// WebTV FCS uses two AMD AM29F800BT chips on the board for storing its software.
-	// One chip is for the lower 16 bits (labeled U0504), and the other is for the upper 16 bits (labeled U0503).
-	// In addition, the bytes are also flipped.
+	// One chip is for the lower 16 bits (labeled U0502), and the other is for the upper 16 bits (labeled U0501).
+	// In addition, the bytes are also reversed in their endian.
 	logerror("%s: bank0_flash_w 0x1f%06x = %08x\n", machine().describe_context(), offset, data);
+	uint32_t actual_offset = offset & 0xfffff;
+	uint16_t upper_value = (data >> 16) & 0xffff;
+	upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
+	m_flash0->write(actual_offset, upper_value);
+	
+	uint16_t lower_value = data & 0xffff;
+	lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
+	m_flash1->write(actual_offset, lower_value);
 }
 
 uint32_t webtv1_state::bank0_flash_r(offs_t offset)
 {
-	logerror("%s: bank0_flash_r 0x1f%06x\n", machine().describe_context(), offset);
-    return 0xFFFFFFFF;
+	//logerror("%s: bank0_flash_r 0x1f%06x\n", machine().describe_context(), offset);
+	uint32_t actual_offset = offset & 0xfffff;
+	uint16_t upper_value = m_flash0->read(actual_offset);
+	upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
+	uint16_t lower_value = m_flash1->read(actual_offset);
+	lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
+    return (upper_value << 16) | (lower_value);
 }
 
 void webtv1_state::webtv1_map(address_map &map)
@@ -118,8 +136,8 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_maincpu->set_dcache_size(0x2000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_map);
 	
-	AMD_29F800B_16BIT(config, "bank0_flash0");
-	AMD_29F800B_16BIT(config, "bank0_flash1");
+	AMD_29F800B_16BIT(config, m_flash0, 0);
+	AMD_29F800B_16BIT(config, m_flash1, 0);
 
 	DS2401(config, m_serial_id, 0);
 
