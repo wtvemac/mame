@@ -274,7 +274,7 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( emu_config )
 	PORT_START("emu_config")
 
-	PORT_CONFNAME(0x03, 0x01, "Pixel buffer index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
+	PORT_CONFNAME(0x03, 0x00, "Pixel buffer index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
 	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
 	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
 
