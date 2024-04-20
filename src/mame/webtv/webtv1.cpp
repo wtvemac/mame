@@ -278,13 +278,14 @@ static INPUT_PORTS_START( emu_config )
 	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
 	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
 
-	PORT_CONFNAME(0x04, 0x04, "Enable bangserial")
-	PORT_CONFSETTING(0x00, "Normal smartcard operation")
-	PORT_CONFSETTING(0x04, "Process smartcard bangserial data")
+	PORT_CONFNAME(0x0c, 0x08, "Smartcard bangserial")
+	PORT_CONFSETTING(0x00, "Off")
+	PORT_CONFSETTING(0x04, "V1 bangserial data")
+	PORT_CONFSETTING(0x08, "V2 bangserial data")
 
-	PORT_CONFNAME(0x08, 0x08, "Allow real-time screen size updates")
+	PORT_CONFNAME(0x10, 0x10, "Allow real-time screen size updates")
 	PORT_CONFSETTING(0x00, "No")
-	PORT_CONFSETTING(0x08, "Yes")
+	PORT_CONFSETTING(0x10, "Yes")
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( webtv1_input )
