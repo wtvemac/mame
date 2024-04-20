@@ -221,8 +221,6 @@ void spot_asic_device::device_start()
     save_item(NAME(m_vid_csize));
     save_item(NAME(m_vid_ccnt));
     save_item(NAME(m_vid_cline));
-    save_item(NAME(m_vid_cline_cyccnt));
-    save_item(NAME(m_vid_cline_direct));
     save_item(NAME(m_vid_drawstart));
     save_item(NAME(m_vid_drawvsize));
     save_item(NAME(m_smrtcrd_serial_bitmask));
@@ -257,8 +255,6 @@ void spot_asic_device::device_reset()
     m_vid_csize = 0x0;
     m_vid_ccnt = 0x0;
     m_vid_cline = 0x0;
-    m_vid_cline_cyccnt = 0x0;
-    m_vid_cline_direct = false;
 
     m_vid_drawstart = 0x0;
     m_vid_drawvsize = m_vid_vsize;
@@ -752,45 +748,9 @@ void spot_asic_device::reg_3030_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_3034_r()
 {
-    if(!m_vid_cline_direct)
-    {
-        /*
-            Builds uses this to calculate the CPU speed. 
-            
-            Emulation has this decoupled so it doesn't work. I'll try to accomidate the CPU speed calculation but use the correct value set in screen_update on an interrupt.
-
-            The build uses the time it takes to draw one frames as a time base (33.3333ms for two fields @ 60hz) then counts the number of CPU cycles it takes to do that
-
-            speed = cycles * (2 clock ticks / cycle) * (2 fields or 1 frame) / (33.3333 ms) * (1000 ms/s)
-
-            Steps:
-
-            1. The build grabs the current line position.
-            2. The build waits until the next line then grabs the current cycle count.
-            3. The build waits until it returns to the line position in step 1 then grabs the current cycle count again.
-            4. The cycle count different between steps 3 and 1 is made. We should be able to compute the CPU clock speed using the frame rate.
-
-            Then the build takes that and multiplies it by 12, 10 or 120 for whatever reason. I assume to adjust for any counter error.
-        */
-
-        uint32_t clocks_per_frame = (m_hostcpu->clock() / 2) / ATTOSECONDS_TO_HZ(m_screen->refresh_attoseconds());
-        uint32_t current_cyccnt = m_hostcpu->total_cycles();
-
-        if(m_vid_cline_cyccnt == 0 || (current_cyccnt - m_vid_cline_cyccnt) >= clocks_per_frame)
-        {
-            m_vid_cline = 0;
-            m_vid_cline_cyccnt = current_cyccnt;
-        }
-        else
-        {
-            m_vid_cline++;
-        }
-    }
-
-
     logerror("%s: reg_3034_r (VID_CLINE)\n", machine().describe_context());
 
-    return m_vid_cline;
+    return (m_vid_cline++) & 0x1ffff;
 }
 
 uint32_t spot_asic_device::reg_3038_r()
