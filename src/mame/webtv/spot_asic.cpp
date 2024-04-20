@@ -320,7 +320,7 @@ void spot_asic_device::pixel_buffer_index_update()
 	else
 	{
 		m_vid_drawstart += 2 * (m_vid_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_drawvsize = screen_lines - 2;
+		m_vid_drawvsize = screen_lines - 3;
 	}
 }
 
