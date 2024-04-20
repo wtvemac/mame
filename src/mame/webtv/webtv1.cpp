@@ -22,9 +22,9 @@
  * Known issues:
  * - The CPU gets thrown into the exception handler loop at bfc0c030, a little before
  *   the memory check. This has to be manually bypassed to continue the boot process.
- * 
- * Not emulated yet:
- * - Keyboard controller (it seems to be a Winbond W83C42)
+ *   (Worked around in mips3 and mips3drc)
+ * - AppROMs appear to crash shortly after power on, with debug AppROMs throwing up
+ *   "### CACHE ERROR" when serial communication is wired up to the SmartCard slot.
  * 
  ***************************************************************************************/
 
