@@ -187,104 +187,104 @@ static INPUT_PORTS_START( sys_config )
 	PORT_DIPUNUSED_DIPLOC(0x01, 0x01, "SW1:1")
 	PORT_DIPUNUSED_DIPLOC(0x02, 0x02, "SW1:2")
 	
-	PORT_DIPNAME(0x0c, 0x0c, "brd_typ")
+	PORT_DIPNAME(0x0c, 0x0c, "Board type")
 	PORT_DIPSETTING(0x00, "Reserved")
 	PORT_DIPSETTING(0x04, "Reserved")
 	PORT_DIPSETTING(0x08, "Trial-type board")
-	PORT_DIPSETTING(0x0c, "FCS board")
+	PORT_DIPSETTING(0x0c, "FCS board (retail)")
 
-	PORT_DIPNAME(0xf0, 0x80, "brd_rev");
+	PORT_DIPNAME(0xf0, 0x80, "Board revision");
 
 	PORT_DIPUNUSED_DIPLOC(0x100, 0x100, "SW1:8")
 	PORT_DIPUNUSED_DIPLOC(0x200, 0x200, "SW1:9")
 	PORT_DIPUNUSED_DIPLOC(0x400, 0x400, "SW1:10")
 
-	PORT_DIPNAME(0x800, 0x800, "ntsc");
+	PORT_DIPNAME(0x800, 0x800, "NTSC/PAL");
 	PORT_DIPSETTING(0x000, "PAL mode w/ 14.75MHz pixel clock")
 	PORT_DIPSETTING(0x800, "NTSC mode w/ 12.26MHz pixel clock")
 
 	PORT_DIPUNUSED_DIPLOC(0x1000, 0x1000, "SW1:12")
 
-	PORT_DIPNAME(0x2000, 0x2000, "cpu_buff")
+	PORT_DIPNAME(0x2000, 0x2000, "CPU output buffers")
 	PORT_DIPSETTING(0x0000, "83% CPU output buffers on reset")
-	PORT_DIPSETTING(0x2000, "50% CPU output buffers on reset")
+	PORT_DIPSETTING(0x2000, "50% CPU output buffers on reset (emulated behavior)")
 
-	PORT_DIPNAME(0xc000, 0x8000, "cpu_mult");
+	PORT_DIPNAME(0xc000, 0x8000, "CPU clock multiplier");
 	PORT_DIPSETTING(0x0000, "CPU clock = 5X bus clock")
 	PORT_DIPSETTING(0x4000, "CPU clock = 4X bus clock")
-	PORT_DIPSETTING(0x8000, "CPU clock = 2X bus clock")
+	PORT_DIPSETTING(0x8000, "CPU clock = 2X bus clock (emulated behavior)")
 	PORT_DIPSETTING(0xc000, "CPU clock = 3X bus clock")
 
-	PORT_DIPNAME(0x10000, 0x00000, "vid_clk_src")
+	PORT_DIPNAME(0x10000, 0x00000, "vidUnit clock source")
 	PORT_DIPSETTING(0x00000, "Use external video clock")
 	PORT_DIPSETTING(0x10000, "SPOT controlled video clock")
 
-	PORT_DIPNAME(0x20000, 0x00000, "aud_dac_mode")
+	PORT_DIPNAME(0x20000, 0x00000, "audUnit clock source")
 	PORT_DIPSETTING(0x00000, "SPOT controlled DAC clock")
 	PORT_DIPSETTING(0x20000, "Use external DAC clock")
 
-	PORT_DIPNAME(0xc0000, 0xc0000, "aud_ac_typ");
+	PORT_DIPNAME(0xc0000, 0xc0000, "audUnit DAC type");
 	PORT_DIPSETTING(0x00000, "Reserved")
 	PORT_DIPSETTING(0x40000, "Reserved")
 	PORT_DIPSETTING(0x80000, "Reserved")
 	PORT_DIPSETTING(0xc0000, "AKM 4310/4309")
 	
-	PORT_DIPNAME(0x300000, 0x200000, "mem_vend")
+	PORT_DIPNAME(0x300000, 0x200000, "Memory vendor")
 	PORT_DIPSETTING(0x000000, "Other")
 	PORT_DIPSETTING(0x100000, "Samsung")
 	PORT_DIPSETTING(0x200000, "Fujitsu")
 	PORT_DIPSETTING(0x300000, "NEC")
 
-	PORT_DIPNAME(0xc00000, 0xC00000, "mem_spd")
+	PORT_DIPNAME(0xc00000, 0xC00000, "Memory speed")
 	PORT_DIPSETTING(0x000000, "100MHz parts")
 	PORT_DIPSETTING(0x400000, "66MHz parts")
 	PORT_DIPSETTING(0x800000, "77MHz parts")
 	PORT_DIPSETTING(0xc00000, "83MHz parts")
 
-	PORT_DIPNAME(0x3000000, 0x3000000, "rom1_spd")
+	PORT_DIPNAME(0x3000000, 0x3000000, "Bank 1 ROM speed")
 	PORT_DIPSETTING(0x0000000, "200ns/100ns")
 	PORT_DIPSETTING(0x1000000, "100ns/50ns")
 	PORT_DIPSETTING(0x2000000, "90ns/45ns")
 	PORT_DIPSETTING(0x3000000, "120ns/60ns")
 
-	PORT_DIPNAME(0x4000000, 0x0000000, "rom1_mode")
-	PORT_DIPSETTING(0x0000000, "ROM1 page mode not supported")
-	PORT_DIPSETTING(0x4000000, "ROM1 page mode supported")
+	PORT_DIPNAME(0x4000000, 0x0000000, "Bank 1 ROM mode")
+	PORT_DIPSETTING(0x0000000, "No page mode (emulated behavior)")
+	PORT_DIPSETTING(0x4000000, "Supports page mode")
 
-	PORT_DIPNAME(0x8000000, 0x8000000, "rom1_typ")
-	PORT_DIPSETTING(0x0000000, "ROM1 flash ROM is present")
-	PORT_DIPSETTING(0x8000000, "ROM1 mask ROM is present")
+	PORT_DIPNAME(0x8000000, 0x8000000, "Bank 1 ROM type")
+	PORT_DIPSETTING(0x0000000, "Flash ROM")
+	PORT_DIPSETTING(0x8000000, "Mask ROM (emulated behavior)")
 	
-	PORT_DIPNAME(0x30000000, 0x20000000, "rom0_spd")
+	PORT_DIPNAME(0x30000000, 0x20000000, "Bank 0 ROM speed")
 	PORT_DIPSETTING(0x00000000, "200ns/100ns")
 	PORT_DIPSETTING(0x10000000, "100ns/50ns")
 	PORT_DIPSETTING(0x20000000, "90ns/45ns")
 	PORT_DIPSETTING(0x30000000, "120ns/60ns")
 
-	PORT_DIPNAME(0x40000000, 0x00000000, "rom0_mode")
-	PORT_DIPSETTING(0x00000000, "ROM0 page mode not supported")
-	PORT_DIPSETTING(0x40000000, "ROM0 page mode supported")
+	PORT_DIPNAME(0x40000000, 0x00000000, "Bank 0 ROM mode")
+	PORT_DIPSETTING(0x00000000, "No page mode (emulated behavior)")
+	PORT_DIPSETTING(0x40000000, "Supports page mode")
 
-	PORT_DIPNAME(0x80000000, 0x00000000, "rom0_typ")
-	PORT_DIPSETTING(0x00000000, "ROM0 flash ROM is present")
-	PORT_DIPSETTING(0x80000000, "ROM0 mask ROM is present")
+	PORT_DIPNAME(0x80000000, 0x00000000, "Bank 0 ROM type")
+	PORT_DIPSETTING(0x00000000, "Flash ROM (emulated behavior)")
+	PORT_DIPSETTING(0x80000000, "Mask ROM")
 INPUT_PORTS_END
 
 // This is emulator-specific config options that go beyond sysconfig offers.
 static INPUT_PORTS_START( emu_config )
 	PORT_START("emu_config")
 
-	PORT_CONFNAME(0x03, 0x01, "pbuff_index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
+	PORT_CONFNAME(0x03, 0x01, "Pixel buffer index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
 	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
 	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
 
-	PORT_CONFNAME(0x04, 0x04, "enable_bangserial")
+	PORT_CONFNAME(0x04, 0x04, "Enable bangserial")
 	PORT_CONFSETTING(0x00, "Normal smartcard operation")
-	PORT_CONFSETTING(0x01, "Process smartcard bangserial data")
+	PORT_CONFSETTING(0x04, "Process smartcard bangserial data")
 
-	PORT_CONFNAME(0x08, 0x08, "allow_screen_size_updates")
-	PORT_CONFSETTING(0x00, "Don't update screen size after initial configuration")
-	PORT_CONFSETTING(0x01, "Allow updating screen size updates")
+	PORT_CONFNAME(0x08, 0x08, "Allow real-time screen size updates")
+	PORT_CONFSETTING(0x00, "No")
+	PORT_CONFSETTING(0x08, "Yes")
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( webtv1_input )
