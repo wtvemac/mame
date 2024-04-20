@@ -195,7 +195,6 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
 	m_kbdc->input_buffer_full_callback().set(FUNC(spot_asic_device::irq_keyboard_w));
 	m_kbdc->system_reset_callback().set_inputline(":maincpu", INPUT_LINE_RESET);
-    // TODO: does WebTV require Gate A20 to be implemented? if so, how should it be implemented?
 	m_kbdc->set_keyboard_tag("at_keyboard");
 
 	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
@@ -233,7 +232,6 @@ void spot_asic_device::device_reset()
 
 uint32_t spot_asic_device::reg_0000_r()
 {
-    // This appears to be read a lot.
 	//logerror("%s: reg_0000_r (BUS_CHIPID)\n", machine().describe_context());
     return 0x10100000;
 }
@@ -270,7 +268,7 @@ uint32_t spot_asic_device::reg_000c_r()
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
 	logerror("%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
-    m_intenable = data & 0xFF;
+    m_intenable |= data & 0xFF;
 }
 
 void spot_asic_device::reg_010c_w(uint32_t data)
@@ -344,9 +342,9 @@ uint32_t spot_asic_device::reg_4000_r()
 uint32_t spot_asic_device::reg_4004_r()
 {
     logerror("%s: reg_4004_r (DEV_LED)\n", machine().describe_context());
-    m_power_led = BIT(m_ledstate, 2);
-    m_connect_led = BIT(m_ledstate, 1);
-    m_message_led = BIT(m_ledstate, 0);
+    m_power_led = !BIT(m_ledstate, 2);
+    m_connect_led = !BIT(m_ledstate, 1);
+    m_message_led = !BIT(m_ledstate, 0);
     return m_ledstate;
 }
 
