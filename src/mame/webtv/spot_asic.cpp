@@ -233,7 +233,7 @@ void spot_asic_device::device_reset()
 uint32_t spot_asic_device::reg_0000_r()
 {
 	//logerror("%s: reg_0000_r (BUS_CHIPID)\n", machine().describe_context());
-    return 0x10100000;
+    return 0x01010000;
 }
 
 uint32_t spot_asic_device::reg_0004_r()
