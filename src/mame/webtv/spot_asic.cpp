@@ -895,10 +895,21 @@ void spot_asic_device::reg_4010_w(uint32_t data)
         m_smrtcrd_serial_bitmask = (m_smrtcrd_serial_bitmask << 1) | 1;
         m_smrtcrd_serial_rxdata = (m_smrtcrd_serial_rxdata << 1) | (data == 0);
 
-        // There's 2 start bits (1 high and 1 low), 8 data bits and 1 stop bit.
+        // Just checking if the start and stop bits are present. Not checking if they're valid.
         if((m_smrtcrd_serial_bitmask & 0x7ff) == 0x7ff)
         {
-            uint8_t rxbyte = (m_smrtcrd_serial_rxdata >> 1);
+            uint8_t rxbyte = 0x00;
+
+            if(m_emu_config->read() & EMUCONFIG_BANGSERIAL_V1)
+            {
+                // V1: there's 2 start bits (1 high and 1 low), 8 data bits and 1 stop bit.
+                rxbyte = (m_smrtcrd_serial_rxdata >> 1);
+            }
+            else
+            {
+                // V2: there's 3 start bits (all high), 8 data bits and no stop bit.
+                rxbyte = m_smrtcrd_serial_rxdata;
+            }
 
             // This reverses the bit order
             rxbyte = (rxbyte & 0xf0) >> 4 | (rxbyte & 0x0f) << 4; // Divide byte into 2 nibbles and swap them
