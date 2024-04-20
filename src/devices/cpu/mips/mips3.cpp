@@ -302,7 +302,7 @@ void mips3_device::generate_exception(int exception, int backup)
 			offset = 0;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && m_flavor == MIPS3_TYPE_R5900)
+	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_R4640))
 	{
 		offset = 0x200;
 	}
