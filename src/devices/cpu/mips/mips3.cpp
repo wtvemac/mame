@@ -321,7 +321,7 @@ void mips3_device::generate_exception(int exception, int backup)
 			offset = 0;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || (m_flavor == MIPS3_TYPE_XBURST && (CAUSE & 0x00800000))))
+	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_R4640 || (m_flavor == MIPS3_TYPE_XBURST && (CAUSE & 0x00800000))))
 	{
 		/* the R5900 always uses the separate interrupt vector; MIPS32 only when Cause.IV is set */
 		offset = 0x200;
