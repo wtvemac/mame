@@ -223,6 +223,10 @@ void spot_asic_device::device_start()
     save_item(NAME(m_vid_cline));
     save_item(NAME(m_vid_cline_cyccnt));
     save_item(NAME(m_vid_cline_direct));
+    save_item(NAME(m_vid_drawstart));
+    save_item(NAME(m_vid_drawvsize));
+    save_item(NAME(m_smrtcrd_serial_bitmask));
+    save_item(NAME(m_smrtcrd_serial_rxdata));
     save_item(NAME(m_ledstate));
 }
 
