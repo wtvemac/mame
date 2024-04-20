@@ -170,8 +170,6 @@ protected:
     uint32_t m_vid_csize;
     uint32_t m_vid_ccnt;
     uint32_t m_vid_cline;
-    uint32_t m_vid_cline_cyccnt;
-    bool m_vid_cline_direct;
     uint32_t m_vid_hintline;
     uint32_t m_vid_intenable;
     uint32_t m_vid_intstat;
