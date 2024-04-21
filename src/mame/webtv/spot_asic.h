@@ -195,9 +195,6 @@ private:
 
 	void vblank_irq(int state);
 	void irq_keyboard_w(int state);
-
-	emu_timer *m_sys_timer;
-	//emu_timer *m_watchdog_timer;
 	
 	uint32_t m_compare_armed;
 
@@ -207,10 +204,6 @@ private:
 	void set_vid_irq(uint8_t mask, int state);
 
 	void validate_active_area();
-	void spot_update_cycle_counting();
-
-	TIMER_CALLBACK_MEMBER(sys_timer_callback);
-	//TIMER_CALLBACK_MEMBER(watchdog_timer_callback);
 	
 	TIMER_CALLBACK_MEMBER(vid_dma_complete);
 	//TIMER_CALLBACK_MEMBER(aud_dma_complete);

@@ -59,8 +59,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	m_emu_config(*owner, "emu_config"),
 	m_power_led(*this, "power_led"),
 	m_connect_led(*this, "connect_led"),
-	m_message_led(*this, "message_led"),
-	m_sys_timer(nullptr) // when it goes off, timer interrupt fires
+	m_message_led(*this, "message_led")
 {
 }
 
