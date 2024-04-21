@@ -740,7 +740,7 @@ void mips3_device::static_generate_exception(uint8_t exception, int recover, con
 		offset = 0x000;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && m_flavor == MIPS3_TYPE_R4640)
+	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_R4640))
 	{
 		offset = 0x200;
 	}
