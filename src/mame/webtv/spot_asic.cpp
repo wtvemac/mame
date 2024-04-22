@@ -178,7 +178,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_modem_uart->out_rts_callback().set("modem", FUNC(rs232_port_device::write_rts));
 	m_modem_uart->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
     
-	rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, nullptr));
+	rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
 	rs232.rxd_handler().set(m_modem_uart, FUNC(ins8250_uart_device::rx_w));
 	rs232.dcd_handler().set(m_modem_uart, FUNC(ins8250_uart_device::dcd_w));
 	rs232.dsr_handler().set(m_modem_uart, FUNC(ins8250_uart_device::dsr_w));
