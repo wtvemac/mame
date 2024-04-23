@@ -65,6 +65,14 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 {
 }
 
+static DEVICE_INPUT_DEFAULTS_START( wtv_modem )
+	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_115200 )
+	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_115200 )
+	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
+	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
+	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
+DEVICE_INPUT_DEFAULTS_END
+
 DECLARE_INPUT_CHANGED_MEMBER(pbuff_index_changed);
 
 void spot_asic_device::bus_unit_map(address_map &map)
@@ -179,6 +187,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_modem_uart->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
     
 	rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
+    rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
 	rs232.rxd_handler().set(m_modem_uart, FUNC(ins8250_uart_device::rx_w));
 	rs232.dcd_handler().set(m_modem_uart, FUNC(ins8250_uart_device::dcd_w));
 	rs232.dsr_handler().set(m_modem_uart, FUNC(ins8250_uart_device::dsr_w));
@@ -385,11 +394,11 @@ void spot_asic_device::reg_000c_w(uint32_t data)
 {
 	logerror("%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
     if (data&BUS_INT_AUDDMA)
-        logerror("%s: AUDDMA bus interrupt set (unimplemented)\n", machine().describe_context());
+        logerror("%s: AUDDMA bus interrupt set\n", machine().describe_context());
     if (data&BUS_INT_DEVSMC)
         logerror("%s: DEVSMC bus interrupt set\n", machine().describe_context());
     if (data&BUS_INT_DEVIR)
-        logerror("%s: DEVIR bus interrupt set (unimplemented)\n", machine().describe_context());
+        logerror("%s: DEVIR bus interrupt set\n", machine().describe_context());
     if (data&BUS_INT_DEVMOD)
         logerror("%s: DEVMOD bus interrupt set\n", machine().describe_context());
     if (data&BUS_INT_DEVKBD)
@@ -606,25 +615,25 @@ void spot_asic_device::reg_201c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_3000_r()
 {
-	logerror("%s: reg_3000_r (VID_CSTART)\n", machine().describe_context());
+	//logerror("%s: reg_3000_r (VID_CSTART)\n", machine().describe_context());
 	return m_vid_cstart;
 }
 
 uint32_t spot_asic_device::reg_3004_r()
 {
-	logerror("%s: reg_3004_r (VID_CSIZE)\n", machine().describe_context());
+	//logerror("%s: reg_3004_r (VID_CSIZE)\n", machine().describe_context());
 	return m_vid_csize;
 }
 
 uint32_t spot_asic_device::reg_3008_r()
 {
-	logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
+	//logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
 	return m_vid_ccnt;
 }
 
 uint32_t spot_asic_device::reg_300c_r()
 {
-	logerror("%s: reg_300c_r (VID_NSTART)\n", machine().describe_context());
+	//logerror("%s: reg_300c_r (VID_NSTART)\n", machine().describe_context());
 	return m_vid_nstart;
 }
 
@@ -634,12 +643,12 @@ void spot_asic_device::reg_300c_w(uint32_t data)
 
 	spot_asic_device::validate_active_area();
 
-	logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
+	//logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3010_r()
 {
-	logerror("%s: reg_3010_r (VID_NSIZE)\n", machine().describe_context());
+	//logerror("%s: reg_3010_r (VID_NSIZE)\n", machine().describe_context());
 	return m_vid_nsize;
 }
 
@@ -649,12 +658,12 @@ void spot_asic_device::reg_3010_w(uint32_t data)
 
 	spot_asic_device::validate_active_area();
 
-	logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3014_r()
 {
-	logerror("%s: reg_3014_r (VID_DMACNTL)\n", machine().describe_context());
+	//logerror("%s: reg_3014_r (VID_DMACNTL)\n", machine().describe_context());
 	return m_vid_dmacntl;
 }
 
@@ -667,12 +676,12 @@ void spot_asic_device::reg_3014_w(uint32_t data)
 
 	m_vid_dmacntl = data;
 
-	logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3018_r()
 {
-	logerror("%s: reg_3018_r (VID_FCNTL)\n", machine().describe_context());
+	//logerror("%s: reg_3018_r (VID_FCNTL)\n", machine().describe_context());
 	return m_vid_fcntl;
 }
 
@@ -680,6 +689,7 @@ void spot_asic_device::reg_3018_w(uint32_t data)
 {
 	if (m_emu_config->read() & EMUCONFIG_SCREEN_UPDATES && (m_vid_fcntl ^ data) & VID_FCNTL_PAL)
 	{
+        // TODO: does this actually work?
 		if (data & VID_FCNTL_PAL)
 			spot_asic_device::activate_pal_screen();
 		else
@@ -688,7 +698,7 @@ void spot_asic_device::reg_3018_w(uint32_t data)
 	
 	m_vid_fcntl = data;
 
-	logerror("%s: reg_3018_w %08x (VID_FCNTL)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3018_w %08x (VID_FCNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_301c_r()
@@ -699,14 +709,13 @@ uint32_t spot_asic_device::reg_301c_r()
 
 void spot_asic_device::reg_301c_w(uint32_t data)
 {
-	m_vid_blank_color = data;
-
 	logerror("%s: reg_301c_r %08x (VID_BLNKCOL)\n", machine().describe_context(), data);
+	m_vid_blank_color = data;
 }
 
 uint32_t spot_asic_device::reg_3020_r()
 {
-	logerror("%s: reg_3020_r (VID_HSTART)\n", machine().describe_context());
+	//logerror("%s: reg_3020_r (VID_HSTART)\n", machine().describe_context());
 	return m_vid_hstart;
 }
 
@@ -716,12 +725,12 @@ void spot_asic_device::reg_3020_w(uint32_t data)
 
 	spot_asic_device::validate_active_area();
 
-	logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3024_r()
 {
-	logerror("%s: reg_3024_r (VID_HSIZE)\n", machine().describe_context());
+	//logerror("%s: reg_3024_r (VID_HSIZE)\n", machine().describe_context());
 	return m_vid_hsize;
 }
 
@@ -731,12 +740,12 @@ void spot_asic_device::reg_3024_w(uint32_t data)
 
 	spot_asic_device::validate_active_area();
 
-	logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3028_r()
 {
-	logerror("%s: reg_3028_r (VID_VSTART)\n", machine().describe_context());
+	//logerror("%s: reg_3028_r (VID_VSTART)\n", machine().describe_context());
 	return m_vid_vstart;
 }
 
@@ -746,12 +755,12 @@ void spot_asic_device::reg_3028_w(uint32_t data)
 
 	spot_asic_device::validate_active_area();
 	
-	logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_302c_r()
 {
-	logerror("%s: reg_302c_r (VID_VSIZE)\n", machine().describe_context());
+	//logerror("%s: reg_302c_r (VID_VSIZE)\n", machine().describe_context());
 	return m_vid_vsize;
 }
 
@@ -761,7 +770,7 @@ void spot_asic_device::reg_302c_w(uint32_t data)
 
 	spot_asic_device::validate_active_area();
 	
-	logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
+	//logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3030_r()
@@ -773,7 +782,7 @@ uint32_t spot_asic_device::reg_3030_r()
 void spot_asic_device::reg_3030_w(uint32_t data)
 {
 	m_vid_hintline = data;
-	logerror("%s: reg_3030_w %08x (VID_HINTLINE)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3030_w %08x (VID_HINTLINE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3034_r()
@@ -785,13 +794,13 @@ uint32_t spot_asic_device::reg_3034_r()
 
 uint32_t spot_asic_device::reg_3038_r()
 {
-	logerror("%s: reg_3038_r (VID_INTSTAT read)\n", machine().describe_context());
+	//logerror("%s: reg_3038_r (VID_INTSTAT read)\n", machine().describe_context());
 	return m_vid_intstat;
 }
 
 void spot_asic_device::reg_3138_w(uint32_t data)
 {
-	logerror("%s: reg_3138_w %08x (VID_INTSTAT clear)\n", machine().describe_context(), data);
+	//logerror("%s: reg_3138_w %08x (VID_INTSTAT clear)\n", machine().describe_context(), data);
 	 m_vid_intstat &= (~data) & 0xff;
 }
 
@@ -1041,13 +1050,13 @@ void spot_asic_device::reg_403c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4040_r()
 {
-	//logerror("%s: reg_4040_r (DEV_MOD0)\n", machine().describe_context());
+	logerror("%s: reg_4040_r (DEV_MOD0)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x0);
 }
 
 void spot_asic_device::reg_4040_w(uint32_t data)
 {
-	//logerror("%s: reg_4040_w %08x (DEV_MOD0)\n", machine().describe_context(), data);
+	logerror("%s: reg_4040_w %08x (DEV_MOD0)\n", machine().describe_context(), data);
     m_modem_uart->ins8250_w(0x0, data & 0xFF);
 }
 
