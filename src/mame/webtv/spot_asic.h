@@ -28,6 +28,10 @@
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 
+#include "machine/ins8250.h"
+#include "bus/rs232/null_modem.h"
+#include "sound/dac.h"
+
 #define SYSCONFIG_ROMTYP0    1 << 31 // ROM bank 0 is present
 #define SYSCONFIG_ROMMODE0   1 << 30 // ROM bank 0 supports page mode
 #define SYSCONFIG_ROMTYP1    1 << 27 // ROM bank 1 is present
@@ -95,14 +99,25 @@
 #define VID_FCNTL_VIDENAB    1 << 0 // video output enable
 
 #define VID_DMACNTL_ITRLEN 1 << 3 // interlaced video in DMA channel
-#define VID_DMACNTL_DMAEN  1 << 2 // DMA channel enabled
-#define VID_DMACNTL_NV     1 << 1 // DMA next registers are valid
-#define VID_DMACNTL_NVF    1 << 0 // DMA next registers are always valid
+#define VID_DMACNTL_DMAEN  1 << 2 // vidUnit DMA channel enabled
+#define VID_DMACNTL_NV     1 << 1 // vidUnit DMA next registers are valid
+#define VID_DMACNTL_NVF    1 << 0 // vidUnit DMA next registers are always valid
+
+#define AUD_CONFIG_8BIT 1 << 1 // 8-bit audio
+#define AUD_CONFIG_MONO 1 << 0 // Mono audio
+
+#define AUD_DMACNTL_DMAEN  1 << 2 // audUnit DMA channel enabled
+#define AUD_DMACNTL_NV     1 << 1 // audUnit DMA next registers are valid
+#define AUD_DMACNTL_NVF    1 << 0 // audUnit DMA next registers are always valid
 
 #define NVCNTL_SCL      1 << 3
 #define NVCNTL_WRITE_EN 1 << 2
 #define NVCNTL_SDA_W    1 << 1
 #define NVCNTL_SDA_R    1 << 0
+
+#define INS8250_LSR_TSRE 0x40
+#define INS8250_LSR_THRE 0x20
+#define MBUFF_MAX_SIZE   0x1000
 
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
@@ -157,6 +172,15 @@ protected:
 
 	uint8_t m_fcntl;
 
+	uint32_t m_aud_cstart;
+	uint32_t m_aud_csize;
+	uint32_t m_aud_cconfig;
+	uint32_t m_aud_ccnt;
+	uint32_t m_aud_nstart;
+	uint32_t m_aud_nsize;
+	uint32_t m_aud_nconfig;
+	uint32_t m_aud_dmacntl;
+
 	uint32_t m_vid_nstart;
 	uint32_t m_vid_nsize;
 	uint32_t m_vid_dmacntl;
@@ -177,14 +201,25 @@ protected:
 	uint32_t m_vid_drawstart;
 	uint32_t m_vid_drawvsize;
 
+	uint32_t m_rom_cntl0;
+	uint32_t m_rom_cntl1;
+
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;
+
+	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
+	uint32_t modem_txbuff_size;
+	uint32_t modem_txbuff_index;
 private:
 	required_device<mips3_device> m_hostcpu;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 	required_device<kbdc8042_device> m_kbdc;
 	required_device<screen_device> m_screen;
+
+	required_device<dac_word_interface> m_ldac;
+	required_device<dac_word_interface> m_rdac;
+	required_device<ns16450_device> m_modem;
 
 	required_ioport m_sys_config;
 	required_ioport m_emu_config;
@@ -193,8 +228,15 @@ private:
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
 
+	emu_timer *modem_buffer_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
+	emu_timer *audio_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(fetch_audio_data);
+
 	void vblank_irq(int state);
 	void irq_keyboard_w(int state);
+	void irq_modem_w(int state);
+	void irq_audio_w(int state);
 
 	emu_timer *m_sys_timer;
 	//emu_timer *m_watchdog_timer;
