@@ -106,6 +106,10 @@
 #define NVCNTL_SDA_W    1 << 1
 #define NVCNTL_SDA_R    1 << 0
 
+#define INS8250_LSR_TSRE 0x40
+#define INS8250_LSR_THRE 0x20
+#define MBUFF_MAX_SIZE   0x1000
+
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
 public:
@@ -183,6 +187,10 @@ protected:
 
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;
+
+	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
+	uint32_t modem_txbuff_size;
+	uint32_t modem_txbuff_index;
 private:
 	required_device<mips3_device> m_hostcpu;
 	required_device<ds2401_device> m_serial_id;
@@ -198,6 +206,9 @@ private:
 	output_finder<> m_power_led;
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
+
+	emu_timer *modem_buffer_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
 
 	void vblank_irq(int state);
 	void irq_keyboard_w(int state);

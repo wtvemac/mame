@@ -226,6 +226,8 @@ void spot_asic_device::device_start()
 
 	spot_asic_device::device_reset();
 
+	modem_buffer_timer = timer_alloc(FUNC(spot_asic_device::flush_modem_buffer), this);
+
 	save_item(NAME(m_intenable));
 	save_item(NAME(m_intstat));
 	save_item(NAME(m_errenable));
@@ -286,6 +288,9 @@ void spot_asic_device::device_reset()
 
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
+
+	modem_txbuff_size = 0x0;
+	modem_txbuff_index = 0x0;
 }
 
 void spot_asic_device::validate_active_area()
@@ -1057,7 +1062,17 @@ uint32_t spot_asic_device::reg_4040_r()
 void spot_asic_device::reg_4040_w(uint32_t data)
 {
 	logerror("%s: reg_4040_w %08x (DEV_MOD0)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x0, data & 0xFF);
+
+	if(modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	{
+		m_modem_uart->ins8250_w(0x0, data & 0xFF);
+	}
+	else
+	{
+		modem_txbuff[modem_txbuff_size++ & (MBUFF_MAX_SIZE - 1)] = data & 0xFF;
+
+		modem_buffer_timer->adjust(attotime::from_usec(1000));
+	}
 }
 
 uint32_t spot_asic_device::reg_4044_r()
@@ -1206,6 +1221,25 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 	m_memtiming = data;
 }
 
+TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
+{
+	if(modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	{
+		m_modem_uart->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
+
+		if(modem_txbuff_index == modem_txbuff_size)
+		{
+			modem_txbuff_index = 0x0;
+			modem_txbuff_size = 0x0;
+		}
+	}
+
+	if(modem_txbuff_size > 0)
+	{
+		modem_buffer_timer->adjust(attotime::from_usec(1000));
+	}
+}
+
 // The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
 
 void spot_asic_device::vblank_irq(int state) 
@@ -1227,7 +1261,8 @@ void spot_asic_device::irq_smartcard_w(int state)
 
 void spot_asic_device::irq_modem_w(int state)
 {
-    spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
+	m_intenable |= BUS_INT_DEVMOD;
+	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
 }
 
 void spot_asic_device::set_bus_irq(uint8_t mask, int state)
