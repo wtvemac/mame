@@ -938,6 +938,153 @@ void spot_asic_device::reg_4004_w(uint32_t data)
 	m_message_led = !BIT(m_ledstate, 0);
 }
 
+/*
+ROM:9F01CB30                 .globl b_ReadSiliconSerialNumber_
+ROM:9F01CB30 b_ReadSiliconSerialNumber_:
+ROM:9F01CB30                 move    $t5, $ra
+ROM:9F01CB34                 move    $v0, $zero
+ROM:9F01CB38                 lui     $a2, 0xA400
+ROM:9F01CB3C                 mfc0    $t4, SR          # Status register
+ROM:9F01CB40                 li      $t6, 0xFFFFFFFE
+ROM:9F01CB44                 and     $t6, $t4, $t6
+ROM:9F01CB48                 mtc0    $t6, SR          # Status register
+ROM:9F01CB4C                 sw      $zero, 0xA4004008
+ROM:9F01CB50                 lw      $zero, 0xA4004008
+ROM:9F01CB54                 jal     b_DelayUS_
+ROM:9F01CB58                 li      $t0, 0x1F4
+ROM:9F01CB5C                 li      $t0, 2
+ROM:9F01CB60                 sw      $t0, 0x4008($a2)
+ROM:9F01CB64                 lw      $zero, 0x4008($a2)
+ROM:9F01CB68                 jal     b_DelayUS_
+ROM:9F01CB6C                 li      $t0, 0x43  # 'C'
+ROM:9F01CB70                 lw      $t6, 0x4008($a2)
+ROM:9F01CB74                 nop
+ROM:9F01CB78                 andi    $t6, 1
+ROM:9F01CB7C                 bnez    $t6, loc_9F01CC20
+ROM:9F01CB80                 nop
+ROM:9F01CB84                 jal     b_DelayUS_
+ROM:9F01CB88                 li      $t0, 0x1F4
+ROM:9F01CB8C                 li      $t1, 0xF
+ROM:9F01CB90                 li      $t2, 8
+ROM:9F01CB94
+ROM:9F01CB94 loc_9F01CB94:                            # CODE XREF: ROM:9F01CBFC↓j
+ROM:9F01CB94                 andi    $t6, $t1, 1
+ROM:9F01CB98                 beqz    $t6, loc_9F01CBCC
+ROM:9F01CB9C                 srl     $t1, 1
+ROM:9F01CBA0                 sw      $zero, 0x4008($a2)
+ROM:9F01CBA4                 lw      $zero, 0x4008($a2)
+ROM:9F01CBA8                 jal     b_DelayUS_
+ROM:9F01CBAC                 li      $t0, 8
+ROM:9F01CBB0                 li      $t0, 2
+ROM:9F01CBB4                 sw      $t0, 0x4008($a2)
+ROM:9F01CBB8                 lw      $zero, 0x4008($a2)
+ROM:9F01CBBC                 jal     b_DelayUS_
+ROM:9F01CBC0                 li      $t0, 0x5C  # '\'
+ROM:9F01CBC4                 b       loc_9F01CBF0
+ROM:9F01CBC8                 nop
+ROM:9F01CBCC  # ---------------------------------------------------------------------------
+ROM:9F01CBCC
+ROM:9F01CBCC loc_9F01CBCC:                            # CODE XREF: ROM:9F01CB98↑j
+ROM:9F01CBCC                 sw      $zero, 0x4008($a2)
+ROM:9F01CBD0                 lw      $zero, 0x4008($a2)
+ROM:9F01CBD4                 jal     b_DelayUS_
+ROM:9F01CBD8                 li      $t0, 0x64  # 'd'
+ROM:9F01CBDC                 li      $t0, 2
+ROM:9F01CBE0                 sw      $t0, 0x4008($a2)
+ROM:9F01CBE4                 lw      $zero, 0x4008($a2)
+ROM:9F01CBE8                 jal     b_DelayUS_
+ROM:9F01CBEC                 li      $t0, 5
+ROM:9F01CBF0
+ROM:9F01CBF0 loc_9F01CBF0:                            # CODE XREF: ROM:9F01CBC4↑j
+ROM:9F01CBF0                 jal     b_DelayUS_
+ROM:9F01CBF4                 li      $t0, 1
+ROM:9F01CBF8                 addiu   $t2, -1
+ROM:9F01CBFC                 bnez    $t2, loc_9F01CB94
+ROM:9F01CC00                 nop
+ROM:9F01CC04                 jal     b_Read1WireWord_
+ROM:9F01CC08                 nop
+ROM:9F01CC0C                 sw      $t1, 0($a1)
+ROM:9F01CC10                 jal     b_Read1WireWord_
+ROM:9F01CC14                 nop
+ROM:9F01CC18                 sw      $t1, 4($a1)
+ROM:9F01CC1C                 li      $v0, 1
+ROM:9F01CC20
+ROM:9F01CC20 loc_9F01CC20:                            # CODE XREF: ROM:9F01CB7C↑j
+ROM:9F01CC20                 mtc0    $t4, SR          # Status register
+ROM:9F01CC24                 jr      $t5
+ROM:9F01CC28                 nop
+ROM:9F01CC2C
+ROM:9F01CC2C  # =============== S U B R O U T I N E =======================================
+ROM:9F01CC2C
+ROM:9F01CC2C
+ROM:9F01CC2C                 .globl b_Read1WireWord_
+ROM:9F01CC2C b_Read1WireWord_:                        # CODE XREF: ROM:9F01CC04↑p
+ROM:9F01CC2C                                          # ROM:9F01CC10↑p
+ROM:9F01CC2C                 move    $t3, $ra
+ROM:9F01CC30                 move    $t1, $zero
+ROM:9F01CC34                 li      $t2, 0x20  # ' '
+ROM:9F01CC38
+ROM:9F01CC38 loc_9F01CC38:                            # CODE XREF: b_Read1WireWord_+70↓j
+ROM:9F01CC38                 jal     b_DelayUS_
+ROM:9F01CC3C                 li      $t0, 1
+ROM:9F01CC40                 sw      $zero, 0x4008($a2)
+ROM:9F01CC44                 lw      $zero, 0x4008($a2)
+ROM:9F01CC48                 jal     b_DelayUS_
+ROM:9F01CC4C                 li      $t0, 2
+ROM:9F01CC50                 li      $t0, 2
+ROM:9F01CC54                 sw      $t0, 0x4008($a2)
+ROM:9F01CC58                 lw      $zero, 0x4008($a2)
+ROM:9F01CC5C                 jal     b_DelayUS_
+ROM:9F01CC60                 li      $t0, 7
+ROM:9F01CC64                 lw      $t6, 0x4008($a2)
+ROM:9F01CC68                 nop
+ROM:9F01CC6C                 andi    $t6, 1
+ROM:9F01CC70                 bnez    $t6, loc_9F01CC84
+ROM:9F01CC74                 nop
+ROM:9F01CC78                 srl     $t1, 1
+ROM:9F01CC7C                 b       loc_9F01CC90
+ROM:9F01CC80                 nop
+ROM:9F01CC84  # ---------------------------------------------------------------------------
+ROM:9F01CC84
+ROM:9F01CC84 loc_9F01CC84:                            # CODE XREF: b_Read1WireWord_+44↑j
+ROM:9F01CC84                 srl     $t1, 1
+ROM:9F01CC88                 lui     $t6, 0x8000
+ROM:9F01CC8C                 or      $t1, $t6
+ROM:9F01CC90
+ROM:9F01CC90 loc_9F01CC90:                            # CODE XREF: b_Read1WireWord_+50↑j
+ROM:9F01CC90                 jal     b_DelayUS_
+ROM:9F01CC94                 li      $t0, 0x60  # '`'
+ROM:9F01CC98                 addiu   $t2, -1
+ROM:9F01CC9C                 bnez    $t2, loc_9F01CC38
+ROM:9F01CCA0                 nop
+ROM:9F01CCA4                 jr      $t3
+ROM:9F01CCA8                 nop
+ROM:9F01CCA8  # End of function b_Read1WireWord_
+ROM:9F01CCA8
+ROM:9F01CCAC
+ROM:9F01CCAC  # =============== S U B R O U T I N E =======================================
+ROM:9F01CCAC
+ROM:9F01CCAC
+ROM:9F01CCAC                 .globl b_DelayUS_
+ROM:9F01CCAC b_DelayUS_:                              # CODE XREF: ROM:9F01CB54↑p
+ROM:9F01CCAC                                          # ROM:9F01CB68↑p ...
+ROM:9F01CCAC                 multu   $zero, $a0, $t0
+ROM:9F01CCB0                 mflo    $t0
+ROM:9F01CCB4                 mfc0    $t7, Count       # Timer Count
+ROM:9F01CCB8
+ROM:9F01CCB8 loc_9F01CCB8:                            # CODE XREF: b_DelayUS_+1C↓j
+ROM:9F01CCB8                 mfc0    $t6, Count       # Timer Count
+ROM:9F01CCBC                 nop
+ROM:9F01CCC0                 subu    $t6, $t7
+ROM:9F01CCC4                 sltu    $at, $t6, $t0
+ROM:9F01CCC8                 bnez    $at, loc_9F01CCB8
+ROM:9F01CCCC                 nop
+ROM:9F01CCD0                 jr      $ra
+ROM:9F01CCD4                 nop
+ROM:9F01CCD4  # End of function b_DelayUS_
+
+*/
+
 // Testing
 int8_t ssid_index = -1;
 uint32_t dev_idcntl = 0x00;
