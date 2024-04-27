@@ -48,6 +48,7 @@
 #define EMUCONFIG_BANGSERIAL_V1  1 << 2
 #define EMUCONFIG_BANGSERIAL_V2  1 << 3
 #define EMUCONFIG_SCREEN_UPDATES 1 << 4
+#define EMUCONFIG_INTERRUPTS     1 << 5
 
 #define ERR_F1READ  1 << 6 // BUS_FENADDR1 read fence check error
 #define ERR_F1WRITE 1 << 5 // BUS_FENADDR1 write fence check error
@@ -161,6 +162,7 @@ protected:
 
 	uint8_t m_intenable;
 	uint8_t m_intstat;
+	bool m_disable_ints;
 	
 	uint8_t m_errenable;
 	uint8_t m_errstat;

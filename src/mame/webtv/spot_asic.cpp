@@ -1522,7 +1522,7 @@ void spot_asic_device::irq_audio_w(int state)
 
 void spot_asic_device::set_bus_irq(uint8_t mask, int state)
 {
-	if (m_intenable & mask)
+	if (m_intenable & mask && (m_emu_config->read() & EMUCONFIG_INTERRUPTS))
 	{
 		if (state)
 			m_intstat |= mask;
