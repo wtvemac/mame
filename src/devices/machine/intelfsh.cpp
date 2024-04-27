@@ -101,6 +101,7 @@ DEFINE_DEVICE_TYPE(INTEL_E28F400B,        intel_e28f400b_device,        "intel_e
 DEFINE_DEVICE_TYPE(MACRONIX_29F008TC,     macronix_29f008tc_device,     "macronix_29f008tc",     "Macronix 29F008TC Flash")
 DEFINE_DEVICE_TYPE(MACRONIX_29L001MC,     macronix_29l001mc_device,     "macronix_29l001mc",     "Macronix 29L001MC Flash")
 DEFINE_DEVICE_TYPE(MACRONIX_29LV160TMC,   macronix_29lv160tmc_device,   "macronix_29lv160tmc",   "Macronix 29LV160TMC Flash")
+DEFINE_DEVICE_TYPE(MACRONIX_16161616,     macronix_16161616_device,     "macronix_16161616",     "Macronix 16161616 Flash (16-bit)")
 DEFINE_DEVICE_TYPE(TMS_29F040,            tms_29f040_device,            "tms_29f040",            "Texas Instruments 29F040 Flash")
 
 DEFINE_DEVICE_TYPE(PANASONIC_MN63F805MNP, panasonic_mn63f805mnp_device, "panasonic_mn63f805mnp", "Panasonic MN63F805MNP Flash")
@@ -235,6 +236,10 @@ macronix_29l001mc_device::macronix_29l001mc_device(const machine_config &mconfig
 
 macronix_29lv160tmc_device::macronix_29lv160tmc_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, MACRONIX_29LV160TMC, tag, owner, clock, 0x20000, MFG_MACRONIX, 0x49) { m_sector_is_16k = true; }
+
+// EMAC_TODO: need to find model number for 16Mbit 0xf1
+macronix_16161616_device::macronix_16161616_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: intelfsh16_device(mconfig, MACRONIX_16161616, tag, owner, clock, 0x200000, MFG_MACRONIX, 0xf1) { m_sector_is_4k = true; }
 
 panasonic_mn63f805mnp_device::panasonic_mn63f805mnp_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, PANASONIC_MN63F805MNP, tag, owner, clock, 0x10000, MFG_PANASONIC, 0x1b) { m_sector_is_4k = true; }
@@ -546,10 +551,18 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		{
 		case 0xf0:
 		case 0xff:  // reset chip mode
-			m_flash_mode = FM_NORMAL;
+			// 16161616 needs to be reset with another command
+			if ( !(m_maker_id == MFG_MACRONIX && m_device_id == 0xf1) )
+			{
+				m_flash_mode = FM_NORMAL;
+			}
 			break;
 		case 0x90:  // read ID
-			m_flash_mode = FM_READID;
+			// AM29F800B and 16161616 don't support the 0x90 ID command.
+			if ( !(m_maker_id == MFG_AMD && m_device_id == 0x22d6) && !(m_maker_id == MFG_MACRONIX && m_device_id == 0xf1) )
+			{
+				m_flash_mode = FM_READID;
+			}
 			break;
 		case 0x40:
 		case 0x10:  // program

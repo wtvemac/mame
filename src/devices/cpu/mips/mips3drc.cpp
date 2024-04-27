@@ -2074,6 +2074,7 @@ bool mips3_device::generate_opcode(drcuml_block &block, compiler_state &compiler
 
 		case 0x2f:  /* CACHE - MIPS II */
 		case 0x33:  /* PREF - MIPS IV */
+			// EMAC_TODO: ok to skip?
 			return true;
 
 

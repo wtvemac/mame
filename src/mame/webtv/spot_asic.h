@@ -27,6 +27,7 @@
 #include "machine/at_keybc.h"
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
+#include "machine/watchdog.h"
 
 #include "machine/ins8250.h"
 #include "bus/rs232/null_modem.h"
@@ -119,6 +120,9 @@
 #define INS8250_LSR_THRE 0x20
 #define MBUFF_MAX_SIZE   0x1000
 
+#define ID_STATE_RESET   0x1
+#define ID_STATE_READROM 0x5
+
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
 public:
@@ -147,6 +151,9 @@ protected:
 	void activate_ntsc_screen();
 	void activate_pal_screen();
 
+	uint32_t m_chpcntl;
+	uint8_t m_wdenable;
+	
 	uint32_t m_fence1_lower_addr;
 	uint32_t m_fence1_upper_addr;
 	uint32_t m_fence2_lower_addr;
@@ -172,6 +179,7 @@ protected:
 
 	uint8_t m_fcntl;
 
+	uint8_t m_aud_clkdiv;
 	uint32_t m_aud_cstart;
 	uint32_t m_aud_csize;
 	uint32_t m_aud_cconfig;
@@ -220,6 +228,8 @@ private:
 	required_device<dac_word_interface> m_ldac;
 	required_device<dac_word_interface> m_rdac;
 	required_device<ns16450_device> m_modem;
+
+	required_device<watchdog_timer_device> m_watchdog;
 
 	required_ioport m_sys_config;
 	required_ioport m_emu_config;

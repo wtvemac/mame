@@ -73,8 +73,10 @@ private:
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 
-	required_device<amd_29f800b_16bit_device> m_flash0;
-	required_device<amd_29f800b_16bit_device> m_flash1;
+	//required_device<amd_29f800b_16bit_device> m_flash0;
+	//required_device<amd_29f800b_16bit_device> m_flash1;
+	required_device<macronix_16161616_device> m_flash0;
+	required_device<macronix_16161616_device> m_flash1;
 
 	void bank0_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank0_flash_r(offs_t offset);
@@ -86,26 +88,19 @@ void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
 {
 	// WebTV FCS uses two AMD AM29F800BT chips on the board for storing its software.
 	// One chip is for the lower 16 bits (labeled U0502), and the other is for the upper 16 bits (labeled U0501).
-	// In addition, the bytes are also reversed in their endian.
-	logerror("%s: bank0_flash_w 0x1f%06x = %08x\n", machine().describe_context(), offset, data);
-	uint32_t actual_offset = offset & 0xfffff;
+
 	uint16_t upper_value = (data >> 16) & 0xffff;
-	upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
-	m_flash0->write(actual_offset, upper_value);
+	m_flash0->write(offset, upper_value);
 	
 	uint16_t lower_value = data & 0xffff;
-	lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
-	m_flash1->write(actual_offset, lower_value);
+	m_flash1->write(offset, lower_value);
 }
 
 uint32_t webtv1_state::bank0_flash_r(offs_t offset)
 {
-	//logerror("%s: bank0_flash_r 0x1f%06x\n", machine().describe_context(), offset);
-	uint32_t actual_offset = offset & 0xfffff;
-	uint16_t upper_value = m_flash0->read(actual_offset);
-	upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
-	uint16_t lower_value = m_flash1->read(actual_offset);
-	lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
+	uint16_t upper_value = m_flash0->read(offset);
+	uint16_t lower_value = m_flash1->read(offset);
+
     return (upper_value << 16) | (lower_value);
 }
 
@@ -137,9 +132,35 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_maincpu->set_icache_size(0x2000);
 	m_maincpu->set_dcache_size(0x2000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_map);
-	
-	AMD_29F800B_16BIT(config, m_flash0, 0);
-	AMD_29F800B_16BIT(config, m_flash1, 0);
+
+	// From bf0.diag.627.cachefix.o:
+
+	// 00000002  57696C64  22232223  00100000  0000000B  FFFFFFFF  *9F14A66C 32-bit AMD-Style 4Mbit Bottom
+	// 00000002  57696C64  22AB22AB  00100000  0000000B  FFFFFFFF  *9F14A69C 32-bit AMD-Style 4Mbit Bottom
+	// 00000002  57696C64  22D622D6  00200000  00000013  FFFFFFFF  *9F14A6CC 32-bit AMD-Style 8Mbit Top
+	// 00000002  57696C64  22582258  00200000  00000013  FFFFFFFF  *9F14A718 32-bit AMD-Style 8Mbit Bottom
+	// 00000002  57696C64  22DA22DA  00200000  00000013  FFFFFFFF  *9F14A6CC 32-bit AMD-Style 8Mbit Top, 3V
+	// 00000002  57696C64  225B225B  00200000  00000013  FFFFFFFF  *9F14A718 32-bit AMD-Style 8Mbit Bottom, 3V
+	// 00000003  57696C64  00F100F1  00400000  00000010  FFFFFFFF  *9F14A764 32-bit MX-Style 16Mbit
+	//	*9F14A764 = 00040000000400000004000000040000000400000004000000040000000400000004000000040000000400000004000000040000000400000004000000040000
+
+	// 00000002  57696C64  000022D6  00100000  00000013  0000FFFF  *9F14A7A4 16-bit (lower half) AMD-Style 8Mbit Top
+	// 00000002  57696C64  00002258  00100000  00000013  0000FFFF  *9F14A7F0 16-bit (lower half) AMD-Style 8Mbit Bottom
+	// 00000002  57696C64  000022DA  00100000  00000013  0000FFFF  *9F14A7A4 16-bit (lower half) AMD-Style 8Mbit Top, 3V
+	// 00000002  57696C64  0000225B  00100000  00000013  0000FFFF  *9F14A7F0 16-bit (lower half) AMD-Style 8Mbit Bottom, 3V
+	// 00000003  57696C64  000000F1  00200000  00000010  0000FFFF  *9F14A83C 16-bit (lower half) MX-Style 16Mbit
+
+	// 00000002  57696C64  22D60000  00100000  00000013  FFFF0000  *9F14A7A4 16-bit (upper half) AMD-Style 8Mbit Top
+	// 00000002  57696C64  22580000  00100000  00000013  FFFF0000  *9F14A7F0 16-bit (upper half) AMD-Style 8Mbit Bottom
+	// 00000002  57696C64  22DA0000  00100000  00000013  FFFF0000  *9F14A7A4 16-bit (upper half) AMD-Style 8Mbit Top, 3V
+	// 00000002  57696C64  225B0000  00100000  00000013  FFFF0000  *9F14A7F0 16-bit (upper half) AMD-Style 8Mbit Bottom, 3V
+	// 00000003  57696C64  00F10000  00200000  00000010  FFFF0000  *9F14A83C 16-bit (upper half) MX-Style 16Mbit
+	//	*9F14A83C = 00020000000200000002000000020000000200000002000000020000000200000002000000020000000200000002000000020000000200000002000000020000
+
+	//AMD_29F800B_16BIT(config, m_flash0, 0);
+	//AMD_29F800B_16BIT(config, m_flash1, 0);
+	MACRONIX_16161616(config, m_flash0, 0);
+	MACRONIX_16161616(config, m_flash1, 0);
 
 	DS2401(config, m_serial_id, 0);
 

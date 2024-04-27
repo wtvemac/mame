@@ -5975,6 +5975,7 @@ void mips3_device::load_elf()
 
 void r5000be_device::handle_cache(uint32_t op)
 {
+	// EMAC_TODO: IMPLEMENT or SKIP
 	if ((SR & SR_KSU_MASK) != SR_KSU_KERNEL && !(SR & SR_COP0) && !(SR & (SR_EXL | SR_ERL)))
 	{
 		m_badcop_value = 0;
@@ -6004,6 +6005,8 @@ void r5000be_device::handle_cache(uint32_t op)
 		case 5: // Fill
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, I-Cache Fill \n", machine().describe_context(), vaddr);
 			break;
+
+		// EMAC_TODO: IMPLEMENT or SKIP
 		case 6: // Hit WriteBack
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, I-Cache Hit WriteBack\n", machine().describe_context(), vaddr);
 			break;
@@ -6015,6 +6018,7 @@ void r5000be_device::handle_cache(uint32_t op)
 	case 1: // Primary Data
 		switch (CACHE_OP)
 		{
+		// EMAC_TODO: IMPLEMENT or SKIP
 		case 0: // Index WriteBack Invalidate
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Index WriteBack Invalidate\n", machine().describe_context(), vaddr);
 			break;
@@ -6030,9 +6034,13 @@ void r5000be_device::handle_cache(uint32_t op)
 		case 4: // Hit Invalidate
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Hit Invalidate\n", machine().describe_context(), vaddr);
 			break;
+
+		// EMAC_TODO: IMPLEMENT or SKIP
 		case 5: // Hit WriteBack Invalidate
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Hit WriteBack Invalidate\n", machine().describe_context(), vaddr);
 			break;
+
+		// EMAC_TODO: IMPLEMENT or SKIP
 		case 6: // Hit WriteBack
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Hit WriteBack\n", machine().describe_context(), vaddr);
 			break;

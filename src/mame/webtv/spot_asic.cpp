@@ -67,6 +67,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	m_ldac(*this, "ldac"),
 	m_rdac(*this, "rdac"),
 	m_modem(*this, "modem"),
+	m_watchdog(*this, "watchdog"),
 	m_sys_config(*owner, "sys_config"),
 	m_emu_config(*owner, "emu_config"),
 	m_power_led(*this, "power_led"),
@@ -89,6 +90,8 @@ DEVICE_INPUT_DEFAULTS_END
 
 void spot_asic_device::bus_unit_map(address_map &map)
 {
+
+
 	map(0x000, 0x003).r(FUNC(spot_asic_device::reg_0000_r));                                      // BUS_CHIPID
 	map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_0004_r), FUNC(spot_asic_device::reg_0004_w)); // BUS_CHIPCNTL
 	map(0x008, 0x00b).r(FUNC(spot_asic_device::reg_0008_r));                                      // BUS_INTSTAT
@@ -100,7 +103,7 @@ void spot_asic_device::bus_unit_map(address_map &map)
 	map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0014_w)); // BUS_ERREN_S
 	map(0x114, 0x117).w(FUNC(spot_asic_device::reg_0114_w));                                      // BUS_ERREN_C
 	map(0x018, 0x01b).r(FUNC(spot_asic_device::reg_0018_r));                                      // BUS_ERRADDR
-	map(0x118, 0x11b).w(FUNC(spot_asic_device::reg_0118_w));                                      // BUS_WDREG_C
+	map(0x118, 0x11b).w(m_watchdog, FUNC(watchdog_timer_device::reset_w));                        // BUS_WDREG_C
 	map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_001c_r), FUNC(spot_asic_device::reg_001c_w)); // BUS_FENADDR1
 	map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_0020_r), FUNC(spot_asic_device::reg_0020_w)); // BUS_FENMASK1
 	map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_0024_r), FUNC(spot_asic_device::reg_0024_w)); // BUS_FENADDR2
@@ -194,8 +197,8 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_ldac, 0).add_route(ALL_OUTPUTS, "lspeaker", 0.0);
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_rdac, 0).add_route(ALL_OUTPUTS, "rspeaker", 0.0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_ldac, 0).add_route(ALL_OUTPUTS, "lspeaker", 0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_rdac, 0).add_route(ALL_OUTPUTS, "rspeaker", 0);
 
 	NS16450(config, m_modem, XTAL(1'843'200));
 	m_modem->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
@@ -219,6 +222,8 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 
 	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
 	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
+
+	WATCHDOG_TIMER(config, m_watchdog);
 }
 
 void spot_asic_device::activate_ntsc_screen()
@@ -280,6 +285,7 @@ void spot_asic_device::device_reset()
 	m_intenable = 0x0;
 	m_intstat = 0x0;
 	m_errenable = 0x0;
+	m_wdenable = 0x0;
 	m_errstat = 0x0;
 	m_timeout_compare = 0xffff;
 	m_nvcntl = 0x0;
@@ -391,12 +397,32 @@ uint32_t spot_asic_device::reg_0000_r()
 uint32_t spot_asic_device::reg_0004_r()
 {
 	LOGMASKED(LOG_BUSUNIT, "%s: reg_0004_r (BUS_CHPCNTL)\n", machine().describe_context());
-	return 0x00000000;
+	return m_chpcntl;
 }
 
 void spot_asic_device::reg_0004_w(uint32_t data)
 {
 	LOGMASKED(LOG_BUSUNIT, "%s: reg_0004_w %08x (BUS_CHPCNTL)\n", machine().describe_context(), data);
+
+	if ((m_chpcntl ^ data) & 0xC0000000)
+	{
+		uint8_t wd_cntl = (data >> 30);
+
+		int8_t wd_diff = wd_cntl - (m_chpcntl >> 30);
+
+		// Count down to disable (3, 2, 1, 0), count up to enable (0, 1, 2, 3)
+		// This doesn't track the count history but gets the expected result for the ROM.
+		if((!m_wdenable && wd_diff == 1 && wd_cntl == 3) || (m_wdenable && wd_diff == -1 && wd_cntl == 0))
+		{
+			m_wdenable = !m_wdenable;
+
+			m_watchdog->watchdog_enable(m_wdenable);
+		}
+	}
+
+	m_chpcntl = data;
+
+	m_aud_clkdiv = (m_chpcntl >> 26) & 0xF;
 }
 
 uint32_t spot_asic_device::reg_0008_r()
@@ -569,7 +595,7 @@ uint32_t spot_asic_device::reg_2008_r()
 
 void spot_asic_device::reg_2008_w(uint32_t data)
 {
-	osd_printf_verbose("m_aud_cconfig=%08x\n", data);
+	//osd_printf_verbose("m_aud_cconfig=%08x\n", data);
 	m_aud_cconfig = data;
 
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_2008_w %08x (AUD_CCONFIG)\n", machine().describe_context(), data);
@@ -625,22 +651,39 @@ void spot_asic_device::reg_2018_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_201c_r()
 {
-	osd_printf_verbose("R m_aud_dmacntl=%08x\n", m_aud_dmacntl);
+	//osd_printf_verbose("R m_aud_dmacntl=%08x\n", m_aud_dmacntl);
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_201c_r (AUD_DMACNTL)\n", machine().describe_context());
 	
-	/*if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
+	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
 	{
 		spot_asic_device::irq_audio_w(0);
 		address_space &space = m_hostcpu->space(AS_PROGRAM);
-		//osd_printf_verbose("\tsnd[%08x-%08x]=>%08x\n", m_aud_nstart, (m_aud_nstart + m_aud_nsize), space.read_dword(m_aud_nstart));
-		for(int i = 0; i < m_aud_nsize; i += 2)
+		uint32_t crt = space.read_dword(m_aud_nstart);
+		//if(crt > 0)
+		//{
+			//osd_printf_verbose("\tsnd[%08x-%08x]=>%08x\n", m_aud_nstart, (m_aud_nstart + m_aud_nsize), space.read_dword(m_aud_nstart));
+		//}
+		if(crt > 0)
 		{
-			uint32_t snd = space.read_dword(m_aud_nstart + i);
+			printf("==================================================\n");
+			printf("==================================================\n");
+			printf("==================================================\n");
+			printf("=================================[0x%08x::0x%08x]>>==============\n", m_aud_nstart, m_aud_nsize);
+			for(int i = 0; i < m_aud_nsize; i += 2)
+			{
+				uint32_t snd = space.read_dword(m_aud_nstart + i);
 
-			m_ldac->write((int16_t)((snd >> 0x10) & 0xFF));
-			m_rdac->write((int16_t)(snd & 0xFF));
-		}
-	}*/
+				printf("%08x", snd);
+
+				m_ldac->write((int16_t)((snd >> 0x10) & 0xFF));
+				m_rdac->write((int16_t)(snd & 0xFF));
+			}
+			printf("==================================================\n");
+			printf("==================================================\n");
+			printf("==================================================\n");
+			printf("==================================================\n");
+		} 
+	}
 
 	return m_aud_dmacntl;
 }
@@ -650,10 +693,10 @@ void spot_asic_device::reg_201c_w(uint32_t data)
 	//osd_printf_verbose("W m_aud_dmacntl=%08x\n", data);
 	m_aud_dmacntl = data;
 
-	/*if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
+	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
 	{
 		audio_timer->adjust(attotime::from_usec(100000));
-	}*/
+	}
 
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_201c_w %08x (AUD_DMACNTL)\n", machine().describe_context(), data);
 }
@@ -895,24 +938,52 @@ void spot_asic_device::reg_4004_w(uint32_t data)
 	m_message_led = !BIT(m_ledstate, 0);
 }
 
+// Testing
+int8_t ssid_index = -1;
+uint32_t dev_idcntl = 0x00;
+
 // Read from DS2401
 uint32_t spot_asic_device::reg_4008_r()
 {
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4008_r (DEV_IDCNTL)\n", machine().describe_context());
-	return (m_serial_id->read() + (m_serial_id_tx << 1));
+
+	uint8_t obit = 0x0;
+
+	if(dev_idcntl & 0x2 && ssid_index < 64)
+	{
+		uint8_t cool1 = ssid_index / 0x8;
+		uint8_t bit = ssid_index % 0x8;
+
+		uint8_t byt = m_serial_id->direct_read(cool1);
+
+		obit = ((byt >> bit) & 0x1);
+
+		printf("reg_4008_rreg_4008_rreg_4008_r RRR ssid_index=%08x, cool1=%02x bit=%02x, obit=%02x, obyt=%02x\n", ssid_index, cool1, bit, obit, byt);
+	}
+
+	return dev_idcntl | obit;
 }
 
 // Write to DS2401
 void spot_asic_device::reg_4008_w(uint32_t data)
 {
-	m_serial_id_tx = BIT(data, 1);
+	printf("reg_4008_wreg_4008_wreg_4008_wreg_4008_w WWWWW data=%08x:%02x\n", data, (data >> 0x1));
+
+	if(data & 0x2)
+	{
+		ssid_index += 1;
+	}
+
+	dev_idcntl = (data & 0x2);
+
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4008_w %08x - write %d (DEV_IDCNTL)\n", machine().describe_context(), data, m_serial_id_tx);
-	m_serial_id->write(m_serial_id_tx ? ASSERT_LINE : CLEAR_LINE);
+	m_serial_id->write(data >> 0x1); // STATE_READROM
 }
 
 // Read from I2C EEPROM device (24C01A?)
 uint32_t spot_asic_device::reg_400c_r()
 {
+	//printf("reg_400c_rreg_400c_rreg_400c_rreg_400c_rreg_400c_r\n");
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_400c_r (DEV_NVCNTL)\n", machine().describe_context());
 	return (m_nvcntl & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN))) + (m_nvram->read_sda() * NVCNTL_SDA_W) + (m_nvram->read_sda() * NVCNTL_SDA_R);
 }
@@ -920,6 +991,7 @@ uint32_t spot_asic_device::reg_400c_r()
 // Write to I2C EEPROM device
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
+	//printf("reg_400c_wreg_400c_wreg_400c_wreg_400c_w data=%08x\n", data);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_400c_w %08x (DEV_NVCNTL)\n", machine().describe_context(), data);
 	m_nvram->write_scl((data & NVCNTL_SCL) ? ASSERT_LINE : CLEAR_LINE);
 	if (data & NVCNTL_WRITE_EN) {
