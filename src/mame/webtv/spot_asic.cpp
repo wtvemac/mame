@@ -197,8 +197,8 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 
 	SPEAKER(config, "lspeaker").front_left();
 	SPEAKER(config, "rspeaker").front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_ldac, 0).add_route(ALL_OUTPUTS, "lspeaker", 0);
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_rdac, 0).add_route(ALL_OUTPUTS, "rspeaker", 0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_ldac, 0).add_route(ALL_OUTPUTS, "lspeaker", 0.25);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_rdac, 0).add_route(ALL_OUTPUTS, "rspeaker", 0.25);
 
 	NS16450(config, m_modem, XTAL(1'843'200));
 	m_modem->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
@@ -246,8 +246,8 @@ void spot_asic_device::device_start()
 	m_connect_led.resolve();
 	m_message_led.resolve();
 
+	dac_update_timer = timer_alloc(FUNC(spot_asic_device::dac_update), this);
 	modem_buffer_timer = timer_alloc(FUNC(spot_asic_device::flush_modem_buffer), this);
-	audio_timer = timer_alloc(FUNC(spot_asic_device::fetch_audio_data), this);
 
 	spot_asic_device::device_reset();
 
@@ -274,10 +274,18 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
 	save_item(NAME(m_ledstate));
+	save_item(NAME(m_rom_cntl0));
+	save_item(NAME(m_rom_cntl1));
+	save_item(NAME(dev_idcntl));
+	save_item(NAME(dev_id_state));
+	save_item(NAME(dev_id_bit));
+	save_item(NAME(dev_id_bitidx));
 }
 
 void spot_asic_device::device_reset()
 {
+	dac_update_timer->adjust(attotime::from_hz(48000), 0, attotime::from_hz(48000));
+
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
 	m_memdata = 0x0;
@@ -321,6 +329,11 @@ void spot_asic_device::device_reset()
 	m_rom_cntl1 = 0x0;
 
 	m_ledstate = 0xFFFFFFFF;
+
+	dev_idcntl = 0x00;
+	dev_id_state = 0x0;
+	dev_id_bit = 0x0;
+	dev_id_bitidx = 0x0;
 
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
@@ -595,7 +608,6 @@ uint32_t spot_asic_device::reg_2008_r()
 
 void spot_asic_device::reg_2008_w(uint32_t data)
 {
-	//osd_printf_verbose("m_aud_cconfig=%08x\n", data);
 	m_aud_cconfig = data;
 
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_2008_w %08x (AUD_CCONFIG)\n", machine().describe_context(), data);
@@ -615,7 +627,6 @@ uint32_t spot_asic_device::reg_2010_r()
 
 void spot_asic_device::reg_2010_w(uint32_t data)
 {
-	//osd_printf_verbose("m_aud_nstart=%08x\n", data);
 	m_aud_nstart = data;
 
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_2010_w %08x (AUD_NSTART)\n", machine().describe_context(), data);
@@ -629,7 +640,6 @@ uint32_t spot_asic_device::reg_2014_r()
 
 void spot_asic_device::reg_2014_w(uint32_t data)
 {
-	//osd_printf_verbose("m_aud_nsize=%08x\n", data);
 	m_aud_nsize = data;
 
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_2014_w %08x (AUD_NSIZE)\n", machine().describe_context(), data);
@@ -643,7 +653,6 @@ uint32_t spot_asic_device::reg_2018_r()
 
 void spot_asic_device::reg_2018_w(uint32_t data)
 {
-	//osd_printf_verbose("m_aud_nconfig=%08x\n", data);
 	m_aud_nconfig = data;
 
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_2018_w %08x (AUD_NCONFIG)\n", machine().describe_context(), data);
@@ -651,52 +660,16 @@ void spot_asic_device::reg_2018_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_201c_r()
 {
-	//osd_printf_verbose("R m_aud_dmacntl=%08x\n", m_aud_dmacntl);
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_201c_r (AUD_DMACNTL)\n", machine().describe_context());
-	
-	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
-	{
-		spot_asic_device::irq_audio_w(0);
-		address_space &space = m_hostcpu->space(AS_PROGRAM);
-		uint32_t crt = space.read_dword(m_aud_nstart);
-		//if(crt > 0)
-		//{
-			//osd_printf_verbose("\tsnd[%08x-%08x]=>%08x\n", m_aud_nstart, (m_aud_nstart + m_aud_nsize), space.read_dword(m_aud_nstart));
-		//}
-		if(crt > 0)
-		{
-			printf("==================================================\n");
-			printf("==================================================\n");
-			printf("==================================================\n");
-			printf("=================================[0x%08x::0x%08x]>>==============\n", m_aud_nstart, m_aud_nsize);
-			for(int i = 0; i < m_aud_nsize; i += 2)
-			{
-				uint32_t snd = space.read_dword(m_aud_nstart + i);
 
-				printf("%08x", snd);
-
-				m_ldac->write((int16_t)((snd >> 0x10) & 0xFF));
-				m_rdac->write((int16_t)(snd & 0xFF));
-			}
-			printf("==================================================\n");
-			printf("==================================================\n");
-			printf("==================================================\n");
-			printf("==================================================\n");
-		} 
-	}
+	spot_asic_device::irq_audio_w(0);
 
 	return m_aud_dmacntl;
 }
 
 void spot_asic_device::reg_201c_w(uint32_t data)
 {
-	//osd_printf_verbose("W m_aud_dmacntl=%08x\n", data);
 	m_aud_dmacntl = data;
-
-	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
-	{
-		audio_timer->adjust(attotime::from_usec(100000));
-	}
 
 	LOGMASKED(LOG_AUDUNIT, "%s: reg_201c_w %08x (AUD_DMACNTL)\n", machine().describe_context(), data);
 }
@@ -938,193 +911,84 @@ void spot_asic_device::reg_4004_w(uint32_t data)
 	m_message_led = !BIT(m_ledstate, 0);
 }
 
-/*
-ROM:9F01CB30                 .globl b_ReadSiliconSerialNumber_
-ROM:9F01CB30 b_ReadSiliconSerialNumber_:
-ROM:9F01CB30                 move    $t5, $ra
-ROM:9F01CB34                 move    $v0, $zero
-ROM:9F01CB38                 lui     $a2, 0xA400
-ROM:9F01CB3C                 mfc0    $t4, SR          # Status register
-ROM:9F01CB40                 li      $t6, 0xFFFFFFFE
-ROM:9F01CB44                 and     $t6, $t4, $t6
-ROM:9F01CB48                 mtc0    $t6, SR          # Status register
-ROM:9F01CB4C                 sw      $zero, 0xA4004008
-ROM:9F01CB50                 lw      $zero, 0xA4004008
-ROM:9F01CB54                 jal     b_DelayUS_
-ROM:9F01CB58                 li      $t0, 0x1F4
-ROM:9F01CB5C                 li      $t0, 2
-ROM:9F01CB60                 sw      $t0, 0x4008($a2)
-ROM:9F01CB64                 lw      $zero, 0x4008($a2)
-ROM:9F01CB68                 jal     b_DelayUS_
-ROM:9F01CB6C                 li      $t0, 0x43  # 'C'
-ROM:9F01CB70                 lw      $t6, 0x4008($a2)
-ROM:9F01CB74                 nop
-ROM:9F01CB78                 andi    $t6, 1
-ROM:9F01CB7C                 bnez    $t6, loc_9F01CC20
-ROM:9F01CB80                 nop
-ROM:9F01CB84                 jal     b_DelayUS_
-ROM:9F01CB88                 li      $t0, 0x1F4
-ROM:9F01CB8C                 li      $t1, 0xF
-ROM:9F01CB90                 li      $t2, 8
-ROM:9F01CB94
-ROM:9F01CB94 loc_9F01CB94:                            # CODE XREF: ROM:9F01CBFC↓j
-ROM:9F01CB94                 andi    $t6, $t1, 1
-ROM:9F01CB98                 beqz    $t6, loc_9F01CBCC
-ROM:9F01CB9C                 srl     $t1, 1
-ROM:9F01CBA0                 sw      $zero, 0x4008($a2)
-ROM:9F01CBA4                 lw      $zero, 0x4008($a2)
-ROM:9F01CBA8                 jal     b_DelayUS_
-ROM:9F01CBAC                 li      $t0, 8
-ROM:9F01CBB0                 li      $t0, 2
-ROM:9F01CBB4                 sw      $t0, 0x4008($a2)
-ROM:9F01CBB8                 lw      $zero, 0x4008($a2)
-ROM:9F01CBBC                 jal     b_DelayUS_
-ROM:9F01CBC0                 li      $t0, 0x5C  # '\'
-ROM:9F01CBC4                 b       loc_9F01CBF0
-ROM:9F01CBC8                 nop
-ROM:9F01CBCC  # ---------------------------------------------------------------------------
-ROM:9F01CBCC
-ROM:9F01CBCC loc_9F01CBCC:                            # CODE XREF: ROM:9F01CB98↑j
-ROM:9F01CBCC                 sw      $zero, 0x4008($a2)
-ROM:9F01CBD0                 lw      $zero, 0x4008($a2)
-ROM:9F01CBD4                 jal     b_DelayUS_
-ROM:9F01CBD8                 li      $t0, 0x64  # 'd'
-ROM:9F01CBDC                 li      $t0, 2
-ROM:9F01CBE0                 sw      $t0, 0x4008($a2)
-ROM:9F01CBE4                 lw      $zero, 0x4008($a2)
-ROM:9F01CBE8                 jal     b_DelayUS_
-ROM:9F01CBEC                 li      $t0, 5
-ROM:9F01CBF0
-ROM:9F01CBF0 loc_9F01CBF0:                            # CODE XREF: ROM:9F01CBC4↑j
-ROM:9F01CBF0                 jal     b_DelayUS_
-ROM:9F01CBF4                 li      $t0, 1
-ROM:9F01CBF8                 addiu   $t2, -1
-ROM:9F01CBFC                 bnez    $t2, loc_9F01CB94
-ROM:9F01CC00                 nop
-ROM:9F01CC04                 jal     b_Read1WireWord_
-ROM:9F01CC08                 nop
-ROM:9F01CC0C                 sw      $t1, 0($a1)
-ROM:9F01CC10                 jal     b_Read1WireWord_
-ROM:9F01CC14                 nop
-ROM:9F01CC18                 sw      $t1, 4($a1)
-ROM:9F01CC1C                 li      $v0, 1
-ROM:9F01CC20
-ROM:9F01CC20 loc_9F01CC20:                            # CODE XREF: ROM:9F01CB7C↑j
-ROM:9F01CC20                 mtc0    $t4, SR          # Status register
-ROM:9F01CC24                 jr      $t5
-ROM:9F01CC28                 nop
-ROM:9F01CC2C
-ROM:9F01CC2C  # =============== S U B R O U T I N E =======================================
-ROM:9F01CC2C
-ROM:9F01CC2C
-ROM:9F01CC2C                 .globl b_Read1WireWord_
-ROM:9F01CC2C b_Read1WireWord_:                        # CODE XREF: ROM:9F01CC04↑p
-ROM:9F01CC2C                                          # ROM:9F01CC10↑p
-ROM:9F01CC2C                 move    $t3, $ra
-ROM:9F01CC30                 move    $t1, $zero
-ROM:9F01CC34                 li      $t2, 0x20  # ' '
-ROM:9F01CC38
-ROM:9F01CC38 loc_9F01CC38:                            # CODE XREF: b_Read1WireWord_+70↓j
-ROM:9F01CC38                 jal     b_DelayUS_
-ROM:9F01CC3C                 li      $t0, 1
-ROM:9F01CC40                 sw      $zero, 0x4008($a2)
-ROM:9F01CC44                 lw      $zero, 0x4008($a2)
-ROM:9F01CC48                 jal     b_DelayUS_
-ROM:9F01CC4C                 li      $t0, 2
-ROM:9F01CC50                 li      $t0, 2
-ROM:9F01CC54                 sw      $t0, 0x4008($a2)
-ROM:9F01CC58                 lw      $zero, 0x4008($a2)
-ROM:9F01CC5C                 jal     b_DelayUS_
-ROM:9F01CC60                 li      $t0, 7
-ROM:9F01CC64                 lw      $t6, 0x4008($a2)
-ROM:9F01CC68                 nop
-ROM:9F01CC6C                 andi    $t6, 1
-ROM:9F01CC70                 bnez    $t6, loc_9F01CC84
-ROM:9F01CC74                 nop
-ROM:9F01CC78                 srl     $t1, 1
-ROM:9F01CC7C                 b       loc_9F01CC90
-ROM:9F01CC80                 nop
-ROM:9F01CC84  # ---------------------------------------------------------------------------
-ROM:9F01CC84
-ROM:9F01CC84 loc_9F01CC84:                            # CODE XREF: b_Read1WireWord_+44↑j
-ROM:9F01CC84                 srl     $t1, 1
-ROM:9F01CC88                 lui     $t6, 0x8000
-ROM:9F01CC8C                 or      $t1, $t6
-ROM:9F01CC90
-ROM:9F01CC90 loc_9F01CC90:                            # CODE XREF: b_Read1WireWord_+50↑j
-ROM:9F01CC90                 jal     b_DelayUS_
-ROM:9F01CC94                 li      $t0, 0x60  # '`'
-ROM:9F01CC98                 addiu   $t2, -1
-ROM:9F01CC9C                 bnez    $t2, loc_9F01CC38
-ROM:9F01CCA0                 nop
-ROM:9F01CCA4                 jr      $t3
-ROM:9F01CCA8                 nop
-ROM:9F01CCA8  # End of function b_Read1WireWord_
-ROM:9F01CCA8
-ROM:9F01CCAC
-ROM:9F01CCAC  # =============== S U B R O U T I N E =======================================
-ROM:9F01CCAC
-ROM:9F01CCAC
-ROM:9F01CCAC                 .globl b_DelayUS_
-ROM:9F01CCAC b_DelayUS_:                              # CODE XREF: ROM:9F01CB54↑p
-ROM:9F01CCAC                                          # ROM:9F01CB68↑p ...
-ROM:9F01CCAC                 multu   $zero, $a0, $t0
-ROM:9F01CCB0                 mflo    $t0
-ROM:9F01CCB4                 mfc0    $t7, Count       # Timer Count
-ROM:9F01CCB8
-ROM:9F01CCB8 loc_9F01CCB8:                            # CODE XREF: b_DelayUS_+1C↓j
-ROM:9F01CCB8                 mfc0    $t6, Count       # Timer Count
-ROM:9F01CCBC                 nop
-ROM:9F01CCC0                 subu    $t6, $t7
-ROM:9F01CCC4                 sltu    $at, $t6, $t0
-ROM:9F01CCC8                 bnez    $at, loc_9F01CCB8
-ROM:9F01CCCC                 nop
-ROM:9F01CCD0                 jr      $ra
-ROM:9F01CCD4                 nop
-ROM:9F01CCD4  # End of function b_DelayUS_
+// Not using logic inside the DS2401 because the delay logic in the ROM doesn't work properly.
 
-*/
-
-// Testing
-int8_t ssid_index = -1;
-uint32_t dev_idcntl = 0x00;
-
-// Read from DS2401
 uint32_t spot_asic_device::reg_4008_r()
 {
+	dev_id_bit = 0x0;
+
+	if(dev_id_state == SSID_STATE_PRESENCE)
+	{
+		dev_id_bit = 0x0; // We're present.
+		dev_id_state = SSID_STATE_COMMAND; // The next 8 bits we're assuming is 0x0f (read from ROM) since we're not testing for delay.
+		dev_id_bitidx = 0x0;
+	}
+	else if(dev_id_state == SSID_STATE_READROM_END)
+	{
+		dev_id_state = SSID_STATE_READROM_BIT;
+	}
+	else if(dev_id_state == SSID_STATE_READROM_BIT)
+	{
+		dev_id_state = SSID_STATE_READROM; // Go back into the read ROM pulse state
+
+		dev_id_bit = m_serial_id->direct_read(dev_id_bitidx / 8) >> (dev_id_bitidx & 0x7);
+
+		dev_id_bitidx++;
+		if(dev_id_bitidx == 64)
+		{
+			// We've read the entire SSID. Go back into idle.
+			dev_id_state = SSID_STATE_IDLE;
+			dev_id_bitidx = 0x0;
+		}
+	}
+
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4008_r (DEV_IDCNTL)\n", machine().describe_context());
 
-	uint8_t obit = 0x0;
-
-	if(dev_idcntl & 0x2 && ssid_index < 64)
-	{
-		uint8_t cool1 = ssid_index / 0x8;
-		uint8_t bit = ssid_index % 0x8;
-
-		uint8_t byt = m_serial_id->direct_read(cool1);
-
-		obit = ((byt >> bit) & 0x1);
-
-		printf("reg_4008_rreg_4008_rreg_4008_r RRR ssid_index=%08x, cool1=%02x bit=%02x, obit=%02x, obyt=%02x\n", ssid_index, cool1, bit, obit, byt);
-	}
-
-	return dev_idcntl | obit;
+	return dev_idcntl | (dev_id_bit & 1);
 }
 
-// Write to DS2401
 void spot_asic_device::reg_4008_w(uint32_t data)
 {
-	printf("reg_4008_wreg_4008_wreg_4008_wreg_4008_w WWWWW data=%08x:%02x\n", data, (data >> 0x1));
-
-	if(data & 0x2)
-	{
-		ssid_index += 1;
-	}
-
 	dev_idcntl = (data & 0x2);
 
+	if(dev_idcntl & 0x2)
+	{
+		switch(dev_id_state) // States for high
+		{
+			case SSID_STATE_RESET: // End reset low pulse to go into prescense mode. Chip should read low to indicate presence.
+				dev_id_state = SSID_STATE_PRESENCE; // This normally lasts 480us before going into command mode.
+				break;
+			
+			case SSID_STATE_COMMAND: // Ended a command bit pulse. Increment bit index. We always assume a read from ROM command when we get 8 bits.
+				dev_id_bitidx++;
+
+				if(dev_id_bitidx == 8)
+				{
+					dev_id_state = SSID_STATE_READROM; // Now we can read back the SSID. ROM reads it as two 16-bit integers.
+					dev_id_bitidx = 0;
+				}
+				break;
+
+			case SSID_STATE_READROM_START:
+				dev_id_state = SSID_STATE_READROM_END;
+
+		}
+	}
+	else
+	{
+		switch(dev_id_state) // States for low
+		{
+			case SSID_STATE_IDLE: // When idle, we can drive the chip low for reset
+				dev_id_state = SSID_STATE_RESET; // We'd normally leave this for 480us to go into presence mode.
+				break;
+
+			case SSID_STATE_READROM:
+				dev_id_state = SSID_STATE_READROM_START;
+				break;
+		}
+	}
+
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4008_w %08x - write %d (DEV_IDCNTL)\n", machine().describe_context(), data, m_serial_id_tx);
-	m_serial_id->write(data >> 0x1); // STATE_READROM
 }
 
 // Read from I2C EEPROM device (24C01A?)
@@ -1465,89 +1329,6 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 	m_memtiming = data;
 }
 
-TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
-{
-	if(modem_txbuff_size > 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
-	{
-		m_modem->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
-
-		if(modem_txbuff_index == modem_txbuff_size)
-		{
-			modem_txbuff_index = 0x0;
-			modem_txbuff_size = 0x0;
-		}
-	}
-
-	if(modem_txbuff_size > 0)
-	{
-		modem_buffer_timer->adjust(attotime::from_usec(1000));
-	}
-}
-
-TIMER_CALLBACK_MEMBER(spot_asic_device::fetch_audio_data)
-{
-	spot_asic_device::irq_audio_w(1);
-
-	audio_timer->adjust(attotime::from_usec(1000));
-}
-
-// The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
-
-void spot_asic_device::vblank_irq(int state) 
-{
-	// Not to spec but does get the intended result.
-	// All video interrupts are classed the same in the ROM.
-	spot_asic_device::set_vid_irq(VID_INT_VSYNCO, 1);
-}
-
-void spot_asic_device::irq_keyboard_w(int state)
-{
-	if(m_intenable & BUS_INT_VIDINT)
-		m_intenable |= BUS_INT_DEVKBD;
-
-	spot_asic_device::set_bus_irq(BUS_INT_DEVKBD, state);
-}
-
-void spot_asic_device::irq_modem_w(int state)
-{
-	m_intenable |= BUS_INT_DEVMOD;
-	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
-}
-
-void spot_asic_device::irq_audio_w(int state)
-{
-	m_intenable |= BUS_INT_AUDDMA;
-	spot_asic_device::set_bus_irq(BUS_INT_AUDDMA, state);
-}
-
-void spot_asic_device::set_bus_irq(uint8_t mask, int state)
-{
-	if (m_intenable & mask && (m_emu_config->read() & EMUCONFIG_INTERRUPTS))
-	{
-		if (state)
-			m_intstat |= mask;
-		else
-			m_intstat &= ~(mask);
-		
-		m_hostcpu->set_input_line(MIPS3_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
-	}
-}
-
-void spot_asic_device::set_vid_irq(uint8_t mask, int state)
-{
-	if (m_vid_intenable & mask)
-	{
-		if (state)
-			m_vid_intstat |= mask;
-		else
-			m_vid_intstat &= ~(mask);
-
-		m_intenable |= BUS_INT_VIDINT;
-
-		spot_asic_device::set_bus_irq(BUS_INT_VIDINT, state);
-	}
-}
-
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	uint16_t screen_width = bitmap.width();
@@ -1620,4 +1401,107 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 	spot_asic_device::set_vid_irq(VID_INT_DMA, 1);
 
 	return 0;
+}
+
+TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
+{
+	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
+	{
+		address_space &space = m_hostcpu->space(AS_PROGRAM);
+
+		// m_aud_cconfig
+
+		int16_t sample1 = space.read_word(m_aud_cstart + m_aud_ccnt);
+		int16_t sample2 = space.read_word(m_aud_cstart + m_aud_ccnt + 0x2);
+
+		m_ldac->write(sample1);
+		m_rdac->write(sample2);
+
+		m_aud_ccnt += 4;
+
+		if(m_aud_ccnt >= m_aud_csize)
+		{
+			m_aud_cstart = m_aud_nstart;
+			m_aud_csize = m_aud_nsize;
+			m_aud_cconfig = m_aud_nconfig;
+			m_aud_ccnt = 0x0;
+			spot_asic_device::irq_audio_w(1);
+		}
+	}
+}
+
+TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
+{
+	if(modem_txbuff_size > 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	{
+		m_modem->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
+
+		if(modem_txbuff_index == modem_txbuff_size)
+		{
+			modem_txbuff_index = 0x0;
+			modem_txbuff_size = 0x0;
+		}
+	}
+
+	if(modem_txbuff_size > 0)
+	{
+		modem_buffer_timer->adjust(attotime::from_usec(1000));
+	}
+}
+
+// The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
+
+void spot_asic_device::vblank_irq(int state) 
+{
+	// Not to spec but does get the intended result.
+	// All video interrupts are classed the same in the ROM.
+	spot_asic_device::set_vid_irq(VID_INT_VSYNCO, 1);
+}
+
+void spot_asic_device::irq_keyboard_w(int state)
+{
+	if(m_intenable & BUS_INT_VIDINT)
+		m_intenable |= BUS_INT_DEVKBD;
+
+	spot_asic_device::set_bus_irq(BUS_INT_DEVKBD, state);
+}
+
+void spot_asic_device::irq_modem_w(int state)
+{
+	m_intenable |= BUS_INT_DEVMOD;
+	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
+}
+
+void spot_asic_device::irq_audio_w(int state)
+{
+	m_intenable |= BUS_INT_AUDDMA;
+	spot_asic_device::set_bus_irq(BUS_INT_AUDDMA, state);
+}
+
+void spot_asic_device::set_bus_irq(uint8_t mask, int state)
+{
+	if (m_intenable & mask && (m_emu_config->read() & EMUCONFIG_INTERRUPTS))
+	{
+		if (state)
+			m_intstat |= mask;
+		else
+			m_intstat &= ~(mask);
+		
+		m_hostcpu->set_input_line(MIPS3_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
+	}
+}
+
+void spot_asic_device::set_vid_irq(uint8_t mask, int state)
+{
+	if (m_vid_intenable & mask)
+	{
+		if (state)
+			m_vid_intstat |= mask;
+		else
+			m_vid_intstat &= ~(mask);
+
+		m_intenable |= BUS_INT_VIDINT;
+
+		spot_asic_device::set_bus_irq(BUS_INT_VIDINT, state);
+	}
 }

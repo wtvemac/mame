@@ -133,204 +133,6 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_maincpu->set_dcache_size(0x2000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_map);
 
-	// From bf0.diag.627.cachefix.o:
-
-	// 00000002  57696C64  22232223  00100000  0000000B  FFFFFFFF  *9F14A66C 32-bit AMD-Style 4Mbit Bottom
-	// 00000002  57696C64  22AB22AB  00100000  0000000B  FFFFFFFF  *9F14A69C 32-bit AMD-Style 4Mbit Bottom
-	// 00000002  57696C64  22D622D6  00200000  00000013  FFFFFFFF  *9F14A6CC 32-bit AMD-Style 8Mbit Top
-	// 00000002  57696C64  22582258  00200000  00000013  FFFFFFFF  *9F14A718 32-bit AMD-Style 8Mbit Bottom
-	// 00000002  57696C64  22DA22DA  00200000  00000013  FFFFFFFF  *9F14A6CC 32-bit AMD-Style 8Mbit Top, 3V
-	// 00000002  57696C64  225B225B  00200000  00000013  FFFFFFFF  *9F14A718 32-bit AMD-Style 8Mbit Bottom, 3V
-	// 00000003  57696C64  00F100F1  00400000  00000010  FFFFFFFF  *9F14A764 32-bit MX-Style 16Mbit
-	//	*9F14A764 = 00040000000400000004000000040000000400000004000000040000000400000004000000040000000400000004000000040000000400000004000000040000
-
-	// 00000002  57696C64  000022D6  00100000  00000013  0000FFFF  *9F14A7A4 16-bit (lower half) AMD-Style 8Mbit Top
-	// 00000002  57696C64  00002258  00100000  00000013  0000FFFF  *9F14A7F0 16-bit (lower half) AMD-Style 8Mbit Bottom
-	// 00000002  57696C64  000022DA  00100000  00000013  0000FFFF  *9F14A7A4 16-bit (lower half) AMD-Style 8Mbit Top, 3V
-	// 00000002  57696C64  0000225B  00100000  00000013  0000FFFF  *9F14A7F0 16-bit (lower half) AMD-Style 8Mbit Bottom, 3V
-	// 00000003  57696C64  000000F1  00200000  00000010  0000FFFF  *9F14A83C 16-bit (lower half) MX-Style 16Mbit
-
-	// 00000002  57696C64  22D60000  00100000  00000013  FFFF0000  *9F14A7A4 16-bit (upper half) AMD-Style 8Mbit Top
-	// 00000002  57696C64  22580000  00100000  00000013  FFFF0000  *9F14A7F0 16-bit (upper half) AMD-Style 8Mbit Bottom
-	// 00000002  57696C64  22DA0000  00100000  00000013  FFFF0000  *9F14A7A4 16-bit (upper half) AMD-Style 8Mbit Top, 3V
-	// 00000002  57696C64  225B0000  00100000  00000013  FFFF0000  *9F14A7F0 16-bit (upper half) AMD-Style 8Mbit Bottom, 3V
-	// 00000003  57696C64  00F10000  00200000  00000010  FFFF0000  *9F14A83C 16-bit (upper half) MX-Style 16Mbit
-	//	*9F14A83C = 00020000000200000002000000020000000200000002000000020000000200000002000000020000000200000002000000020000000200000002000000020000
-	/*
-
-	NOTE: IDFlashRAM is moved to 0x80000000M to run, called by CallRAMFlashFunction
-	ROM:9F01CA24 b_IDFlashRAM_:
-	ROM:9F01CA24                 li      $t0, 0xFFFFFFFE
-	ROM:9F01CA28                 and     $t0, $t5, $t0
-	ROM:9F01CA2C                 mtc0    $t0, SR          # Status register
-	ROM:9F01CA30                 lw      $t0, 0($a1)
-	ROM:9F01CA34                 lw      $t1, 4($a1)
-	ROM:9F01CA38                 li      $t4, 0x90909090
-	ROM:9F01CA40                 sw      $t4, 0($a1)
-	ROM:9F01CA44                 lw      $t2, 0($a1)
-	ROM:9F01CA48                 lw      $t3, 4($a1)
-	ROM:9F01CA4C                 bne     $t0, $t2, loc_9F01CA5C
-	ROM:9F01CA50                 nop
-	ROM:9F01CA54                 beq     $t1, $t3, loc_9F01CA70
-	ROM:9F01CA58                 nop
-	ROM:9F01CA5C
-	ROM:9F01CA5C loc_9F01CA5C:                            # CODE XREF: b_IDFlashRAM_+28↑j
-	ROM:9F01CA5C                 li      $t4, 0xFFFFFFFF
-	ROM:9F01CA60                 sw      $t4, 0($a1)
-	ROM:9F01CA64                 lw      $t4, 0($a1)
-	ROM:9F01CA68                 b       loc_9F01CB10
-	ROM:9F01CA6C                 li      $v0, 1
-	ROM:9F01CA70  # ---------------------------------------------------------------------------
-	ROM:9F01CA70
-	ROM:9F01CA70 loc_9F01CA70:                            # CODE XREF: b_IDFlashRAM_+30↑j
-	ROM:9F01CA70                 li      $t4, 0x15554
-	ROM:9F01CA78                 or      $a2, $a1, $t4
-	ROM:9F01CA7C                 ori     $a3, $a1, 0xAAA8
-	ROM:9F01CA80                 li      $t4, 0xAA00AA
-	ROM:9F01CA88                 sw      $t4, 0($a2)
-	ROM:9F01CA8C                 li      $t4, 0x550055
-	ROM:9F01CA94                 sw      $t4, 0($a3)
-	ROM:9F01CA98                 li      $t4, 0x900090
-	ROM:9F01CAA0                 sw      $t4, 0($a2)
-	ROM:9F01CAA4                 lw      $t4, 0($a2)
-	ROM:9F01CAA8                 lw      $t2, 0($a1)
-	ROM:9F01CAAC                 lw      $t3, 4($a1)
-	ROM:9F01CAB0                 bne     $t0, $t2, loc_9F01CAC0
-	ROM:9F01CAB4                 nop
-	ROM:9F01CAB8                 beq     $t1, $t3, loc_9F01CB10
-	ROM:9F01CABC                 li      $v0, 0
-	ROM:9F01CAC0
-	ROM:9F01CAC0 loc_9F01CAC0:                            # CODE XREF: b_IDFlashRAM_+8C↑j
-	ROM:9F01CAC0                 li      $t4, 0xF000F0
-	ROM:9F01CAC8                 sw      $t4, 0($a1)
-	ROM:9F01CACC                 lw      $t0, 0($a1)
-	ROM:9F01CAD0                 lw      $t1, 4($a1)
-	ROM:9F01CAD4                 bne     $t0, $t2, loc_9F01CB10
-	ROM:9F01CAD8                 li      $v0, 2
-	ROM:9F01CADC                 bne     $t1, $t3, loc_9F01CB10
-	ROM:9F01CAE0                 nop
-	ROM:9F01CAE4                 li      $t4, 0xAA00AA
-	ROM:9F01CAEC                 sw      $t4, 0($a2)
-	ROM:9F01CAF0                 li      $t4, 0x550055
-	ROM:9F01CAF8                 sw      $t4, 0($a3)
-	ROM:9F01CAFC                 li      $t4, 0xF000F0
-	ROM:9F01CB04                 sw      $t4, 0($a2)
-	ROM:9F01CB08                 lw      $t4, 0($a2)
-	ROM:9F01CB0C                 li      $v0, 3
-	ROM:9F01CB10
-	ROM:9F01CB10 loc_9F01CB10:                            # CODE XREF: b_IDFlashRAM_+44↑j
-	ROM:9F01CB10                                          # b_IDFlashRAM_+94↑j ...
-	ROM:9F01CB10                 beqz    $a0, loc_9F01CB20
-	ROM:9F01CB14                 nop
-	ROM:9F01CB18                 sw      $t2, 0($a0)
-	ROM:9F01CB1C                 sw      $t3, 4($a0)
-	ROM:9F01CB20
-	ROM:9F01CB20 loc_9F01CB20:                            # CODE XREF: b_IDFlashRAM_:loc_9F01CB10↑j
-	ROM:9F01CB20                 mtc0    $t5, SR          # Status register
-	ROM:9F01CB24                 jr      $ra
-	ROM:9F01CB28                 nop
-	ROM:9F01CB28  # End of function b_IDFlashRAM_
-
-
-	ROM:9F00CD08 b_idFlash_:                              # CODE XREF: b_IdentifyFlash_+34↑p
-	ROM:9F00CD08
-	ROM:9F00CD08 var_8           = -8
-	ROM:9F00CD08 var_4           = -4
-	ROM:9F00CD08 var_s0          =  0
-	ROM:9F00CD08 var_s4          =  4
-	ROM:9F00CD08 var_s8          =  8
-	ROM:9F00CD08
-	ROM:9F00CD08                 addiu   $sp, -0x28
-	ROM:9F00CD0C                 sw      $s0, 0x18+var_s0($sp)
-	ROM:9F00CD10                 move    $s0, $a0
-	ROM:9F00CD14                 sw      $ra, 0x18+var_s8($sp)
-	ROM:9F00CD18                 jal     b_DupeIdentifier_
-	ROM:9F00CD1C                 sw      $s1, 0x18+var_s4($sp)
-	ROM:9F00CD20                 addiu   $a0, $sp, 0x18+var_8
-	ROM:9F00CD24                 move    $a1, $s0
-	ROM:9F00CD28                 move    $a2, $zero
-	ROM:9F00CD2C                 jal     b_CallRAMFlashFunction_
-	ROM:9F00CD30                 move    $a3, $zero
-	ROM:9F00CD34                 move    $s1, $v0
-	ROM:9F00CD38                 bnez    $s1, loc_9F00CD4C
-	ROM:9F00CD3C                 nop
-	ROM:9F00CD40                 jal     b_CheckForBungedMX_
-	ROM:9F00CD44                 move    $a0, $s0
-	ROM:9F00CD48                 move    $s1, $v0
-	ROM:9F00CD4C
-	ROM:9F00CD4C loc_9F00CD4C:                            # CODE XREF: b_idFlash_+30↑j
-	ROM:9F00CD4C                 li      $a0, a32BitFlash08lx  # "(32 bit) Flash @ %08lx is: "
-	ROM:9F00CD54                 jal     b_printf_
-	ROM:9F00CD58                 move    $a1, $s0
-	ROM:9F00CD5C                 lui     $a0, 0x9F15
-	ROM:9F00CD60                 jal     b_printf_
-	ROM:9F00CD64                 li      $a0, asc_9F149F78  # "\n"
-	ROM:9F00CD68                 lw      $v0, b_flashDescriptors_
-	ROM:9F00CD70                 beqz    $v0, loc_9F00CE10
-	ROM:9F00CD74                 lui     $a3, 0x5769
-	ROM:9F00CD78                 li      $a3, 0x57696C64
-	ROM:9F00CD7C                 li      $a0, b_flashDescriptors_
-	ROM:9F00CD84                 move    $a2, $zero
-	ROM:9F00CD88                 move    $s0, $a0
-	ROM:9F00CD8C                 li      $a1, 0x800008B0
-	ROM:9F00CD94                 lw      $v0, (b_flashDescriptors_ - 0x9F14A474)($a0)
-	ROM:9F00CD98
-	ROM:9F00CD98 loc_9F00CD98:                            # CODE XREF: b_idFlash_+100↓j
-	ROM:9F00CD98                 bnel    $v0, $s1, loc_9F00CDFC
-	ROM:9F00CD9C                 addiu   $a0, 0x1C
-	ROM:9F00CDA0                 lw      $v1, dword_9F14A47C($a2)
-	ROM:9F00CDAC                 lw      $v0, 0x18+var_4($sp)
-	ROM:9F00CDB0                 bnel    $v1, $v0, loc_9F00CDFC
-	ROM:9F00CDB4                 addiu   $a0, 0x1C
-	ROM:9F00CDB8                 lw      $v1, dword_9F14A478($a2)
-	ROM:9F00CDC4                 beq     $v1, $a3, loc_9F00CDD8
-	ROM:9F00CDC8                 nop
-	ROM:9F00CDCC                 lw      $v0, 0x18+var_8($sp)
-	ROM:9F00CDD0                 bne     $v1, $v0, loc_9F00CDFC
-	ROM:9F00CDD4                 addiu   $a0, 0x1C
-	ROM:9F00CDD8
-	ROM:9F00CDD8 loc_9F00CDD8:                            # CODE XREF: b_idFlash_+BC↑j
-	ROM:9F00CDD8                 lw      $a1, 0($a1)
-	ROM:9F00CDDC                 lui     $a0, 0x9F15
-	ROM:9F00CDE0                 jal     b_printf_
-	ROM:9F00CDE4                 li      $a0, aS          # "%s"
-	ROM:9F00CDE8                 lui     $a0, 0x9F15
-	ROM:9F00CDEC                 jal     b_printf_
-	ROM:9F00CDF0                 li      $a0, asc_9F149F78  # "\n"
-	ROM:9F00CDF4                 j       loc_9F00CE38
-	ROM:9F00CDF8                 move    $v0, $s0
-	ROM:9F00CDFC  # ---------------------------------------------------------------------------
-	ROM:9F00CDFC
-	ROM:9F00CDFC loc_9F00CDFC:                            # CODE XREF: b_idFlash_:loc_9F00CD98↑j
-	ROM:9F00CDFC                                          # b_idFlash_+A8↑j ...
-	ROM:9F00CDFC                 addiu   $a2, 0x1C
-	ROM:9F00CE00                 addiu   $s0, 0x1C
-	ROM:9F00CE04                 lw      $v0, 0($a0)
-	ROM:9F00CE08                 bnez    $v0, loc_9F00CD98
-	ROM:9F00CE0C                 addiu   $a1, 4
-	ROM:9F00CE10
-	ROM:9F00CE10 loc_9F00CE10:                            # CODE XREF: b_idFlash_+68↑j
-	ROM:9F00CE10                 li      $a0, aUnrecognizedSt  # "UNRECOGNIZED: style = %08lx, mfrID = %0"...
-	ROM:9F00CE18                 lw      $a2, 0x18+var_8($sp)
-	ROM:9F00CE1C                 lw      $a3, 0x18+var_4($sp)
-	ROM:9F00CE20                 jal     b_printf_
-	ROM:9F00CE24                 move    $a1, $s1
-	ROM:9F00CE28                 lui     $a0, 0x9F15
-	ROM:9F00CE2C                 jal     b_printf_
-	ROM:9F00CE30                 li      $a0, asc_9F149F78  # "\n"
-	ROM:9F00CE34                 move    $v0, $zero
-	ROM:9F00CE38
-	ROM:9F00CE38 loc_9F00CE38:                            # CODE XREF: b_idFlash_+EC↑j
-	ROM:9F00CE38                 lw      $ra, 0x18+var_s8($sp)
-	ROM:9F00CE3C                 lw      $s1, 0x18+var_s4($sp)
-	ROM:9F00CE40                 lw      $s0, 0x18+var_s0($sp)
-	ROM:9F00CE44                 jr      $ra
-	ROM:9F00CE48                 addiu   $sp, 0x28
-	ROM:9F00CE48  # End of function b_idFlash_
-	ROM:9F00CE48
-
-	*/	
-
 	//AMD_29F800B_16BIT(config, m_flash0, 0);
 	//AMD_29F800B_16BIT(config, m_flash1, 0);
 	MACRONIX_16161616(config, m_flash0, 0);
@@ -362,7 +164,7 @@ void webtv1_state::webtv1_philips(machine_config& config)
 
 void webtv1_state::machine_start()
 {
-
+	popmessage("WebTV starts with the display off. Press F1 to power on.\n");
 }
 
 void webtv1_state::machine_reset()
@@ -500,6 +302,7 @@ ROM_START( wtv1sony )
 	ROM_LOAD("bootrom.o", 0x000000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
 	ROM_RELOAD(0x200000, 0x200000)
 	ROM_RELOAD(0x400000, 0x200000)
+	ROM_RELOAD(0x600000, 0x200000)
 ROM_END
 
 ROM_START( wtv1phil )

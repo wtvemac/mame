@@ -29,9 +29,9 @@
 #include "machine/i2cmem.h"
 #include "machine/watchdog.h"
 
+#include "sound/dac.h"
 #include "machine/ins8250.h"
 #include "bus/rs232/null_modem.h"
-#include "sound/dac.h"
 
 #define SYSCONFIG_ROMTYP0    1 << 31 // ROM bank 0 is present
 #define SYSCONFIG_ROMMODE0   1 << 30 // ROM bank 0 supports page mode
@@ -121,8 +121,14 @@
 #define INS8250_LSR_THRE 0x20
 #define MBUFF_MAX_SIZE   0x1000
 
-#define ID_STATE_RESET   0x1
-#define ID_STATE_READROM 0x5
+#define SSID_STATE_IDLE          0x0
+#define SSID_STATE_RESET         0x1
+#define SSID_STATE_PRESENCE      0x2
+#define SSID_STATE_COMMAND       0x3
+#define SSID_STATE_READROM       0x4
+#define SSID_STATE_READROM_START 0x5
+#define SSID_STATE_READROM_END   0x6
+#define SSID_STATE_READROM_BIT   0x7
 
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
@@ -214,21 +220,27 @@ protected:
 	uint32_t m_rom_cntl0;
 	uint32_t m_rom_cntl1;
 
+	uint32_t dev_idcntl;
+	uint8_t dev_id_state;
+	uint8_t dev_id_bit;
+	uint8_t dev_id_bitidx;
+	
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;
 
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
 	uint32_t modem_txbuff_index;
+
 private:
 	required_device<mips3_device> m_hostcpu;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 	required_device<kbdc8042_device> m_kbdc;
 	required_device<screen_device> m_screen;
-
 	required_device<dac_word_interface> m_ldac;
 	required_device<dac_word_interface> m_rdac;
+
 	required_device<ns16450_device> m_modem;
 
 	required_device<watchdog_timer_device> m_watchdog;
@@ -240,10 +252,11 @@ private:
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
 
+	emu_timer *dac_update_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(dac_update);
+
 	emu_timer *modem_buffer_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
-	emu_timer *audio_timer = nullptr;
-	TIMER_CALLBACK_MEMBER(fetch_audio_data);
 
 	void vblank_irq(int state);
 	void irq_keyboard_w(int state);
