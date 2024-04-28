@@ -140,10 +140,10 @@ protected:
 	void activate_ntsc_screen();
 	void activate_pal_screen();
 
-	uint32_t m_fence1_lower_addr;
-	uint32_t m_fence1_upper_addr;
-	uint32_t m_fence2_lower_addr;
-	uint32_t m_fence2_upper_addr;
+	uint32_t m_fence1_addr;
+	uint32_t m_fence1_mask;
+	uint32_t m_fence2_addr;
+	uint32_t m_fence2_mask;
 
 	uint8_t m_intenable;
 	uint8_t m_intstat;
