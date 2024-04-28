@@ -284,7 +284,7 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-	dac_update_timer->adjust(attotime::from_hz(48000), 0, attotime::from_hz(48000));
+	dac_update_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
 
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
