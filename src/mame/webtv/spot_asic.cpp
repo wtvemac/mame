@@ -265,6 +265,10 @@ void spot_asic_device::device_reset()
 	m_errstat = 0x0;
 	m_timeout_compare = 0xffff;
 	m_nvcntl = 0x0;
+	m_fence1_addr = 0x0;
+	m_fence1_mask = 0x0;
+	m_fence2_addr = 0x0;
+	m_fence2_mask = 0x0;
 
 	m_vid_nstart = 0x0;
 	m_vid_nsize = 0x0;
@@ -285,6 +289,9 @@ void spot_asic_device::device_reset()
 	m_vid_drawvsize = m_vid_vsize;
 
 	m_ledstate = 0xFFFFFFFF;
+	m_power_led = 0;
+	m_connect_led = 0;
+	m_message_led = 0;
 
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
@@ -476,45 +483,49 @@ void spot_asic_device::reg_0118_w(uint32_t data)
 uint32_t spot_asic_device::reg_001c_r()
 {
 	logerror("%s: reg_001c_r (BUS_FENADDR1)\n", machine().describe_context());
-	return 0x00000000;
+	return m_fence1_addr;
 }
 
 void spot_asic_device::reg_001c_w(uint32_t data)
 {
 	logerror("%s: reg_001c_w %08x (BUS_FENADDR1)\n", machine().describe_context(), data);
+	m_fence1_addr = data;
 }
 
 uint32_t spot_asic_device::reg_0020_r()
 {
 	logerror("%s: reg_0020_r (BUS_FENMASK1)\n", machine().describe_context());
-	return 0x00000000;
+	return m_fence1_mask;
 }
 
 void spot_asic_device::reg_0020_w(uint32_t data)
 {
 	logerror("%s: reg_0020_w %08x (BUS_FENMASK1)\n", machine().describe_context(), data);
+	m_fence1_mask = data;
 }
 
 uint32_t spot_asic_device::reg_0024_r()
 {
 	logerror("%s: reg_0024_r (BUS_FENADDR2)\n", machine().describe_context());
-	return 0x00000000;
+	return m_fence2_addr;
 }
 
 void spot_asic_device::reg_0024_w(uint32_t data)
 {
 	logerror("%s: reg_0024_w %08x (BUS_FENADDR2)\n", machine().describe_context(), data);
+	m_fence2_addr = data;
 }
 
 uint32_t spot_asic_device::reg_0028_r()
 {
 	logerror("%s: reg_0028_r (BUS_FENMASK2)\n", machine().describe_context());
-	return 0x00000000;
+	return m_fence2_mask;
 }
 
 void spot_asic_device::reg_0028_w(uint32_t data)
 {
 	logerror("%s: reg_0028_w %08x (BUS_FENMASK2)\n", machine().describe_context(), data);
+	m_fence2_mask = data;
 }
 
 uint32_t spot_asic_device::reg_1000_r()
