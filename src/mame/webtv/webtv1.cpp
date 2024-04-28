@@ -114,7 +114,9 @@ void webtv1_state::webtv1_map(address_map &map)
 	map.global_mask(0x1fffffff);
 
 	// RAM
-	map(0x00000000, 0x007fffff).ram().share("ram"); // 8MB is not accurate to retail hardware! Ideally this would be 2MB or 4MB, mirrored across this memory space
+	//map(0x00000000, 0x001fffff).mirror(0x600000).ram().share("ram"); // 2MB configuration (retail)
+	map(0x00000000, 0x003fffff).mirror(0x400000).ram().share("ram"); // 4MB configuration (debug)
+	//map(0x00000000, 0x007fffff).ram().share("ram");                  // 8MB configuration (full)
 
 	// SPOT
 	map(0x04000000, 0x04000fff).m(m_spotasic, FUNC(spot_asic_device::bus_unit_map));
