@@ -221,7 +221,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
 	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
 
-	WATCHDOG_TIMER(config, m_watchdog);
+	WATCHDOG_TIMER(config, m_watchdog).set_vblank_count("screen", 64);;
 }
 
 void spot_asic_device::activate_ntsc_screen()
