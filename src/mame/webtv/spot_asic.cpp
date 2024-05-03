@@ -1061,10 +1061,8 @@ void spot_asic_device::reg_4014_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4020_r()
 {
-	uint32_t cool = m_kbdc->data_r(0x0);
-	printf("reg_4020_r=%08x\n", cool);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4020_r (DEV_KBD0)\n", machine().describe_context());
-	return cool;
+	return m_kbdc->data_r(0x0);
 }
 
 void spot_asic_device::reg_4020_w(uint32_t data)
@@ -1073,157 +1071,10 @@ void spot_asic_device::reg_4020_w(uint32_t data)
 	m_kbdc->data_w(0x0, data & 0xFF);
 }
 
-/*
-
-ROM:9F00F7E0                 .globl b_ControllerSelfTestOK_
-ROM:9F00F7E0 b_ControllerSelfTestOK_:                 # CODE XREF: b_InitHWKeyboard_+3C↑p
-ROM:9F00F7E0
-ROM:9F00F7E0 var_s0          =  0
-ROM:9F00F7E0 var_s4          =  4
-ROM:9F00F7E0
-ROM:9F00F7E0                 addiu   $sp, -0x18
-ROM:9F00F7E4                 li      $a0, 0x40  # '@'
-ROM:9F00F7E8                 sw      $ra, 0x10+var_s4($sp)
-ROM:9F00F7EC                 jal     b_DisableInts_
-ROM:9F00F7F0                 sw      $s0, 0x10+var_s0($sp)
-ROM:9F00F7F4                 li      $a0, 0xAA
-ROM:9F00F7F8                 jal     b_WriteCommand_
-ROM:9F00F7FC                 move    $s0, $v0
-ROM:9F00F800                 jal     b_ReadData_
-ROM:9F00F804                 nop
-ROM:9F00F808                 move    $a0, $s0
-ROM:9F00F80C                 jal     b_EnableInts_
-ROM:9F00F810                 move    $s0, $v0
-ROM:9F00F814                 andi    $s0, 0xFF
-ROM:9F00F818                 xori    $s0, 0x55
-ROM:9F00F81C                 sltiu   $v0, $s0, 1
-ROM:9F00F820                 lw      $ra, 0x10+var_s4($sp)
-ROM:9F00F824                 lw      $s0, 0x10+var_s0($sp)
-ROM:9F00F828                 jr      $ra
-ROM:9F00F82C                 addiu   $sp, 0x18
-
-ROM:9F00FB8C                 .globl b_WriteCommand_
-ROM:9F00FB8C b_WriteCommand_:                         # CODE XREF: b_SetOutputPort_+20↑p
-ROM:9F00FB8C                                          # b_SetOutputPort_+38↑p ...
-ROM:9F00FB8C
-ROM:9F00FB8C var_s0          =  0
-ROM:9F00FB8C var_s4          =  4
-ROM:9F00FB8C var_s8          =  8
-ROM:9F00FB8C var_sC          =  0xC
-ROM:9F00FB8C var_s10         =  0x10
-ROM:9F00FB8C
-ROM:9F00FB8C                 addiu   $sp, -0x28
-ROM:9F00FB90                 sw      $s0, 0x10+var_s0($sp)
-ROM:9F00FB94                 li      $s0, 0x1F3
-ROM:9F00FB98                 sw      $s1, 0x10+var_s4($sp)
-ROM:9F00FB9C                 li      $s1, 0xA4004024
-ROM:9F00FBA4                 sw      $s2, 0x10+var_s8($sp)
-ROM:9F00FBA8                 andi    $s2, $a0, 0xFF
-ROM:9F00FBAC                 sw      $s3, 0x10+var_sC($sp)
-ROM:9F00FBB0                 li      $s3, 0xFFFFFFFF
-ROM:9F00FBB4                 sw      $ra, 0x10+var_s10($sp)
-ROM:9F00FBB8
-ROM:9F00FBB8 loc_9F00FBB8:                            # CODE XREF: b_WriteCommand_+50↓j
-ROM:9F00FBB8                 lw      $v0, 0($s1)
-ROM:9F00FBBC                 andi    $v0, 2
-ROM:9F00FBC0                 bnez    $v0, loc_9F00FBD0
-ROM:9F00FBC4                 nop
-ROM:9F00FBC8                 j       loc_9F00FBE4
-ROM:9F00FBCC                 sw      $s2, 0($s1)
-ROM:9F00FBD0  # ---------------------------------------------------------------------------
-ROM:9F00FBD0
-ROM:9F00FBD0 loc_9F00FBD0:                            # CODE XREF: b_WriteCommand_+34↑j
-ROM:9F00FBD0                 jal     b_WaitUSec_
-ROM:9F00FBD4                 li      $a0, 1
-ROM:9F00FBD8                 addiu   $s0, -1
-ROM:9F00FBDC                 bne     $s0, $s3, loc_9F00FBB8
-ROM:9F00FBE0                 nop
-ROM:9F00FBE4
-ROM:9F00FBE4 loc_9F00FBE4:                            # CODE XREF: b_WriteCommand_+3C↑j
-ROM:9F00FBE4                 lw      $v0, 0x800009E8
-ROM:9F00FBEC                 sltu    $v0, $s0, $v0
-ROM:9F00FBF0                 beqz    $v0, loc_9F00FC00
-ROM:9F00FBF4                 nop
-ROM:9F00FBF8                 sw      $s0, 0x800009E8
-ROM:9F00FC00
-ROM:9F00FC00 loc_9F00FC00:                            # CODE XREF: b_WriteCommand_+64↑j
-ROM:9F00FC00                 lw      $ra, 0x10+var_s10($sp)
-ROM:9F00FC04                 lw      $s3, 0x10+var_sC($sp)
-ROM:9F00FC08                 lw      $s2, 0x10+var_s8($sp)
-ROM:9F00FC0C                 lw      $s1, 0x10+var_s4($sp)
-ROM:9F00FC10                 lw      $s0, 0x10+var_s0($sp)
-ROM:9F00FC14                 jr      $ra
-ROM:9F00FC18                 addiu   $sp, 0x28
-ROM:9F00FC18  # End of function b_WriteCommand_
-
-ROM:9F00FA10                 .globl b_ReadData_
-ROM:9F00FA10 b_ReadData_:                             # CODE XREF: b_SetOutputPort_+28↑p
-ROM:9F00FA10                                          # b_GetOutputPort_+20↑p ...
-ROM:9F00FA10
-ROM:9F00FA10 var_s0          =  0
-ROM:9F00FA10 var_s4          =  4
-ROM:9F00FA10 var_s8          =  8
-ROM:9F00FA10 var_sC          =  0xC
-ROM:9F00FA10 var_s10         =  0x10
-ROM:9F00FA10 var_s14         =  0x14
-ROM:9F00FA10
-ROM:9F00FA10                 addiu   $sp, -0x28
-ROM:9F00FA14                 sw      $s1, 0x10+var_s4($sp)
-ROM:9F00FA18                 li      $s1, 0xFF
-ROM:9F00FA1C                 li      $a0, 0xDAC
-ROM:9F00FA20                 sw      $ra, 0x10+var_s14($sp)
-ROM:9F00FA24                 sw      $s4, 0x10+var_s10($sp)
-ROM:9F00FA28                 sw      $s3, 0x10+var_sC($sp)
-ROM:9F00FA2C                 sw      $s2, 0x10+var_s8($sp)
-ROM:9F00FA30                 jal     b_WaitUSec_
-ROM:9F00FA34                 sw      $s0, 0x10+var_s0($sp)
-ROM:9F00FA38                 li      $s0, 0x1F3
-ROM:9F00FA3C                 li      $s3, 0xA4004024
-ROM:9F00FA44                 li      $s2, 0xA4004020
-ROM:9F00FA4C                 li      $s4, 0xFFFFFFFF
-ROM:9F00FA50
-ROM:9F00FA50 loc_9F00FA50:                            # CODE XREF: b_ReadData_+64↓j
-ROM:9F00FA50                 lw      $v0, 0($s3)
-ROM:9F00FA54                 andi    $v0, 1
-ROM:9F00FA58                 beqz    $v0, loc_9F00FA68
-ROM:9F00FA5C                 nop
-ROM:9F00FA60                 j       loc_9F00FA7C
-ROM:9F00FA64                 lw      $s1, 0($s2)
-ROM:9F00FA68  # ---------------------------------------------------------------------------
-ROM:9F00FA68
-ROM:9F00FA68 loc_9F00FA68:                            # CODE XREF: b_ReadData_+48↑j
-ROM:9F00FA68                 jal     b_WaitUSec_
-ROM:9F00FA6C                 li      $a0, 1
-ROM:9F00FA70                 addiu   $s0, -1
-ROM:9F00FA74                 bne     $s0, $s4, loc_9F00FA50
-ROM:9F00FA78                 nop
-ROM:9F00FA7C
-ROM:9F00FA7C loc_9F00FA7C:                            # CODE XREF: b_ReadData_+50↑j
-ROM:9F00FA7C                 lw      $v0, 0x800009E0
-ROM:9F00FA84                 sltu    $v0, $s0, $v0
-ROM:9F00FA88                 beqz    $v0, loc_9F00FA98
-ROM:9F00FA8C                 andi    $v0, $s1, 0xFF
-ROM:9F00FA90                 sw      $s0, 0x800009E0
-ROM:9F00FA98
-ROM:9F00FA98 loc_9F00FA98:                            # CODE XREF: b_ReadData_+78↑j
-ROM:9F00FA98                 lw      $ra, 0x10+var_s14($sp)
-ROM:9F00FA9C                 lw      $s4, 0x10+var_s10($sp)
-ROM:9F00FAA0                 lw      $s3, 0x10+var_sC($sp)
-ROM:9F00FAA4                 lw      $s2, 0x10+var_s8($sp)
-ROM:9F00FAA8                 lw      $s1, 0x10+var_s4($sp)
-ROM:9F00FAAC                 lw      $s0, 0x10+var_s0($sp)
-ROM:9F00FAB0                 jr      $ra
-ROM:9F00FAB4                 addiu   $sp, 0x28
-ROM:9F00FAB4  # End of function b_ReadData_
-*/
-
 uint32_t spot_asic_device::reg_4024_r()
 {
-	uint32_t cool = m_kbdc->data_r(0x4);
-
-	printf("reg_4024_r=%08x\n", cool);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4024_r (DEV_KBD1)\n", machine().describe_context());
-	return cool;
+	return m_kbdc->data_r(0x4);
 }
 
 void spot_asic_device::reg_4024_w(uint32_t data)
