@@ -479,6 +479,7 @@ void kbdc8042_device::data_w(offs_t offset, uint8_t data)
 			at_8042_receive(((m_keybtype == KBDC8042_PS2) && PS2_MOUSE_ON) ? 0x00 : 0xff);
 			break;
 		case 0xaa:  /* selftest */
+			printf("WOOT!!!\n");
 			at_8042_receive(0x55);
 			break;
 		case 0xab:  /* test keyboard */

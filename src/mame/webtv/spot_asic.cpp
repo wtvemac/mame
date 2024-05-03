@@ -1061,8 +1061,10 @@ void spot_asic_device::reg_4014_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4020_r()
 {
+	uint32_t cool = m_kbdc->data_r(0x0);
+	printf("reg_4020_r=%08x\n", cool);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4020_r (DEV_KBD0)\n", machine().describe_context());
-	return m_kbdc->data_r(0x0);
+	return cool;
 }
 
 void spot_asic_device::reg_4020_w(uint32_t data)
@@ -1217,7 +1219,7 @@ ROM:9F00FAB4  # End of function b_ReadData_
 
 uint32_t spot_asic_device::reg_4024_r()
 {
-	uint32_t cool = m_kbdc->data_r(0x1);
+	uint32_t cool = m_kbdc->data_r(0x4);
 
 	printf("reg_4024_r=%08x\n", cool);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4024_r (DEV_KBD1)\n", machine().describe_context());
@@ -1226,9 +1228,8 @@ uint32_t spot_asic_device::reg_4024_r()
 
 void spot_asic_device::reg_4024_w(uint32_t data)
 {
-	printf("reg_4024_w=%08x\n", data);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4024_w %08x (DEV_KBD1)\n", machine().describe_context(), data);
-	m_kbdc->data_w(0x1, data & 0xFF);
+	m_kbdc->data_w(0x4, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4028_r()
@@ -1616,21 +1617,21 @@ void spot_asic_device::vblank_irq(int state)
 
 void spot_asic_device::irq_keyboard_w(int state)
 {
-	if(m_intenable & BUS_INT_VIDINT)
-		m_intenable |= BUS_INT_DEVKBD;
+	//if(m_intenable & BUS_INT_VIDINT)
+	//	m_intenable |= BUS_INT_DEVKBD;
 
 	spot_asic_device::set_bus_irq(BUS_INT_DEVKBD, state);
 }
 
 void spot_asic_device::irq_modem_w(int state)
 {
-	m_intenable |= BUS_INT_DEVMOD;
+	//m_intenable |= BUS_INT_DEVMOD;
 	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
 }
 
 void spot_asic_device::irq_audio_w(int state)
 {
-	m_intenable |= BUS_INT_AUDDMA;
+	//m_intenable |= BUS_INT_AUDDMA;
 	spot_asic_device::set_bus_irq(BUS_INT_AUDDMA, state);
 }
 
@@ -1656,7 +1657,7 @@ void spot_asic_device::set_vid_irq(uint8_t mask, int state)
 		else
 			m_vid_intstat &= ~(mask);
 
-		m_intenable |= BUS_INT_VIDINT;
+		//m_intenable |= BUS_INT_VIDINT;
 
 		spot_asic_device::set_bus_irq(BUS_INT_VIDINT, state);
 	}
