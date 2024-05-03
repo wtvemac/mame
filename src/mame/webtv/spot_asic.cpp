@@ -90,8 +90,6 @@ DEVICE_INPUT_DEFAULTS_END
 
 void spot_asic_device::bus_unit_map(address_map &map)
 {
-
-
 	map(0x000, 0x003).r(FUNC(spot_asic_device::reg_0000_r));                                      // BUS_CHIPID
 	map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_0004_r), FUNC(spot_asic_device::reg_0004_w)); // BUS_CHIPCNTL
 	map(0x008, 0x00b).r(FUNC(spot_asic_device::reg_0008_r));                                      // BUS_INTSTAT
@@ -200,7 +198,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_ldac, 0).add_route(ALL_OUTPUTS, "lspeaker", 0.25);
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_rdac, 0).add_route(ALL_OUTPUTS, "rspeaker", 0.25);
 
-	NS16450(config, m_modem, XTAL(1'843'200));
+	NS16550(config, m_modem, XTAL(1'843'200));
 	m_modem->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
 	m_modem->out_tx_callback().set("mdm", FUNC(rs232_port_device::write_txd));
 	m_modem->out_dtr_callback().set("mdm", FUNC(rs232_port_device::write_dtr));
@@ -331,7 +329,7 @@ void spot_asic_device::device_reset()
 	m_ledstate = 0xFFFFFFFF;
 
 	dev_idcntl = 0x00;
-	dev_id_state = 0x0;
+	dev_id_state = SSID_STATE_IDLE;
 	dev_id_bit = 0x0;
 	dev_id_bitidx = 0x0;
 
@@ -911,7 +909,7 @@ void spot_asic_device::reg_4004_w(uint32_t data)
 	m_message_led = !BIT(m_ledstate, 0);
 }
 
-// Not using logic inside the DS2401 because the delay logic in the ROM doesn't work properly.
+// Not using logic inside DS2401.cpp because the delay logic in the ROM doesn't work properly.
 
 uint32_t spot_asic_device::reg_4008_r()
 {
@@ -920,10 +918,10 @@ uint32_t spot_asic_device::reg_4008_r()
 	if(dev_id_state == SSID_STATE_PRESENCE)
 	{
 		dev_id_bit = 0x0; // We're present.
-		dev_id_state = SSID_STATE_COMMAND; // The next 8 bits we're assuming is 0x0f (read from ROM) since we're not testing for delay.
+		dev_id_state = SSID_STATE_COMMAND; // This normally would stay in presence mode for 480us then command, but we immediatly go into command mode.
 		dev_id_bitidx = 0x0;
 	}
-	else if(dev_id_state == SSID_STATE_READROM_END)
+	else if(dev_id_state == SSID_STATE_READROM_PULSEEND)
 	{
 		dev_id_state = SSID_STATE_READROM_BIT;
 	}
@@ -956,22 +954,21 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 		switch(dev_id_state) // States for high
 		{
 			case SSID_STATE_RESET: // End reset low pulse to go into prescense mode. Chip should read low to indicate presence.
-				dev_id_state = SSID_STATE_PRESENCE; // This normally lasts 480us before going into command mode.
+				dev_id_state = SSID_STATE_PRESENCE; // This pulse normally lasts 480us before going into command mode.
 				break;
 			
-			case SSID_STATE_COMMAND: // Ended a command bit pulse. Increment bit index. We always assume a read from ROM command when we get 8 bits.
+			case SSID_STATE_COMMAND: // Ended a command bit pulse. Increment bit index. We always assume a read from ROM command after we get 8 bits.
 				dev_id_bitidx++;
 
 				if(dev_id_bitidx == 8)
 				{
-					dev_id_state = SSID_STATE_READROM; // Now we can read back the SSID. ROM reads it as two 16-bit integers.
+					dev_id_state = SSID_STATE_READROM; // Now we can read back the SSID. ROM reads it as two 32-bit integers.
 					dev_id_bitidx = 0;
 				}
 				break;
 
-			case SSID_STATE_READROM_START:
-				dev_id_state = SSID_STATE_READROM_END;
-
+			case SSID_STATE_READROM_PULSESTART:
+				dev_id_state = SSID_STATE_READROM_PULSEEND;
 		}
 	}
 	else
@@ -983,7 +980,7 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 				break;
 
 			case SSID_STATE_READROM:
-				dev_id_state = SSID_STATE_READROM_START;
+				dev_id_state = SSID_STATE_READROM_PULSESTART;
 				break;
 		}
 	}
@@ -994,7 +991,6 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 // Read from I2C EEPROM device (24C01A?)
 uint32_t spot_asic_device::reg_400c_r()
 {
-	//printf("reg_400c_rreg_400c_rreg_400c_rreg_400c_rreg_400c_r\n");
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_400c_r (DEV_NVCNTL)\n", machine().describe_context());
 	return (m_nvcntl & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN))) + (m_nvram->read_sda() * NVCNTL_SDA_W) + (m_nvram->read_sda() * NVCNTL_SDA_R);
 }
@@ -1002,7 +998,6 @@ uint32_t spot_asic_device::reg_400c_r()
 // Write to I2C EEPROM device
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
-	//printf("reg_400c_wreg_400c_wreg_400c_wreg_400c_w data=%08x\n", data);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_400c_w %08x (DEV_NVCNTL)\n", machine().describe_context(), data);
 	m_nvram->write_scl((data & NVCNTL_SCL) ? ASSERT_LINE : CLEAR_LINE);
 	if (data & NVCNTL_WRITE_EN) {
@@ -1161,14 +1156,23 @@ void spot_asic_device::reg_403c_w(uint32_t data)
 	m_kbdc->data_w(0x7, 0x21);
 }
 
+uint32_t blop_tx = false;
+uint32_t blop_rx = false;
+
 uint32_t spot_asic_device::reg_4040_r()
 {
+	uint32_t cool = m_modem->ins8250_r(0x0);
 	LOGMASKED(LOG_DEVUNIT, "%s: reg_4040_r (DEV_MOD0)\n", machine().describe_context());
-	return  m_modem->ins8250_r(0x0) & 0xFF;
+	if(blop_rx)
+		printf("R:%02x\n", cool);
+	return cool & 0xFF;
 }
 
 void spot_asic_device::reg_4040_w(uint32_t data)
 {
+	if(blop_tx)
+		printf("T:%02x [%08x]\n", data, modem_txbuff_size);
+
 	if(modem_txbuff_size == 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
 		m_modem->ins8250_w(0x0, data & 0xFF);
@@ -1432,8 +1436,12 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 
 TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
 {
+	if(blop_tx)
+		printf("\tT:%08x\n", modem_txbuff_size);
 	if(modem_txbuff_size > 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
+		if(blop_tx)
+			printf("\t\tt:%02x\n", modem_txbuff[modem_txbuff_index & (MBUFF_MAX_SIZE - 1)]);
 		m_modem->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
 
 		if(modem_txbuff_index == modem_txbuff_size)
