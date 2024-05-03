@@ -1473,6 +1473,7 @@ void spot_asic_device::irq_keyboard_w(int state)
 
 void spot_asic_device::irq_modem_w(int state)
 {
+	m_intenable |= BUS_INT_DEVMOD;
 	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
 }
 
