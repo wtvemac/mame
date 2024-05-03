@@ -461,7 +461,7 @@ uint32_t spot_asic_device::reg_000c_r()
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
 	LOGMASKED(LOG_BUSUNIT, "%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
-    m_intenable = data & 0xFF;
+    m_intenable |= data & 0xFF;
 }
 
 void spot_asic_device::reg_010c_w(uint32_t data)
@@ -1617,21 +1617,16 @@ void spot_asic_device::vblank_irq(int state)
 
 void spot_asic_device::irq_keyboard_w(int state)
 {
-	//if(m_intenable & BUS_INT_VIDINT)
-	//	m_intenable |= BUS_INT_DEVKBD;
-
 	spot_asic_device::set_bus_irq(BUS_INT_DEVKBD, state);
 }
 
 void spot_asic_device::irq_modem_w(int state)
 {
-	//m_intenable |= BUS_INT_DEVMOD;
 	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
 }
 
 void spot_asic_device::irq_audio_w(int state)
 {
-	//m_intenable |= BUS_INT_AUDDMA;
 	spot_asic_device::set_bus_irq(BUS_INT_AUDDMA, state);
 }
 
@@ -1656,8 +1651,6 @@ void spot_asic_device::set_vid_irq(uint8_t mask, int state)
 			m_vid_intstat |= mask;
 		else
 			m_vid_intstat &= ~(mask);
-
-		//m_intenable |= BUS_INT_VIDINT;
 
 		spot_asic_device::set_bus_irq(BUS_INT_VIDINT, state);
 	}
