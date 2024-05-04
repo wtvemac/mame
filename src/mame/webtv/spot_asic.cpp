@@ -48,7 +48,7 @@
 #define LOG_DEVUNIT     (1U << 10)
 #define LOG_MEMUNIT     (1U << 11)
 
-#define LOG_DEFAULT     (LOG_READS | LOG_WRITES | LOG_ERRORS | LOG_I2C_IGNORES | LOG_UNKNOWN)
+#define LOG_DEFAULT     (LOG_READS | LOG_WRITES | LOG_ERRORS | LOG_I2C_IGNORES | LOG_UNKNOWN | LOG_BUSUNIT)
 
 #define VERBOSE         (LOG_DEFAULT)
 #include "logmacro.h"
@@ -180,7 +180,7 @@ void spot_asic_device::mem_unit_map(address_map &map)
 	map(0x000, 0x003).rw(FUNC(spot_asic_device::reg_5000_r), FUNC(spot_asic_device::reg_5000_w)); // MEM_CNTL
 	map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_5004_r), FUNC(spot_asic_device::reg_5004_w)); // MEM_REFCNT
 	map(0x008, 0x00b).rw(FUNC(spot_asic_device::reg_5008_r), FUNC(spot_asic_device::reg_5008_w)); // MEM_DATA
-	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_500c_r), FUNC(spot_asic_device::reg_500c_w)); // MEM_CMD - write only register, but read handler is hooked up to debug behavior
+	map(0x00c, 0x00f).w(FUNC(spot_asic_device::reg_500c_w));                                      // MEM_CMD - write only register, but read handler is hooked up to debug behavior
 	map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_5010_r), FUNC(spot_asic_device::reg_5010_w)); // MEM_TIMING
 }
 
@@ -217,11 +217,10 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_kbdc->input_buffer_full_callback().set(FUNC(spot_asic_device::irq_keyboard_w));
 	m_kbdc->system_reset_callback().set_inputline(":maincpu", INPUT_LINE_RESET);
 	m_kbdc->set_keyboard_tag("at_keyboard");
-
 	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
 	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
 
-	WATCHDOG_TIMER(config, m_watchdog).set_vblank_count("screen", 64);;
+	WATCHDOG_TIMER(config, m_watchdog).set_vblank_count("screen", 64);
 }
 
 void spot_asic_device::activate_ntsc_screen()
@@ -401,20 +400,16 @@ void spot_asic_device::pixel_buffer_index_update()
 
 uint32_t spot_asic_device::reg_0000_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0000_r (BUS_CHIPID)\n", machine().describe_context());
     return 0x01010000;
 }
 
 uint32_t spot_asic_device::reg_0004_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0004_r (BUS_CHPCNTL)\n", machine().describe_context());
 	return m_chpcntl;
 }
 
 void spot_asic_device::reg_0004_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0004_w %08x (BUS_CHPCNTL)\n", machine().describe_context(), data);
-
 	if ((m_chpcntl ^ data) & 0xC0000000)
 	{
 		uint8_t wd_cntl = (data >> 30);
@@ -438,228 +433,187 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_0008_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0008_r (BUS_INTSTAT)\n", machine().describe_context());
 	return m_intstat;
 }
 
 void spot_asic_device::reg_0108_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0108_w %08x (BUS_INTSTAT clear)\n", machine().describe_context(), data);
-
-	if (data & BUS_INT_VIDINT)
-		spot_asic_device::set_vid_irq(0xf, 0);
-
-	m_intstat &= (~data) & 0xFF;
+	spot_asic_device::set_bus_irq(data, 0);
 }
 
 uint32_t spot_asic_device::reg_000c_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_000c_r (BUS_INTEN)\n", machine().describe_context());
 	return m_intenable;
 }
 
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
     m_intenable |= data & 0xFF;
 }
 
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_010c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
-
-	m_intenable &= (~data) & 0xFF;
+	m_intenable &= ~(data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_0010_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0010_r (BUS_ERRSTAT)\n", machine().describe_context());
 	return m_errstat;
 }
 
 void spot_asic_device::reg_0110_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0010_r (BUS_ERRSTAT clear)\n", machine().describe_context());
+	//
 }
 
 uint32_t spot_asic_device::reg_0014_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0014_r (BUS_ERREN set)\n", machine().describe_context());
 	return 0x00000000;
 }
 
 void spot_asic_device::reg_0014_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0014_w %08x (BUS_ERREN set)\n", machine().describe_context(), data);
+	//
 }
 
 void spot_asic_device::reg_0114_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0014_w %08x (BUS_ERREN clear)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_0018_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0018_r (BUS_ERRADDR)\n", machine().describe_context());
 	return 0x00000000;
 }
 
 void spot_asic_device::reg_0118_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0118_w %08x (BUS_WDREG clear)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_001c_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_001c_r (BUS_FENADDR1)\n", machine().describe_context());
 	return 0x00000000;
 }
 
 void spot_asic_device::reg_001c_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_001c_w %08x (BUS_FENADDR1)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_0020_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0020_r (BUS_FENMASK1)\n", machine().describe_context());
 	return 0x00000000;
 }
 
 void spot_asic_device::reg_0020_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0020_w %08x (BUS_FENMASK1)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_0024_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0024_r (BUS_FENADDR2)\n", machine().describe_context());
 	return 0x00000000;
 }
 
 void spot_asic_device::reg_0024_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0024_w %08x (BUS_FENADDR2)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_0028_r()
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0028_r (BUS_FENMASK2)\n", machine().describe_context());
 	return 0x00000000;
 }
 
 void spot_asic_device::reg_0028_w(uint32_t data)
 {
-	LOGMASKED(LOG_BUSUNIT, "%s: reg_0028_w %08x (BUS_FENMASK2)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_1000_r()
 {
-	LOGMASKED(LOG_ROMUNIT, "%s: reg_1000_r (ROM_SYSCONF)\n", machine().describe_context());
 	// The values here correspond to a retail FCS board, with flash ROM in bank 0 and mask ROM in bank 1
 	return m_sys_config->read();
 }
 
 uint32_t spot_asic_device::reg_1004_r()
 {
-	LOGMASKED(LOG_ROMUNIT, "%s: reg_1004_r (ROM_CNTL0)\n", machine().describe_context());
 	return m_rom_cntl0;
 }
 
 void spot_asic_device::reg_1004_w(uint32_t data)
 {
-	LOGMASKED(LOG_ROMUNIT, "%s: reg_1004_w %08x (ROM_CNTL0)\n", machine().describe_context(), data);
-
 	m_rom_cntl0 = data;
 }
 
 uint32_t spot_asic_device::reg_1008_r()
 {
-	LOGMASKED(LOG_ROMUNIT, "%s: reg_1008_r (ROM_CNTL1)\n", machine().describe_context());
 	return m_rom_cntl1;
 }
 
 void spot_asic_device::reg_1008_w(uint32_t data)
 {
-	LOGMASKED(LOG_ROMUNIT, "%s: reg_1008_w %08x (ROM_CNTL1)\n", machine().describe_context(), data);
-
 	m_rom_cntl1 = data;
 }
 
 uint32_t spot_asic_device::reg_2000_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2000_r (AUD_CSTART)\n", machine().describe_context());
 	return m_aud_cstart;
 }
 
 uint32_t spot_asic_device::reg_2004_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2004_r (AUD_CSIZE)\n", machine().describe_context());
 	return m_aud_csize;
 }
 
 uint32_t spot_asic_device::reg_2008_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2008_r (AUD_CCONFIG)\n", machine().describe_context());
 	return m_aud_cconfig;
 }
 
 void spot_asic_device::reg_2008_w(uint32_t data)
 {
 	m_aud_cconfig = data;
-
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2008_w %08x (AUD_CCONFIG)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_200c_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_200c_r (AUD_CCNT)\n", machine().describe_context());
 	return m_aud_ccnt;
 }
 
 uint32_t spot_asic_device::reg_2010_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2010_r (AUD_NSTART)\n", machine().describe_context());
 	return m_aud_nstart;
 }
 
 void spot_asic_device::reg_2010_w(uint32_t data)
 {
 	m_aud_nstart = data;
-
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2010_w %08x (AUD_NSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_2014_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2014_r (AUD_NSIZE)\n", machine().describe_context());
 	return m_aud_nsize;
 }
 
 void spot_asic_device::reg_2014_w(uint32_t data)
 {
 	m_aud_nsize = data;
-
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2014_w %08x (AUD_NSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_2018_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2018_r (AUD_NCONFIG)\n", machine().describe_context());
 	return m_aud_nconfig;
 }
 
 void spot_asic_device::reg_2018_w(uint32_t data)
 {
 	m_aud_nconfig = data;
-
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_2018_w %08x (AUD_NCONFIG)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_201c_r()
 {
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_201c_r (AUD_DMACNTL)\n", machine().describe_context());
-
 	spot_asic_device::irq_audio_w(0);
 
 	return m_aud_dmacntl;
@@ -668,31 +622,25 @@ uint32_t spot_asic_device::reg_201c_r()
 void spot_asic_device::reg_201c_w(uint32_t data)
 {
 	m_aud_dmacntl = data;
-
-	LOGMASKED(LOG_AUDUNIT, "%s: reg_201c_w %08x (AUD_DMACNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3000_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3000_r (VID_CSTART)\n", machine().describe_context());
 	return m_vid_cstart;
 }
 
 uint32_t spot_asic_device::reg_3004_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3004_r (VID_CSIZE)\n", machine().describe_context());
 	return m_vid_csize;
 }
 
 uint32_t spot_asic_device::reg_3008_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
 	return m_vid_ccnt;
 }
 
 uint32_t spot_asic_device::reg_300c_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_300c_r (VID_NSTART)\n", machine().describe_context());
 	return m_vid_nstart;
 }
 
@@ -701,13 +649,10 @@ void spot_asic_device::reg_300c_w(uint32_t data)
 	m_vid_nstart = data;
 
 	spot_asic_device::validate_active_area();
-
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3010_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3010_r (VID_NSIZE)\n", machine().describe_context());
 	return m_vid_nsize;
 }
 
@@ -716,13 +661,10 @@ void spot_asic_device::reg_3010_w(uint32_t data)
 	m_vid_nsize = data;
 
 	spot_asic_device::validate_active_area();
-
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3014_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3014_r (VID_DMACNTL)\n", machine().describe_context());
 	return m_vid_dmacntl;
 }
 
@@ -734,13 +676,10 @@ void spot_asic_device::reg_3014_w(uint32_t data)
 	}
 
 	m_vid_dmacntl = data;
-
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3018_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3018_r (VID_FCNTL)\n", machine().describe_context());
 	return m_vid_fcntl;
 }
 
@@ -755,26 +694,20 @@ void spot_asic_device::reg_3018_w(uint32_t data)
 	}
 	
 	m_vid_fcntl = data;
-
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3018_w %08x (VID_FCNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_301c_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_301c_r (VID_BLNKCOL)\n", machine().describe_context());
 	return m_vid_blank_color;
 }
 
 void spot_asic_device::reg_301c_w(uint32_t data)
 {
 	m_vid_blank_color = data;
-
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_301c_r %08x (VID_BLNKCOL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3020_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3020_r (VID_HSTART)\n", machine().describe_context());
 	return m_vid_hstart;
 }
 
@@ -783,13 +716,10 @@ void spot_asic_device::reg_3020_w(uint32_t data)
 	m_vid_hstart = data;
 
 	spot_asic_device::validate_active_area();
-
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3024_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3024_r (VID_HSIZE)\n", machine().describe_context());
 	return m_vid_hsize;
 }
 
@@ -798,13 +728,10 @@ void spot_asic_device::reg_3024_w(uint32_t data)
 	m_vid_hsize = data;
 
 	spot_asic_device::validate_active_area();
-
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3028_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3028_r (VID_VSTART)\n", machine().describe_context());
 	return m_vid_vstart;
 }
 
@@ -813,13 +740,10 @@ void spot_asic_device::reg_3028_w(uint32_t data)
 	m_vid_vstart = data;
 
 	spot_asic_device::validate_active_area();
-	
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_302c_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_302c_r (VID_VSIZE)\n", machine().describe_context());
 	return m_vid_vsize;
 }
 
@@ -828,63 +752,51 @@ void spot_asic_device::reg_302c_w(uint32_t data)
 	m_vid_vsize = data;
 
 	spot_asic_device::validate_active_area();
-	
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3030_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3030_r (VID_HINTLINE)\n", machine().describe_context());
 	return m_vid_hintline;
 }
 
 void spot_asic_device::reg_3030_w(uint32_t data)
 {
 	m_vid_hintline = data;
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3030_w %08x (VID_HINTLINE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3034_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3034_r (VID_CLINE)\n", machine().describe_context());
-
 	return (m_vid_cline++) & 0x1ffff;
 }
 
 uint32_t spot_asic_device::reg_3038_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3038_r (VID_INTSTAT read)\n", machine().describe_context());
 	return m_vid_intstat;
 }
 
 void spot_asic_device::reg_3138_w(uint32_t data)
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_3138_w %08x (VID_INTSTAT clear)\n", machine().describe_context(), data);
-	 m_vid_intstat &= (~data) & 0xff;
+	 m_vid_intstat &= ~(data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_303c_r()
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_303c_r (VID_INTEN_S)\n", machine().describe_context());
 	return m_vid_intenable;
 }
 
 void spot_asic_device::reg_303c_w(uint32_t data)
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_303c_w %08x (VID_INTEN_S)\n", machine().describe_context(), data);
-	m_vid_intenable = data & 0xff;
+	m_vid_intenable |= data & 0xFF;
 }
 
 void spot_asic_device::reg_313c_w(uint32_t data)
 {
-	LOGMASKED(LOG_VIDUNIT, "%s: reg_313c_w %08x (VID_INTEN_C clear)\n", machine().describe_context(), data);
-	 m_vid_intenable &= (~data) & 0xff;
+	 m_vid_intenable &= ~(data & 0xFF);
 }
 
 // Read IR receiver chip
 uint32_t spot_asic_device::reg_4000_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4000_r (DEV_IRDATA)\n", machine().describe_context());
 	// TODO: This seems to have been handled by a PIC16CR54AT. We do not have the ROM for this chip, so its behavior will need to be emulated at a high level.
 	return 0;
 }
@@ -892,7 +804,6 @@ uint32_t spot_asic_device::reg_4000_r()
 // Read LED states
 uint32_t spot_asic_device::reg_4004_r()
 {
-    LOGMASKED(LOG_DEVUNIT, "%s: reg_4004_r (DEV_LED)\n", machine().describe_context());
     m_power_led = !BIT(m_ledstate, 2);
     m_connect_led = !BIT(m_ledstate, 1);
     m_message_led = !BIT(m_ledstate, 0);
@@ -902,7 +813,6 @@ uint32_t spot_asic_device::reg_4004_r()
 // Update LED states
 void spot_asic_device::reg_4004_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4004_w %08x (DEV_LED)\n", machine().describe_context(), data);
 	m_ledstate = data;
 	m_power_led = !BIT(m_ledstate, 2);
 	m_connect_led = !BIT(m_ledstate, 1);
@@ -939,8 +849,6 @@ uint32_t spot_asic_device::reg_4008_r()
 			dev_id_bitidx = 0x0;
 		}
 	}
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4008_r (DEV_IDCNTL)\n", machine().describe_context());
 
 	return dev_idcntl | (dev_id_bit & 1);
 }
@@ -984,33 +892,28 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 				break;
 		}
 	}
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4008_w %08x - write %d (DEV_IDCNTL)\n", machine().describe_context(), data, m_serial_id_tx);
 }
 
 // Read from I2C EEPROM device (24C01A?)
 uint32_t spot_asic_device::reg_400c_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_400c_r (DEV_NVCNTL)\n", machine().describe_context());
 	return (m_nvcntl & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN))) + (m_nvram->read_sda() * NVCNTL_SDA_W) + (m_nvram->read_sda() * NVCNTL_SDA_R);
 }
 
 // Write to I2C EEPROM device
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_400c_w %08x (DEV_NVCNTL)\n", machine().describe_context(), data);
 	m_nvram->write_scl((data & NVCNTL_SCL) ? ASSERT_LINE : CLEAR_LINE);
 	if (data & NVCNTL_WRITE_EN) {
-		LOGMASKED(LOG_DEVUNIT, "%s: Writing %01x to NVRAM...\n", machine().describe_context(), (data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
 		m_nvram->write_sda((data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
 	}
+
 	m_nvcntl = data & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN) + (NVCNTL_SDA_W) + (NVCNTL_SDA_R));
 	
 }
 
 uint32_t spot_asic_device::reg_4010_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4010_r (DEV_SCCNTL)\n", machine().describe_context());
 	return 0;
 }
 
@@ -1044,116 +947,96 @@ void spot_asic_device::reg_4010_w(uint32_t data)
 			m_smrtcrd_serial_rxdata = 0x0;
 		}
 	}
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4010_w %08x (DEV_SCCNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_4014_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4014_r (DEV_EXTTIME)\n", machine().describe_context());
-	return 0;
+	return 0x00000000; //
 }
 
 void spot_asic_device::reg_4014_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4014_w %08x (DEV_EXTTIME)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_4020_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4020_r (DEV_KBD0)\n", machine().describe_context());
 	return m_kbdc->data_r(0x0);
 }
 
 void spot_asic_device::reg_4020_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4020_w %08x (DEV_KBD0)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x0, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4024_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4024_r (DEV_KBD1)\n", machine().describe_context());
 	return m_kbdc->data_r(0x4);
 }
 
 void spot_asic_device::reg_4024_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4024_w %08x (DEV_KBD1)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x4, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4028_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4028_r (DEV_KBD2)\n", machine().describe_context());
 	return m_kbdc->data_r(0x2);
 }
 
 void spot_asic_device::reg_4028_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4028_w %08x (DEV_KBD2)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x2, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_402c_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_402c_r (DEV_KBD3)\n", machine().describe_context());
 	return m_kbdc->data_r(0x3);
 }
 
 void spot_asic_device::reg_402c_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_402c_w %08x (DEV_KBD3)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x3, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4030_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4030_r (DEV_KBD4)\n", machine().describe_context());
 	return m_kbdc->data_r(0x4);
 }
 
 void spot_asic_device::reg_4030_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4030_w %08x (DEV_KBD4)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x4, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4034_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4034_r (DEV_KBD5)\n", machine().describe_context());
 	return m_kbdc->data_r(0x5);
 }
 
 void spot_asic_device::reg_4034_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4034_w %08x (DEV_KBD5)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x5, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4038_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4038_r (DEV_KBD6)\n", machine().describe_context());
 	return m_kbdc->data_r(0x6);
 }
 
 void spot_asic_device::reg_4038_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4038_w %08x (DEV_KBD6)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x6, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_403c_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_403c_r (DEV_KBD7)\n", machine().describe_context());
 	return m_kbdc->data_r(0x7);
 }
 
 void spot_asic_device::reg_403c_w(uint32_t data)
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_403c_w %08x (DEV_KBD7)\n", machine().describe_context(), data);
-	//m_kbdc->data_w(0x7, data & 0xFF);
-	m_kbdc->data_w(0x7, 0x21);
+	m_kbdc->data_w(0x7, data & 0xFF);
 }
 
 uint32_t blop_tx = false;
@@ -1162,7 +1045,7 @@ uint32_t blop_rx = false;
 uint32_t spot_asic_device::reg_4040_r()
 {
 	uint32_t cool = m_modem->ins8250_r(0x0);
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4040_r (DEV_MOD0)\n", machine().describe_context());
+
 	if(blop_rx)
 		printf("R:%02x\n", cool);
 	return cool & 0xFF;
@@ -1183,153 +1066,115 @@ void spot_asic_device::reg_4040_w(uint32_t data)
 
 		modem_buffer_timer->adjust(attotime::from_usec(1000));
 	}
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4040_w %08x (DEV_MOD0)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_4044_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4044_r (DEV_MOD1)\n", machine().describe_context());
 	return m_modem->ins8250_r(0x1);
 }
 
 void spot_asic_device::reg_4044_w(uint32_t data)
 {
 	m_modem->ins8250_w(0x1, data & 0xFF);
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4044_w %08x (DEV_MOD1)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_4048_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4048_r (DEV_MOD2)\n", machine().describe_context());
 	return m_modem->ins8250_r(0x2);
 }
 
 void spot_asic_device::reg_4048_w(uint32_t data)
 {
 	m_modem->ins8250_w(0x2, data & 0xFF);
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4048_w %08x (DEV_MOD2)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_404c_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_404c_r (DEV_MOD3)\n", machine().describe_context());
 	return m_modem->ins8250_r(0x3);
 }
 
 void spot_asic_device::reg_404c_w(uint32_t data)
 {
 	m_modem->ins8250_w(0x3, data & 0xFF);
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_404c_w %08x (DEV_MOD3)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_4050_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4050_r (DEV_MOD4)\n", machine().describe_context());
 	return m_modem->ins8250_r(0x4);
 }
 
 void spot_asic_device::reg_4050_w(uint32_t data)
 {
 	m_modem->ins8250_w(0x4, data & 0xFF);
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4050_w %08x (DEV_MOD4)\n", machine().describe_context(), data);
 }
 uint32_t spot_asic_device::reg_4054_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4054_r (DEV_MOD5)\n", machine().describe_context());
 	return m_modem->ins8250_r(0x5);
 }
 void spot_asic_device::reg_4054_w(uint32_t data)
 {
 	m_modem->ins8250_w(0x5, data & 0xFF);
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4054_w %08x (DEV_MOD5)\n", machine().describe_context(), data);
 }
 uint32_t spot_asic_device::reg_4058_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4058_r (DEV_MOD6)\n", machine().describe_context());
 	return m_modem->ins8250_r(0x6);
 }
 void spot_asic_device::reg_4058_w(uint32_t data)
 {
 	m_modem->ins8250_w(0x6, data & 0xFF);
-
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_4058_w %08x (DEV_MOD6)\n", machine().describe_context(), data);
 }
 uint32_t spot_asic_device::reg_405c_r()
 {
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_405c_r (DEV_MOD7)\n", machine().describe_context());
 	return m_modem->ins8250_r(0x7);
 }
 
 void spot_asic_device::reg_405c_w(uint32_t data)
 {
 	m_modem->ins8250_w(0x7, data & 0xFF);
-	
-	LOGMASKED(LOG_DEVUNIT, "%s: reg_405c_w %08x (DEV_MOD7)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_5000_r()
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_5000_r (MEM_CNTL)\n", machine().describe_context());
 	return m_memcntl;
 }
 
 void spot_asic_device::reg_5000_w(uint32_t data)
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_5000_w %08x (MEM_CNTL)\n", machine().describe_context(), data);
 	m_memcntl = data;
 }
 
 uint32_t spot_asic_device::reg_5004_r()
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_5004_r (MEM_REFCNT)\n", machine().describe_context());
 	return m_memrefcnt;
 }
 
 void spot_asic_device::reg_5004_w(uint32_t data)
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_5004_w %08x (MEM_REFCNT)\n", machine().describe_context(), data);
 	m_memrefcnt = data;
 }
 
 uint32_t spot_asic_device::reg_5008_r()
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_5008_r (MEM_DATA)\n", machine().describe_context());
 	return m_memdata;
 }
 
 void spot_asic_device::reg_5008_w(uint32_t data)
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_5008_w %08x (MEM_DATA)\n", machine().describe_context(), data);
 	m_memdata = data;
-}
-
-uint32_t spot_asic_device::reg_500c_r()
-{
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_500c_r (MEM_CMD - not a readable register!)\n", machine().describe_context());
-	// FIXME: This is defined as a write-only register, yet the WebTV software reads from it? Still need to see what the software expects from this.
-	return 0;
 }
 
 void spot_asic_device::reg_500c_w(uint32_t data)
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_500c_w %08x (MEM_CMD)\n", machine().describe_context(), data);
+	//
 }
 
 uint32_t spot_asic_device::reg_5010_r()
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_5010_r (MEM_TIMING)\n", machine().describe_context());
 	return m_memtiming;
 }
 
 void spot_asic_device::reg_5010_w(uint32_t data)
 {
-	LOGMASKED(LOG_MEMUNIT, "%s: reg_500c_w %08x (MEM_TIMING)\n", machine().describe_context(), data);
 	m_memtiming = data;
 }
 

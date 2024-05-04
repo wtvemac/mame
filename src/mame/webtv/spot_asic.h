@@ -269,7 +269,7 @@ private:
 	uint32_t m_compare_armed;
 
 	int m_serial_id_tx;
-
+	
 	void set_bus_irq(uint8_t mask, int state);
 	void set_vid_irq(uint8_t mask, int state);
 
