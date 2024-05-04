@@ -73,10 +73,10 @@ private:
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 
-	//required_device<amd_29f800b_16bit_device> m_flash0;
-	//required_device<amd_29f800b_16bit_device> m_flash1;
-	required_device<macronix_16161616_device> m_flash0;
-	required_device<macronix_16161616_device> m_flash1;
+	required_device<amd_29f800b_16bit_device> m_flash0;
+	required_device<amd_29f800b_16bit_device> m_flash1;
+	//required_device<macronix_16161616_device> m_flash0;
+	//required_device<macronix_16161616_device> m_flash1;
 
 	void bank0_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank0_flash_r(offs_t offset);
@@ -133,10 +133,10 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_maincpu->set_dcache_size(0x2000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_map);
 
-	//AMD_29F800B_16BIT(config, m_flash0, 0);
-	//AMD_29F800B_16BIT(config, m_flash1, 0);
-	MACRONIX_16161616(config, m_flash0, 0);
-	MACRONIX_16161616(config, m_flash1, 0);
+	AMD_29F800B_16BIT(config, m_flash0, 0);
+	AMD_29F800B_16BIT(config, m_flash1, 0);
+	//MACRONIX_16161616(config, m_flash0, 0);
+	//MACRONIX_16161616(config, m_flash1, 0);
 
 	DS2401(config, m_serial_id, 0);
 
