@@ -101,7 +101,7 @@ void spot_asic_device::bus_unit_map(address_map &map)
 	map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0014_w)); // BUS_ERREN_S
 	map(0x114, 0x117).w(FUNC(spot_asic_device::reg_0114_w));                                      // BUS_ERREN_C
 	map(0x018, 0x01b).r(FUNC(spot_asic_device::reg_0018_r));                                      // BUS_ERRADDR
-	map(0x118, 0x11b).w(m_watchdog, FUNC(watchdog_timer_device::reset_w));                        // BUS_WDREG_C
+	map(0x118, 0x11b).w(FUNC(spot_asic_device::reg_0118_w));                                      // BUS_WDREG_C
 	map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_001c_r), FUNC(spot_asic_device::reg_001c_w)); // BUS_FENADDR1
 	map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_0020_r), FUNC(spot_asic_device::reg_0020_w)); // BUS_FENMASK1
 	map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_0024_r), FUNC(spot_asic_device::reg_0024_w)); // BUS_FENADDR2
@@ -220,7 +220,8 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
 	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
 
-	WATCHDOG_TIMER(config, m_watchdog).set_vblank_count("screen", 64);
+	WATCHDOG_TIMER(config, m_watchdog);
+	m_watchdog->watchdog_enable(0);
 }
 
 void spot_asic_device::activate_ntsc_screen()
@@ -423,6 +424,9 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 			m_wdenable = !m_wdenable;
 
 			m_watchdog->watchdog_enable(m_wdenable);
+
+			if(m_wdenable)
+				m_watchdog->set_vblank_count("screen", 64);
 		}
 	}
 
@@ -488,7 +492,8 @@ uint32_t spot_asic_device::reg_0018_r()
 
 void spot_asic_device::reg_0118_w(uint32_t data)
 {
-	//
+	if(m_wdenable)
+		m_watchdog->reset_w(data);
 }
 
 uint32_t spot_asic_device::reg_001c_r()
