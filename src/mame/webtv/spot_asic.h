@@ -148,8 +148,6 @@ public:
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
-
-	void pixel_buffer_index_update();
 protected:
 	// device-level overrides
 	virtual void device_add_mconfig(machine_config &config) override;
@@ -271,7 +269,8 @@ private:
 	void set_vid_irq(uint8_t mask, int state);
 
 	void validate_active_area();
-	void spot_update_cycle_counting();
+	void pixel_buffer_index_update();
+	void watchdog_enable(int state);
 
 	/* busUnit registers */
 

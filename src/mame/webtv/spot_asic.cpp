@@ -219,8 +219,8 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
 	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
 
-	WATCHDOG_TIMER(config, m_watchdog).set_vblank_count("screen", 64);
-	m_watchdog->watchdog_enable(m_wdenable);
+	WATCHDOG_TIMER(config, m_watchdog);
+	spot_asic_device::watchdog_enable(0);
 }
 
 void spot_asic_device::activate_ntsc_screen()
@@ -398,6 +398,18 @@ void spot_asic_device::pixel_buffer_index_update()
 	}
 }
 
+void spot_asic_device::watchdog_enable(int state)
+{
+	m_wdenable = state;
+
+	m_watchdog->watchdog_enable(m_wdenable);
+
+	if(m_wdenable)
+		m_watchdog->set_vblank_count("screen", 180);
+	else
+		m_watchdog->set_vblank_count("screen", 0);
+}
+
 uint32_t spot_asic_device::reg_0000_r()
 {
     return 0x01010000;
@@ -420,9 +432,7 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 		// This doesn't track the count history but gets the expected result for the ROM.
 		if((!m_wdenable && wd_diff == 1 && wd_cntl == 3) || (m_wdenable && wd_diff == -1 && wd_cntl == 0))
 		{
-			m_wdenable = (wd_cntl == 3);
-
-			m_watchdog->watchdog_enable(m_wdenable);
+			watchdog_enable(wd_cntl == 3);
 		}
 	}
 
