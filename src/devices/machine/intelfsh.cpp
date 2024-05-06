@@ -531,7 +531,7 @@ uint32_t intelfsh_device::read_full(uint32_t address)
 		break;
 	}
 
-	//if (m_flash_mode != FM_NORMAL) logerror( "intelflash_read( %08x ) %08x\n", address, data );
+	if (m_flash_mode != FM_NORMAL) logerror( "intelflash_read( %08x ) %08x\n", address, data );
 
 	return data;
 }
@@ -544,7 +544,7 @@ uint32_t intelfsh_device::read_full(uint32_t address)
 
 void intelfsh_device::write_full(uint32_t address, uint32_t data)
 {
-	//logerror( "intelflash_write( %u : %08x, %08x )\n", m_flash_mode, address, data );
+	logerror( "intelflash_write111( %u : %08x, %08x )\n", m_flash_mode, address, data );
 
 	address += m_bank << 16;
 
@@ -1101,4 +1101,6 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		m_flash_mode = FM_NORMAL;
 		break;
 	}
+
+	logerror( "intelflash_write222( %u : %08x, %08x )\n", m_flash_mode, address, data );
 }
