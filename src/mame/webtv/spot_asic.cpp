@@ -405,9 +405,9 @@ void spot_asic_device::watchdog_enable(int state)
 	m_watchdog->watchdog_enable(m_wdenable);
 
 	if(m_wdenable)
-		m_watchdog->set_vblank_count("screen", WATCHDOG_VBLANK_COUNT);
+		m_watchdog->set_time(attotime::from_usec(WATCHDOG_TIMER_USEC));
 	else
-		m_watchdog->set_vblank_count("screen", 0);
+		m_watchdog->set_time(attotime::zero);
 }
 
 uint32_t spot_asic_device::reg_0000_r()

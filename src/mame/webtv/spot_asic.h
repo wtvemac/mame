@@ -131,7 +131,7 @@
 #define SSID_STATE_READROM_PULSEEND   0x6
 #define SSID_STATE_READROM_BIT        0x7
 
-#define WATCHDOG_VBLANK_COUNT 180
+#define WATCHDOG_TIMER_USEC 1000000
 
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {

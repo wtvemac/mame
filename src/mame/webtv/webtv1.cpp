@@ -140,7 +140,7 @@ private:
 //
 void webtv1_state::bank0_16mbit_flash_w(offs_t offset, uint32_t data)
 {
-	//printf("bank1_flash_w offset=%08x, data=%08x\n", offset, data);
+	printf("bank0_16mbit_flash_w offset=%08x, data=%08x\n", offset, data);
 
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 
@@ -161,7 +161,7 @@ uint32_t webtv1_state::bank0_16mbit_flash_r(offs_t offset)
 }
 void webtv1_state::bank0_8mbit_flash_w(offs_t offset, uint32_t data)
 {
-	//printf("bank1_flash_w offset=%08x, data=%08x\n", offset, data);
+	printf("bank0_8mbit_flash_w offset=%08x, data=%08x\n", offset, data);
 
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 
@@ -192,14 +192,10 @@ uint32_t webtv1_state::bank0_8mbit_flash_r(offs_t offset)
 // From our understanding the flash-based bootroms use AMD SO-44 chips (citation needed):
 //
 // Fujitsu:
-//    MBM29F400B:  bottom bs, 5v 4Mbit  device id=0x22ab
-//    MBM29F400T:  top bs,    5v 4Mbit  device id=0x2223 (have MAME support)
 //    MBM29F800B:  bottom bs, 5v 8Mbit  device id=0x2258
 //    MBM29F800T:  top bs,    5v 8Mbit  device id=0x22d6
 //
 // AMD:
-//    AM29F400AB:  bottom bs, 5v 4Mbit  device id=0x22ab
-//    AM29F400AT:  top bs,    5v 4Mbit  device id=0x2223
 //    AM29F800BB:  bottom bs, 5v 8Mbit  device id=0x2258 (have MAME support)
 //    AM29F800BT:  top bs,    5v 8Mbit  device id=0x22d6
 //

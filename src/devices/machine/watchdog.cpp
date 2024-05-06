@@ -129,8 +129,6 @@ void watchdog_timer_device::watchdog_enable(int state)
 {
 	const bool enable = bool(state);
 
-	printf("watchdog_enable: m_enabled=%08x, enable=%08x\n", m_enabled, enable);
-
 	// when re-enabled, we reset our state
 	if (m_enabled != enable)
 	{
