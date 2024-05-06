@@ -120,6 +120,7 @@
 #define INS8250_LSR_TSRE 0x40
 #define INS8250_LSR_THRE 0x20
 #define MBUFF_MAX_SIZE   0x1000
+#define MBUFF_TIMER_USEC 1000
 
 #define SSID_STATE_IDLE               0x0
 #define SSID_STATE_RESET              0x1
@@ -129,6 +130,8 @@
 #define SSID_STATE_READROM_PULSESTART 0x5
 #define SSID_STATE_READROM_PULSEEND   0x6
 #define SSID_STATE_READROM_BIT        0x7
+
+#define WATCHDOG_VBLANK_COUNT 180
 
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {

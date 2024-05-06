@@ -405,7 +405,7 @@ void spot_asic_device::watchdog_enable(int state)
 	m_watchdog->watchdog_enable(m_wdenable);
 
 	if(m_wdenable)
-		m_watchdog->set_vblank_count("screen", 180);
+		m_watchdog->set_vblank_count("screen", WATCHDOG_VBLANK_COUNT);
 	else
 		m_watchdog->set_vblank_count("screen", 0);
 }
@@ -1075,7 +1075,7 @@ void spot_asic_device::reg_4040_w(uint32_t data)
 	{
 		modem_txbuff[modem_txbuff_size++ & (MBUFF_MAX_SIZE - 1)] = data & 0xFF;
 
-		modem_buffer_timer->adjust(attotime::from_usec(1000));
+		modem_buffer_timer->adjust(attotime::from_usec(MBUFF_TIMER_USEC));
 	}
 }
 
@@ -1309,7 +1309,7 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
 
 	if(modem_txbuff_size > 0)
 	{
-		modem_buffer_timer->adjust(attotime::from_usec(1000));
+		modem_buffer_timer->adjust(attotime::from_usec(MBUFF_TIMER_USEC));
 	}
 }
 
