@@ -41,8 +41,7 @@
 #include "main.h"
 #include "screen.h"
 
-#define SYSCLOCK             56000000 // TODO: confirm this is correct
-#define EMUCONFIG_4MB_APPROM 0x80
+#define SYSCLOCK 56000000 // TODO: confirm this is correct
 
 class webtv1_state : public driver_device
 {
@@ -149,6 +148,10 @@ void webtv1_state::approm_flash_w(offs_t offset, uint32_t data)
 {
 	printf("approm_flash_w offset=%08x, data=%08x\n", offset, data);
 
+	// Clear drc cache after chip operation so we can cleanly execute the next step from RAM
+	if((offset & 0xffff) == 0x5555 && (data & 0xff) == 0xf0)
+		m_maincpu->clear_fastram(1);
+
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 	uint16_t lower_value = data & 0xffff;
 	
@@ -188,6 +191,10 @@ uint32_t webtv1_state::bootrom_flash_r(offs_t offset)
 }
 void webtv1_state::bootrom_flash_w(offs_t offset, uint32_t data)
 {
+	// Clear drc cache after chip operation so we can cleanly execute the next step from RAM
+	if((offset & 0xffff) == 0x5555 && (data & 0xff) == 0xf0)
+		m_maincpu->clear_fastram(1);
+
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 	uint16_t lower_value = data & 0xffff;
 
