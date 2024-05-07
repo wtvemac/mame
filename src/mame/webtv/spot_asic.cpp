@@ -1211,7 +1211,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 		for (int x = 0; x < screen_width; x += 2)
 		{
-			int32_t pixel = VID_DEFAULT_COLOR;
+			uint32_t pixel = VID_DEFAULT_COLOR;
 
 			bool is_active_area = (
 				y >= m_vid_vstart
