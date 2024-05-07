@@ -463,9 +463,9 @@ ROM_START( wtv1bfe )
 
 	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
 	ROM_SYSTEM_BIOS(0, "bfe-boot", "Prototype bfe BootROM (1.0, build 105)")
-	ROMX_LOAD("bfe-boot.o", 0x400000, 0x200000, NO_DUMP, ROM_BIOS(0))         // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+	ROMX_LOAD("bfe-boot.o", 0x400000, 0x200000, CRC(71c321db) SHA1(6a39e064fb2312d70728b8105de990762226bd07), ROM_BIOS(0))         // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
 	ROM_SYSTEM_BIOS(1, "prealpha-boot", "Pre-alpha bfe BootROM")
-	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, NO_DUMP, ROM_BIOS(1))    // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, CRC(f23fbfd3) SHA1(f046ecc4ff46f3afca9a413c7c1022246c36e7ff), ROM_BIOS(1))    // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
 ROM_END
 
 ROM_START( wtv1dbg )
@@ -479,7 +479,7 @@ ROM_START( wtv1sony )
 
 	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "Standard bf0 BootROM (1.0, build 105)")
-	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP, ROM_BIOS(0))          // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, CRC(5ad8f7b6) SHA1(a5c411f5f0126e79a0d925822062203c2272faf8), ROM_BIOS(0))          // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
 ROM_END
 
 ROM_START( wtv1phil )
@@ -488,7 +488,7 @@ ROM_START( wtv1phil )
 
 	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "Standard bf0 BootROM (1.0, build 105)")
-	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP, ROM_BIOS(0))          // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, CRC(5ad8f7b6) SHA1(a5c411f5f0126e79a0d925822062203c2272faf8), ROM_BIOS(0))          // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
 ROM_END
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT         CLASS         INIT        COMPANY               FULLNAME                            FLAGS
