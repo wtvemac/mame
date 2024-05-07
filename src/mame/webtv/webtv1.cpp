@@ -53,6 +53,7 @@ public:
 		m_sys_config(*this, "sys_config"),
 		m_emu_config(*this, "emu_config"),
 		m_maincpu(*this, "maincpu"),
+		m_mainram(*this, "mainram"),
 		m_spotasic(*this, "spot"),
 		m_serial_id(*this, "serial_id"),
 		m_nvram(*this, "nvram"),
@@ -78,6 +79,7 @@ private:
 	required_ioport m_emu_config;
 
 	required_device<mips3_device> m_maincpu;
+	required_shared_ptr<uint32_t> m_mainram;
 	required_device<spot_asic_device> m_spotasic;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
@@ -199,7 +201,7 @@ void webtv1_state::webtv1_base_map(address_map &map)
 	map.global_mask(0x1fffffff);
 
 	// RAM (0x00000000-0x007fffff)
-	map(0x00000000, 0x007fffff).ram().share("ram"); // 8MB is not accurate to retail hardware! Ideally this would be 2MB or 4MB, mirrored across this memory space
+	map(0x00000000, 0x007fffff).ram().share("mainram"); // 8MB is not accurate to retail hardware! Ideally this would be 2MB or 4MB, mirrored across this memory space
 
 	// Expansion device #1 to #7 8MB each (0x00800000-0x03ffffff)
 
@@ -267,6 +269,7 @@ void webtv1_state::webtv1_base(machine_config &config)
 	R4640BE(config, m_maincpu, SYSCLOCK*2);
 	m_maincpu->set_icache_size(0x2000);
 	m_maincpu->set_dcache_size(0x2000);
+	m_maincpu->add_fastram(0x00000000, 0x007fffff, false, m_mainram);
 
 	DS2401(config, m_serial_id, 0);
 
@@ -276,6 +279,7 @@ void webtv1_state::webtv1_base(machine_config &config)
 
 	SPOT_ASIC(config, m_spotasic, SYSCLOCK);
 	m_spotasic->set_hostcpu(m_maincpu);
+	m_spotasic->set_hostram(m_mainram);
 	m_spotasic->set_serial_id(m_serial_id);
 	m_spotasic->set_nvram(m_nvram);
 }
@@ -323,7 +327,7 @@ void webtv1_state::webtv1_philips(machine_config& config)
 	// manufacturer is determined by the contents of DS2401
 	webtv1_base(config);
 
-	// 2MB bf0app:
+	// 2MB bf0app Approm
 	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
 	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 

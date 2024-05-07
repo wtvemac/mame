@@ -147,6 +147,7 @@ public:
 	void mem_unit_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
+	template <typename T> void set_hostram(T &&tag) { m_hostram.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
 
@@ -235,6 +236,7 @@ protected:
 
 private:
 	required_device<mips3_device> m_hostcpu;
+	required_shared_ptr<uint32_t> m_hostram;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 	required_device<kbdc8042_device> m_kbdc;

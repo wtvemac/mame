@@ -60,6 +60,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	device_serial_interface(mconfig, *this),
 	device_video_interface(mconfig, *this),
 	m_hostcpu(*this, finder_base::DUMMY_TAG),
+	m_hostram(*this, finder_base::DUMMY_TAG),
 	m_serial_id(*this, finder_base::DUMMY_TAG),
 	m_nvram(*this, finder_base::DUMMY_TAG),
 	m_kbdc(*this, "kbdc"),
@@ -1198,8 +1199,6 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 	m_vid_csize = m_vid_nsize;
 	m_vid_ccnt = m_vid_drawstart;
 
-	address_space &space = m_hostcpu->space(AS_PROGRAM);
-
 	for (int y = 0; y < screen_height; y++)
 	{
 		uint32_t *line = &bitmap.pix(y);
@@ -1223,7 +1222,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 			if (m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
 			{
-				pixel = space.read_dword(m_vid_ccnt);
+				pixel = m_hostram[m_vid_ccnt >> 2];
 
 				m_vid_ccnt += 2 * VID_BYTES_PER_PIXEL;
 			}
@@ -1267,15 +1266,10 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 {
 	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
 	{
-		address_space &space = m_hostcpu->space(AS_PROGRAM);
+		uint32_t sample = m_hostram[(m_aud_cstart + m_aud_ccnt) >> 2];
 
-		// m_aud_cconfig
-
-		int16_t sample1 = space.read_word(m_aud_cstart + m_aud_ccnt);
-		int16_t sample2 = space.read_word(m_aud_cstart + m_aud_ccnt + 0x2);
-
-		m_ldac->write(sample1);
-		m_rdac->write(sample2);
+		m_ldac->write((sample >> 0x10) & 0xFFFF);
+		m_rdac->write((sample) & 0xFFFF);
 
 		m_aud_ccnt += 4;
 
