@@ -356,7 +356,7 @@ void mips3_device::generate_tlb_exception(int exception, offs_t address)
 
 void mips3_device::invalid_instruction(uint32_t op)
 {
-	fatalerror("Invalid instruction! %08x\n", op);
+	fatalerror("Invalid instruction! %08x @ %08x\n", op, m_core->pc);
 	generate_exception(EXCEPTION_INVALIDOP, 1);
 }
 
@@ -4099,6 +4099,7 @@ void mips3_device::handle_idt(uint32_t op)
 {
 	switch (op & 0x1f)
 	{
+		case 0: /* MADD */
 		case 2: /* MUL */
 			RDVAL64 = (int32_t)((int32_t)RSVAL32 * (int32_t)RTVAL32);
 			m_core->icount -= 3;
