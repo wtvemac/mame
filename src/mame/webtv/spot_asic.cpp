@@ -1194,10 +1194,11 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 {
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height =  bitmap.height();
+	uint8_t m_vid_step = (2 * VID_BYTES_PER_PIXEL) >> 2;
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_vid_drawstart;
+	m_vid_ccnt = m_vid_drawstart >> 2;
 
 	for (int y = 0; y < screen_height; y++)
 	{
@@ -1222,9 +1223,9 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 			if (m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
 			{
-				pixel = m_hostram[m_vid_ccnt >> 2];
+				pixel = m_hostram[m_vid_ccnt];
 
-				m_vid_ccnt += 2 * VID_BYTES_PER_PIXEL;
+				m_vid_ccnt += m_vid_step;
 			}
 			else if (m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
 			{
