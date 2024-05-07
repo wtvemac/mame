@@ -1266,19 +1266,19 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 {
 	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
 	{
-		uint32_t sample = m_hostram[(m_aud_cstart + m_aud_ccnt) >> 2];
+		uint32_t sample = m_hostram[m_aud_ccnt];
 
 		m_ldac->write((sample >> 0x10) & 0xFFFF);
 		m_rdac->write((sample) & 0xFFFF);
 
-		m_aud_ccnt += 4;
+		m_aud_ccnt++;
 
 		if(m_aud_ccnt >= m_aud_csize)
 		{
 			m_aud_cstart = m_aud_nstart;
-			m_aud_csize = m_aud_nsize;
+			m_aud_csize = (m_aud_cstart + m_aud_nsize) >> 2;
 			m_aud_cconfig = m_aud_nconfig;
-			m_aud_ccnt = 0x0;
+			m_aud_ccnt = m_aud_cstart >> 2;
 			spot_asic_device::irq_audio_w(1);
 		}
 	}

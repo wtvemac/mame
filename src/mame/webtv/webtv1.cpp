@@ -95,9 +95,9 @@ private:
 	void bootrom_flash_w(offs_t offset, uint32_t data);
 
 	void webtv1_base_map(address_map &map);
-	void webtv1_dbg_rom_map(address_map &map);
-	void webtv1_bfe_rom_map(address_map &map);
-	void webtv1_retail_rom_map(address_map &map);
+	void webtv1_dbg_map(address_map &map);
+	void webtv1_bfe_map(address_map &map);
+	void webtv1_retail_map(address_map &map);
 };
 
 //
@@ -105,7 +105,7 @@ private:
 // 
 // There's two 16-bit flash chips striped across a 32-bit bus. The chip with the upper 16-bits is labeled U0501, and lower is U0502.
 //
-// WebTV supports flash configurations to allow 1MB (2 x 512kbit chips), 2MB (2 x 1Mbit chips) and 4MB (2 x 2Mbit chips) approms.
+// WebTV supports flash configurations to allow 1MB (2 x 4Mbit chips), 2MB (2 x 8Mbit chips) and 4MB (2 x 16Mbit chips) approms.
 // The 1MB flash configuration seemed to never be used, 2MB flash configuration was released to the public
 // and it seemed a 4MB flash configuration was used for debug builds during approm development as well as for prototype Japan builds.
 //
@@ -195,7 +195,6 @@ void webtv1_state::bootrom_flash_w(offs_t offset, uint32_t data)
 	m_bootrom_flash1->write(offset, lower_value);
 }
 
-
 void webtv1_state::webtv1_base_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
@@ -217,7 +216,7 @@ void webtv1_state::webtv1_base_map(address_map &map)
 	// Reserved (0x04800000-0x1f7fffff)
 }
 
-void webtv1_state::webtv1_dbg_rom_map(address_map &map)
+void webtv1_state::webtv1_dbg_map(address_map &map)
 {
 	webtv1_base_map(map);
 
@@ -232,7 +231,7 @@ void webtv1_state::webtv1_dbg_rom_map(address_map &map)
 	// Reserved (0x20000000-0xffffffff)
 }
 
-void webtv1_state::webtv1_bfe_rom_map(address_map &map)
+void webtv1_state::webtv1_bfe_map(address_map &map)
 {
 	webtv1_base_map(map);
 
@@ -247,7 +246,7 @@ void webtv1_state::webtv1_bfe_rom_map(address_map &map)
 	// Reserved (0x20000000-0xffffffff)
 }
 
-void webtv1_state::webtv1_retail_rom_map(address_map &map)
+void webtv1_state::webtv1_retail_map(address_map &map)
 {
 	webtv1_base_map(map);
 
@@ -296,7 +295,7 @@ void webtv1_state::webtv1_dbg(machine_config& config)
 	AMD_29F800B_16BIT(config, m_bootrom_flash0, 0);
 	AMD_29F800B_16BIT(config, m_bootrom_flash1, 0);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_dbg_rom_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_dbg_map);
 }
 
 void webtv1_state::webtv1_bfe(machine_config& config)
@@ -307,7 +306,7 @@ void webtv1_state::webtv1_bfe(machine_config& config)
 	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
 	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_bfe_rom_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_bfe_map);
 }
 
 void webtv1_state::webtv1_sony(machine_config& config)
@@ -319,7 +318,7 @@ void webtv1_state::webtv1_sony(machine_config& config)
 	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
 	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_retail_rom_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_retail_map);
 }
 
 void webtv1_state::webtv1_philips(machine_config& config)
@@ -331,7 +330,7 @@ void webtv1_state::webtv1_philips(machine_config& config)
 	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
 	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_retail_rom_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_retail_map);
 }
 
 void webtv1_state::machine_start()
