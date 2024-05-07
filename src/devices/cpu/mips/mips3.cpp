@@ -1125,16 +1125,18 @@ void mips3_device::device_reset()
 		entry->entry_lo[1] = 0xfffffff8;
 		vtlb_load(2 * tlbindex + 0, 0, 0, 0);
 		vtlb_load(2 * tlbindex + 1, 0, 0, 0);
+		vtlb_load(2 * tlbindex + 2, 0, 0, 0);
 		if (m_flavor == MIPS3_TYPE_TX4925)
-			vtlb_load(2 * tlbindex + 2, 0, 0, 0);
+			vtlb_load(2 * tlbindex + 3, 0, 0, 0);
 	}
 
 	/* load the fixed TLB range */
 	vtlb_load(2 * m_tlbentries + 0, (0xa0000000 - 0x80000000) >> MIPS3_MIN_PAGE_SHIFT, 0x80000000, 0x00000000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
 	vtlb_load(2 * m_tlbentries + 1, (0xc0000000 - 0xa0000000) >> MIPS3_MIN_PAGE_SHIFT, 0xa0000000, 0x00000000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
+	vtlb_load(2 * m_tlbentries + 2, (0xe0000000 - 0xc0000000) >> MIPS3_MIN_PAGE_SHIFT, 0xc0000000, 0x00000000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
 	// TX4925 on-board peripherals pass-through
 	if (m_flavor == MIPS3_TYPE_TX4925)
-		vtlb_load(2 * m_tlbentries + 2, (0xff200000 - 0xff1f0000) >> MIPS3_MIN_PAGE_SHIFT, 0xff1f0000, 0xff1f0000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
+		vtlb_load(2 * m_tlbentries + 3, (0xff200000 - 0xff1f0000) >> MIPS3_MIN_PAGE_SHIFT, 0xff1f0000, 0xff1f0000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
 	m_tlb_seed = 0;
 
 	m_core->mode = (MODE_KERNEL << 1) | 0;
@@ -5976,7 +5978,6 @@ void mips3_device::load_elf()
 
 void r5000be_device::handle_cache(uint32_t op)
 {
-	// EMAC_TODO: IMPLEMENT or SKIP
 	if ((SR & SR_KSU_MASK) != SR_KSU_KERNEL && !(SR & SR_COP0) && !(SR & (SR_EXL | SR_ERL)))
 	{
 		m_badcop_value = 0;
@@ -6007,7 +6008,6 @@ void r5000be_device::handle_cache(uint32_t op)
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, I-Cache Fill \n", machine().describe_context(), vaddr);
 			break;
 
-		// EMAC_TODO: IMPLEMENT or SKIP
 		case 6: // Hit WriteBack
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, I-Cache Hit WriteBack\n", machine().describe_context(), vaddr);
 			break;
@@ -6019,7 +6019,6 @@ void r5000be_device::handle_cache(uint32_t op)
 	case 1: // Primary Data
 		switch (CACHE_OP)
 		{
-		// EMAC_TODO: IMPLEMENT or SKIP
 		case 0: // Index WriteBack Invalidate
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Index WriteBack Invalidate\n", machine().describe_context(), vaddr);
 			break;
@@ -6036,12 +6035,10 @@ void r5000be_device::handle_cache(uint32_t op)
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Hit Invalidate\n", machine().describe_context(), vaddr);
 			break;
 
-		// EMAC_TODO: IMPLEMENT or SKIP
 		case 5: // Hit WriteBack Invalidate
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Hit WriteBack Invalidate\n", machine().describe_context(), vaddr);
 			break;
 
-		// EMAC_TODO: IMPLEMENT or SKIP
 		case 6: // Hit WriteBack
 			logerror("%s: MIPS3: Not yet implemented: cache: vaddr %08x, D-Cache Hit WriteBack\n", machine().describe_context(), vaddr);
 			break;
