@@ -236,10 +236,10 @@ public:
 	macronix_29lv160tmc_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
-class macronix_29F1610_16bit_device : public intelfsh16_device
+class macronix_29f1610_16bit_device : public intelfsh16_device
 {
 public:
-	macronix_29F1610_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+	macronix_29f1610_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class panasonic_mn63f805mnp_device : public intelfsh8_device
@@ -393,7 +393,7 @@ DECLARE_DEVICE_TYPE(INTEL_E28F400B,         intel_e28f400b_device)
 DECLARE_DEVICE_TYPE(MACRONIX_29F008TC,      macronix_29f008tc_device)
 DECLARE_DEVICE_TYPE(MACRONIX_29L001MC,      macronix_29l001mc_device)
 DECLARE_DEVICE_TYPE(MACRONIX_29LV160TMC,    macronix_29lv160tmc_device)
-DECLARE_DEVICE_TYPE(MACRONIX_29F1610_16BIT, macronix_29F1610_16bit_device)
+DECLARE_DEVICE_TYPE(MACRONIX_29F1610_16BIT, macronix_29f1610_16bit_device)
 DECLARE_DEVICE_TYPE(TMS_29F040,             tms_29f040_device)
 
 DECLARE_DEVICE_TYPE(PANASONIC_MN63F805MNP,  panasonic_mn63f805mnp_device)

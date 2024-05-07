@@ -56,18 +56,16 @@ public:
 		m_spotasic(*this, "spot"),
 		m_serial_id(*this, "serial_id"),
 		m_nvram(*this, "nvram"),
-		m_bank0_8mbit_flash0(*this, "bank0_flash0"), // 2MB approm labeled U0501, contains upper bits
-		m_bank0_8mbit_flash1(*this, "bank0_flash1"), // 2MB approm labeled U0502, contains lower bits
-		m_bank0_16mbit_flash0(*this, "bank0_16mbit_flash0"), // 4MB approm labeled U0501, contains upper bits
-		m_bank0_16mbit_flash1(*this, "bank0_16mbit_flash1"), // 4MB approm labeled U0502, contains lower bits
-		m_bank1_8mbit_flash0(*this, "bank1_flash0"), // 2MB flashable bootrom labeled U0503, contains upper bits
-		m_bank1_8mbit_flash1(*this, "bank1_flash1") // 2MB flashable bootrom labeled U0504, contains lower bits
+		m_approm_flash0(*this, "approm_flash0"),   // typically labeled U0501 on the board, upper 16 bits
+		m_approm_flash1(*this, "approm_flash1"),   // typically labeled U0502 on the board, lower 16 bits
+		m_bootrom_flash0(*this, "bootrom_flash0"), // typically labeled U0503 on the board, uupper 16 bits
+		m_bootrom_flash1(*this, "bootrom_flash1")  // typically labeled U0504 on the board, lower 16 bits
 	{ }
 	
 	void webtv1_base(machine_config& config);
 
-	void webtv1_bfe(machine_config& config);
 	void webtv1_dbg(machine_config& config);
+	void webtv1_bfe(machine_config& config);
 	void webtv1_sony(machine_config& config);
 	void webtv1_philips(machine_config& config);
 
@@ -84,23 +82,20 @@ private:
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 
-	required_device<amd_29f800b_16bit_device> m_bank0_8mbit_flash0;
-	required_device<amd_29f800b_16bit_device> m_bank0_8mbit_flash1;
-	required_device<macronix_29F1610_16bit_device> m_bank0_16mbit_flash0;
-	required_device<macronix_29F1610_16bit_device> m_bank0_16mbit_flash1;
-	required_device<amd_29f800b_16bit_device> m_bank1_8mbit_flash0;
-	required_device<amd_29lv800b_16bit_device> m_bank1_8mbit_flash1;
+	required_device<intelfsh16_device> m_approm_flash0;
+	required_device<intelfsh16_device> m_approm_flash1;
+	required_device<intelfsh16_device> m_bootrom_flash0;
+	required_device<intelfsh16_device> m_bootrom_flash1;
 
-	void bank0_16mbit_flash_w(offs_t offset, uint32_t data);
-	uint32_t bank0_16mbit_flash_r(offs_t offset);
-	void bank0_8mbit_flash_w(offs_t offset, uint32_t data);
-	uint32_t bank0_8mbit_flash_r(offs_t offset);
-	void bank1_8mbit_flash_w(offs_t offset, uint32_t data);
-	uint32_t bank1_8mbit_flash_r(offs_t offset);
+	uint32_t approm_flash_r(offs_t offset);
+	void approm_flash_w(offs_t offset, uint32_t data);
+	uint32_t bootrom_flash_r(offs_t offset);
+	void bootrom_flash_w(offs_t offset, uint32_t data);
 
-	void webtv1_bfe_map(address_map &map);
-	void webtv1_dbg_map(address_map &map);
-	void webtv1_default_map(address_map &map);
+	void webtv1_base_map(address_map &map);
+	void webtv1_dbg_rom_map(address_map &map);
+	void webtv1_bfe_rom_map(address_map &map);
+	void webtv1_retail_rom_map(address_map &map);
 };
 
 //
@@ -133,52 +128,30 @@ private:
 // Macronix:
 //    MX29F1610:   top bs,    5v 16Mbit device id=0x00f1 (have MAME support)
 //
-// bank0_flash0 = U0501
-// bank0_flash1 = U0502
+// approm_flash0 = U0501
+// approm_flash1 = U0502
 //
 // NOTE: if you dump these chips you may need to byte swap the output. The bus is big-endian.
 //
-void webtv1_state::bank0_16mbit_flash_w(offs_t offset, uint32_t data)
-{
-	printf("bank0_16mbit_flash_w offset=%08x, data=%08x\n", offset, data);
-
-	uint16_t upper_value = (data >> 0x10) & 0xffff;
-
-	uint16_t lower_value = data & 0xffff;
-	
-	m_bank0_16mbit_flash0->write(offset, upper_value); // bank0_16mbit_flash0 file
-	m_bank0_16mbit_flash1->write(offset, lower_value); // bank0_16mbit_flash1 file
-}
-uint32_t webtv1_state::bank0_16mbit_flash_r(offs_t offset)
+uint32_t webtv1_state::approm_flash_r(offs_t offset)
 {
 	uint16_t upper_value = 0x0;
 	uint16_t lower_value = 0x0;
 	
-	upper_value = m_bank0_16mbit_flash0->read(offset); // bank0_16mbit_flash0 file
-	lower_value = m_bank0_16mbit_flash1->read(offset); // bank0_16mbit_flash1 file
+	upper_value = m_approm_flash0->read(offset); // bank0_16mbit_flash0 file
+	lower_value = m_approm_flash1->read(offset); // bank0_16mbit_flash1 file
 
 	return (upper_value << 16) | (lower_value);
 }
-void webtv1_state::bank0_8mbit_flash_w(offs_t offset, uint32_t data)
+void webtv1_state::approm_flash_w(offs_t offset, uint32_t data)
 {
-	printf("bank0_8mbit_flash_w offset=%08x, data=%08x\n", offset, data);
+	printf("approm_flash_w offset=%08x, data=%08x\n", offset, data);
 
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
-
 	uint16_t lower_value = data & 0xffff;
 	
-	m_bank0_8mbit_flash0->write(offset, upper_value); // bank0_flash0 file
-	m_bank0_8mbit_flash1->write(offset, lower_value); // bank0_flash1 file
-}
-uint32_t webtv1_state::bank0_8mbit_flash_r(offs_t offset)
-{
-	uint16_t upper_value = 0x0;
-	uint16_t lower_value = 0x0;
-	
-	upper_value = m_bank0_8mbit_flash0->read(offset); // bank0_flash0 file
-	lower_value = m_bank0_8mbit_flash1->read(offset); // bank0_flash1 file
-
-    return (upper_value << 16) | (lower_value);
+	m_approm_flash0->write(offset, upper_value); // bank0_16mbit_flash0 file
+	m_approm_flash1->write(offset, lower_value); // bank0_16mbit_flash1 file
 }
 
 //
@@ -199,30 +172,29 @@ uint32_t webtv1_state::bank0_8mbit_flash_r(offs_t offset)
 //    AM29F800BB:  bottom bs, 5v 8Mbit  device id=0x2258 (have MAME support)
 //    AM29F800BT:  top bs,    5v 8Mbit  device id=0x22d6
 //
-// bank1_flash0 = U0503
-// bank1_flash1 = U0504
+// bootrom_flash0 = U0503
+// bootrom_flash1 = U0504
 //
 // NOTE: if you dump these chips you may need to byte swap the output. The bus is big-endian.
 //
-void webtv1_state::bank1_8mbit_flash_w(offs_t offset, uint32_t data)
+uint32_t webtv1_state::bootrom_flash_r(offs_t offset)
+{
+	uint16_t upper_value = m_bootrom_flash0->read(offset);
+	uint16_t lower_value = m_bootrom_flash1->read(offset);
+
+	return (upper_value << 16) | (lower_value);
+}
+void webtv1_state::bootrom_flash_w(offs_t offset, uint32_t data)
 {
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 	uint16_t lower_value = data & 0xffff;
 
-	m_bank1_8mbit_flash0->write(offset, upper_value);
-	m_bank1_8mbit_flash1->write(offset, lower_value);
-}
-
-uint32_t webtv1_state::bank1_8mbit_flash_r(offs_t offset)
-{
-	uint16_t upper_value = m_bank1_8mbit_flash0->read(offset);
-	uint16_t lower_value = m_bank1_8mbit_flash1->read(offset);
-
-	return (upper_value << 16) | (lower_value);
+	m_bootrom_flash0->write(offset, upper_value);
+	m_bootrom_flash1->write(offset, lower_value);
 }
 
 
-void webtv1_state::webtv1_bfe_map(address_map &map)
+void webtv1_state::webtv1_base_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
 
@@ -241,6 +213,26 @@ void webtv1_state::webtv1_bfe_map(address_map &map)
 	map(0x04005000, 0x04005fff).m(m_spotasic, FUNC(spot_asic_device::mem_unit_map));
 
 	// Reserved (0x04800000-0x1f7fffff)
+}
+
+void webtv1_state::webtv1_dbg_rom_map(address_map &map)
+{
+	webtv1_base_map(map);
+
+	// ROML Bank 0 (0x1f000000-0x1f3fffff)
+	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
+
+	// Diagnostic Space (0xf400000-0x1f7fffff)
+
+	// ROMU Bank 1 (0x1f800000-0x1fffffff)
+	map(0x1fc00000, 0x1fdfffff).rw(FUNC(webtv1_state::bootrom_flash_r), FUNC(webtv1_state::bootrom_flash_w)).share("bootrom_flash");
+
+	// Reserved (0x20000000-0xffffffff)
+}
+
+void webtv1_state::webtv1_bfe_rom_map(address_map &map)
+{
+	webtv1_base_map(map);
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
 
@@ -248,64 +240,17 @@ void webtv1_state::webtv1_bfe_map(address_map &map)
 
 	// ROMU Bank 1 (0x1f800000-0x1fffffff)
 	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
-	map(0x1fe00000, 0x1fffffff).rw(FUNC(webtv1_state::bank0_8mbit_flash_r), FUNC(webtv1_state::bank0_8mbit_flash_w)).share("approm_flash");
+	map(0x1fe00000, 0x1fffffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
 
 	// Reserved (0x20000000-0xffffffff)
 }
 
-void webtv1_state::webtv1_dbg_map(address_map &map)
+void webtv1_state::webtv1_retail_rom_map(address_map &map)
 {
-	map.global_mask(0x1fffffff);
-
-	// RAM (0x00000000-0x007fffff)
-	map(0x00000000, 0x007fffff).ram().share("ram"); // 8MB is not accurate to retail hardware! Ideally this would be 2MB or 4MB, mirrored across this memory space
-
-	// Expansion device #1 to #7 8MB each (0x00800000-0x03ffffff)
-
-	// WebTV Control Space (0x04000000-0x047fffff)
-	// SPOT
-	map(0x04000000, 0x04000fff).m(m_spotasic, FUNC(spot_asic_device::bus_unit_map));
-	map(0x04001000, 0x04001fff).m(m_spotasic, FUNC(spot_asic_device::rom_unit_map));
-	map(0x04002000, 0x04002fff).m(m_spotasic, FUNC(spot_asic_device::aud_unit_map));
-	map(0x04003000, 0x04003fff).m(m_spotasic, FUNC(spot_asic_device::vid_unit_map));
-	map(0x04004000, 0x04004fff).m(m_spotasic, FUNC(spot_asic_device::dev_unit_map));
-	map(0x04005000, 0x04005fff).m(m_spotasic, FUNC(spot_asic_device::mem_unit_map));
-
-	// Reserved (0x04800000-0x1f7fffff)
+	webtv1_base_map(map);
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
-	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::bank0_16mbit_flash_r), FUNC(webtv1_state::bank0_16mbit_flash_w)).share("approm_flash");
-
-	// Diagnostic Space (0xf400000-0x1f7fffff)
-
-	// ROMU Bank 1 (0x1f800000-0x1fffffff)
-	map(0x1fc00000, 0x1fdfffff).rw(FUNC(webtv1_state::bank1_8mbit_flash_r), FUNC(webtv1_state::bank1_8mbit_flash_w)).share("bootrom_flash");
-
-	// Reserved (0x20000000-0xffffffff)
-}
-
-void webtv1_state::webtv1_default_map(address_map &map)
-{
-	map.global_mask(0x1fffffff);
-
-	// RAM (0x00000000-0x007fffff)
-	map(0x00000000, 0x007fffff).ram().share("ram"); // 8MB is not accurate to retail hardware! Ideally this would be 2MB or 4MB, mirrored across this memory space
-
-	// Expansion device #1 to #7 8MB each (0x00800000-0x03ffffff)
-
-	// WebTV Control Space (0x04000000-0x047fffff)
-	// SPOT
-	map(0x04000000, 0x04000fff).m(m_spotasic, FUNC(spot_asic_device::bus_unit_map));
-	map(0x04001000, 0x04001fff).m(m_spotasic, FUNC(spot_asic_device::rom_unit_map));
-	map(0x04002000, 0x04002fff).m(m_spotasic, FUNC(spot_asic_device::aud_unit_map));
-	map(0x04003000, 0x04003fff).m(m_spotasic, FUNC(spot_asic_device::vid_unit_map));
-	map(0x04004000, 0x04004fff).m(m_spotasic, FUNC(spot_asic_device::dev_unit_map));
-	map(0x04005000, 0x04005fff).m(m_spotasic, FUNC(spot_asic_device::mem_unit_map));
-
-	// Reserved (0x04800000-0x1f7fffff)
-
-	// ROML Bank 0 (0x1f000000-0x1f3fffff)
-	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::bank0_8mbit_flash_r), FUNC(webtv1_state::bank0_8mbit_flash_w)).share("approm_flash");
+	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
 
 	// Diagnostic Space (0xf400000-0x1f7fffff)
 
@@ -323,18 +268,6 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_maincpu->set_icache_size(0x2000);
 	m_maincpu->set_dcache_size(0x2000);
 
-	// 2MB bf0app Prod:
-	AMD_29F800B_16BIT(config, m_bank0_8mbit_flash0, 0);
-	AMD_29F800B_16BIT(config, m_bank0_8mbit_flash1, 0);
-
-	// 4MB Debug:
-	MACRONIX_29F1610_16BIT(config, m_bank0_16mbit_flash0, 0);
-	MACRONIX_29F1610_16BIT(config, m_bank0_16mbit_flash1, 0);
-
-	// 2MB flashable bootrom
-	AMD_29F800B_16BIT(config, m_bank1_8mbit_flash0, 0);
-	AMD_29LV800B_16BIT(config, m_bank1_8mbit_flash1, 0);
-
 	DS2401(config, m_serial_id, 0);
 
 	I2C_24C01(config, m_nvram, 0);
@@ -347,18 +280,30 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_spotasic->set_nvram(m_nvram);
 }
 
-void webtv1_state::webtv1_bfe(machine_config& config)
-{
-	webtv1_base(config);
-
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_bfe_map);
-}
-
 void webtv1_state::webtv1_dbg(machine_config& config)
 {
 	webtv1_base(config);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_dbg_map);
+	// 4MB bf0app Debug Approm
+	MACRONIX_29F1610_16BIT(config, m_approm_flash0, 0);
+	MACRONIX_29F1610_16BIT(config, m_approm_flash1, 0);
+
+	// 2MB Flashable Bootrom
+	AMD_29F800B_16BIT(config, m_bootrom_flash0, 0);
+	AMD_29F800B_16BIT(config, m_bootrom_flash1, 0);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_dbg_rom_map);
+}
+
+void webtv1_state::webtv1_bfe(machine_config& config)
+{
+	webtv1_base(config);
+
+	// 2MB bfeapp Approm
+	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
+	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_bfe_rom_map);
 }
 
 void webtv1_state::webtv1_sony(machine_config& config)
@@ -366,7 +311,11 @@ void webtv1_state::webtv1_sony(machine_config& config)
 	// manufacturer is determined by the contents of DS2401
 	webtv1_base(config);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_default_map);
+	// 2MB bf0app Approm
+	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
+	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_retail_rom_map);
 }
 
 void webtv1_state::webtv1_philips(machine_config& config)
@@ -374,7 +323,11 @@ void webtv1_state::webtv1_philips(machine_config& config)
 	// manufacturer is determined by the contents of DS2401
 	webtv1_base(config);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_default_map);
+	// 2MB bf0app:
+	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
+	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_retail_rom_map);
 }
 
 void webtv1_state::machine_start()
@@ -518,10 +471,6 @@ ROM_END
 ROM_START( wtv1dbg )
 	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
 	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
-
-	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
-	ROM_SYSTEM_BIOS(0, "bootrom", "Standard bf0 BootROM (1.0, build 105)")
-	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP, ROM_BIOS(0))          // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
 ROM_END
 
 ROM_START( wtv1sony )

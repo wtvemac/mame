@@ -103,7 +103,7 @@ DEFINE_DEVICE_TYPE(INTEL_E28F400B,         intel_e28f400b_device,         "intel
 DEFINE_DEVICE_TYPE(MACRONIX_29F008TC,      macronix_29f008tc_device,      "macronix_29f008tc",     "Macronix 29F008TC Flash")
 DEFINE_DEVICE_TYPE(MACRONIX_29L001MC,      macronix_29l001mc_device,      "macronix_29l001mc",     "Macronix 29L001MC Flash")
 DEFINE_DEVICE_TYPE(MACRONIX_29LV160TMC,    macronix_29lv160tmc_device,    "macronix_29lv160tmc",   "Macronix 29LV160TMC Flash")
-DEFINE_DEVICE_TYPE(MACRONIX_29F1610_16BIT, macronix_29F1610_16bit_device, "macronix_29F1610",      "Macronix MX29F1610 Flash (16-bit)")
+DEFINE_DEVICE_TYPE(MACRONIX_29F1610_16BIT, macronix_29f1610_16bit_device, "macronix_29f1610",      "Macronix MX29F1610 Flash (16-bit)")
 DEFINE_DEVICE_TYPE(TMS_29F040,             tms_29f040_device,             "tms_29f040",            "Texas Instruments 29F040 Flash")
 
 DEFINE_DEVICE_TYPE(PANASONIC_MN63F805MNP,  panasonic_mn63f805mnp_device,  "panasonic_mn63f805mnp", "Panasonic MN63F805MNP Flash")
@@ -245,7 +245,7 @@ macronix_29l001mc_device::macronix_29l001mc_device(const machine_config &mconfig
 macronix_29lv160tmc_device::macronix_29lv160tmc_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, MACRONIX_29LV160TMC, tag, owner, clock, 0x20000, MFG_MACRONIX, 0x49) { m_sector_is_16k = true; }
 
-macronix_29F1610_16bit_device::macronix_29F1610_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+macronix_29f1610_16bit_device::macronix_29f1610_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh16_device(mconfig, MACRONIX_29F1610_16BIT, tag, owner, clock, 0x200000, MFG_MACRONIX, 0x00f1) { }
 
 panasonic_mn63f805mnp_device::panasonic_mn63f805mnp_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
