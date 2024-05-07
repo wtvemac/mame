@@ -149,7 +149,7 @@ void webtv1_state::approm_flash_w(offs_t offset, uint32_t data)
 	printf("approm_flash_w offset=%08x, data=%08x\n", offset, data);
 
 	// Clear drc cache after chip operation so we can cleanly execute the next step from RAM
-	if((offset & 0xffff) == 0x5555 && (data & 0xff) == 0xf0)
+	if( ((offset & 0xffff) == 0x5555 && (data & 0xff) == 0xf0) || ((offset & 0xffff) == 0x0000 && (data & 0xff) == 0xf0) || (data & 0xff) == 0x30 )
 		m_maincpu->clear_fastram(1);
 
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
@@ -295,8 +295,10 @@ void webtv1_state::webtv1_dbg(machine_config& config)
 	webtv1_base(config);
 
 	// 4MB bf0app Debug Approm
-	MACRONIX_29F1610_16BIT(config, m_approm_flash0, 0);
-	MACRONIX_29F1610_16BIT(config, m_approm_flash1, 0);
+	//MACRONIX_29F1610_16BIT(config, m_approm_flash0, 0);
+	//MACRONIX_29F1610_16BIT(config, m_approm_flash1, 0);
+	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
+	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 
 	// 2MB Flashable Bootrom
 	AMD_29F800B_16BIT(config, m_bootrom_flash0, 0);
@@ -448,10 +450,11 @@ static INPUT_PORTS_START( emu_config )
 	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
 	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
 
-	PORT_CONFNAME(0x0c, 0x04, "Smartcard bangserial")
+	PORT_CONFNAME(0x0c, 0x0c, "Smartcard bangserial")
 	PORT_CONFSETTING(0x00, "Off")
 	PORT_CONFSETTING(0x04, "V1 bangserial data")
 	PORT_CONFSETTING(0x08, "V2 bangserial data")
+	PORT_CONFSETTING(0x0c, "Autodetect")
 
 	PORT_CONFNAME(0x10, 0x10, "Allow real-time screen size updates")
 	PORT_CONFSETTING(0x00, "No")

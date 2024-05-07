@@ -246,7 +246,7 @@ macronix_29lv160tmc_device::macronix_29lv160tmc_device(const machine_config &mco
 	: intelfsh8_device(mconfig, MACRONIX_29LV160TMC, tag, owner, clock, 0x20000, MFG_MACRONIX, 0x49) { m_sector_is_16k = true; }
 
 macronix_29f1610_16bit_device::macronix_29f1610_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, MACRONIX_29F1610_16BIT, tag, owner, clock, 0x200000, MFG_MACRONIX, 0x00f1) { }
+	: intelfsh16_device(mconfig, MACRONIX_29F1610_16BIT, tag, owner, clock, 0x200000, MFG_MACRONIX, 0x00f1) { m_sector_is_16k = true; }
 
 panasonic_mn63f805mnp_device::panasonic_mn63f805mnp_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, PANASONIC_MN63F805MNP, tag, owner, clock, 0x10000, MFG_PANASONIC, 0x1b) { m_sector_is_4k = true; }
@@ -544,7 +544,7 @@ uint32_t intelfsh_device::read_full(uint32_t address)
 
 void intelfsh_device::write_full(uint32_t address, uint32_t data)
 {
-	logerror( "intelflash_write111( %u : %08x, %08x )\n", m_flash_mode, address, data );
+	printf( "intelflash_write111( %u : %08x, %08x )\n", m_flash_mode, address, data );
 
 	address += m_bank << 16;
 
@@ -685,7 +685,9 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 			}
 			else
 			{
-				m_flash_mode = FM_BYTEPROGRAM;
+				m_flash_mode = FM_WRITEPAGEATMEL;
+				m_byte_count = 0;
+				//m_flash_mode = FM_BYTEPROGRAM;
 			}
 		}
 		else if( ( address & 0xfff ) == 0xaaa && ( data & 0xff ) == 0xa0 )
@@ -876,6 +878,8 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 				m_erase_sector = address & ((m_bits == 16) ? ~0x7fff : ~0xffff);
 				m_timer->adjust( attotime::from_seconds( 1 ) );
 			}
+
+			printf("m_erase_sector=%08x, base=%08x\n", m_erase_sector, base);
 
 			m_status = 1 << 3;
 			m_flash_mode = FM_ERASEAMD4;
@@ -1102,5 +1106,5 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		break;
 	}
 
-	logerror( "intelflash_write222( %u : %08x, %08x )\n", m_flash_mode, address, data );
+	printf( "intelflash_write222( %u : %08x, %08x )\n", m_flash_mode, address, data );
 }

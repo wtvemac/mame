@@ -939,9 +939,10 @@ void spot_asic_device::reg_4010_w(uint32_t data)
 		// Just checking if the start and stop bits are present. Not checking if they're valid.
 		if ((m_smrtcrd_serial_bitmask & 0x7ff) == 0x7ff)
 		{
+			uint8_t bangserial_config = (m_emu_config->read() & EMUCONFIG_BANGSERIAL);
 			uint8_t rxbyte = 0x00;
 
-			if (m_emu_config->read() & EMUCONFIG_BANGSERIAL_V1)
+			if((bangserial_config == EMUCONFIG_BANGSERIAL_AUTO && ((m_smrtcrd_serial_rxdata & 0x700) != 0x600)) || (bangserial_config == EMUCONFIG_BANGSERIAL_V1))
 				// V1: there's 2 start bits (1 high and 1 low), 8 data bits and 1 stop bit.
 				rxbyte = (m_smrtcrd_serial_rxdata >> 1);
 			else
