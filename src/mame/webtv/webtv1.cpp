@@ -482,8 +482,7 @@ ROM_START( wtv1bfe )
 
 	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
 	ROM_SYSTEM_BIOS(0, "bfe-boot", "Prototype bfe BootROM (1.0, build 105)")
-//	ROMX_LOAD("bfe-boot.o", 0x400000, 0x200000, CRC(71c321db) SHA1(6a39e064fb2312d70728b8105de990762226bd07), ROM_BIOS(0))         // 0x9fc00000/0xbfc00000
-	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, CRC(f23fbfd3) SHA1(f046ecc4ff46f3afca9a413c7c1022246c36e7ff), ROM_BIOS(0))    // 0x9fc00000/0xbfc00000
+	ROMX_LOAD("bfe-boot.o", 0x400000, 0x200000, CRC(71c321db) SHA1(6a39e064fb2312d70728b8105de990762226bd07), ROM_BIOS(0))         // 0x9fc00000/0xbfc00000
 	ROM_SYSTEM_BIOS(1, "prealpha-boot", "Pre-alpha bfe BootROM")
 	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, CRC(f23fbfd3) SHA1(f046ecc4ff46f3afca9a413c7c1022246c36e7ff), ROM_BIOS(1))    // 0x9fc00000/0xbfc00000
 ROM_END
