@@ -295,10 +295,10 @@ void webtv1_state::webtv1_dbg(machine_config& config)
 	webtv1_base(config);
 
 	// 4MB bf0app Debug Approm
-	//MACRONIX_29F1610_16BIT(config, m_approm_flash0, 0);
-	//MACRONIX_29F1610_16BIT(config, m_approm_flash1, 0);
-	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
-	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
+	MACRONIX_29F1610_16BIT(config, m_approm_flash0, 0);
+	MACRONIX_29F1610_16BIT(config, m_approm_flash1, 0);
+	//AMD_29F800B_16BIT(config, m_approm_flash0, 0);
+	//AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 
 	// 2MB Flashable Bootrom
 	AMD_29F800B_16BIT(config, m_bootrom_flash0, 0);

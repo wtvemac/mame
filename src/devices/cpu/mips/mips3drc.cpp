@@ -1460,7 +1460,6 @@ void mips3_device::generate_sequence_instruction(drcuml_block &block, compiler_s
 	if ((desc->flags & OPFLAG_VALIDATE_TLB) && (desc->pc < 0x80000000 || desc->pc >= 0xc0000000))
 	{
 		const vtlb_entry *tlbtable = vtlb_table();
-		printf("desc->pc %08x\n", desc->pc);
 
 		/* if we currently have a valid TLB read entry, we just verify */
 		if (tlbtable[desc->pc >> 12] & FETCH_ALLOWED)
@@ -1489,10 +1488,8 @@ void mips3_device::generate_sequence_instruction(drcuml_block &block, compiler_s
 			}
 			UML_EXH(block, *m_tlb_mismatch, 0);                  // exh     tlb_mismatch,0
 			// Unconditional tlb exception, no point going further
-			printf("BAD!!!\n");
 			return;
 		}
-		printf("GOOD :)\n");
 	}
 
 	/* if this is an invalid opcode, generate the exception now */
