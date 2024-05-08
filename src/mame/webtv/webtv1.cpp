@@ -85,8 +85,8 @@ private:
 
 	required_device<intelfsh16_device> m_approm_flash0;
 	required_device<intelfsh16_device> m_approm_flash1;
-	required_device<intelfsh16_device> m_bootrom_flash0;
-	required_device<intelfsh16_device> m_bootrom_flash1;
+	optional_device<intelfsh16_device> m_bootrom_flash0;
+	optional_device<intelfsh16_device> m_bootrom_flash1;
 
 	uint32_t approm_flash_r(offs_t offset);
 	void approm_flash_w(offs_t offset, uint32_t data);
@@ -206,9 +206,6 @@ void webtv1_state::webtv1_base_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
 
-	// RAM (0x00000000-0x007fffff)
-	map(0x00000000, 0x007fffff).ram().share("mainram"); // 8MB is not accurate to retail hardware! Ideally this would be 2MB or 4MB, mirrored across this memory space
-
 	// Expansion device #1 to #7 8MB each (0x00800000-0x03ffffff)
 
 	// WebTV Control Space (0x04000000-0x047fffff)
@@ -221,51 +218,6 @@ void webtv1_state::webtv1_base_map(address_map &map)
 	map(0x04005000, 0x04005fff).m(m_spotasic, FUNC(spot_asic_device::mem_unit_map));
 
 	// Reserved (0x04800000-0x1f7fffff)
-}
-
-void webtv1_state::webtv1_dbg_map(address_map &map)
-{
-	webtv1_base_map(map);
-
-	// ROML Bank 0 (0x1f000000-0x1f3fffff)
-	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
-
-	// Diagnostic Space (0xf400000-0x1f7fffff)
-
-	// ROMU Bank 1 (0x1f800000-0x1fffffff)
-	map(0x1fc00000, 0x1fdfffff).rw(FUNC(webtv1_state::bootrom_flash_r), FUNC(webtv1_state::bootrom_flash_w)).share("bootrom_flash");
-
-	// Reserved (0x20000000-0xffffffff)
-}
-
-void webtv1_state::webtv1_bfe_map(address_map &map)
-{
-	webtv1_base_map(map);
-
-	// ROML Bank 0 (0x1f000000-0x1f3fffff)
-
-	// Diagnostic Space (0xf400000-0x1f7fffff)
-
-	// ROMU Bank 1 (0x1f800000-0x1fffffff)
-	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
-	map(0x1fe00000, 0x1fffffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
-
-	// Reserved (0x20000000-0xffffffff)
-}
-
-void webtv1_state::webtv1_retail_map(address_map &map)
-{
-	webtv1_base_map(map);
-
-	// ROML Bank 0 (0x1f000000-0x1f3fffff)
-	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
-
-	// Diagnostic Space (0xf400000-0x1f7fffff)
-
-	// ROMU Bank 1 (0x1f800000-0x1fffffff)
-	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
-
-	// Reserved (0x20000000-0xffffffff)
 }
 
 void webtv1_state::webtv1_base(machine_config &config)
@@ -290,6 +242,24 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_spotasic->set_nvram(m_nvram);
 }
 
+void webtv1_state::webtv1_dbg_map(address_map &map)
+{
+	webtv1_base_map(map);
+
+	// Use the entire 8MB for debug boxes
+	map(0x00000000, 0x007fffff).ram().share("mainram");
+
+	// ROML Bank 0 (0x1f000000-0x1f3fffff)
+	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
+
+	// Diagnostic Space (0xf400000-0x1f7fffff)
+
+	// ROMU Bank 1 (0x1f800000-0x1fffffff)
+	map(0x1fc00000, 0x1fdfffff).rw(FUNC(webtv1_state::bootrom_flash_r), FUNC(webtv1_state::bootrom_flash_w)).share("bootrom_flash");
+
+	// Reserved (0x20000000-0xffffffff)
+}
+
 void webtv1_state::webtv1_dbg(machine_config& config)
 {
 	webtv1_base(config);
@@ -307,6 +277,24 @@ void webtv1_state::webtv1_dbg(machine_config& config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_dbg_map);
 }
 
+void webtv1_state::webtv1_bfe_map(address_map &map)
+{
+	webtv1_base_map(map);
+
+	// 2MB RAM, mirrored to cover the mapped 8MB region
+	map(0x00000000, 0x001fffff).ram().share("mainram");
+
+	// ROML Bank 0 (0x1f000000-0x1f3fffff)
+
+	// Diagnostic Space (0xf400000-0x1f7fffff)
+
+	// ROMU Bank 1 (0x1f800000-0x1fffffff)
+	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
+	map(0x1fe00000, 0x1fffffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
+
+	// Reserved (0x20000000-0xffffffff)
+}
+
 void webtv1_state::webtv1_bfe(machine_config& config)
 {
 	webtv1_base(config);
@@ -316,6 +304,24 @@ void webtv1_state::webtv1_bfe(machine_config& config)
 	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_bfe_map);
+}
+
+void webtv1_state::webtv1_retail_map(address_map &map)
+{
+	webtv1_base_map(map);
+
+	// 2MB RAM, mirrored to cover the mapped 8MB region
+	map(0x00000000, 0x001fffff).mirror(0x00200000).ram().share("mainram");
+
+	// ROML Bank 0 (0x1f000000-0x1f3fffff)
+	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
+
+	// Diagnostic Space (0xf400000-0x1f7fffff)
+
+	// ROMU Bank 1 (0x1f800000-0x1fffffff)
+	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
+
+	// Reserved (0x20000000-0xffffffff)
 }
 
 void webtv1_state::webtv1_sony(machine_config& config)
@@ -476,9 +482,10 @@ ROM_START( wtv1bfe )
 
 	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
 	ROM_SYSTEM_BIOS(0, "bfe-boot", "Prototype bfe BootROM (1.0, build 105)")
-	ROMX_LOAD("bfe-boot.o", 0x400000, 0x200000, CRC(71c321db) SHA1(6a39e064fb2312d70728b8105de990762226bd07), ROM_BIOS(0))         // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+//	ROMX_LOAD("bfe-boot.o", 0x400000, 0x200000, CRC(71c321db) SHA1(6a39e064fb2312d70728b8105de990762226bd07), ROM_BIOS(0))         // 0x9fc00000/0xbfc00000
+	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, CRC(f23fbfd3) SHA1(f046ecc4ff46f3afca9a413c7c1022246c36e7ff), ROM_BIOS(0))    // 0x9fc00000/0xbfc00000
 	ROM_SYSTEM_BIOS(1, "prealpha-boot", "Pre-alpha bfe BootROM")
-	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, CRC(f23fbfd3) SHA1(f046ecc4ff46f3afca9a413c7c1022246c36e7ff), ROM_BIOS(1))    // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, CRC(f23fbfd3) SHA1(f046ecc4ff46f3afca9a413c7c1022246c36e7ff), ROM_BIOS(1))    // 0x9fc00000/0xbfc00000
 ROM_END
 
 ROM_START( wtv1dbg )
@@ -492,7 +499,7 @@ ROM_START( wtv1sony )
 
 	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "Standard bf0 BootROM (1.0, build 105)")
-	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, CRC(5ad8f7b6) SHA1(a5c411f5f0126e79a0d925822062203c2272faf8), ROM_BIOS(0))          // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, CRC(5ad8f7b6) SHA1(a5c411f5f0126e79a0d925822062203c2272faf8), ROM_BIOS(0))          // 0x9fc00000/0xbfc00000
 ROM_END
 
 ROM_START( wtv1phil )
@@ -501,7 +508,7 @@ ROM_START( wtv1phil )
 
 	ROM_REGION32_BE(0x600000, "bootrom_mask", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "Standard bf0 BootROM (1.0, build 105)")
-	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, CRC(5ad8f7b6) SHA1(a5c411f5f0126e79a0d925822062203c2272faf8), ROM_BIOS(0))          // 0x1fc00000/0x9fc00000/0xbfc00000 (bootrom base)
+	ROMX_LOAD("bootrom.o", 0x400000, 0x200000, CRC(5ad8f7b6) SHA1(a5c411f5f0126e79a0d925822062203c2272faf8), ROM_BIOS(0))          // 0x9fc00000/0xbfc00000
 ROM_END
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT         CLASS         INIT        COMPANY               FULLNAME                            FLAGS
