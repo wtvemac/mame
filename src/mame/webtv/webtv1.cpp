@@ -108,9 +108,9 @@ private:
 // The 1MB flash configuration seemed to never be used, 2MB flash configuration was released to the public
 // and it seemed a 4MB flash configuration was used for debug builds during approm development as well as for prototype Japan builds.
 //
-// 1MB:            AM29F400AT + AM29F400AT (citation needed)
-// Production:     AM29F800BT + AM29F800BT
-// 4MB debug/JP:   MX29F1610  + MX29F1610  (citation needed)
+// 1MB:          AM29F400AT + AM29F400AT (citation needed)
+// Production:   AM29F800BT + AM29F800BT
+// 4MB debug/JP: MX29F1610  + MX29F1610  (citation needed)
 //
 // WebTV supported SO-44 flash chips:
 //
@@ -281,7 +281,7 @@ void webtv1_state::webtv1_bfe_map(address_map &map)
 {
 	webtv1_base_map(map);
 
-	// 2MB RAM, mirrored to cover the mapped 8MB region
+	// 2MB RAM
 	map(0x00000000, 0x001fffff).ram().share("mainram");
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
@@ -310,8 +310,8 @@ void webtv1_state::webtv1_retail_map(address_map &map)
 {
 	webtv1_base_map(map);
 
-	// 2MB RAM, mirrored to cover the mapped 8MB region
-	map(0x00000000, 0x001fffff).mirror(0x00200000).ram().share("mainram");
+	// 2MB RAM
+	map(0x00000000, 0x001fffff).ram().share("mainram");
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
 	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
