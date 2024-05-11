@@ -1071,13 +1071,13 @@ void spot_asic_device::reg_4020_w(uint32_t data)
 uint32_t spot_asic_device::reg_4024_r()
 {
 	logerror("%s: reg_4024_r (DEV_KBD1)\n", machine().describe_context());
-	return m_kbdc->data_r(0x1);
+	return m_kbdc->data_r(0x4);
 }
 
 void spot_asic_device::reg_4024_w(uint32_t data)
 {
 	logerror("%s: reg_4024_w %08x (DEV_KBD1)\n", machine().describe_context(), data);
-	m_kbdc->data_w(0x1, data & 0xFF);
+	m_kbdc->data_w(0x4, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4028_r()
@@ -1107,13 +1107,13 @@ void spot_asic_device::reg_402c_w(uint32_t data)
 uint32_t spot_asic_device::reg_4030_r()
 {
 	logerror("%s: reg_4030_r (DEV_KBD4)\n", machine().describe_context());
-	return m_kbdc->data_r(0x4);
+	return m_kbdc->data_r(0x1);
 }
 
 void spot_asic_device::reg_4030_w(uint32_t data)
 {
 	logerror("%s: reg_4030_w %08x (DEV_KBD4)\n", machine().describe_context(), data);
-	m_kbdc->data_w(0x4, data & 0xFF);
+	m_kbdc->data_w(0x1, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4034_r()
