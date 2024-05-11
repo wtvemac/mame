@@ -92,6 +92,8 @@ private:
 	void approm_flash_w(offs_t offset, uint32_t data);
 	uint32_t bootrom_flash_r(offs_t offset);
 	void bootrom_flash_w(offs_t offset, uint32_t data);
+	uint32_t status_r(offs_t offset);
+	void status_w(offs_t offset, uint32_t data);
 
 	void webtv1_base_map(address_map &map);
 	void webtv1_dbg_map(address_map &map);
@@ -138,25 +140,25 @@ uint32_t webtv1_state::approm_flash_r(offs_t offset)
 {
 	uint16_t upper_value = 0x0;
 	uint16_t lower_value = 0x0;
-	
-	upper_value = m_approm_flash0->read(offset); // bank0_16mbit_flash0 file
-	lower_value = m_approm_flash1->read(offset); // bank0_16mbit_flash1 file
+
+	upper_value = m_approm_flash0->read(offset); // approm_flash0 file
+	lower_value = m_approm_flash1->read(offset); // approm_flash1 file
 
 	return (upper_value << 16) | (lower_value);
 }
 void webtv1_state::approm_flash_w(offs_t offset, uint32_t data)
 {
-	printf("approm_flash_w offset=%08x, data=%08x\n", offset, data);
-
 	// Clear drc cache after chip operation so we can cleanly execute the next step from RAM
 	if( ((offset & 0xffff) == 0x5555 && (data & 0xff) == 0xf0) || ((offset & 0xffff) == 0x0000 && (data & 0xff) == 0xf0) || (data & 0xff) == 0x30 )
+	{
 		m_maincpu->clear_fastram(1);
+	}
 
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 	uint16_t lower_value = data & 0xffff;
 	
-	m_approm_flash0->write(offset, upper_value); // bank0_16mbit_flash0 file
-	m_approm_flash1->write(offset, lower_value); // bank0_16mbit_flash1 file
+	m_approm_flash0->write(offset, upper_value); // approm_flash0 file
+	m_approm_flash1->write(offset, lower_value); // approm_flash1 file
 }
 
 //
@@ -184,8 +186,8 @@ void webtv1_state::approm_flash_w(offs_t offset, uint32_t data)
 //
 uint32_t webtv1_state::bootrom_flash_r(offs_t offset)
 {
-	uint16_t upper_value = m_bootrom_flash0->read(offset);
-	uint16_t lower_value = m_bootrom_flash1->read(offset);
+	uint16_t upper_value = m_bootrom_flash0->read(offset); // bootom_flash0 file
+	uint16_t lower_value = m_bootrom_flash1->read(offset); // bootom_flash1 file
 
 	return (upper_value << 16) | (lower_value);
 }
@@ -198,8 +200,18 @@ void webtv1_state::bootrom_flash_w(offs_t offset, uint32_t data)
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 	uint16_t lower_value = data & 0xffff;
 
-	m_bootrom_flash0->write(offset, upper_value);
-	m_bootrom_flash1->write(offset, lower_value);
+	m_bootrom_flash0->write(offset, upper_value); // bootom_flash0 file
+	m_bootrom_flash1->write(offset, lower_value); // bootom_flash1 file
+}
+
+// The flash programing code incorrectly bleeds over into the next memory region to read the status.
+// This will return the correct status so it can continue.
+uint32_t webtv1_state::status_r(offs_t offset)
+{
+	return 0x00800080;
+}
+void webtv1_state::status_w(offs_t offset, uint32_t data)
+{
 }
 
 void webtv1_state::webtv1_base_map(address_map &map)
@@ -251,6 +263,7 @@ void webtv1_state::webtv1_dbg_map(address_map &map)
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
 	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
+	map(0x1f400000, 0x1f400003).rw(FUNC(webtv1_state::status_r), FUNC(webtv1_state::status_w));
 
 	// Diagnostic Space (0xf400000-0x1f7fffff)
 
@@ -291,6 +304,7 @@ void webtv1_state::webtv1_bfe_map(address_map &map)
 	// ROMU Bank 1 (0x1f800000-0x1fffffff)
 	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
 	map(0x1fe00000, 0x1fffffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
+	map(0x20000000, 0x20000003).rw(FUNC(webtv1_state::status_r), FUNC(webtv1_state::status_w));
 
 	// Reserved (0x20000000-0xffffffff)
 }
@@ -320,6 +334,7 @@ void webtv1_state::webtv1_retail_map(address_map &map)
 
 	// ROMU Bank 1 (0x1f800000-0x1fffffff)
 	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
+	map(0x1fe00000, 0x1fe00003).rw(FUNC(webtv1_state::status_r), FUNC(webtv1_state::status_w));
 
 	// Reserved (0x20000000-0xffffffff)
 }

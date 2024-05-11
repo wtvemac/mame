@@ -192,7 +192,10 @@ fujitsu_29lv800b_device::fujitsu_29lv800b_device(const machine_config &mconfig, 
 	: intelfsh16_device(mconfig, FUJITSU_29LV800B, tag, owner, clock, 0x100000, MFG_FUJITSU, 0x225b) { m_bot_boot_sector = true; }
 	
 fujitsu_29f400t_16bit_device::fujitsu_29f400t_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, FUJITSU_29F400T_16BIT, tag, owner, clock, 0x100000, MFG_FUJITSU, 0x2223) { m_top_boot_sector = true; }
+	: intelfsh16_device(mconfig, FUJITSU_29F400T_16BIT, tag, owner, clock, 0x100000, MFG_FUJITSU, 0x2223)
+{
+	m_top_boot_sector = true;
+}
 
 sharp_lh28f016s_device::sharp_lh28f016s_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, SHARP_LH28F016S, tag, owner, clock, 0x200000, MFG_INTEL, 0xaa) { }
@@ -222,13 +225,19 @@ amd_29f800t_device::amd_29f800t_device(const machine_config &mconfig, const char
 	: intelfsh8_device(mconfig, AMD_29F800T, tag, owner, clock, 0x100000, MFG_AMD, 0xda) { m_top_boot_sector = true; }
 
 amd_29f800b_16bit_device::amd_29f800b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, AMD_29F800B_16BIT, tag, owner, clock, 0x100000, MFG_AMD, 0x2258) { m_top_boot_sector = false; }
+	: intelfsh16_device(mconfig, AMD_29F800B_16BIT, tag, owner, clock, 0x100000, MFG_AMD, 0x2258)
+{
+	m_top_boot_sector = false;
+}
 
 amd_29lv200t_device::amd_29lv200t_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, AMD_29LV200T, tag, owner, clock, 0x40000, MFG_AMD, 0x3b) { }
 
 amd_29lv800b_16bit_device::amd_29lv800b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, AMD_29LV800B_16BIT, tag, owner, clock, 0x100000, MFG_AMD, 0x22da) { m_top_boot_sector = true; }
+	: intelfsh16_device(mconfig, AMD_29LV800B_16BIT, tag, owner, clock, 0x100000, MFG_AMD, 0x22da)
+{
+	m_top_boot_sector = true;
+}
 
 cat28f020_device::cat28f020_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, CAT28F020, tag, owner, clock, 0x40000, MFG_CATALYST, 0xbd) { }
@@ -246,7 +255,10 @@ macronix_29lv160tmc_device::macronix_29lv160tmc_device(const machine_config &mco
 	: intelfsh8_device(mconfig, MACRONIX_29LV160TMC, tag, owner, clock, 0x20000, MFG_MACRONIX, 0x49) { m_sector_is_16k = true; }
 
 macronix_29f1610_16bit_device::macronix_29f1610_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, MACRONIX_29F1610_16BIT, tag, owner, clock, 0x200000, MFG_MACRONIX, 0x00f1) { m_sector_is_16k = true; }
+	: intelfsh16_device(mconfig, MACRONIX_29F1610_16BIT, tag, owner, clock, 0x200000, MFG_MACRONIX, 0x00f1)
+{
+	m_page_size = 0x40;
+}
 
 panasonic_mn63f805mnp_device::panasonic_mn63f805mnp_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, PANASONIC_MN63F805MNP, tag, owner, clock, 0x10000, MFG_PANASONIC, 0x1b) { m_sector_is_4k = true; }
@@ -442,6 +454,8 @@ uint32_t intelfsh_device::read_full(uint32_t address)
 		}
 		break;
 	case FM_READSTATUS:
+		data = m_status;
+		break;
 	case FM_WRITEBUFFER2:
 		data = m_status;
 		break;
@@ -544,7 +558,7 @@ uint32_t intelfsh_device::read_full(uint32_t address)
 
 void intelfsh_device::write_full(uint32_t address, uint32_t data)
 {
-	printf( "intelflash_write111( %u : %08x, %08x )\n", m_flash_mode, address, data );
+	//printf( "intelflash_write111( %u : %08x, %08x )\n", m_flash_mode, address, data );
 
 	address += m_bank << 16;
 
@@ -678,16 +692,16 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		}
 		else if( ( address & 0xffff ) == 0x5555 && ( data & 0xff ) == 0xa0 )
 		{
-			if (m_maker_id == MFG_ATMEL && m_device_id == 0xd5)
+			if ( (m_maker_id == MFG_ATMEL && m_device_id == 0xd5) || (m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1) )
 			{
 				m_flash_mode = FM_WRITEPAGEATMEL;
 				m_byte_count = 0;
-			}
+			}git 
 			else
 			{
-				m_flash_mode = FM_WRITEPAGEATMEL;
+				//m_flash_mode = FM_WRITEPAGEATMEL;
 				m_byte_count = 0;
-				//m_flash_mode = FM_BYTEPROGRAM;
+				m_flash_mode = FM_BYTEPROGRAM;
 			}
 		}
 		else if( ( address & 0xfff ) == 0xaaa && ( data & 0xff ) == 0xa0 )
@@ -876,10 +890,20 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 			{
 				memset(&m_data[base & ~0xffff], 0xff, 64 * 1024);
 				m_erase_sector = address & ((m_bits == 16) ? ~0x7fff : ~0xffff);
-				m_timer->adjust( attotime::from_seconds( 1 ) );
+				if (
+					(m_maker_id == MFG_FUJITSU && m_device_id == 0x22d6)
+					|| (m_maker_id == MFG_AMD && m_device_id == 0x2258)
+					|| (m_maker_id == MFG_AMD && m_device_id == 0x22da)
+					|| (m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1)
+				)
+				{
+					m_timer->adjust( attotime::from_msec( 125 ) );
+				}
+				else
+				{
+					m_timer->adjust( attotime::from_seconds( 1 ) );
+				}
 			}
-
-			printf("m_erase_sector=%08x, base=%08x\n", m_erase_sector, base);
 
 			m_status = 1 << 3;
 			m_flash_mode = FM_ERASEAMD4;
@@ -950,7 +974,14 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 
 		if (m_byte_count == m_page_size)
 		{
-			m_flash_mode = FM_NORMAL;
+			if (m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1)
+			{
+				m_flash_mode = FM_READSTATUS;
+			}
+			else
+			{
+				m_flash_mode = FM_NORMAL;
+			}
 		}
 		break;
 	case FM_CLEARPART1:
@@ -1106,5 +1137,5 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		break;
 	}
 
-	printf( "intelflash_write222( %u : %08x, %08x )\n", m_flash_mode, address, data );
+	//printf( "intelflash_write222( %u : %08x, %08x )\n", m_flash_mode, address, data );
 }

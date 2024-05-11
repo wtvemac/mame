@@ -1106,16 +1106,11 @@ uint32_t spot_asic_device::reg_4040_r()
 {
 	uint32_t cool = m_modem->ins8250_r(0x0);
 
-	if(blop_rx)
-		printf("R:%02x\n", cool);
 	return cool & 0xFF;
 }
 
 void spot_asic_device::reg_4040_w(uint32_t data)
 {
-	if(blop_tx)
-		printf("T:%02x [%08x]\n", data, modem_txbuff_size);
-
 	if(modem_txbuff_size == 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
 		m_modem->ins8250_w(0x0, data & 0xFF);
@@ -1357,12 +1352,8 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 
 TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
 {
-	if(blop_tx)
-		printf("\tT:%08x\n", modem_txbuff_size);
 	if(modem_txbuff_size > 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
-		if(blop_tx)
-			printf("\t\tt:%02x\n", modem_txbuff[modem_txbuff_index & (MBUFF_MAX_SIZE - 1)]);
 		m_modem->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
 
 		if(modem_txbuff_index == modem_txbuff_size)
@@ -1411,7 +1402,7 @@ void spot_asic_device::set_bus_irq(uint8_t mask, int state)
 			m_intstat |= mask;
 		else
 			m_intstat &= ~(mask);
-		
+
 		m_hostcpu->set_input_line(MIPS3_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
 	}
 }
