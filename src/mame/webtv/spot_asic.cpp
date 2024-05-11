@@ -60,6 +60,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker"),
     m_modem_uart(*this, "modem_uart"),
+	m_watchdog(*this, "watchdog"),
     m_sys_config(*owner, "sys_config"),
     m_emu_config(*owner, "emu_config"),
     m_power_led(*this, "power_led"),
@@ -210,6 +211,9 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 
 	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
 	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
+
+	WATCHDOG_TIMER(config, m_watchdog);
+	spot_asic_device::watchdog_enable(0);
 }
 
 void spot_asic_device::activate_ntsc_screen()
@@ -240,6 +244,8 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_intenable));
 	save_item(NAME(m_intstat));
 	save_item(NAME(m_errenable));
+	save_item(NAME(m_chpcntl));
+	save_item(NAME(m_wdenable));
 	save_item(NAME(m_errstat));
 	save_item(NAME(m_vid_nstart));
 	save_item(NAME(m_vid_nsize));
@@ -281,6 +287,8 @@ void spot_asic_device::device_reset()
 	m_intenable = 0x0;
 	m_intstat = 0x0;
 	m_errenable = 0x0;
+	m_chpcntl = 0x0;
+	m_wdenable = 0x0;
 	m_errstat = 0x0;
 	m_timeout_compare = 0xffff;
 	m_nvcntl = 0x0;
@@ -392,6 +400,18 @@ void spot_asic_device::pixel_buffer_index_update()
 	}
 }
 
+void spot_asic_device::watchdog_enable(int state)
+{
+	m_wdenable = state;
+
+	m_watchdog->watchdog_enable(m_wdenable);
+
+	if(m_wdenable)
+		m_watchdog->set_time(attotime::from_usec(WATCHDOG_TIMER_USEC));
+	else
+		m_watchdog->set_time(attotime::zero);
+}
+
 uint32_t spot_asic_device::reg_0000_r()
 {
 	//logerror("%s: reg_0000_r (BUS_CHIPID)\n", machine().describe_context());
@@ -401,12 +421,28 @@ uint32_t spot_asic_device::reg_0000_r()
 uint32_t spot_asic_device::reg_0004_r()
 {
 	logerror("%s: reg_0004_r (BUS_CHPCNTL)\n", machine().describe_context());
-	return 0x00000000;
+	return m_chpcntl;
 }
 
 void spot_asic_device::reg_0004_w(uint32_t data)
 {
 	logerror("%s: reg_0004_w %08x (BUS_CHPCNTL)\n", machine().describe_context(), data);
+	if ((m_chpcntl ^ data) & 0xC0000000)
+	{
+		uint8_t wd_cntl = (data >> 30);
+
+		int8_t wd_diff = wd_cntl - (m_chpcntl >> 30);
+
+		// Count down to disable (3, 2, 1, 0), count up to enable (0, 1, 2, 3)
+		// This doesn't track the count history but gets the expected result for the ROM.
+		if((!m_wdenable && wd_diff == 1 && wd_cntl == 3) || (m_wdenable && wd_diff == -1 && wd_cntl == 0))
+		{
+			watchdog_enable(wd_cntl == 3);
+		}
+	}
+
+	m_chpcntl = data;
+
 	m_aud_clkdiv = (data >> 26) & 0xF;
 }
 
@@ -503,8 +539,9 @@ uint32_t spot_asic_device::reg_0018_r()
 
 void spot_asic_device::reg_0118_w(uint32_t data)
 {
-    logerror("%s: reg_0118_w %08x (BUS_WDREG clear)\n", machine().describe_context(), data);
-    // TODO: watchdog
+	logerror("%s: reg_0118_w %08x (BUS_WDREG clear)\n", machine().describe_context(), data);
+	if(m_wdenable)
+		m_watchdog->reset_w(data);
 }
 
 uint32_t spot_asic_device::reg_001c_r()

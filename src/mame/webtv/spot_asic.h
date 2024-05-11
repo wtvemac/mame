@@ -30,6 +30,7 @@
 #include "machine/ins8250.h"
 #include "sound/dac.h"
 #include "speaker.h"
+#include "machine/watchdog.h"
 
 #define SYSCONFIG_ROMTYP0    1 << 31 // ROM bank 0 is present
 #define SYSCONFIG_ROMMODE0   1 << 30 // ROM bank 0 supports page mode
@@ -53,6 +54,8 @@
 #define ERR_F2WRITE 1 << 3 // BUS_FENADDR2 write fence check error
 #define ERR_TIMEOUT 1 << 2 // io timeout error
 #define ERR_OW      1 << 0 // double-fault
+
+#define WATCHDOG_TIMER_USEC 1000000
 
 #define BUS_INT_VIDINT 1 << 7 // vidUnit interrupt (program should read VID_INTSTAT)
 #define BUS_INT_DEVKBD 1 << 6 // keyboard IRQ
@@ -153,6 +156,9 @@ protected:
 	void activate_ntsc_screen();
 	void activate_pal_screen();
 
+	uint32_t m_chpcntl;
+	uint8_t m_wdenable;
+
 	uint32_t m_fence1_addr;
 	uint32_t m_fence1_mask;
 	uint32_t m_fence2_addr;
@@ -227,6 +233,8 @@ private:
 	required_device<speaker_device> m_rspeaker;
 
 	required_device<ins8250_device> m_modem_uart;
+	
+	required_device<watchdog_timer_device> m_watchdog;
 
 	required_ioport m_sys_config;
 	required_ioport m_emu_config;
@@ -256,7 +264,8 @@ private:
 
 	void validate_active_area();
 	void spot_update_cycle_counting();
-	
+	void watchdog_enable(int state);
+
 	/* busUnit registers */
 
     uint32_t reg_0000_r();          // BUS_CHIPID (read-only)
