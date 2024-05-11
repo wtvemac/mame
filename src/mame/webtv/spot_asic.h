@@ -124,7 +124,8 @@
 
 #define INS8250_LSR_TSRE 0x40
 #define INS8250_LSR_THRE 0x20
-#define MBUFF_MAX_SIZE   0x1000
+#define MBUFF_MAX_SIZE   0x800
+#define MBUFF_FLUSH_TIME 100
 
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
