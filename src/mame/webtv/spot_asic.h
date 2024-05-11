@@ -21,7 +21,6 @@
 #pragma once
 
 #include "diserial.h"
-
 #include "bus/rs232/rs232.h"
 #include "cpu/mips/mips3.h"
 #include "machine/8042kbdc.h"
@@ -29,6 +28,8 @@
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 #include "machine/ins8250.h"
+#include "sound/dac.h"
+#include "speaker.h"
 
 #define SYSCONFIG_ROMTYP0    1 << 31 // ROM bank 0 is present
 #define SYSCONFIG_ROMMODE0   1 << 30 // ROM bank 0 supports page mode
@@ -100,6 +101,18 @@
 #define VID_DMACNTL_DMAEN  1 << 2 // DMA channel enabled
 #define VID_DMACNTL_NV     1 << 1 // DMA next registers are valid
 #define VID_DMACNTL_NVF    1 << 0 // DMA next registers are always valid
+
+#define AUD_CONFIG_16BIT_STEREO 0
+#define AUD_CONFIG_16BIT_MONO   1
+#define AUD_CONFIG_8BIT_STEREO  2
+#define AUD_CONFIG_8BIT_MONO    3
+
+#define AUD_SAMPLE_RATE 44100
+#define AUD_OUTPUT_GAIN 0.25
+
+#define AUD_DMACNTL_DMAEN  1 << 2 // audUnit DMA channel enabled
+#define AUD_DMACNTL_NV     1 << 1 // audUnit DMA next registers are valid
+#define AUD_DMACNTL_NVF    1 << 0 // audUnit DMA next registers are always valid
 
 #define NVCNTL_SCL      1 << 3
 #define NVCNTL_WRITE_EN 1 << 2
@@ -185,6 +198,17 @@ protected:
 	uint32_t m_vid_drawstart;
 	uint32_t m_vid_drawvsize;
 
+	uint8_t m_aud_clkdiv;
+	uint32_t m_aud_cstart;
+	uint32_t m_aud_csize;
+	uint32_t m_aud_cend;
+	uint32_t m_aud_cconfig;
+	uint32_t m_aud_ccnt;
+	uint32_t m_aud_nstart;
+	uint32_t m_aud_nsize;
+	uint32_t m_aud_nconfig;
+	uint32_t m_aud_dmacntl;
+
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;
 
@@ -198,8 +222,12 @@ private:
 	required_device<kbdc8042_device> m_kbdc;
 	required_device<screen_device> m_screen;
 
-    required_device<ins8250_device> m_modem_uart;
-    
+	required_device_array<dac_word_interface, 2> m_dac;
+	required_device<speaker_device> m_lspeaker;
+	required_device<speaker_device> m_rspeaker;
+
+	required_device<ins8250_device> m_modem_uart;
+
 	required_ioport m_sys_config;
 	required_ioport m_emu_config;
 
@@ -207,15 +235,19 @@ private:
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
 
+	emu_timer *dac_update_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(dac_update);
+
 	emu_timer *modem_buffer_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
 
 	void vblank_irq(int state);
 	void irq_keyboard_w(int state);
-    void irq_smartcard_w(int state);
-    void irq_modem_w(int state);
-    
-    uint32_t m_compare_armed;
+	void irq_smartcard_w(int state);
+	void irq_audio_w(int state);
+	void irq_modem_w(int state);
+
+	uint32_t m_compare_armed;
 
 	int m_serial_id_tx;
 
