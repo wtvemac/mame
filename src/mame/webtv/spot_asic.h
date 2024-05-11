@@ -257,9 +257,6 @@ private:
 	void validate_active_area();
 	void spot_update_cycle_counting();
 	
-	TIMER_CALLBACK_MEMBER(vid_dma_complete);
-	//TIMER_CALLBACK_MEMBER(aud_dma_complete);
-
 	/* busUnit registers */
 
     uint32_t reg_0000_r();          // BUS_CHIPID (read-only)
