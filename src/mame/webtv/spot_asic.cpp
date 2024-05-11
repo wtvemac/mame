@@ -420,10 +420,7 @@ void spot_asic_device::reg_0108_w(uint32_t data)
 {
 	logerror("%s: reg_0108_w %08x (BUS_INTSTAT clear)\n", machine().describe_context(), data);
 
-	if (data & BUS_INT_VIDINT)
-		spot_asic_device::set_vid_irq(0xf, 0);
-
-	m_intstat &= (~data) & 0xFF;
+	spot_asic_device::set_bus_irq(data, 0);
 }
 
 uint32_t spot_asic_device::reg_000c_r()
@@ -1375,7 +1372,6 @@ void spot_asic_device::irq_smartcard_w(int state)
 
 void spot_asic_device::irq_audio_w(int state)
 {
-	m_intenable |= BUS_INT_AUDDMA;
 	spot_asic_device::set_bus_irq(BUS_INT_AUDDMA, state);
 }
 
@@ -1406,8 +1402,6 @@ void spot_asic_device::set_vid_irq(uint8_t mask, int state)
 			m_vid_intstat |= mask;
 		else
 			m_vid_intstat &= ~(mask);
-
-		m_intenable |= BUS_INT_VIDINT;
 
 		spot_asic_device::set_bus_irq(BUS_INT_VIDINT, state);
 	}
