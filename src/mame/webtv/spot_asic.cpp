@@ -33,7 +33,6 @@
 #include "render.h"
 #include "spot_asic.h"
 #include "screen.h"
-#include "speaker.h"
 
 #define LOG_UNKNOWN     (1U << 1)
 #define LOG_READS       (1U << 2)
@@ -65,8 +64,9 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	m_nvram(*this, finder_base::DUMMY_TAG),
 	m_kbdc(*this, "kbdc"),
 	m_screen(*this, "screen"),
-	m_ldac(*this, "ldac"),
-	m_rdac(*this, "rdac"),
+	m_dac(*this, "dac%u", 0),
+	m_lspeaker(*this, "lspeaker"),
+	m_rspeaker(*this, "rspeaker"),
 	m_modem(*this, "modem"),
 	m_watchdog(*this, "watchdog"),
 	m_sys_config(*owner, "sys_config"),
@@ -191,10 +191,10 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_screen->screen_vblank().set(FUNC(spot_asic_device::vblank_irq));
 	m_screen->set_raw(VID_DEFAULT_XTAL, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT, 0, VID_DEFAULT_HEIGHT);
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_ldac, 0).add_route(ALL_OUTPUTS, "lspeaker", 0.25);
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_rdac, 0).add_route(ALL_OUTPUTS, "rspeaker", 0.25);
+	SPEAKER(config, m_lspeaker).front_left();
+	SPEAKER(config, m_rspeaker).front_right();
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
 
 	NS16550(config, m_modem, XTAL(1'843'200));
 	m_modem->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
@@ -283,7 +283,7 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-	dac_update_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
+	dac_update_timer->adjust(attotime::from_hz(AUD_SAMPLE_RATE), 0, attotime::from_hz(AUD_SAMPLE_RATE));
 
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
@@ -639,6 +639,20 @@ uint32_t spot_asic_device::reg_201c_r()
 
 void spot_asic_device::reg_201c_w(uint32_t data)
 {
+	if ((m_aud_dmacntl ^ data) & AUD_DMACNTL_DMAEN)
+	{
+		if(data & AUD_DMACNTL_DMAEN)
+		{
+			m_lspeaker->set_input_gain(0, AUD_OUTPUT_GAIN);
+			m_rspeaker->set_input_gain(0, AUD_OUTPUT_GAIN);
+		}
+		else
+		{
+			m_lspeaker->set_input_gain(0, 0.0);
+			m_rspeaker->set_input_gain(0, 0.0);
+		}
+	}
+
 	m_aud_dmacntl = data;
 }
 
@@ -1303,18 +1317,40 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 	{
 		uint32_t sample = m_hostram[m_aud_ccnt];
 
-		m_ldac->write((sample >> 0x10) & 0xFFFF);
-		m_rdac->write((sample) & 0xFFFF);
+		// For 8-bit we're assuming right-aligned samples
+		switch(m_aud_cconfig)
+		{
+			case AUD_CCONFIG_16BIT_STEREO:
+			default:
+				m_dac[0]->write((sample >> 0x10) & 0xFFFF);
+				m_dac[1]->write((sample) & 0xFFFF);
+				break;
+
+			case AUD_CCONFIG_16BIT_MONO:
+				m_dac[0]->write((sample >> 0x10) & 0xFFFF);
+				m_dac[1]->write((sample >> 0x10) & 0xFFFF);
+				break;
+
+			case AUD_CCONFIG_8BIT_STEREO:
+				m_dac[0]->write((sample >> 0x18) & 0xFF);
+				m_dac[1]->write((sample) & 0xFF);
+				break;
+
+			case AUD_CCONFIG_8BIT_MONO:
+				m_dac[0]->write((sample >> 0x18) & 0xFF);
+				m_dac[1]->write((sample >> 0x18) & 0xFF);
+				break;
+		}
 
 		m_aud_ccnt++;
 
 		if(m_aud_ccnt >= m_aud_csize)
 		{
+			spot_asic_device::irq_audio_w(1);
 			m_aud_cstart = m_aud_nstart;
 			m_aud_csize = (m_aud_cstart + m_aud_nsize) >> 2;
 			m_aud_cconfig = m_aud_nconfig;
 			m_aud_ccnt = m_aud_cstart >> 2;
-			spot_asic_device::irq_audio_w(1);
 		}
 	}
 }

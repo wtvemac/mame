@@ -30,6 +30,7 @@
 #include "machine/watchdog.h"
 
 #include "sound/dac.h"
+#include "speaker.h"
 #include "machine/ins8250.h"
 #include "bus/rs232/null_modem.h"
 
@@ -123,9 +124,17 @@
 #define AUD_CONFIG_8BIT 1 << 1 // 8-bit audio
 #define AUD_CONFIG_MONO 1 << 0 // Mono audio
 
+#define AUD_SAMPLE_RATE 44100
+#define AUD_OUTPUT_GAIN 0.25
+
 #define AUD_DMACNTL_DMAEN  1 << 2 // audUnit DMA channel enabled
 #define AUD_DMACNTL_NV     1 << 1 // audUnit DMA next registers are valid
 #define AUD_DMACNTL_NVF    1 << 0 // audUnit DMA next registers are always valid
+
+#define AUD_CCONFIG_16BIT_STEREO 0
+#define AUD_CCONFIG_16BIT_MONO   1
+#define AUD_CCONFIG_8BIT_STEREO  2
+#define AUD_CCONFIG_8BIT_MONO    3
 
 #define NVCNTL_SCL      1 << 3
 #define NVCNTL_WRITE_EN 1 << 2
@@ -260,11 +269,10 @@ private:
 	required_device<i2cmem_device> m_nvram;
 	required_device<kbdc8042_device> m_kbdc;
 	required_device<screen_device> m_screen;
-	required_device<dac_word_interface> m_ldac;
-	required_device<dac_word_interface> m_rdac;
-
+	required_device_array<dac_word_interface, 2> m_dac;
+	required_device<speaker_device> m_lspeaker;
+	required_device<speaker_device> m_rspeaker;
 	required_device<ns16550_device> m_modem;
-
 	required_device<watchdog_timer_device> m_watchdog;
 
 	required_ioport m_sys_config;
