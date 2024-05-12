@@ -692,7 +692,7 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		}
 		else if( ( address & 0xffff ) == 0x5555 && ( data & 0xff ) == 0xa0 )
 		{
-			if ( (m_maker_id == MFG_ATMEL && m_device_id == 0xd5) ||)
+			if ( (m_maker_id == MFG_ATMEL && m_device_id == 0xd5) || (m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1) )
 			{
 				m_flash_mode = FM_WRITEPAGEATMEL;
 				m_byte_count = 0;
