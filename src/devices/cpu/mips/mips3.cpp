@@ -209,9 +209,9 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 
 	// configure the virtual TLB
 	if (m_flavor == MIPS3_TYPE_TX4925)
-		set_vtlb_fixed_entries(2 * m_tlbentries + 3);
+		set_vtlb_fixed_entries(2 * m_tlbentries + 4);
 	else
-		set_vtlb_fixed_entries(2 * m_tlbentries + 2);
+		set_vtlb_fixed_entries(2 * m_tlbentries + 3);
 }
 
 device_memory_interface::space_config_vector mips3_device::memory_space_config() const
