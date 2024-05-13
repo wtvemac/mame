@@ -212,9 +212,9 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 
 	// configure the virtual TLB
 	if (m_flavor == MIPS3_TYPE_TX4925)
-		set_vtlb_fixed_entries(2 * m_tlbentries + 3);
+		set_vtlb_fixed_entries(2 * m_tlbentries + 4);
 	else
-		set_vtlb_fixed_entries(2 * m_tlbentries + 2);
+		set_vtlb_fixed_entries(2 * m_tlbentries + 3);
 }
 
 device_memory_interface::space_config_vector mips3_device::memory_space_config() const
@@ -1125,16 +1125,18 @@ void mips3_device::device_reset()
 		entry->entry_lo[1] = 0xfffffff8;
 		vtlb_load(2 * tlbindex + 0, 0, 0, 0);
 		vtlb_load(2 * tlbindex + 1, 0, 0, 0);
+		vtlb_load(2 * tlbindex + 2, 0, 0, 0);
 		if (m_flavor == MIPS3_TYPE_TX4925)
-			vtlb_load(2 * tlbindex + 2, 0, 0, 0);
+			vtlb_load(2 * tlbindex + 3, 0, 0, 0);
 	}
 
 	/* load the fixed TLB range */
 	vtlb_load(2 * m_tlbentries + 0, (0xa0000000 - 0x80000000) >> MIPS3_MIN_PAGE_SHIFT, 0x80000000, 0x00000000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
 	vtlb_load(2 * m_tlbentries + 1, (0xc0000000 - 0xa0000000) >> MIPS3_MIN_PAGE_SHIFT, 0xa0000000, 0x00000000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
+	vtlb_load(2 * m_tlbentries + 2, (0xe0000000 - 0xc0000000) >> MIPS3_MIN_PAGE_SHIFT, 0xc0000000, 0x00000000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
 	// TX4925 on-board peripherals pass-through
 	if (m_flavor == MIPS3_TYPE_TX4925)
-		vtlb_load(2 * m_tlbentries + 2, (0xff200000 - 0xff1f0000) >> MIPS3_MIN_PAGE_SHIFT, 0xff1f0000, 0xff1f0000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
+		vtlb_load(2 * m_tlbentries + 3, (0xff200000 - 0xff1f0000) >> MIPS3_MIN_PAGE_SHIFT, 0xff1f0000, 0xff1f0000 | READ_ALLOWED | WRITE_ALLOWED | FETCH_ALLOWED | FLAG_VALID);
 	m_tlb_seed = 0;
 
 	m_core->mode = (MODE_KERNEL << 1) | 0;
