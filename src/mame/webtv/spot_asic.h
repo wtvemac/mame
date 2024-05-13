@@ -272,7 +272,7 @@ private:
 	required_device_array<dac_word_interface, 2> m_dac;
 	required_device<speaker_device> m_lspeaker;
 	required_device<speaker_device> m_rspeaker;
-	required_device<ns16550_device> m_modem;
+	required_device<ns16550_device> m_modem_uart;
 	required_device<watchdog_timer_device> m_watchdog;
 
 	required_ioport m_sys_config;

@@ -45799,7 +45799,7 @@ jupiter3                        //
 
 @source:webtv/webtv1.cpp
 wtv1bfe                         // 1996 WebTV bfeapp Protoype Box
-wtv1dbg                         // 1996 WebTV 4MB Approm Box
+wtv1dev                         // 1996 WebTV 4MB Development Box
 wtv1sony                        // 1996 INT-W100 WebTV Internet Terminal
 wtv1phil                        // 1996 MAT960 WebTV Internet Terminal
 

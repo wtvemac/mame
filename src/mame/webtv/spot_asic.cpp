@@ -67,7 +67,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	m_dac(*this, "dac%u", 0),
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker"),
-	m_modem(*this, "modem"),
+	m_modem_uart(*this, "modem_uart"),
 	m_watchdog(*this, "watchdog"),
 	m_sys_config(*owner, "sys_config"),
 	m_emu_config(*owner, "emu_config"),
@@ -79,7 +79,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 
 DECLARE_INPUT_CHANGED_MEMBER(pbuff_index_changed);
 
-static DEVICE_INPUT_DEFAULTS_START( null_modem )
+static DEVICE_INPUT_DEFAULTS_START( wtv_modem )
 	DEVICE_INPUT_DEFAULTS("RS232_RXBAUD", 0xff, RS232_BAUD_115200)
 	DEVICE_INPUT_DEFAULTS("RS232_TXBAUD", 0xff, RS232_BAUD_115200)
 	DEVICE_INPUT_DEFAULTS("RS232_DATABITS", 0xff, RS232_DATABITS_8)
@@ -196,19 +196,19 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.0);
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
 
-	NS16550(config, m_modem, XTAL(1'843'200));
-	m_modem->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
-	m_modem->out_tx_callback().set("mdm", FUNC(rs232_port_device::write_txd));
-	m_modem->out_dtr_callback().set("mdm", FUNC(rs232_port_device::write_dtr));
-	m_modem->out_rts_callback().set("mdm", FUNC(rs232_port_device::write_rts));
+	NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
+	m_modem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
+	m_modem_uart->out_dtr_callback().set("modem", FUNC(rs232_port_device::write_dtr));
+	m_modem_uart->out_rts_callback().set("modem", FUNC(rs232_port_device::write_rts));
+	m_modem_uart->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
 
-	rs232_port_device &mdm(RS232_PORT(config, "mdm", default_rs232_devices, "null_modem"));
-	mdm.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(null_modem));
-	mdm.rxd_handler().set(m_modem, FUNC(ns16450_device::rx_w));
-	mdm.dcd_handler().set(m_modem, FUNC(ns16450_device::dcd_w));
-	mdm.dsr_handler().set(m_modem, FUNC(ns16450_device::dsr_w));
-	mdm.ri_handler().set(m_modem, FUNC(ns16450_device::ri_w));
-	mdm.cts_handler().set(m_modem, FUNC(ns16450_device::cts_w));
+	rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
+	rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
+	rs232.rxd_handler().set(m_modem_uart, FUNC(ns16450_device::rx_w));
+	rs232.dcd_handler().set(m_modem_uart, FUNC(ns16450_device::dcd_w));
+	rs232.dsr_handler().set(m_modem_uart, FUNC(ns16450_device::dsr_w));
+	rs232.ri_handler().set(m_modem_uart, FUNC(ns16450_device::ri_w));
+	rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
 
 	KBDC8042(config, m_kbdc);
 	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
@@ -1104,16 +1104,16 @@ uint32_t blop_rx = false;
 
 uint32_t spot_asic_device::reg_4040_r()
 {
-	uint32_t cool = m_modem->ins8250_r(0x0);
+	uint32_t cool = m_modem_uart->ins8250_r(0x0);
 
 	return cool & 0xFF;
 }
 
 void spot_asic_device::reg_4040_w(uint32_t data)
 {
-	if(modem_txbuff_size == 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	if(modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
-		m_modem->ins8250_w(0x0, data & 0xFF);
+		m_modem_uart->ins8250_w(0x0, data & 0xFF);
 	}
 	else
 	{
@@ -1125,67 +1125,67 @@ void spot_asic_device::reg_4040_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4044_r()
 {
-	return m_modem->ins8250_r(0x1);
+	return m_modem_uart->ins8250_r(0x1);
 }
 
 void spot_asic_device::reg_4044_w(uint32_t data)
 {
-	m_modem->ins8250_w(0x1, data & 0xFF);
+	m_modem_uart->ins8250_w(0x1, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4048_r()
 {
-	return m_modem->ins8250_r(0x2);
+	return m_modem_uart->ins8250_r(0x2);
 }
 
 void spot_asic_device::reg_4048_w(uint32_t data)
 {
-	m_modem->ins8250_w(0x2, data & 0xFF);
+	m_modem_uart->ins8250_w(0x2, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_404c_r()
 {
-	return m_modem->ins8250_r(0x3);
+	return m_modem_uart->ins8250_r(0x3);
 }
 
 void spot_asic_device::reg_404c_w(uint32_t data)
 {
-	m_modem->ins8250_w(0x3, data & 0xFF);
+	m_modem_uart->ins8250_w(0x3, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4050_r()
 {
-	return m_modem->ins8250_r(0x4);
+	return m_modem_uart->ins8250_r(0x4);
 }
 
 void spot_asic_device::reg_4050_w(uint32_t data)
 {
-	m_modem->ins8250_w(0x4, data & 0xFF);
+	m_modem_uart->ins8250_w(0x4, data & 0xFF);
 }
 uint32_t spot_asic_device::reg_4054_r()
 {
-	return m_modem->ins8250_r(0x5);
+	return m_modem_uart->ins8250_r(0x5);
 }
 void spot_asic_device::reg_4054_w(uint32_t data)
 {
-	m_modem->ins8250_w(0x5, data & 0xFF);
+	m_modem_uart->ins8250_w(0x5, data & 0xFF);
 }
 uint32_t spot_asic_device::reg_4058_r()
 {
-	return m_modem->ins8250_r(0x6);
+	return m_modem_uart->ins8250_r(0x6);
 }
 void spot_asic_device::reg_4058_w(uint32_t data)
 {
-	m_modem->ins8250_w(0x6, data & 0xFF);
+	m_modem_uart->ins8250_w(0x6, data & 0xFF);
 }
 uint32_t spot_asic_device::reg_405c_r()
 {
-	return m_modem->ins8250_r(0x7);
+	return m_modem_uart->ins8250_r(0x7);
 }
 
 void spot_asic_device::reg_405c_w(uint32_t data)
 {
-	m_modem->ins8250_w(0x7, data & 0xFF);
+	m_modem_uart->ins8250_w(0x7, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_5000_r()
@@ -1352,9 +1352,9 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 
 TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
 {
-	if(modem_txbuff_size > 0 && (m_modem->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	if(modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
-		m_modem->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
+		m_modem_uart->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
 
 		if(modem_txbuff_index == modem_txbuff_size)
 		{

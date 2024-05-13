@@ -64,7 +64,7 @@ public:
 	
 	void webtv1_base(machine_config& config);
 
-	void webtv1_dbg(machine_config& config);
+	void webtv1_dev(machine_config& config);
 	void webtv1_bfe(machine_config& config);
 	void webtv1_sony(machine_config& config);
 	void webtv1_philips(machine_config& config);
@@ -96,7 +96,7 @@ private:
 	void status_w(offs_t offset, uint32_t data);
 
 	void webtv1_base_map(address_map &map);
-	void webtv1_dbg_map(address_map &map);
+	void webtv1_dev_map(address_map &map);
 	void webtv1_bfe_map(address_map &map);
 	void webtv1_retail_map(address_map &map);
 };
@@ -254,7 +254,7 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_spotasic->set_nvram(m_nvram);
 }
 
-void webtv1_state::webtv1_dbg_map(address_map &map)
+void webtv1_state::webtv1_dev_map(address_map &map)
 {
 	webtv1_base_map(map);
 
@@ -273,7 +273,7 @@ void webtv1_state::webtv1_dbg_map(address_map &map)
 	// Reserved (0x20000000-0xffffffff)
 }
 
-void webtv1_state::webtv1_dbg(machine_config& config)
+void webtv1_state::webtv1_dev(machine_config& config)
 {
 	webtv1_base(config);
 
@@ -287,7 +287,7 @@ void webtv1_state::webtv1_dbg(machine_config& config)
 	AMD_29F800B_16BIT(config, m_bootrom_flash0, 0);
 	AMD_29F800B_16BIT(config, m_bootrom_flash1, 0);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_dbg_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_dev_map);
 }
 
 void webtv1_state::webtv1_bfe_map(address_map &map)
@@ -502,7 +502,7 @@ ROM_START( wtv1bfe )
 	ROMX_LOAD("prealpha-boot.o", 0x400000, 0x200000, CRC(f23fbfd3) SHA1(f046ecc4ff46f3afca9a413c7c1022246c36e7ff), ROM_BIOS(1))    // 0x9fc00000/0xbfc00000
 ROM_END
 
-ROM_START( wtv1dbg )
+ROM_START( wtv1dev )
 	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
 	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
 ROM_END
@@ -527,6 +527,6 @@ ROM_END
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT         CLASS         INIT        COMPANY               FULLNAME                            FLAGS
 CONS( 1996, wtv1bfe,  0,      0,      webtv1_bfe,     webtv1_input, webtv1_state, empty_init, "WebTV",              "WebTV bfeapp Protoype Box",        MACHINE_UNOFFICIAL + MACHINE_IS_INCOMPLETE + MACHINE_IMPERFECT_TIMING + MACHINE_IMPERFECT_SOUND )
-CONS( 1996, wtv1dbg,  0,      0,      webtv1_dbg,     webtv1_input, webtv1_state, empty_init, "WebTV",              "WebTV 4MB Approm Box",             MACHINE_UNOFFICIAL + MACHINE_IS_INCOMPLETE + MACHINE_IMPERFECT_TIMING + MACHINE_IMPERFECT_SOUND )
+CONS( 1996, wtv1dev,  0,      0,      webtv1_dev,     webtv1_input, webtv1_state, empty_init, "WebTV",              "WebTV 4MB Development Box",        MACHINE_UNOFFICIAL + MACHINE_IS_INCOMPLETE + MACHINE_IMPERFECT_TIMING + MACHINE_IMPERFECT_SOUND )
 CONS( 1996, wtv1sony, 0,      0,      webtv1_sony,    webtv1_input, webtv1_state, empty_init, "Sony",               "INT-W100 WebTV Internet Terminal", MACHINE_UNOFFICIAL + MACHINE_IS_INCOMPLETE + MACHINE_IMPERFECT_TIMING + MACHINE_IMPERFECT_SOUND )
 CONS( 1996, wtv1phil, 0,      0,      webtv1_philips, webtv1_input, webtv1_state, empty_init, "Philips-Magnavox",   "MAT960 WebTV Internet Terminal",   MACHINE_UNOFFICIAL + MACHINE_IS_INCOMPLETE + MACHINE_IMPERFECT_TIMING + MACHINE_IMPERFECT_SOUND )
