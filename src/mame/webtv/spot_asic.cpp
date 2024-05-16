@@ -95,11 +95,11 @@ void spot_asic_device::bus_unit_map(address_map &map)
 	map(0x008, 0x00b).r(FUNC(spot_asic_device::reg_0008_r));                                      // BUS_INTSTAT
 	map(0x108, 0x10b).w(FUNC(spot_asic_device::reg_0108_w));                                      // BUS_INTEN_S
 	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_000c_r), FUNC(spot_asic_device::reg_000c_w)); // BUS_ERRSTAT
-	map(0x10c, 0x10f).w(FUNC(spot_asic_device::reg_010c_w));                                      // BUS_INTEN_C
+	map(0x10c, 0x10f).rw(FUNC(spot_asic_device::reg_010c_r), FUNC(spot_asic_device::reg_010c_w)); // BUS_INTEN_C
 	map(0x010, 0x013).r(FUNC(spot_asic_device::reg_0010_r));                                      // BUS_ERRSTAT
-	map(0x110, 0x113).w(FUNC(spot_asic_device::reg_0110_w));                                      // BUS_ERRSTAT_C
+	map(0x110, 0x113).rw(FUNC(spot_asic_device::reg_0110_r), FUNC(spot_asic_device::reg_0110_w));  // BUS_ERRSTAT_C
 	map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0014_w)); // BUS_ERREN_S
-	map(0x114, 0x117).w(FUNC(spot_asic_device::reg_0114_w));                                      // BUS_ERREN_C
+	map(0x114, 0x117).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0114_w)); // BUS_ERREN_C
 	map(0x018, 0x01b).r(FUNC(spot_asic_device::reg_0018_r));                                      // BUS_ERRADDR
 	map(0x118, 0x11b).w(FUNC(spot_asic_device::reg_0118_w));                                      // BUS_WDREG_C
 	map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_001c_r), FUNC(spot_asic_device::reg_001c_w)); // BUS_FENADDR1
@@ -157,6 +157,9 @@ void spot_asic_device::dev_unit_map(address_map &map)
 	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_400c_r), FUNC(spot_asic_device::reg_400c_w)); // DEV_NVCNTL
 	map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_4010_r), FUNC(spot_asic_device::reg_4010_w)); // DEV_SCCNTL
 	map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_4014_r), FUNC(spot_asic_device::reg_4014_w)); // DEV_EXTTIME
+	
+	map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_4018_r), FUNC(spot_asic_device::reg_4018_w)); // DEV_
+
 	map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_4020_r), FUNC(spot_asic_device::reg_4020_w)); // DEV_KBD0
 	map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_4024_r), FUNC(spot_asic_device::reg_4024_w)); // DEV_KBD1
 	map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_4028_r), FUNC(spot_asic_device::reg_4028_w)); // DEV_KBD2
@@ -180,7 +183,7 @@ void spot_asic_device::mem_unit_map(address_map &map)
 	map(0x000, 0x003).rw(FUNC(spot_asic_device::reg_5000_r), FUNC(spot_asic_device::reg_5000_w)); // MEM_CNTL
 	map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_5004_r), FUNC(spot_asic_device::reg_5004_w)); // MEM_REFCNT
 	map(0x008, 0x00b).rw(FUNC(spot_asic_device::reg_5008_r), FUNC(spot_asic_device::reg_5008_w)); // MEM_DATA
-	map(0x00c, 0x00f).w(FUNC(spot_asic_device::reg_500c_w));                                      // MEM_CMD - write only register, but read handler is hooked up to debug behavior
+	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_500c_r), FUNC(spot_asic_device::reg_500c_w)); // MEM_CMD - write only register, but read handler is hooked up to debug behavior
 	map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_5010_r), FUNC(spot_asic_device::reg_5010_w)); // MEM_TIMING
 }
 
@@ -468,6 +471,11 @@ void spot_asic_device::reg_000c_w(uint32_t data)
     m_intenable |= data & 0xFF;
 }
 
+uint32_t spot_asic_device::reg_010c_r()
+{
+	return m_intenable;
+}
+
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
 	m_intenable &= ~(data & 0xFF);
@@ -476,6 +484,11 @@ void spot_asic_device::reg_010c_w(uint32_t data)
 uint32_t spot_asic_device::reg_0010_r()
 {
 	return m_errstat;
+}
+
+uint32_t spot_asic_device::reg_0110_r()
+{
+	return 0x00000000;
 }
 
 void spot_asic_device::reg_0110_w(uint32_t data)
@@ -491,6 +504,11 @@ uint32_t spot_asic_device::reg_0014_r()
 void spot_asic_device::reg_0014_w(uint32_t data)
 {
 	//
+}
+
+uint32_t spot_asic_device::reg_0114_r()
+{
+	return 0x00000000;
 }
 
 void spot_asic_device::reg_0114_w(uint32_t data)
@@ -923,7 +941,7 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 			case SSID_STATE_RESET: // End reset low pulse to go into prescense mode. Chip should read low to indicate presence.
 				dev_id_state = SSID_STATE_PRESENCE; // This pulse normally lasts 480us before going into command mode.
 				break;
-			
+
 			case SSID_STATE_COMMAND: // Ended a command bit pulse. Increment bit index. We always assume a read from ROM command after we get 8 bits.
 				dev_id_bitidx++;
 
@@ -1015,6 +1033,16 @@ uint32_t spot_asic_device::reg_4014_r()
 }
 
 void spot_asic_device::reg_4014_w(uint32_t data)
+{
+	//
+}
+
+uint32_t spot_asic_device::reg_4018_r()
+{
+	return 0x00000000; //
+}
+
+void spot_asic_device::reg_4018_w(uint32_t data)
 {
 	//
 }
@@ -1216,6 +1244,11 @@ uint32_t spot_asic_device::reg_5008_r()
 void spot_asic_device::reg_5008_w(uint32_t data)
 {
 	m_memdata = data;
+}
+
+uint32_t spot_asic_device::reg_500c_r()
+{
+	return 0x00000000;
 }
 
 void spot_asic_device::reg_500c_w(uint32_t data)

@@ -313,11 +313,14 @@ private:
 	void reg_0108_w(uint32_t data); // BUS_INTSTAT (clear)
 	uint32_t reg_000c_r(); // BUS_INTEN (read)
 	void reg_000c_w(uint32_t data); // BUS_INTEN (set)
+	uint32_t reg_010c_r();
 	void reg_010c_w(uint32_t data); // BUS_INTEN (clear)
 	uint32_t reg_0010_r(); // BUS_ERRSTAT (read)
+	uint32_t reg_0110_r();
 	void reg_0110_w(uint32_t data); // BUS_ERRSTAT (clear)
 	uint32_t reg_0014_r(); // BUS_ERREN_S (read)
 	void reg_0014_w(uint32_t data); // BUS_ERREN_S (write)
+	uint32_t reg_0114_r();
 	void reg_0114_w(uint32_t data); // BUS_ERREN_C (clear)
 	uint32_t reg_0018_r(); // BUS_ERRADDR (read-only)
 	void reg_0118_w(uint32_t data); // BUS_WDREG_C (clear)
@@ -399,6 +402,8 @@ private:
 	void reg_4010_w(uint32_t data); // DEV_SCCNTL (write)
 	uint32_t reg_4014_r(); // DEV_EXTTIME (read)
 	void reg_4014_w(uint32_t data); // DEV_EXTTIME (write)
+	uint32_t reg_4018_r(); // DEV_EXTTIME (read)
+	void reg_4018_w(uint32_t data); // DEV_
 	
 	// The boot ROM seems to write to register 4018, which is a reserved register according to the documentation.
 
