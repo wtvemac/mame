@@ -127,6 +127,15 @@
 #define MBUFF_MAX_SIZE   0x800
 #define MBUFF_FLUSH_TIME 100
 
+#define SSID_STATE_IDLE               0x0
+#define SSID_STATE_RESET              0x1
+#define SSID_STATE_PRESENCE           0x2
+#define SSID_STATE_COMMAND            0x3
+#define SSID_STATE_READROM            0x4
+#define SSID_STATE_READROM_PULSESTART 0x5
+#define SSID_STATE_READROM_PULSEEND   0x6
+#define SSID_STATE_READROM_BIT        0x7
+
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
 public:
@@ -215,6 +224,11 @@ protected:
 	uint32_t m_aud_nsize;
 	uint32_t m_aud_nconfig;
 	uint32_t m_aud_dmacntl;
+
+	uint32_t dev_idcntl;
+	uint8_t dev_id_state;
+	uint8_t dev_id_bit;
+	uint8_t dev_id_bitidx;
 
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;

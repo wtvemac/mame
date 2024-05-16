@@ -954,21 +954,79 @@ void spot_asic_device::reg_4004_w(uint32_t data)
 	m_message_led = !BIT(m_ledstate, 0);
 }
 
-// Read from DS2401
+// Not using logic inside DS2401.cpp because the delay logic in the ROM doesn't work properly.
+
 uint32_t spot_asic_device::reg_4008_r()
 {
-    // TODO: is this correct?
-    logerror("%s: reg_4008_r (DEV_IDCNTL)\n", machine().describe_context());
-    return (m_serial_id->read() + (m_serial_id_tx << 1));
+	dev_id_bit = 0x0;
+
+	if(dev_id_state == SSID_STATE_PRESENCE)
+	{
+		dev_id_bit = 0x0; // We're present.
+		dev_id_state = SSID_STATE_COMMAND; // This normally would stay in presence mode for 480us then command, but we immediatly go into command mode.
+		dev_id_bitidx = 0x0;
+	}
+	else if(dev_id_state == SSID_STATE_READROM_PULSEEND)
+	{
+		dev_id_state = SSID_STATE_READROM_BIT;
+	}
+	else if(dev_id_state == SSID_STATE_READROM_BIT)
+	{
+		dev_id_state = SSID_STATE_READROM; // Go back into the read ROM pulse state
+
+		dev_id_bit = m_serial_id->direct_read(dev_id_bitidx / 8) >> (dev_id_bitidx & 0x7);
+
+		dev_id_bitidx++;
+		if(dev_id_bitidx == 64)
+		{
+			// We've read the entire SSID. Go back into idle.
+			dev_id_state = SSID_STATE_IDLE;
+			dev_id_bitidx = 0x0;
+		}
+	}
+
+	return dev_idcntl | (dev_id_bit & 1);
 }
 
-// Write to DS2401
 void spot_asic_device::reg_4008_w(uint32_t data)
 {
-    // TODO: is this correct?
-    m_serial_id_tx = BIT(data, 1);
-    logerror("%s: reg_4008_w %08x - write %d (DEV_IDCNTL)\n", machine().describe_context(), data, m_serial_id_tx);
-    m_serial_id->write(m_serial_id_tx ? ASSERT_LINE : CLEAR_LINE);
+	dev_idcntl = (data & 0x2);
+
+	if(dev_idcntl & 0x2)
+	{
+		switch(dev_id_state) // States for high
+		{
+			case SSID_STATE_RESET: // End reset low pulse to go into prescense mode. Chip should read low to indicate presence.
+				dev_id_state = SSID_STATE_PRESENCE; // This pulse normally lasts 480us before going into command mode.
+				break;
+
+			case SSID_STATE_COMMAND: // Ended a command bit pulse. Increment bit index. We always assume a read from ROM command after we get 8 bits.
+				dev_id_bitidx++;
+
+				if(dev_id_bitidx == 8)
+				{
+					dev_id_state = SSID_STATE_READROM; // Now we can read back the SSID. ROM reads it as two 32-bit integers.
+					dev_id_bitidx = 0;
+				}
+				break;
+
+			case SSID_STATE_READROM_PULSESTART:
+				dev_id_state = SSID_STATE_READROM_PULSEEND;
+		}
+	}
+	else
+	{
+		switch(dev_id_state) // States for low
+		{
+			case SSID_STATE_IDLE: // When idle, we can drive the chip low for reset
+				dev_id_state = SSID_STATE_RESET; // We'd normally leave this for 480us to go into presence mode.
+				break;
+
+			case SSID_STATE_READROM:
+				dev_id_state = SSID_STATE_READROM_PULSESTART;
+				break;
+		}
+	}
 }
 
 // Read from I2C EEPROM device (24C01A?)
