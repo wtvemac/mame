@@ -189,7 +189,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.0);
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
 
-	INS8250(config, m_modem_uart, 1.8432_MHz_XTAL);
+	NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
 	m_modem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
 	m_modem_uart->out_dtr_callback().set("modem", FUNC(rs232_port_device::write_dtr));
 	m_modem_uart->out_rts_callback().set("modem", FUNC(rs232_port_device::write_rts));
@@ -197,11 +197,11 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
     
 	rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
     rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
-	rs232.rxd_handler().set(m_modem_uart, FUNC(ins8250_uart_device::rx_w));
-	rs232.dcd_handler().set(m_modem_uart, FUNC(ins8250_uart_device::dcd_w));
-	rs232.dsr_handler().set(m_modem_uart, FUNC(ins8250_uart_device::dsr_w));
-	rs232.ri_handler().set(m_modem_uart, FUNC(ins8250_uart_device::ri_w));
-	rs232.cts_handler().set(m_modem_uart, FUNC(ins8250_uart_device::cts_w));
+	rs232.rxd_handler().set(m_modem_uart, FUNC(ns16450_device::rx_w));
+	rs232.dcd_handler().set(m_modem_uart, FUNC(ns16450_device::dcd_w));
+	rs232.dsr_handler().set(m_modem_uart, FUNC(ns16450_device::dsr_w));
+	rs232.ri_handler().set(m_modem_uart, FUNC(ns16450_device::ri_w));
+	rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
 
 	KBDC8042(config, m_kbdc);
 	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
