@@ -247,7 +247,7 @@ private:
 	required_device<speaker_device> m_lspeaker;
 	required_device<speaker_device> m_rspeaker;
 
-	required_device<ins8250_device> m_modem_uart;
+	required_device<ns16550_device> m_modem_uart;
 	
 	required_device<watchdog_timer_device> m_watchdog;
 
