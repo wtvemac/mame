@@ -88,23 +88,23 @@ void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
 	// One chip is for the lower 16 bits (labeled U0502), and the other is for the upper 16 bits (labeled U0501).
 	// When dumping from a real box, keep in mind that the bus is big endian, so byte swapping will be necessary.
 	logerror("%s: bank0_flash_w 0x1f%06x = %08x\n", machine().describe_context(), offset, data);
-	uint32_t actual_offset = offset & 0xfffff;
+	//uint32_t actual_offset = offset & 0xfffff;
 	uint16_t upper_value = (data >> 16) & 0xffff;
 	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
-	m_flash0->write(actual_offset, upper_value);
+	m_flash0->write(offset, upper_value);
 	
 	uint16_t lower_value = data & 0xffff;
 	//lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
-	m_flash1->write(actual_offset, lower_value);
+	m_flash1->write(offset, lower_value);
 }
 
 uint32_t webtv1_state::bank0_flash_r(offs_t offset)
 {
 	//logerror("%s: bank0_flash_r 0x1f%06x\n", machine().describe_context(), offset);
-	uint32_t actual_offset = offset & 0xfffff;
-	uint16_t upper_value = m_flash0->read(actual_offset);
+	//uint32_t actual_offset = offset & 0xfffff;
+	uint16_t upper_value = m_flash0->read(offset);
 	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
-	uint16_t lower_value = m_flash1->read(actual_offset);
+	uint16_t lower_value = m_flash1->read(offset);
 	//lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
     return (upper_value << 16) | (lower_value);
 }
