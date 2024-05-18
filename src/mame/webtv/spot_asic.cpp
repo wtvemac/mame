@@ -274,6 +274,10 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
 	save_item(NAME(m_ledstate));
+	save_item(NAME(dev_idcntl));
+	save_item(NAME(dev_id_state));
+	save_item(NAME(dev_id_bit));
+	save_item(NAME(dev_id_bitidx));
 }
 
 void spot_asic_device::device_reset()
@@ -330,6 +334,11 @@ void spot_asic_device::device_reset()
 	m_power_led = 0;
 	m_connect_led = 0;
 	m_message_led = 0;
+
+	dev_idcntl = 0x00;
+	dev_id_state = SSID_STATE_IDLE;
+	dev_id_bit = 0x0;
+	dev_id_bitidx = 0x0;
 
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
