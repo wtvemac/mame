@@ -41,7 +41,7 @@
 #include "main.h"
 #include "screen.h"
 
-#define SYSCLOCK 56000000 // TODO: confirm this is correct
+#define SYSCLOCK 56448000 // confirmed
 
 class webtv1_state : public driver_device
 {
