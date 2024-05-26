@@ -321,6 +321,7 @@ void spot_asic_device::device_reset()
 	m_aud_nsize = 0x0;
 	m_aud_nconfig = 0x0;
 	m_aud_dmacntl = 0x0;
+	m_aud_dma_ongoing = false;
 
 	m_vid_drawstart = 0x0;
 	m_vid_drawvsize = m_vid_vsize;
@@ -1380,44 +1381,52 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 
 TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 {
-	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
+	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN)
 	{
-		address_space &space = m_hostcpu->space(AS_PROGRAM);
-
-		int16_t samplel = space.read_dword(m_aud_ccnt);
-		m_aud_ccnt += 2;
-		int16_t sampler = space.read_dword(m_aud_ccnt);
-		m_aud_ccnt += 2;
-
-		// For 8-bit we're assuming left-aligned samples
-		switch(m_aud_cconfig)
+		if (m_aud_dma_ongoing)
 		{
-			case AUD_CONFIG_16BIT_STEREO:
-			default:
-				m_dac[0]->write(samplel);
-				m_dac[1]->write(sampler);
-				break;
+			address_space &space = m_hostcpu->space(AS_PROGRAM);
 
-			case AUD_CONFIG_16BIT_MONO:
-				m_dac[0]->write(samplel);
-				m_dac[1]->write(samplel);
-				break;
+			int16_t samplel = space.read_dword(m_aud_ccnt);
+			m_aud_ccnt += 2;
+			int16_t sampler = space.read_dword(m_aud_ccnt);
+			m_aud_ccnt += 2;
 
-			case AUD_CONFIG_8BIT_STEREO:
-				m_dac[0]->write((samplel >> 0x8) & 0xFF);
-				m_dac[1]->write((sampler >> 0x8) & 0xFF);
-				break;
+			// For 8-bit we're assuming left-aligned samples
+			switch(m_aud_cconfig)
+			{
+				case AUD_CONFIG_16BIT_STEREO:
+				default:
+					m_dac[0]->write(samplel);
+					m_dac[1]->write(sampler);
+					break;
 
-			case AUD_CONFIG_8BIT_MONO:
-				m_dac[0]->write((samplel >> 0x8) & 0xFF);
-				m_dac[1]->write((samplel >> 0x8) & 0xFF);
-				break;
+				case AUD_CONFIG_16BIT_MONO:
+					m_dac[0]->write(samplel);
+					m_dac[1]->write(samplel);
+					break;
+
+				case AUD_CONFIG_8BIT_STEREO:
+					m_dac[0]->write((samplel >> 0x8) & 0xFF);
+					m_dac[1]->write((sampler >> 0x8) & 0xFF);
+					break;
+
+				case AUD_CONFIG_8BIT_MONO:
+					m_dac[0]->write((samplel >> 0x8) & 0xFF);
+					m_dac[1]->write((samplel >> 0x8) & 0xFF);
+					break;
+			}
+			if(m_aud_ccnt >= m_aud_cend)
+			{
+				spot_asic_device::irq_audio_w(1);
+				m_aud_dma_ongoing = false; // nothing more to DMA
+			}
 		}
-
-
-		if(m_aud_ccnt >= m_aud_cend)
+		if (!m_aud_dma_ongoing)
 		{
-			spot_asic_device::irq_audio_w(1);
+			// wait for next DMA values to be marked as valid
+			m_aud_dma_ongoing = m_aud_dmacntl & (AUD_DMACNTL_NV | AUD_DMACNTL_NVF);
+			if (!m_aud_dma_ongoing) return; // values aren't marked as valid; don't prepare for next DMA
 			m_aud_cstart = m_aud_nstart;
 			m_aud_csize = m_aud_nsize;
 			m_aud_cend = (m_aud_cstart + m_aud_csize);
