@@ -273,6 +273,8 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_aud_dmacntl));
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
+	save_item(NAME(m_rom_cntl0));
+	save_item(NAME(m_rom_cntl1));
 	save_item(NAME(m_ledstate));
 	save_item(NAME(dev_idcntl));
 	save_item(NAME(dev_id_state));
@@ -329,6 +331,9 @@ void spot_asic_device::device_reset()
 
 	m_vid_drawstart = 0x0;
 	m_vid_drawvsize = m_vid_vsize;
+
+	m_rom_cntl0 = 0x0;
+	m_rom_cntl1 = 0x0;
 
 	m_ledstate = 0xFFFFFFFF;
 	m_power_led = 0;
@@ -611,23 +616,25 @@ uint32_t spot_asic_device::reg_1000_r()
 uint32_t spot_asic_device::reg_1004_r()
 {
 	logerror("%s: reg_1004_r (ROM_CNTL0)\n", machine().describe_context());
-	return 0;
+	return m_rom_cntl0;
 }
 
 void spot_asic_device::reg_1004_w(uint32_t data)
 {
 	logerror("%s: reg_1004_w %08x (ROM_CNTL0)\n", machine().describe_context(), data);
+	m_rom_cntl0 = data;
 }
 
 uint32_t spot_asic_device::reg_1008_r()
 {
 	logerror("%s: reg_1008_r (ROM_CNTL1)\n", machine().describe_context());
-	return 0;
+	return m_rom_cntl1;
 }
 
 void spot_asic_device::reg_1008_w(uint32_t data)
 {
 	logerror("%s: reg_1008_w %08x (ROM_CNTL1)\n", machine().describe_context(), data);
+	m_rom_cntl1 = data;
 }
 
 uint32_t spot_asic_device::reg_2000_r()
