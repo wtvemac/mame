@@ -1039,26 +1039,38 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 	}
 }
 
-// Read from I2C EEPROM device (24C01A?)
+// 400c commands the I2C bus (referenced as the IIC bus in WebTV's code)
+//
+// The SPOT programming doc calls this as an NVCNTL register but this us used as an I2C register.
+//
+// There's two known devices that sit on this bus:
+//
+//	Address		Device
+//	0x8C		Philips SAA7187 encoder
+//				Used for the S-Video and composite out
+//	0xa0		Atmel AT24C01A EEPROM NVRAM
+//				Used for the encryption shared secret (0x14) and crash log counter (0x23)
+//
+// We emulate the AT24C01A here.
+//
 uint32_t spot_asic_device::reg_400c_r()
 {
-	// TODO: is this correct?
-    //logerror("%s: reg_400c_r (DEV_NVCNTL)\n", machine().describe_context());
-	return (m_nvcntl & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN))) + (m_nvram->read_sda() * NVCNTL_SDA_W) + (m_nvram->read_sda() * NVCNTL_SDA_R);
+	int sda_bit = (m_nvram->read_sda()) & 0x1;
+
+	return (m_nvcntl & 0xE) | sda_bit;
 }
 
-// Write to I2C EEPROM device
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
-    // TODO: is this correct?
-    logerror("%s: reg_400c_w %08x (DEV_NVCNTL)\n", machine().describe_context(), data);
-    m_nvram->write_wc((data & NVCNTL_WRITE_EN) ? CLEAR_LINE : ASSERT_LINE);
-    m_nvram->write_scl((data & NVCNTL_SCL) ? ASSERT_LINE : CLEAR_LINE);
-    if (data & NVCNTL_WRITE_EN) {
-        logerror("%s: Writing %01x to NVRAM...\n", machine().describe_context(), (data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
-        m_nvram->write_sda((data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
-    }
-    m_nvcntl = data & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN) + (NVCNTL_SDA_W) + (NVCNTL_SDA_R));
+	if (data & NVCNTL_WRITE_EN) {
+		m_nvram->write_sda(((data & NVCNTL_SDA_W) == NVCNTL_SDA_W) & 0x1);
+	} else {
+		m_nvram->write_sda(0x1);
+	}
+
+	m_nvram->write_scl(((data & NVCNTL_SCL) == NVCNTL_SCL) & 1);
+
+	m_nvcntl = data & 0xE;
 }
 
 uint32_t spot_asic_device::reg_4010_r()

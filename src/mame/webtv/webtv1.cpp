@@ -146,8 +146,6 @@ void webtv1_state::webtv1_base(machine_config &config)
 	DS2401(config, m_serial_id, 0);
 
 	I2C_24C01(config, m_nvram, 0);
-	m_nvram->set_e0(0);
-	m_nvram->set_wc(1);
 
 	SPOT_ASIC(config, m_spotasic, SYSCLOCK);
 	m_spotasic->set_hostcpu(m_maincpu);
