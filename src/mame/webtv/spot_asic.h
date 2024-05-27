@@ -225,6 +225,9 @@ protected:
 	uint32_t m_aud_nconfig;
 	uint32_t m_aud_dmacntl;
 
+	uint32_t m_rom_cntl0;
+	uint32_t m_rom_cntl1;
+
 	uint32_t dev_idcntl;
 	uint8_t dev_id_state;
 	uint8_t dev_id_bit;
