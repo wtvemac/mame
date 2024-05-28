@@ -281,7 +281,7 @@ void i2cmem_device::write_e0(int state)
 	state &= 1;
 	if( m_e0 != state )
 	{
-		verboselog( this, 2, "set e0 %d\n", state );
+		//printf( "\tset e0 %d\n", state );
 		m_e0 = state;
 	}
 }
@@ -292,7 +292,7 @@ void i2cmem_device::write_e1(int state)
 	state &= 1;
 	if( m_e1 != state )
 	{
-		verboselog( this, 2, "set e1 %d\n", state );
+		//printf( "\tset e1 %d\n", state );
 		m_e1 = state;
 	}
 }
@@ -303,7 +303,7 @@ void i2cmem_device::write_e2(int state)
 	state &= 1;
 	if( m_e2 != state )
 	{
-		verboselog( this, 2, "set e2 %d\n", state );
+		//printf( "\tset e2 %d\n", state );
 		m_e2 = state;
 	}
 }
@@ -311,10 +311,12 @@ void i2cmem_device::write_e2(int state)
 
 void i2cmem_device::write_sda(int state)
 {
+	//printf("\twrite_sda: scl:state=%08x, m_state=%08x, sda:m_sdaw=%08x, scl:m_scl=%08x, m_sdar=%08x\n", state, m_state, m_sdaw, m_scl, m_sdar);
+
 	state &= 1;
 	if( m_sdaw != state )
 	{
-		verboselog( this, 2, "set sda %d\n", state );
+		//printf( "\tset sda %d\n", state );
 		m_sdaw = state;
 
 		if( m_scl )
@@ -327,16 +329,16 @@ void i2cmem_device::write_sda(int state)
 					int root = base & ~( m_write_page_size - 1 );
 					for( int i = 0; i < m_page_written_size; i++ )
 						m_data[root | ((base + i) & (m_write_page_size - 1))] = m_page[i];
-					verboselog( this, 1, "data[ %04x to %04x ] = %x bytes\n", base, root | ((base + m_page_written_size - 1) & (m_write_page_size - 1)), m_page_written_size );
+					//printf( "\tdata[ %04x to %04x ] = %x bytes\n", base, root | ((base + m_page_written_size - 1) & (m_write_page_size - 1)), m_page_written_size );
 
 					m_page_written_size = 0;
 				}
-				verboselog( this, 1, "stop\n" );
+				//printf( "\t========================>stop\n" );
 				m_state = STATE_IDLE;
 			}
 			else
 			{
-				verboselog( this, 1, "start\n" );
+				//printf( "\t========================>start\n" );
 				m_state = STATE_DEVSEL;
 				m_bits = 0;
 			}
@@ -348,10 +350,12 @@ void i2cmem_device::write_sda(int state)
 
 void i2cmem_device::write_scl(int state)
 {
+	//printf("\twrite_scl: scl:state=%08x, m_state=%08x, sda:m_sdaw=%08x, scl:m_scl=%08x, m_sdar=%08x\n", state, m_state, m_sdaw, m_scl, m_sdar);
+
 	if( m_scl != state )
 	{
 		m_scl = state;
-		verboselog( this, 2, "set_scl_line %d\n", m_scl );
+		//printf( "\tset_scl_line %d, m_bits=%d devsel=%d\n", m_scl, m_bits, STATE_DEVSEL );
 
 		switch( m_state )
 		{
@@ -361,10 +365,15 @@ void i2cmem_device::write_scl(int state)
 		case STATE_DATAIN:
 			if( m_bits < 8 )
 			{
+				//printf("m_bits < 8\n");
 				if( m_scl )
 				{
+					//printf("if( m_scl )\n");
 					m_shift = ( ( m_shift << 1 ) | m_sdaw ) & 0xff;
 					m_bits++;
+					if(m_bits == 8) {
+						printf("m_shift=%02x, m_bits=%02x, m_sdaw=%02x\n", m_shift, m_bits, m_sdaw);
+					}
 				}
 			}
 			else
@@ -386,19 +395,19 @@ void i2cmem_device::write_scl(int state)
 							{
 								// TODO: Atmel datasheets document 2-wire software reset, but doesn't mention it will lower sda only that it will release it.
 								// ltv_naru however requires it to be lowered, but we don't currently know the manufacturer of the chip used.
-								verboselog( this, 1, "software reset\n" );
+								//printf( "\tsoftware reset\n" );
 								m_state = STATE_RESET;
 							}
 							else if( !select_device() )
 							{
-								verboselog( this, 1, "devsel %02x: not this device\n", m_devsel );
+								//printf( "\tdevsel %02x: not this device\n", m_devsel );
 								m_state = STATE_IDLE;
 							}
 							else if( ( m_devsel & DEVSEL_RW ) == 0 )
 							{
 								if (m_devsel_address_low)
 								{
-									verboselog( this, 1, "devsel %02x: write (Xicor special, address %02x)\n", m_devsel, m_devsel >> 1);
+									//printf( "\tdevsel %02x: write (Xicor special, address %02x)\n", m_devsel, m_devsel >> 1);
 									m_byteaddr = (m_devsel & DEVSEL_ADDRESS) >> 1;
 									m_page_offset = 0;
 									m_page_written_size = 0;
@@ -406,7 +415,7 @@ void i2cmem_device::write_scl(int state)
 								}
 								else
 								{
-									verboselog( this, 1, "devsel %02x: write\n", m_devsel );
+									//printf( "\tdevsel %02x: write\n", m_devsel );
 									m_state = skip_addresshigh() ? STATE_ADDRESSLOW : STATE_ADDRESSHIGH;
 								}
 							}
@@ -414,12 +423,12 @@ void i2cmem_device::write_scl(int state)
 							{
 								if (m_devsel_address_low)
 								{
-									verboselog( this, 1, "devsel %02x: read (Xicor special, address %02x)\n", m_devsel, m_devsel >> 1);
+									//printf( "\tdevsel %02x: read (Xicor special, address %02x)\n", m_devsel, m_devsel >> 1);
 									m_byteaddr = (m_devsel & DEVSEL_ADDRESS) >> 1;
 								}
 								else
 								{
-									verboselog( this, 1, "devsel %02x: read\n", m_devsel );
+									//printf( "\tdevsel %02x: read\n", m_devsel );
 								}
 								m_state = STATE_READSELACK;
 							}
@@ -428,7 +437,7 @@ void i2cmem_device::write_scl(int state)
 						case STATE_ADDRESSHIGH:
 							m_addresshigh = m_shift;
 
-							verboselog(this, 1, "addresshigh %02x\n", m_addresshigh);
+							//printf( "addresshigh %02x\n", m_addresshigh);
 
 							m_state = STATE_ADDRESSLOW;
 							break;
@@ -438,7 +447,7 @@ void i2cmem_device::write_scl(int state)
 							m_page_offset = 0;
 							m_page_written_size = 0;
 
-							verboselog( this, 1, "addresslow %02x (byteaddr %04x)\n", m_shift, m_byteaddr );
+							//printf( "\taddresslow %02x (byteaddr %04x)\n", m_shift, m_byteaddr );
 
 							m_state = STATE_DATAIN;
 							break;
@@ -446,13 +455,14 @@ void i2cmem_device::write_scl(int state)
 						case STATE_DATAIN:
 							if( m_wc )
 							{
-								verboselog( this, 0, "write not enabled\n" );
+								printf( "write not enabled\n" );
 								m_state = STATE_IDLE;
 							}
 							else if( m_write_page_size > 0 )
 							{
+								//printf("WRITE1<========================================\n");
 								m_page[ m_page_offset ] = m_shift;
-								verboselog( this, 1, "page[ %04x ] <- %02x\n", m_page_offset, m_page[ m_page_offset ] );
+								//printf( "\tpage[ %04x ] <- %02x\n", m_page_offset, m_page[ m_page_offset ] );
 
 								m_page_offset++;
 								if( m_page_offset == m_write_page_size )
@@ -465,7 +475,9 @@ void i2cmem_device::write_scl(int state)
 							{
 								int offset = data_offset();
 
-								verboselog( this, 1, "data[ %04x ] <- %02x\n", offset, m_shift );
+								//printf("WRITE2<========================================\n");
+
+								//printf( "\tdata[ %04x ] <- %02x\n", offset, m_shift );
 								m_data[ offset ] = m_shift;
 
 								m_byteaddr++;
@@ -506,7 +518,7 @@ void i2cmem_device::write_scl(int state)
 						int offset = data_offset();
 
 						m_shift = m_data[offset];
-						verboselog( this, 1, "data[ %04x ] -> %02x\n", offset, m_shift );
+						//printf( "\tdata[ %04x ] -> %02x\n", offset, m_shift );
 						m_byteaddr = (m_byteaddr & ~(m_read_page_size - 1)) | ((m_byteaddr + 1) & (m_read_page_size - 1));
 					}
 
@@ -521,7 +533,7 @@ void i2cmem_device::write_scl(int state)
 				{
 					if( m_sdaw )
 					{
-						verboselog( this, 1, "nack\n" );
+						//printf( "\tnack\n" );
 						m_state = STATE_IDLE;
 					}
 
@@ -539,7 +551,7 @@ void i2cmem_device::write_scl(int state)
 			{
 				if( m_bits > 8 )
 				{
-					verboselog(this, 1, "software reset ack\n");
+					//printf( "software reset ack\n");
 					m_state = STATE_IDLE;
 					m_sdar = 1;
 				}
@@ -556,7 +568,7 @@ void i2cmem_device::write_wc(int state)
 	state &= 1;
 	if( m_wc != state )
 	{
-		verboselog( this, 2, "set wc %d\n", state );
+		//printf( "\tset wc %d\n", state );
 		m_wc = state;
 	}
 }
@@ -565,7 +577,7 @@ void i2cmem_device::write_wc(int state)
 int i2cmem_device::read_sda()
 {
 	int res = m_sdar & 1;
-	verboselog( this, 2, "read sda %d\n", res );
+	////printf( "\tread sda %d\n", res );
 
 	return res;
 }

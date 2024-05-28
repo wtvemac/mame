@@ -227,7 +227,9 @@ amd_29f800t_device::amd_29f800t_device(const machine_config &mconfig, const char
 amd_29f800b_16bit_device::amd_29f800b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh16_device(mconfig, AMD_29F800B_16BIT, tag, owner, clock, 0x100000, MFG_AMD, 0x2258)
 {
-	m_top_boot_sector = false;
+	m_sector_is_16k = true;
+	//m_bot_boot_sector = true;
+	//m_top_boot_sector = false;
 }
 
 amd_29lv200t_device::amd_29lv200t_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
@@ -360,7 +362,7 @@ TIMER_CALLBACK_MEMBER(intelfsh_device::delay_tick)
 	switch( m_flash_mode )
 	{
 	case FM_READSTATUS:
-		m_status = 0x80;
+		m_status = 0x20;
 		break;
 
 	case FM_ERASEAMD4:
@@ -558,8 +560,6 @@ uint32_t intelfsh_device::read_full(uint32_t address)
 
 void intelfsh_device::write_full(uint32_t address, uint32_t data)
 {
-	//printf( "intelflash_write111( %u : %08x, %08x )\n", m_flash_mode, address, data );
-
 	address += m_bank << 16;
 
 	switch( m_flash_mode )
@@ -823,9 +823,9 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 			}
 			else if(m_sector_is_16k)
 			{
-				memset(&m_data[base & ~0x3fff], 0xff, 16 * 1024);
+				memset(&m_data[base & ~0x3fff], 0xff, 32 * 1024);
 				m_erase_sector = address & ((m_bits == 16) ? ~0x1fff : ~0x3fff);
-				m_timer->adjust( attotime::from_msec( 500 ) );
+				m_timer->adjust( attotime::from_msec( 50 ) );
 			}
 			else if(m_top_boot_sector && address >= (m_size - 64*1024))
 			{
@@ -897,7 +897,7 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 					|| (m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1)
 				)
 				{
-					m_timer->adjust( attotime::from_msec( 125 ) );
+					m_timer->adjust( attotime::from_msec( 100 ) );
 				}
 				else
 				{
@@ -933,7 +933,10 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 			logerror( "FM_BYTEPROGRAM not supported when m_bits == %d (address %08x data %04x)\n", m_bits, address, data );
 			break;
 		}
+		
 		m_flash_mode = FM_NORMAL;
+		//m_timer->adjust( attotime::from_msec( 50 ) );
+		//m_flash_mode = FM_READSTATUS;
 		break;
 	case FM_WRITEPART1:
 		switch( m_bits )
@@ -1136,6 +1139,4 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		m_flash_mode = FM_NORMAL;
 		break;
 	}
-
-	//printf( "intelflash_write222( %u : %08x, %08x )\n", m_flash_mode, address, data );
 }

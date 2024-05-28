@@ -30,6 +30,10 @@
 
 #include "emu.h"
 
+// BOOP: might want to make the device imports make more sense here. Modem is all in spot_asic but SSID is in here? They're both external. 
+// I suppose this contains all the ROM and Flash devices?
+// BOOP: BIT() in more places instead of &CONST?
+
 #include "bus/pc_kbd/keyboards.h"
 #include "cpu/mips/mips3.h"
 #include "machine/ds2401.h"
@@ -41,7 +45,8 @@
 #include "main.h"
 #include "screen.h"
 
-#define SYSCLOCK 56000000 // TODO: confirm this is correct
+#define SYSCLOCK         56000000 // TODO: confirm this is correct
+#define RAM_FLASHER_SIZE 0x100
 
 class webtv1_state : public driver_device
 {
@@ -88,10 +93,14 @@ private:
 	optional_device<intelfsh16_device> m_bootrom_flash0;
 	optional_device<intelfsh16_device> m_bootrom_flash1;
 
+	uint32_t ram_flasher[RAM_FLASHER_SIZE];
+
 	uint32_t approm_flash_r(offs_t offset);
 	void approm_flash_w(offs_t offset, uint32_t data);
 	uint32_t bootrom_flash_r(offs_t offset);
 	void bootrom_flash_w(offs_t offset, uint32_t data);
+	uint32_t ram_flasher_r(offs_t offset);
+	void ram_flasher_w(offs_t offset, uint32_t data);
 	uint32_t status_r(offs_t offset);
 	void status_w(offs_t offset, uint32_t data);
 
@@ -136,6 +145,7 @@ private:
 //
 // NOTE: if you dump these chips you may need to byte swap the output. The bus is big-endian.
 //
+bool cool = false;
 uint32_t webtv1_state::approm_flash_r(offs_t offset)
 {
 	uint16_t upper_value = 0x0;
@@ -144,16 +154,15 @@ uint32_t webtv1_state::approm_flash_r(offs_t offset)
 	upper_value = m_approm_flash0->read(offset); // approm_flash0 file
 	lower_value = m_approm_flash1->read(offset); // approm_flash1 file
 
+	if(offset == 0x0 && cool) {
+		//printf("approm_flash_r: upper_value=%08x, lower_value=%08x\n", upper_value, lower_value);
+	}
+	cool = false;
+
 	return (upper_value << 16) | (lower_value);
 }
 void webtv1_state::approm_flash_w(offs_t offset, uint32_t data)
 {
-	// Clear drc cache after chip operation so we can cleanly execute the next step from RAM
-	if( ((offset & 0xffff) == 0x5555 && (data & 0xff) == 0xf0) || ((offset & 0xffff) == 0x0000 && (data & 0xff) == 0xf0) || (data & 0xff) == 0x30 )
-	{
-		m_maincpu->clear_fastram(1);
-	}
-
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 	uint16_t lower_value = data & 0xffff;
 	
@@ -193,10 +202,6 @@ uint32_t webtv1_state::bootrom_flash_r(offs_t offset)
 }
 void webtv1_state::bootrom_flash_w(offs_t offset, uint32_t data)
 {
-	// Clear drc cache after chip operation so we can cleanly execute the next step from RAM
-	if((offset & 0xffff) == 0x5555 && (data & 0xff) == 0xf0)
-		m_maincpu->clear_fastram(1);
-
 	uint16_t upper_value = (data >> 0x10) & 0xffff;
 	uint16_t lower_value = data & 0xffff;
 
@@ -204,7 +209,26 @@ void webtv1_state::bootrom_flash_w(offs_t offset, uint32_t data)
 	m_bootrom_flash1->write(offset, lower_value); // bootom_flash1 file
 }
 
-// The flash programing code incorrectly bleeds over into the next memory region to read the status.
+// WebTV ROMs write the flashing code to the lower 256 bytes of RAM
+// The flash ID instructions are written first, then the flash erase instructions then the flash program instructions.
+// Since everything is written to the same place, the drc cache becomes out of sync and just re-executes the ID instructions.
+// This allows us to capture when new code is written and then clear the drc cache.
+uint32_t webtv1_state::ram_flasher_r(offs_t offset)
+{
+	return ram_flasher[offset & (RAM_FLASHER_SIZE - 1)];
+}
+void webtv1_state::ram_flasher_w(offs_t offset, uint32_t data)
+{
+	if(offset == 0)
+	{
+		// New code is being written, clear drc cache.
+		m_maincpu->code_flush_cache();
+	}
+
+	ram_flasher[offset & (RAM_FLASHER_SIZE - 1)] = data;
+}
+
+// The flash programing code for the MX chips incorrectly bleeds over into the next memory region to read the status.
 // This will return the correct status so it can continue.
 uint32_t webtv1_state::status_r(offs_t offset)
 {
@@ -237,19 +261,20 @@ void webtv1_state::webtv1_base(machine_config &config)
 	config.set_default_layout(layout_webtv);
 
 	R4640BE(config, m_maincpu, SYSCLOCK*2);
+	//m_maincpu->set_icache_size(0);
 	m_maincpu->set_icache_size(0x2000);
+	//m_maincpu->set_dcache_size(0);
 	m_maincpu->set_dcache_size(0x2000);
-	m_maincpu->add_fastram(0x00000000, 0x007fffff, false, m_mainram);
-
+	m_maincpu->add_fastram(0x00000000, 0x000000ff, false, m_mainram);
+	
 	DS2401(config, m_serial_id, 0);
 
 	I2C_24C01(config, m_nvram, 0);
 	m_nvram->set_e0(0);
-	m_nvram->set_wc(1);
+	m_nvram->set_wc(0);
 
 	SPOT_ASIC(config, m_spotasic, SYSCLOCK);
 	m_spotasic->set_hostcpu(m_maincpu);
-	m_spotasic->set_hostram(m_mainram);
 	m_spotasic->set_serial_id(m_serial_id);
 	m_spotasic->set_nvram(m_nvram);
 }
@@ -259,7 +284,8 @@ void webtv1_state::webtv1_dev_map(address_map &map)
 	webtv1_base_map(map);
 
 	// Use the entire 8MB for debug boxes
-	map(0x00000000, 0x007fffff).ram().share("mainram");
+	map(0x00000000, (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
+	map(RAM_FLASHER_SIZE, 0x007fffff).ram().share("mainram");
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
 	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
@@ -278,10 +304,10 @@ void webtv1_state::webtv1_dev(machine_config& config)
 	webtv1_base(config);
 
 	// 4MB bf0app Debug Approm
-	MACRONIX_29F1610_16BIT(config, m_approm_flash0, 0);
-	MACRONIX_29F1610_16BIT(config, m_approm_flash1, 0);
-	//AMD_29F800B_16BIT(config, m_approm_flash0, 0);
-	//AMD_29F800B_16BIT(config, m_approm_flash1, 0);
+	//MACRONIX_29F1610_16BIT(config, m_approm_flash0, 0);
+	//MACRONIX_29F1610_16BIT(config, m_approm_flash1, 0);
+	AMD_29F800B_16BIT(config, m_approm_flash0, 0);
+	AMD_29F800B_16BIT(config, m_approm_flash1, 0);
 
 	// 2MB Flashable Bootrom
 	AMD_29F800B_16BIT(config, m_bootrom_flash0, 0);
@@ -295,7 +321,8 @@ void webtv1_state::webtv1_bfe_map(address_map &map)
 	webtv1_base_map(map);
 
 	// 2MB RAM
-	map(0x00000000, 0x001fffff).ram().share("mainram");
+	map(0x00000000, (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
+	map(RAM_FLASHER_SIZE, 0x001fffff).ram().share("mainram");
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
 
@@ -304,7 +331,6 @@ void webtv1_state::webtv1_bfe_map(address_map &map)
 	// ROMU Bank 1 (0x1f800000-0x1fffffff)
 	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
 	map(0x1fe00000, 0x1fffffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
-	map(0x20000000, 0x20000003).rw(FUNC(webtv1_state::status_r), FUNC(webtv1_state::status_w));
 
 	// Reserved (0x20000000-0xffffffff)
 }
@@ -325,7 +351,8 @@ void webtv1_state::webtv1_retail_map(address_map &map)
 	webtv1_base_map(map);
 
 	// 2MB RAM
-	map(0x00000000, 0x001fffff).ram().share("mainram");
+	map(0x00000000, (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
+	map(RAM_FLASHER_SIZE, 0x001fffff).ram().share("mainram");
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
 	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::approm_flash_r), FUNC(webtv1_state::approm_flash_w)).share("approm_flash");
@@ -334,7 +361,6 @@ void webtv1_state::webtv1_retail_map(address_map &map)
 
 	// ROMU Bank 1 (0x1f800000-0x1fffffff)
 	map(0x1f800000, 0x1fdfffff).rom().region("bootrom_mask", 0);
-	map(0x1fe00000, 0x1fe00003).rw(FUNC(webtv1_state::status_r), FUNC(webtv1_state::status_w));
 
 	// Reserved (0x20000000-0xffffffff)
 }

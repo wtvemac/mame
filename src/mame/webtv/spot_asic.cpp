@@ -59,7 +59,6 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	device_serial_interface(mconfig, *this),
 	device_video_interface(mconfig, *this),
 	m_hostcpu(*this, finder_base::DUMMY_TAG),
-	m_hostram(*this, finder_base::DUMMY_TAG),
 	m_serial_id(*this, finder_base::DUMMY_TAG),
 	m_nvram(*this, finder_base::DUMMY_TAG),
 	m_kbdc(*this, "kbdc"),
@@ -291,6 +290,7 @@ void spot_asic_device::device_reset()
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
 	m_memdata = 0x0;
+	m_memcmd = 0x0;
 	m_memtiming = 0xadbadffa;
 	m_intenable = 0x0;
 	m_intstat = 0x0;
@@ -302,6 +302,7 @@ void spot_asic_device::device_reset()
 
 	m_aud_cstart = 0x0;
 	m_aud_csize = 0x0;
+	m_aud_cend = 0x0;
 	m_aud_cconfig = 0x0;
 	m_aud_ccnt = 0x0;
 	m_aud_nstart = 0x0;
@@ -323,6 +324,8 @@ void spot_asic_device::device_reset()
 	m_vid_csize = 0x0;
 	m_vid_ccnt = 0x0;
 	m_vid_cline = 0x0;
+	m_vid_drawstart = 0x0;
+	m_vid_drawvsize = m_vid_vsize;
 
 	m_vid_draw_nstart = 0x0;
 	m_vid_draw_hstart = m_vid_hstart;
@@ -346,44 +349,45 @@ void spot_asic_device::device_reset()
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
+
+	spot_asic_device::watchdog_enable(m_wdenable);
 }
 
 void spot_asic_device::validate_active_area()
 {
 	// hsize and vsize changes will break the screen but it would break on hardware.
 
-	m_vid_draw_hsize = m_vid_hsize;
-	m_vid_draw_vsize = m_vid_vsize;
-
 	// The active h size can't be larger than the screen width.
-	if (m_vid_draw_hsize > m_screen->width())
-		m_vid_draw_hsize = m_screen->width();
+	if (m_vid_hsize > m_screen->width())
+		m_vid_hsize = m_screen->width();
 
 	// The active v size can't be larger than the screen height.
-	if (m_vid_draw_vsize > m_screen->height())
-		m_vid_draw_vsize = m_screen->height();
+	if (m_vid_vsize > m_screen->height())
+		m_vid_vsize = m_screen->height();
 
-	m_vid_draw_hstart = m_vid_hstart - VID_HSTART_OFFSET;
-	m_vid_draw_vstart = m_vid_vstart;
+	// hsize and vsize need to be a multiple of 2
+	m_vid_hsize = (m_vid_hsize / 2) * 2;
+	m_vid_vsize = (m_vid_vsize / 2) * 2;
 
 	// The active h offset (hstart) can't push the active area off the screen.
-	if ((m_vid_draw_hstart + m_vid_draw_hsize) > m_screen->width())
-		m_vid_draw_hstart = (m_screen->width() - m_vid_draw_hsize); // to screen edge
-	else if (m_vid_draw_hstart < 0)
-		m_vid_draw_hstart = 0;
+	if ((m_vid_hstart + m_vid_hsize) > m_screen->width())
+		m_vid_hstart = (m_screen->width() - m_vid_hsize) / 2; // to screen center
+	
 
 	// The active v offset (vstart) can't push the active area off the screen.
-	if ((m_vid_draw_vstart + m_vid_draw_vsize) > m_screen->height())
-		m_vid_draw_vstart = (m_screen->height() - m_vid_draw_vsize); // to screen edge
-	else if (m_vid_draw_vstart < 0)
-		m_vid_draw_vstart = 0;
+	if ((m_vid_vstart + m_vid_vsize) > m_screen->height())
+		m_vid_vstart = (m_screen->height() - m_vid_vsize) / 2; // to screen center
+
+	// hstart and vstart need to be a multiple of 8
+	m_vid_hstart = (m_vid_hstart / 8) * 8;
+	m_vid_vstart = (m_vid_vstart / 8) * 8;
 
 	spot_asic_device::pixel_buffer_index_update();
 }
 
 void spot_asic_device::pixel_buffer_index_update()
 {
-	uint32_t screen_lines = m_vid_draw_vsize;
+	uint32_t screen_lines = m_vid_vsize;
 	uint32_t screen_buffer_size = m_vid_nsize;
 
 	if (m_vid_fcntl & VID_FCNTL_INTERLACE)
@@ -393,18 +397,18 @@ void spot_asic_device::pixel_buffer_index_update()
 		screen_lines = (screen_lines * 2);
 	}
 
-	m_vid_draw_nstart = m_vid_nstart;
+	m_vid_drawstart = m_vid_nstart;
 
 	if (m_emu_config->read() & EMUCONFIG_PBUFF1)
 	{
-		m_vid_draw_nstart += screen_buffer_size;
-		m_vid_draw_nstart -= (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_draw_vsize = screen_lines;
+		m_vid_drawstart += screen_buffer_size;
+		m_vid_drawstart -= (m_vid_hsize * VID_BYTES_PER_PIXEL);
+		m_vid_drawvsize = screen_lines;
 	}
 	else
 	{
-		m_vid_draw_nstart += 2 * (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_draw_vsize = screen_lines - 3;
+		m_vid_drawstart += 2 * (m_vid_hsize * VID_BYTES_PER_PIXEL);
+		m_vid_drawvsize = screen_lines - 3;
 	}
 }
 
@@ -438,11 +442,14 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 
 		int8_t wd_diff = wd_cntl - (m_chpcntl >> 30);
 
+		printf("reg_0004_w data=%08x, wd_cntl=%02x\n", data, wd_cntl);
+
 		// Count down to disable (3, 2, 1, 0), count up to enable (0, 1, 2, 3)
 		// This doesn't track the count history but gets the expected result for the ROM.
 		if((!m_wdenable && wd_diff == 1 && wd_cntl == 3) || (m_wdenable && wd_diff == -1 && wd_cntl == 0))
 		{
-			watchdog_enable(wd_cntl == 3);
+			printf("\twatchdog_enable=%02x\n", (wd_cntl == 3));
+			spot_asic_device::watchdog_enable(wd_cntl == 3);
 		}
 	}
 
@@ -468,7 +475,7 @@ uint32_t spot_asic_device::reg_000c_r()
 
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
-    m_intenable |= data & 0xFF;
+	m_intenable |= data & 0xFF;
 }
 
 uint32_t spot_asic_device::reg_010c_r()
@@ -478,7 +485,8 @@ uint32_t spot_asic_device::reg_010c_r()
 
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
-	m_intenable &= ~(data & 0xFF);
+	if(data != BUS_INT_DEVMOD)
+		m_intenable &= ~(data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_0010_r()
@@ -645,6 +653,7 @@ uint32_t spot_asic_device::reg_2018_r()
 
 void spot_asic_device::reg_2018_w(uint32_t data)
 {
+
 	m_aud_nconfig = data;
 }
 
@@ -696,14 +705,9 @@ uint32_t spot_asic_device::reg_300c_r()
 
 void spot_asic_device::reg_300c_w(uint32_t data)
 {
-	bool has_changed = (m_vid_nstart != data);
-
 	m_vid_nstart = data;
 
-	if(has_changed)
-	{
-		spot_asic_device::validate_active_area();
-	}
+	spot_asic_device::validate_active_area();
 }
 
 uint32_t spot_asic_device::reg_3010_r()
@@ -713,14 +717,9 @@ uint32_t spot_asic_device::reg_3010_r()
 
 void spot_asic_device::reg_3010_w(uint32_t data)
 {
-	bool has_changed = (m_vid_nsize != data);
-
 	m_vid_nsize = data;
 
-	if(has_changed)
-	{
-		spot_asic_device::validate_active_area();
-	}
+	spot_asic_device::validate_active_area();
 }
 
 uint32_t spot_asic_device::reg_3014_r()
@@ -747,7 +746,7 @@ void spot_asic_device::reg_3018_w(uint32_t data)
 {
 	if ((m_vid_fcntl ^ data) & VID_FCNTL_PAL)
 		spot_asic_device::reconfigure_screen(data & VID_FCNTL_PAL);
-	
+
 	m_vid_fcntl = data;
 }
 
@@ -759,8 +758,6 @@ uint32_t spot_asic_device::reg_301c_r()
 void spot_asic_device::reg_301c_w(uint32_t data)
 {
 	m_vid_blank_color = data;
-
-	m_vid_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);
 }
 
 uint32_t spot_asic_device::reg_3020_r()
@@ -775,9 +772,7 @@ void spot_asic_device::reg_3020_w(uint32_t data)
 	m_vid_hstart = data;
 
 	if(has_changed)
-	{
 		spot_asic_device::validate_active_area();
-	}
 }
 
 uint32_t spot_asic_device::reg_3024_r()
@@ -792,9 +787,7 @@ void spot_asic_device::reg_3024_w(uint32_t data)
 	m_vid_hsize = data;
 
 	if(has_changed)
-	{
 		spot_asic_device::validate_active_area();
-	}
 }
 
 uint32_t spot_asic_device::reg_3028_r()
@@ -809,9 +802,7 @@ void spot_asic_device::reg_3028_w(uint32_t data)
 	m_vid_vstart = data;
 
 	if(has_changed)
-	{
 		spot_asic_device::validate_active_area();
-	}
 }
 
 uint32_t spot_asic_device::reg_302c_r()
@@ -826,9 +817,7 @@ void spot_asic_device::reg_302c_w(uint32_t data)
 	m_vid_vsize = data;
 
 	if(has_changed)
-	{
 		spot_asic_device::validate_active_area();
-	}
 }
 
 uint32_t spot_asic_device::reg_3030_r()
@@ -853,7 +842,7 @@ uint32_t spot_asic_device::reg_3038_r()
 
 void spot_asic_device::reg_3138_w(uint32_t data)
 {
-	 m_vid_intstat &= ~(data & 0xFF);
+	m_vid_intstat &= (~data) & 0xff;
 }
 
 uint32_t spot_asic_device::reg_303c_r()
@@ -863,12 +852,12 @@ uint32_t spot_asic_device::reg_303c_r()
 
 void spot_asic_device::reg_303c_w(uint32_t data)
 {
-	m_vid_intenable |= data & 0xFF;
+	m_vid_intenable |= (data & 0xff);
 }
 
 void spot_asic_device::reg_313c_w(uint32_t data)
 {
-	 m_vid_intenable &= ~(data & 0xFF);
+	m_vid_intenable &= (~data) & 0xff;
 }
 
 // Read IR receiver chip
@@ -971,22 +960,38 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 	}
 }
 
-// Read from I2C EEPROM device (24C01A?)
+// 400c commands the I2C bus (referenced as the IIC bus in WebTV's code)
+//
+// The SPOT programming doc calls this as an NVRAM register but this us used as an I2C register.
+//
+// There's two known devices that sit on this bus:
+//
+//	Address		Device
+//	0x8C		Philips SAA7187 encoder
+//				Used for the S-Video and composite out
+//	0xa0		Atmel AT24C01A EEPROM NVRAM
+//				Used for the crash log counter (0x23) and encryption shared secret (0x14)
+//
+// We emulate the AT24C01A here.
+//
 uint32_t spot_asic_device::reg_400c_r()
 {
-	return (m_nvcntl & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN))) + (m_nvram->read_sda() * NVCNTL_SDA_W) + (m_nvram->read_sda() * NVCNTL_SDA_R);
+	int sda_bit = (m_nvram->read_sda()) & 0x1;
+
+	return (m_nvcntl & 0xe) | sda_bit;
 }
 
-// Write to I2C EEPROM device
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
-	m_nvram->write_scl((data & NVCNTL_SCL) ? ASSERT_LINE : CLEAR_LINE);
 	if (data & NVCNTL_WRITE_EN) {
-		m_nvram->write_sda((data & NVCNTL_SDA_W) ? ASSERT_LINE : CLEAR_LINE);
+		m_nvram->write_sda(((data & NVCNTL_SDA_W) == NVCNTL_SDA_W) & 0x1);
+	} else {
+		m_nvram->write_sda(0x1);
 	}
-
-	m_nvcntl = data & ((NVCNTL_SCL) + (NVCNTL_WRITE_EN) + (NVCNTL_SDA_W) + (NVCNTL_SDA_R));
 	
+	m_nvram->write_scl(((data & NVCNTL_SCL) == NVCNTL_SCL) & 1);
+
+	m_nvcntl = data & 0xe;
 }
 
 uint32_t spot_asic_device::reg_4010_r()
@@ -1248,12 +1253,14 @@ void spot_asic_device::reg_5008_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_500c_r()
 {
-	return 0x00000000;
+	return m_memcmd;
 }
 
 void spot_asic_device::reg_500c_w(uint32_t data)
 {
-	//
+	m_hostcpu->clear_fastram(1);
+
+	m_memcmd = data;
 }
 
 uint32_t spot_asic_device::reg_5010_r()
@@ -1270,11 +1277,12 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 {
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height =  bitmap.height();
-	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL) >> 2;
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_vid_draw_nstart >> 2;
+	m_vid_ccnt = m_vid_drawstart;
+
+	address_space &space = m_hostcpu->space(AS_PROGRAM);
 
 	for (int y = 0; y < screen_height; y++)
 	{
@@ -1287,25 +1295,25 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 		for (int x = 0; x < screen_width; x += 2)
 		{
-			uint32_t pixel = VID_DEFAULT_COLOR;
+			int32_t pixel = VID_DEFAULT_COLOR;
 
 			bool is_active_area = (
-				y >= m_vid_draw_vstart
-				&& y < (m_vid_draw_vstart + m_vid_draw_vsize)
+				y >= m_vid_vstart
+				&& y < (m_vid_vstart + m_vid_drawvsize)
 
-				&& x >= m_vid_draw_hstart
-				&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
+				&& x >= m_vid_hstart
+				&& x < (m_vid_hstart + m_vid_hsize)
 			);
 
 			if (m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
 			{
-				pixel = m_hostram[m_vid_ccnt];
+				pixel = space.read_dword(m_vid_ccnt);
 
-				m_vid_ccnt += vid_step;
+				m_vid_ccnt += 2 * VID_BYTES_PER_PIXEL;
 			}
 			else if (m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
 			{
-				pixel = m_vid_draw_blank_color;
+				pixel = m_vid_blank_color | (((m_vid_blank_color >> 0x08) & 0xff) << 0x18);
 			}
 
 			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
@@ -1343,42 +1351,47 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 {
 	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
 	{
-		uint32_t sample = m_hostram[m_aud_ccnt];
+		address_space &space = m_hostcpu->space(AS_PROGRAM);
 
-		// For 8-bit we're assuming right-aligned samples
+		int16_t samplel = space.read_word(m_aud_ccnt);
+		m_aud_ccnt += 2;
+		int16_t sampler = space.read_word(m_aud_ccnt);
+		m_aud_ccnt += 2;
+
+		// For 8-bit we're assuming left-aligned samples
 		switch(m_aud_cconfig)
 		{
-			case AUD_CCONFIG_16BIT_STEREO:
+			case AUD_CONFIG_16BIT_STEREO:
 			default:
-				m_dac[0]->write((sample >> 0x10) & 0xFFFF);
-				m_dac[1]->write((sample) & 0xFFFF);
+				m_dac[0]->write(samplel);
+				m_dac[1]->write(sampler);
 				break;
 
-			case AUD_CCONFIG_16BIT_MONO:
-				m_dac[0]->write((sample >> 0x10) & 0xFFFF);
-				m_dac[1]->write((sample >> 0x10) & 0xFFFF);
+			case AUD_CONFIG_16BIT_MONO:
+				m_dac[0]->write(samplel);
+				m_dac[1]->write(samplel);
 				break;
 
-			case AUD_CCONFIG_8BIT_STEREO:
-				m_dac[0]->write((sample >> 0x18) & 0xFF);
-				m_dac[1]->write((sample) & 0xFF);
+			case AUD_CONFIG_8BIT_STEREO:
+				m_dac[0]->write((samplel >> 0x8) & 0xFF);
+				m_dac[1]->write((sampler >> 0x8) & 0xFF);
 				break;
 
-			case AUD_CCONFIG_8BIT_MONO:
-				m_dac[0]->write((sample >> 0x18) & 0xFF);
-				m_dac[1]->write((sample >> 0x18) & 0xFF);
+			case AUD_CONFIG_8BIT_MONO:
+				m_dac[0]->write((samplel >> 0x8) & 0xFF);
+				m_dac[1]->write((samplel >> 0x8) & 0xFF);
 				break;
 		}
 
-		m_aud_ccnt++;
 
-		if(m_aud_ccnt >= m_aud_csize)
+		if(m_aud_ccnt >= m_aud_cend)
 		{
 			spot_asic_device::irq_audio_w(1);
 			m_aud_cstart = m_aud_nstart;
-			m_aud_csize = (m_aud_cstart + m_aud_nsize) >> 2;
+			m_aud_csize = m_aud_nsize;
+			m_aud_cend = (m_aud_cstart + m_aud_csize);
 			m_aud_cconfig = m_aud_nconfig;
-			m_aud_ccnt = m_aud_cstart >> 2;
+			m_aud_ccnt = m_aud_cstart;
 		}
 	}
 }
@@ -1418,7 +1431,6 @@ void spot_asic_device::irq_keyboard_w(int state)
 
 void spot_asic_device::irq_modem_w(int state)
 {
-	m_intenable |= BUS_INT_DEVMOD;
 	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
 }
 

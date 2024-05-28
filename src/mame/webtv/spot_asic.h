@@ -60,6 +60,24 @@
 #define ERR_TIMEOUT 1 << 2 // io timeout error
 #define ERR_OW      1 << 0 // double-fault
 
+#define MEM_CMD_ALL_CHIPS  0x1 << 0x1b // Send command to all DRAM chips
+
+#define MEM_CMD_PRE        0x0 << 0x1c // Row precharge
+#define MEM_CMD_ACT        0x1 << 0x1c // Row activate
+#define MEM_CMD_MRS        0x2 << 0x1c // Set mode register
+#define MEM_CMD_SRS        0x3 << 0x1c // Set special register
+#define MEM_CMD_REF        0x4 << 0x1c // DRAM Refresh
+#define MEM_CMD_READ       0x5 << 0x1c // Column read
+#define MEM_CMD_WRITE      0x6 << 0x1c // Column write
+#define MEM_CMD_BW         0x7 << 0x1c // Block write
+#define MEM_CMD_PALL       0x8 << 0x1c // Precharge all banks
+#define MEM_CMD_PD_ENTRY   0x8 << 0x1c // Power-down entry
+#define MEM_CMD_PD_EXIT    0xa << 0x1c // Power-down exit
+#define MEM_CMD_SUSP_ENTRY 0xb << 0x1c // Clock suspend entry
+#define MEM_CMD_SUSP_EXIT  0xc << 0x1c // Clock suspend exit
+#define MEM_CMD_SELF_ENTRY 0xd << 0x1c // Self-refresh power-down entry
+#define MEM_CMD_SELF_EXIT  0xe << 0x1c // Self-refresh power-down exit
+
 #define BUS_INT_VIDINT 1 << 7 // vidUnit interrupt (program should read VID_INTSTAT)
 #define BUS_INT_DEVKBD 1 << 6 // keyboard IRQ
 #define BUS_INT_DEVMOD 1 << 5 // modem IRQ
@@ -67,7 +85,7 @@
 #define BUS_INT_DEVSMC 1 << 3 // SmartCard inserted
 #define BUS_INT_AUDDMA 1 << 2 // audUnit DMA completion
 
-#define NTSC_SCREEN_XTAL   XTAL(12'288'000)
+#define NTSC_SCREEN_XTAL   XTAL(18'432'000)
 #define NTSC_SCREEN_WIDTH  640
 #define NTSC_SCREEN_HSTART 40
 #define NTSC_SCREEN_HSIZE  560
@@ -131,10 +149,10 @@
 #define AUD_DMACNTL_NV     1 << 1 // audUnit DMA next registers are valid
 #define AUD_DMACNTL_NVF    1 << 0 // audUnit DMA next registers are always valid
 
-#define AUD_CCONFIG_16BIT_STEREO 0
-#define AUD_CCONFIG_16BIT_MONO   1
-#define AUD_CCONFIG_8BIT_STEREO  2
-#define AUD_CCONFIG_8BIT_MONO    3
+#define AUD_CONFIG_16BIT_STEREO 0
+#define AUD_CONFIG_16BIT_MONO   1
+#define AUD_CONFIG_8BIT_STEREO  2
+#define AUD_CONFIG_8BIT_MONO    3
 
 #define NVCNTL_SCL      1 << 3
 #define NVCNTL_WRITE_EN 1 << 2
@@ -171,7 +189,6 @@ public:
 	void mem_unit_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
-	template <typename T> void set_hostram(T &&tag) { m_hostram.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
 
@@ -204,6 +221,7 @@ protected:
 	uint32_t m_memcntl;
 	uint32_t m_memrefcnt;
 	uint32_t m_memdata;
+	uint32_t m_memcmd;
 	uint32_t m_memtiming;
 
 	uint8_t m_nvcntl;
@@ -221,6 +239,7 @@ protected:
 	uint32_t m_aud_nsize;
 	uint32_t m_aud_nconfig;
 	uint32_t m_aud_dmacntl;
+	uint32_t m_aud_cend;
 
 	uint32_t m_vid_nstart;
 	uint32_t m_vid_nsize;
@@ -238,6 +257,8 @@ protected:
 	uint32_t m_vid_hintline;
 	uint32_t m_vid_intenable;
 	uint32_t m_vid_intstat;
+	uint32_t m_vid_drawvsize;
+	uint32_t m_vid_drawstart;
 
 	// Values set from software are corrected then stored here to draw the actual screen.
 	uint32_t m_vid_draw_nstart;
@@ -264,7 +285,6 @@ protected:
 
 private:
 	required_device<mips3_device> m_hostcpu;
-	required_shared_ptr<uint32_t> m_hostram;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
 	required_device<kbdc8042_device> m_kbdc;
