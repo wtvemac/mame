@@ -41,7 +41,8 @@
 #include "main.h"
 #include "screen.h"
 
-#define SYSCLOCK 56448000 // confirmed
+#define SYSCLOCK         56448000 // confirmed
+#define RAM_FLASHER_SIZE 0x100
 
 class webtv1_state : public driver_device
 {
@@ -76,17 +77,53 @@ private:
 	required_device<amd_29f800b_16bit_device> m_flash0;
 	required_device<amd_29f800b_16bit_device> m_flash1;
 
+	uint8_t ram_flasher[RAM_FLASHER_SIZE];
+
 	void bank0_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank0_flash_r(offs_t offset);
+	uint8_t ram_flasher_r(offs_t offset);
+	void ram_flasher_w(offs_t offset, uint8_t data);
 
 	void webtv1_map(address_map& map);
 };
 
+//
+// WebTV stores the approm across 2 flash chips. The approm firmware is upgradable over a network.
+//
+// There's two 16-bit flash chips striped across a 32-bit bus. The chip with the upper 16-bits is labeled U0501, and lower is U0502.
+//
+// WebTV supports flash configurations to allow 1MB (2 x 4Mbit chips), 2MB (2 x 8Mbit chips) and 4MB (2 x 16Mbit chips) approm images.
+// The 1MB flash configuration seems possible but it's unknown if it was used, 2MB flash configuration was released to the public
+// and it seemed a 4MB flash configuration was used for debug builds during approm development as well as for a prototype Japan box.
+//
+// 1MB:          AM29F400AT + AM29F400AT (citation needed)
+// Production:   AM29F800BT + AM29F800BT
+// 4MB debug/JP: MX29F1610  + MX29F1610  (citation needed)
+//
+// WebTV supported SO-44 flash chips:
+//
+// Fujitsu:
+//    MBM29F400B:  bottom bs, 5v 4Mbit  device id=0x22ab
+//    MBM29F400T:  top bs,    5v 4Mbit  device id=0x2223 (have MAME support)
+//    MBM29F800B:  bottom bs, 5v 8Mbit  device id=0x2258
+//    MBM29F800T:  top bs,    5v 8Mbit  device id=0x22d6
+//
+// AMD:
+//    AM29F400AB:  bottom bs, 5v 4Mbit  device id=0x22ab
+//    AM29F400AT:  top bs,    5v 4Mbit  device id=0x2223
+//    AM29F800BB:  bottom bs, 5v 8Mbit  device id=0x2258 (have MAME support)
+//    AM29F800BT:  top bs,    5v 8Mbit  device id=0x22d6
+//
+// Macronix:
+//    MX29F1610:   top bs,    5v 16Mbit device id=0x00f1 (have MAME support)
+//
+// bank0_flash0 = U0501
+// bank0_flash1 = U0502
+//
+// NOTE: if you dump these chips you may need to byte swap the output. The bus is big-endian.
+//
 void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
 {
-	// WebTV FCS uses two AMD AM29F800BT chips on the board for storing its software.
-	// One chip is for the lower 16 bits (labeled U0502), and the other is for the upper 16 bits (labeled U0501).
-	// When dumping from a real box, keep in mind that the bus is big endian, so byte swapping will be necessary.
 	logerror("%s: bank0_flash_w 0x1f%06x = %08x\n", machine().describe_context(), offset, data);
 	//uint32_t actual_offset = offset & 0xfffff;
 	uint16_t upper_value = (data >> 16) & 0xffff;
@@ -109,14 +146,38 @@ uint32_t webtv1_state::bank0_flash_r(offs_t offset)
     return (upper_value << 16) | (lower_value);
 }
 
+// WebTV's firmware writes the flashing code to the lower 256 bytes of RAM
+// The flash ID instructions are written first, then the flash erase instructions then the flash program instructions.
+// Since everything is written to the same place, the drc cache becomes out of sync and just re-executes the ID instructions.
+// This allows us to capture when new code is written and then clear the drc cache.
+uint8_t webtv1_state::ram_flasher_r(offs_t offset)
+{
+	return ram_flasher[offset & (RAM_FLASHER_SIZE - 1)];
+}
+void webtv1_state::ram_flasher_w(offs_t offset, uint8_t data)
+{
+	if(offset == 0)
+	{
+		// New code is being written, clear drc cache.
+		m_maincpu->code_flush_cache();
+	}
+
+	ram_flasher[offset & (RAM_FLASHER_SIZE - 1)] = data;
+}
+
 void webtv1_state::webtv1_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
 
 	// RAM
-	//map(0x00000000, 0x001fffff).mirror(0x600000).ram().share("ram"); // 2MB configuration (retail)
-	map(0x00000000, 0x003fffff).mirror(0x400000).ram().share("ram"); // 4MB configuration (debug)
+	map(0x00000000, 0x001fffff).ram().mirror(0x600000).share("ram"); // 2MB configuration (retail)
+	//map(0x00000000, 0x003fffff).ram().mirror(0x400000).share("ram"); // 4MB configuration (debug)
 	//map(0x00000000, 0x007fffff).ram().share("ram");                  // 8MB configuration (full)
+	// The RAM flash code gets mirrored across the entire RAM region.
+	map(0x00000000, 0x00000000 + (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
+	map(0x00200000, 0x00200000 + (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
+	map(0x00400000, 0x00400000 + (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
+	map(0x00600000, 0x00600000 + (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
 
 	// SPOT
 	map(0x04000000, 0x04000fff).m(m_spotasic, FUNC(spot_asic_device::bus_unit_map));
