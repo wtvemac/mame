@@ -350,6 +350,8 @@ void spot_asic_device::device_reset()
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
+
+	spot_asic_device::watchdog_enable(m_wdenable);
 }
 
 void spot_asic_device::validate_active_area()
