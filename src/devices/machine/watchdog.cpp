@@ -83,7 +83,8 @@ void watchdog_timer_device::device_reset()
 	// set up the watchdog timer; only start off enabled if explicitly configured
 	m_enabled = (m_vblank_count != 0 || m_time != attotime::zero);
 	watchdog_reset();
-	m_enabled = true;
+	// Not sure if this is here by mistake? Removing since it's antithetical to the previous commennt. WebTV starts with the watchdog disabled.
+	//m_enabled = true;
 }
 
 
