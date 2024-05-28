@@ -515,7 +515,8 @@ void spot_asic_device::reg_010c_w(uint32_t data)
         logerror("%s: DEVKBD bus interrupt cleared\n", machine().describe_context());
     if (data&BUS_INT_VIDINT)
         logerror("%s: VIDINT bus interrupt cleared\n", machine().describe_context());
-    m_intenable &= (~data) & 0xFF;
+	if(data != BUS_INT_DEVMOD) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
+		m_intenable &= ~(data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_0010_r()
@@ -924,7 +925,7 @@ uint32_t spot_asic_device::reg_3038_r()
 void spot_asic_device::reg_3138_w(uint32_t data)
 {
 	//logerror("%s: reg_3138_w %08x (VID_INTSTAT clear)\n", machine().describe_context(), data);
-	 m_vid_intstat &= (~data) & 0xff;
+	m_vid_intstat &= (~data) & 0xff;
 }
 
 uint32_t spot_asic_device::reg_303c_r()
@@ -1511,7 +1512,6 @@ void spot_asic_device::irq_audio_w(int state)
 
 void spot_asic_device::irq_modem_w(int state)
 {
-	m_intenable |= BUS_INT_DEVMOD;
 	spot_asic_device::set_bus_irq(BUS_INT_DEVMOD, state);
 }
 
