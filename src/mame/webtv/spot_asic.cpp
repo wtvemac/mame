@@ -286,7 +286,7 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-	dac_update_timer->adjust(attotime::from_hz(AUD_SAMPLE_RATE), 0, attotime::from_hz(AUD_SAMPLE_RATE));
+	dac_update_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
 
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
@@ -451,23 +451,68 @@ uint32_t spot_asic_device::reg_0004_r()
 void spot_asic_device::reg_0004_w(uint32_t data)
 {
 	logerror("%s: reg_0004_w %08x (BUS_CHPCNTL)\n", machine().describe_context(), data);
-	if ((m_chpcntl ^ data) & 0xC0000000)
-	{
-		uint8_t wd_cntl = (data >> 30);
 
-		int8_t wd_diff = wd_cntl - (m_chpcntl >> 30);
+	if ((m_chpcntl ^ data) & CHPCNTL_WDENAB_MASK)
+	{
+		uint32_t wd_cntl = (data & CHPCNTL_WDENAB_MASK);
+
+		int32_t wd_diff = wd_cntl - (m_chpcntl & CHPCNTL_WDENAB_MASK);
 
 		// Count down to disable (3, 2, 1, 0), count up to enable (0, 1, 2, 3)
 		// This doesn't track the count history but gets the expected result for the ROM.
-		if((!m_wdenable && wd_diff == 1 && wd_cntl == 3) || (m_wdenable && wd_diff == -1 && wd_cntl == 0))
+		if(
+			(!m_wdenable && wd_diff == CHPCNTL_WDENAB_UP && wd_cntl == CHPCNTL_WDENAB_SEQ3)
+			|| (m_wdenable && wd_diff == CHPCNTL_WDENAB_DWN && wd_cntl == CHPCNTL_WDENAB_SEQ0)
+		)
 		{
-			watchdog_enable(wd_cntl == 3);
+			spot_asic_device::watchdog_enable(wd_cntl == CHPCNTL_WDENAB_SEQ3);
 		}
 	}
 
-	m_chpcntl = data;
+	if (!(m_sys_config->read() & SYSCONFIG_AUDDACMODE) && (m_chpcntl ^ data) & CHPCNTL_AUDCLKDIV_MASK)
+	{
+		uint32_t audclk_cntl = (data & CHPCNTL_AUDCLKDIV_MASK);
 
-	m_aud_clkdiv = (data >> 26) & 0xF;
+		uint32_t sys_clk = spot_asic_device::clock();
+		uint32_t aud_clk = AUD_DEFAULT_CLK;
+
+		switch(audclk_cntl)
+		{
+			case CHPCNTL_AUDCLKDIV_EXTC:
+			default:
+				aud_clk = AUD_DEFAULT_CLK;
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV1:
+				aud_clk = sys_clk / (1 * 0x100);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV2:
+				aud_clk = sys_clk / (2 * 0x100);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV3:
+				aud_clk = sys_clk / (3 * 0x100);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV4:
+				aud_clk = sys_clk / (4 * 0x100);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV5:
+				aud_clk = sys_clk / (5 * 0x100);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV6:
+				aud_clk = sys_clk / (6 * 0x100);
+				break;
+
+		}
+
+		dac_update_timer->adjust(attotime::from_hz(aud_clk), 0, attotime::from_hz(aud_clk));
+	}
+
+	m_chpcntl = data;
 }
 
 uint32_t spot_asic_device::reg_0008_r()
