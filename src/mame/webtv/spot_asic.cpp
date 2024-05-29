@@ -916,7 +916,8 @@ uint32_t spot_asic_device::reg_3034_r()
 {
 	//logerror("%s: reg_3034_r (VID_CLINE)\n", machine().describe_context());
 
-	return (m_vid_cline++) & 0x1ffff;
+	return m_screen->vpos();
+	//return (m_vid_cline++) & 0x1ffff;
 }
 
 uint32_t spot_asic_device::reg_3038_r()
