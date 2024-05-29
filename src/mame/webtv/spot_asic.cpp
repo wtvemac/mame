@@ -258,8 +258,13 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_vid_csize));
 	save_item(NAME(m_vid_ccnt));
 	save_item(NAME(m_vid_cline));
-	save_item(NAME(m_vid_drawstart));
-	save_item(NAME(m_vid_drawvsize));
+	save_item(NAME(m_vid_draw_nstart));
+	save_item(NAME(m_vid_draw_hstart));
+	save_item(NAME(m_vid_draw_hsize));
+	save_item(NAME(m_vid_draw_vstart));
+	save_item(NAME(m_vid_draw_vsize));
+	save_item(NAME(m_vid_draw_blank_color));
+
 	save_item(NAME(m_aud_cstart));
 	save_item(NAME(m_aud_csize));
 	save_item(NAME(m_aud_cconfig));
@@ -315,6 +320,13 @@ void spot_asic_device::device_reset()
 	m_vid_ccnt = 0x0;
 	m_vid_cline = 0x0;
 
+	m_vid_draw_nstart = 0x0;
+	m_vid_draw_hstart = m_vid_hstart;
+	m_vid_draw_hsize = m_vid_hsize;
+	m_vid_draw_vstart = m_vid_vstart;
+	m_vid_draw_vsize = m_vid_vsize;
+	m_vid_draw_blank_color = m_vid_blank_color;
+
 	m_aud_cstart = 0x0;
 	m_aud_csize = 0x0;
 	m_aud_cend = 0x0;
@@ -325,9 +337,6 @@ void spot_asic_device::device_reset()
 	m_aud_nconfig = 0x0;
 	m_aud_dmacntl = 0x0;
 	m_aud_dma_ongoing = false;
-
-	m_vid_drawstart = 0x0;
-	m_vid_drawvsize = m_vid_vsize;
 
 	m_rom_cntl0 = 0x0;
 	m_rom_cntl1 = 0x0;
@@ -355,30 +364,31 @@ void spot_asic_device::validate_active_area()
 {
 	// hsize and vsize changes will break the screen but it would break on hardware.
 
+	m_vid_draw_hsize = m_vid_hsize;
+	m_vid_draw_vsize = m_vid_vsize;
+
 	// The active h size can't be larger than the screen width.
-	if (m_vid_hsize > m_screen->width())
-		m_vid_hsize = m_screen->width();
+	if (m_vid_draw_hsize > m_screen->width())
+		m_vid_draw_hsize = m_screen->width();
 
 	// The active v size can't be larger than the screen height.
-	if (m_vid_vsize > m_screen->height())
-		m_vid_vsize = m_screen->height();
+	if (m_vid_draw_vsize > m_screen->height())
+		m_vid_draw_vsize = m_screen->height();
 
-	// hsize and vsize need to be a multiple of 2
-	m_vid_hsize = (m_vid_hsize / 2) * 2;
-	m_vid_vsize = (m_vid_vsize / 2) * 2;
+	m_vid_draw_hstart = m_vid_hstart - VID_HSTART_OFFSET;
+	m_vid_draw_vstart = m_vid_vstart;
 
 	// The active h offset (hstart) can't push the active area off the screen.
-	if ((m_vid_hstart + m_vid_hsize) > m_screen->width())
-		m_vid_hstart = (m_screen->width() - m_vid_hsize) / 2; // to screen center
-	
+	if ((m_vid_draw_hstart + m_vid_draw_hsize) > m_screen->width())
+		m_vid_draw_hstart = (m_screen->width() - m_vid_draw_hsize); // to screen edge
+	else if (m_vid_draw_hstart < 0)
+		m_vid_draw_hstart = 0;
 
 	// The active v offset (vstart) can't push the active area off the screen.
-	if ((m_vid_vstart + m_vid_vsize) > m_screen->height())
-		m_vid_vstart = (m_screen->height() - m_vid_vsize) / 2; // to screen center
-
-	// hstart and vstart need to be a multiple of 8
-	m_vid_hstart = (m_vid_hstart / 8) * 8;
-	m_vid_vstart = (m_vid_vstart / 8) * 8;
+	if ((m_vid_draw_vstart + m_vid_draw_vsize) > m_screen->height())
+		m_vid_draw_vstart = (m_screen->height() - m_vid_draw_vsize); // to screen edge
+	else if (m_vid_draw_vstart < 0)
+		m_vid_draw_vstart = 0;
 
 	spot_asic_device::pixel_buffer_index_update();
 }
@@ -389,7 +399,7 @@ void spot_asic_device::device_stop()
 
 void spot_asic_device::pixel_buffer_index_update()
 {
-	uint32_t screen_lines = m_vid_vsize;
+	uint32_t screen_lines = m_vid_draw_vsize;
 	uint32_t screen_buffer_size = m_vid_nsize;
 
 	if (m_vid_fcntl & VID_FCNTL_INTERLACE)
@@ -399,18 +409,18 @@ void spot_asic_device::pixel_buffer_index_update()
 		screen_lines = (screen_lines * 2);
 	}
 
-	m_vid_drawstart = m_vid_nstart;
+	m_vid_draw_nstart = m_vid_nstart;
 
 	if (m_emu_config->read() & EMUCONFIG_PBUFF1)
 	{
-		m_vid_drawstart += screen_buffer_size;
-		m_vid_drawstart -= (m_vid_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_drawvsize = screen_lines;
+		m_vid_draw_nstart += screen_buffer_size;
+		m_vid_draw_nstart -= (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
+		m_vid_draw_vsize = screen_lines;
 	}
 	else
 	{
-		m_vid_drawstart += 2 * (m_vid_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_drawvsize = screen_lines - 3;
+		m_vid_draw_nstart += 2 * (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
+		m_vid_draw_vsize = screen_lines - 3;
 	}
 }
 
@@ -515,8 +525,9 @@ void spot_asic_device::reg_010c_w(uint32_t data)
         logerror("%s: DEVKBD bus interrupt cleared\n", machine().describe_context());
     if (data&BUS_INT_VIDINT)
         logerror("%s: VIDINT bus interrupt cleared\n", machine().describe_context());
-	if(data != BUS_INT_DEVMOD) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
-		m_intenable &= ~(data & 0xFF);
+
+    if(data != BUS_INT_DEVMOD) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
+        m_intenable &= ~(data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_0010_r()
@@ -833,6 +844,8 @@ void spot_asic_device::reg_301c_w(uint32_t data)
 {
 	logerror("%s: reg_301c_r %08x (VID_BLNKCOL)\n", machine().describe_context(), data);
 	m_vid_blank_color = data;
+
+	m_vid_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);	
 }
 
 uint32_t spot_asic_device::reg_3020_r()
@@ -1557,10 +1570,11 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 {
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height =  bitmap.height();
+	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_vid_drawstart;
+	m_vid_ccnt = m_vid_draw_nstart;
 
 	address_space &space = m_hostcpu->space(AS_PROGRAM);
 
@@ -1575,25 +1589,25 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 		for (int x = 0; x < screen_width; x += 2)
 		{
-			int32_t pixel = VID_DEFAULT_COLOR;
+			uint32_t pixel = VID_DEFAULT_COLOR;
 
 			bool is_active_area = (
-				y >= m_vid_vstart
-				&& y < (m_vid_vstart + m_vid_drawvsize)
+				y >= m_vid_draw_vstart
+				&& y < (m_vid_draw_vstart + m_vid_draw_vsize)
 
-				&& x >= m_vid_hstart
-				&& x < (m_vid_hstart + m_vid_hsize)
+				&& x >= m_vid_draw_hstart
+				&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
 			);
 
 			if (m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
 			{
 				pixel = space.read_dword(m_vid_ccnt);
 
-				m_vid_ccnt += 2 * VID_BYTES_PER_PIXEL;
+				m_vid_ccnt += vid_step;
 			}
 			else if (m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
 			{
-				pixel = m_vid_blank_color | (((m_vid_blank_color >> 0x08) & 0xff) << 0x18);
+				pixel = m_vid_draw_blank_color;
 			}
 
 			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
