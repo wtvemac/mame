@@ -339,10 +339,11 @@ static INPUT_PORTS_START( emu_config )
 	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
 	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
 
-	PORT_CONFNAME(0x0c, 0x08, "Smartcard bangserial")
+	PORT_CONFNAME(0x0c, 0x0c, "Smartcard bangserial")
 	PORT_CONFSETTING(0x00, "Off")
 	PORT_CONFSETTING(0x04, "V1 bangserial data")
 	PORT_CONFSETTING(0x08, "V2 bangserial data")
+	PORT_CONFSETTING(0x0c, "Autodetect")
 
 	PORT_CONFNAME(0x10, 0x10, "Allow real-time screen size updates")
 	PORT_CONFSETTING(0x00, "No")

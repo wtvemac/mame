@@ -41,12 +41,13 @@
 #define SYSCONFIG_CPUBUFF    1 << 13 // 0=50% output buffer strength, 1=83% output buffer strength
 #define SYSCONFIG_NTSC       1 << 11 // use NTSC mode
 
-#define EMUCONFIG_PBUFF0         0	  // Render the screen using data exactly at nstart. Only seen in the prealpha bootrom.
-#define EMUCONFIG_PBUFF1         1 << 0 // Render the screen using data one buffer length beyond nstart. Seems to be what they settled on.
-#define EMUCONFIG_BANGSERIAL     3 << 2
-#define EMUCONFIG_BANGSERIAL_V1  1 << 2
-#define EMUCONFIG_BANGSERIAL_V2  1 << 3
-#define EMUCONFIG_SCREEN_UPDATES 1 << 4
+#define EMUCONFIG_PBUFF0          0	  // Render the screen using data exactly at nstart. Only seen in the prealpha bootrom.
+#define EMUCONFIG_PBUFF1          1 << 0 // Render the screen using data one buffer length beyond nstart. Seems to be what they settled on.
+#define EMUCONFIG_BANGSERIAL      3 << 2
+#define EMUCONFIG_BANGSERIAL_V1   1 << 2
+#define EMUCONFIG_BANGSERIAL_V2   1 << 3
+#define EMUCONFIG_BANGSERIAL_AUTO 3 << 2
+#define EMUCONFIG_SCREEN_UPDATES  1 << 4
 
 #define ERR_F1READ  1 << 6 // BUS_FENADDR1 read fence check error
 #define ERR_F1WRITE 1 << 5 // BUS_FENADDR1 write fence check error
