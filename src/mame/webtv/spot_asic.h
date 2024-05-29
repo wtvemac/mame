@@ -65,26 +65,39 @@
 #define BUS_INT_DEVSMC 1 << 3 // SmartCard inserted
 #define BUS_INT_AUDDMA 1 << 2 // audUnit DMA completion
 
+#define NTSC_SCREEN_XTAL   XTAL(18'414'000)
 #define NTSC_SCREEN_WIDTH  640
+#define NTSC_SCREEN_HSTART 40
+#define NTSC_SCREEN_HSIZE  560
 #define NTSC_SCREEN_HEIGHT 480
-#define NTSC_SCREEN_HZ     60
-#define PAL_SCREEN_WIDTH   768
-#define PAL_SCREEN_HEIGHT  560
-#define PAL_SCREEN_HZ      50
+#define NTSC_SCREEN_VSTART 30
+#define NTSC_SCREEN_VSIZE  420
+
+#define PAL_SCREEN_XTAL   XTAL(21'060'000)
+#define PAL_SCREEN_WIDTH  768
+#define PAL_SCREEN_HSTART 72
+#define PAL_SCREEN_HSIZE  624
+#define PAL_SCREEN_HEIGHT 560
+#define PAL_SCREEN_VSTART 40
+#define PAL_SCREEN_VSIZE  480
+
+#define VID_DEFAULT_XTAL   NTSC_SCREEN_XTAL
+#define VID_DEFAULT_WIDTH  NTSC_SCREEN_WIDTH
+#define VID_DEFAULT_HSTART NTSC_SCREEN_HSTART
+#define VID_DEFAULT_HSIZE  NTSC_SCREEN_HSIZE
+#define VID_DEFAULT_HEIGHT NTSC_SCREEN_HEIGHT
+#define VID_DEFAULT_VSTART NTSC_SCREEN_VSTART
+#define VID_DEFAULT_VSIZE  NTSC_SCREEN_VSIZE
+// This is always 0x77 on SPOT and SOLO for some reason (even on hardware)
+// This is needed to correct the HSTART value.
+#define VID_HSTART_OFFSET  0x77
 
 #define VID_Y_BLACK         0x10
 #define VID_Y_WHITE         0xeb
 #define VID_Y_RANGE         (VID_Y_WHITE - VID_Y_BLACK)
 #define VID_UV_OFFSET       0x80
 #define VID_BYTES_PER_PIXEL 2
-#define VID_DEFAULT_WIDTH   NTSC_SCREEN_WIDTH
-#define VID_DEFAULT_HEIGHT  NTSC_SCREEN_HEIGHT
-#define VID_DEFAULT_HZ      NTSC_SCREEN_HZ
-#define VID_DEFAULT_HSTART  0
-#define VID_DEFAULT_HSIZE   560
-#define VID_DEFAULT_VSTART  0
-#define VID_DEFAULT_VSIZE   420
-#define VID_DEFAULT_COLOR   (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
+#define VID_DEFAULT_COLOR   (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET
 
 #define VID_INT_FIDO   1 << 6 // TODO: docs don't have info on FIDO mode! figure this out!
 #define VID_INT_VSYNCE 1 << 5 // even field VSYNC
@@ -164,8 +177,7 @@ protected:
 	virtual void device_reset() override;
 	virtual void device_stop() override;
 
-	void activate_ntsc_screen();
-	void activate_pal_screen();
+	void reconfigure_screen(bool use_pal);
 
 	uint32_t m_chpcntl;
 	uint8_t m_wdenable;

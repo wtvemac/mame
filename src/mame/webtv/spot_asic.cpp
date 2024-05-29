@@ -178,11 +178,9 @@ void spot_asic_device::mem_unit_map(address_map &map)
 void spot_asic_device::device_add_mconfig(machine_config &config)
 {
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-	m_screen->set_size(VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT);
-	m_screen->set_visarea(0, VID_DEFAULT_WIDTH - 1, 0, VID_DEFAULT_HEIGHT - 1);
-	m_screen->set_refresh_hz(VID_DEFAULT_HZ);
 	m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
 	m_screen->screen_vblank().set(FUNC(spot_asic_device::vblank_irq));
+	m_screen->set_raw(VID_DEFAULT_XTAL, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT, 0, VID_DEFAULT_HEIGHT);
 
 	SPEAKER(config, m_lspeaker).front_left();
 	SPEAKER(config, m_rspeaker).front_right();
@@ -216,18 +214,17 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	spot_asic_device::watchdog_enable(0);
 }
 
-void spot_asic_device::activate_ntsc_screen()
+void spot_asic_device::reconfigure_screen(bool use_pal)
 {
-	m_screen->set_size(NTSC_SCREEN_WIDTH, NTSC_SCREEN_HEIGHT);
-	m_screen->set_visarea(0, NTSC_SCREEN_WIDTH - 1, 0, NTSC_SCREEN_HEIGHT - 1);
-	m_screen->set_refresh_hz(NTSC_SCREEN_HZ);
-}
+	if(m_emu_config->read() & EMUCONFIG_SCREEN_UPDATES)
+	{
+		// The border region should be shown, colored in with m_vid_blank_color
 
-void spot_asic_device::activate_pal_screen()
-{
-	m_screen->set_size(PAL_SCREEN_WIDTH, PAL_SCREEN_HEIGHT);
-	m_screen->set_visarea(0, PAL_SCREEN_WIDTH - 1, 0, PAL_SCREEN_HEIGHT - 1);
-	m_screen->set_refresh_hz(PAL_SCREEN_HZ);
+		if (use_pal)
+			m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_WIDTH - 2, 0, PAL_SCREEN_WIDTH, PAL_SCREEN_HEIGHT, 0, PAL_SCREEN_HEIGHT - 2);
+		else
+			m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_WIDTH - 2, 0, NTSC_SCREEN_WIDTH, NTSC_SCREEN_HEIGHT, 0, NTSC_SCREEN_HEIGHT - 2);
+	}
 }
 
 void spot_asic_device::device_start()
@@ -766,9 +763,12 @@ uint32_t spot_asic_device::reg_300c_r()
 
 void spot_asic_device::reg_300c_w(uint32_t data)
 {
+	bool has_changed = (m_vid_nstart != data);
+
 	m_vid_nstart = data;
 
-	spot_asic_device::validate_active_area();
+	if(has_changed)
+		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
 }
@@ -781,9 +781,12 @@ uint32_t spot_asic_device::reg_3010_r()
 
 void spot_asic_device::reg_3010_w(uint32_t data)
 {
+	bool has_changed = (m_vid_nsize != data);
+
 	m_vid_nsize = data;
 
-	spot_asic_device::validate_active_area();
+	if(has_changed)
+		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
 }
@@ -797,9 +800,7 @@ uint32_t spot_asic_device::reg_3014_r()
 void spot_asic_device::reg_3014_w(uint32_t data)
 {
 	if ((m_vid_dmacntl ^ data) & VID_DMACNTL_NV && data & VID_DMACNTL_NV)
-	{
 		spot_asic_device::pixel_buffer_index_update();
-	}
 
 	m_vid_dmacntl = data;
 
@@ -814,14 +815,8 @@ uint32_t spot_asic_device::reg_3018_r()
 
 void spot_asic_device::reg_3018_w(uint32_t data)
 {
-	if (m_emu_config->read() & EMUCONFIG_SCREEN_UPDATES && (m_vid_fcntl ^ data) & VID_FCNTL_PAL)
-	{
-        // TODO: does this actually work?
-		if (data & VID_FCNTL_PAL)
-			spot_asic_device::activate_pal_screen();
-		else
-			spot_asic_device::activate_ntsc_screen();
-	}
+	if ((m_vid_fcntl ^ data) & VID_FCNTL_PAL)
+		spot_asic_device::reconfigure_screen(data & VID_FCNTL_PAL);
 	
 	m_vid_fcntl = data;
 
@@ -848,9 +843,12 @@ uint32_t spot_asic_device::reg_3020_r()
 
 void spot_asic_device::reg_3020_w(uint32_t data)
 {
+	bool has_changed = (m_vid_hstart != data);
+
 	m_vid_hstart = data;
 
-	spot_asic_device::validate_active_area();
+	if(has_changed)
+		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
 }
@@ -863,9 +861,12 @@ uint32_t spot_asic_device::reg_3024_r()
 
 void spot_asic_device::reg_3024_w(uint32_t data)
 {
+	bool has_changed = (m_vid_hsize != data);
+
 	m_vid_hsize = data;
 
-	spot_asic_device::validate_active_area();
+	if(has_changed)
+		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
 }
@@ -878,9 +879,12 @@ uint32_t spot_asic_device::reg_3028_r()
 
 void spot_asic_device::reg_3028_w(uint32_t data)
 {
+	bool has_changed = (m_vid_vstart != data);
+
 	m_vid_vstart = data;
 
-	spot_asic_device::validate_active_area();
+	if(has_changed)
+		spot_asic_device::validate_active_area();
 	
 	//logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
 }
@@ -893,9 +897,12 @@ uint32_t spot_asic_device::reg_302c_r()
 
 void spot_asic_device::reg_302c_w(uint32_t data)
 {
+	bool has_changed = (m_vid_vstart != data);
+
 	m_vid_vsize = data;
 
-	spot_asic_device::validate_active_area();
+	if(has_changed)
+		spot_asic_device::validate_active_area();
 	
 	//logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
