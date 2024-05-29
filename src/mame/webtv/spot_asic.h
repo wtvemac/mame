@@ -49,6 +49,22 @@
 #define EMUCONFIG_BANGSERIAL_AUTO 3 << 2
 #define EMUCONFIG_SCREEN_UPDATES  1 << 4
 
+#define CHPCNTL_WDENAB_MASK     3 << 30
+#define CHPCNTL_WDENAB_SEQ0     0 << 30
+#define CHPCNTL_WDENAB_SEQ1     1 << 30
+#define CHPCNTL_WDENAB_SEQ2     2 << 30
+#define CHPCNTL_WDENAB_SEQ3     3 << 30
+#define CHPCNTL_WDENAB_DWN     -1 << 30
+#define CHPCNTL_WDENAB_UP       1 << 30
+#define CHPCNTL_AUDCLKDIV_MASK  15 << 26
+#define CHPCNTL_AUDCLKDIV_EXTC  0 << 26
+#define CHPCNTL_AUDCLKDIV_DIV1  1 << 26
+#define CHPCNTL_AUDCLKDIV_DIV2  2 << 26
+#define CHPCNTL_AUDCLKDIV_DIV3  3 << 26
+#define CHPCNTL_AUDCLKDIV_DIV4  4 << 26
+#define CHPCNTL_AUDCLKDIV_DIV5  5 << 26
+#define CHPCNTL_AUDCLKDIV_DIV6  6 << 26
+
 #define ERR_F1READ  1 << 6 // BUS_FENADDR1 read fence check error
 #define ERR_F1WRITE 1 << 5 // BUS_FENADDR1 write fence check error
 #define ERR_F2READ  1 << 4 // BUS_FENADDR2 read fence check error
@@ -124,7 +140,7 @@
 #define AUD_CONFIG_8BIT_STEREO  2
 #define AUD_CONFIG_8BIT_MONO    3
 
-#define AUD_SAMPLE_RATE 44100
+#define AUD_DEFAULT_CLK 44100
 #define AUD_OUTPUT_GAIN 0.25
 
 #define AUD_DMACNTL_DMAEN  1 << 2 // audUnit DMA channel enabled
