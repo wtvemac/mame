@@ -1104,16 +1104,17 @@ void spot_asic_device::reg_4010_w(uint32_t data)
 		m_smrtcrd_serial_bitmask = (m_smrtcrd_serial_bitmask << 1) | 1;
 		m_smrtcrd_serial_rxdata = (m_smrtcrd_serial_rxdata << 1) | (data == 0);
 
-		// Just checking if the start and stop bits are present. Not checking if they're valid.
+		// Just checking if the all bits are present. Not checking if they're valid.
 		if ((m_smrtcrd_serial_bitmask & 0x7ff) == 0x7ff)
 		{
+			uint8_t bangserial_config = (m_emu_config->read() & EMUCONFIG_BANGSERIAL);
 			uint8_t rxbyte = 0x00;
 
-			if (m_emu_config->read() & EMUCONFIG_BANGSERIAL_V1)
-				// V1: there's 2 start bits (1 high and 1 low), 8 data bits and 1 stop bit.
+			if((bangserial_config == EMUCONFIG_BANGSERIAL_AUTO && ((m_smrtcrd_serial_rxdata & 0x700) != 0x600)) || (bangserial_config == EMUCONFIG_BANGSERIAL_V1))
+				// V1: there's 2 bits at the start (1 high and 1 low), 8 data bits and 1 bit at the end.
 				rxbyte = (m_smrtcrd_serial_rxdata >> 1);
 			else
-				// V2: there's 3 start bits (all high), 8 data bits and no stop bit.
+				// V2: there's 3 bits at the start (all high), 8 data bits and no bits at the end.
 				rxbyte = m_smrtcrd_serial_rxdata;
 
 			// This reverses the bit order
@@ -1123,10 +1124,10 @@ void spot_asic_device::reg_4010_w(uint32_t data)
 
 			osd_printf_verbose("%c", rxbyte);
 
-            m_smrtcrd_serial_bitmask = 0x0;
-            m_smrtcrd_serial_rxdata = 0x0;
-        }
-    }
+			m_smrtcrd_serial_bitmask = 0x0;
+			m_smrtcrd_serial_rxdata = 0x0;
+		}
+	}
     else
     {
         // TODO: reimplement smartcard slot
