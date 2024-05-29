@@ -58,8 +58,6 @@ public:
 		m_flash1(*this, "bank0_flash1")  // labeled U0502, contains lower bits
 	{ }
 	
-	DECLARE_INPUT_CHANGED_MEMBER(pbuff_index_changed);
-	
 	void webtv1_base(machine_config& config);
 	void webtv1_sony(machine_config& config);
 	void webtv1_philips(machine_config& config);
@@ -236,11 +234,6 @@ void webtv1_state::machine_reset()
 
 }
 
-INPUT_CHANGED_MEMBER(webtv1_state::pbuff_index_changed)
-{
-	m_spotasic->pixel_buffer_index_update();
-}
-
 // Sysconfig options are usually configured via resistors on the board.
 static INPUT_PORTS_START( sys_config )
 	PORT_START("sys_config")
@@ -335,7 +328,7 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( emu_config )
 	PORT_START("emu_config")
 
-	PORT_CONFNAME(0x03, 0x00, "Pixel buffer index") PORT_CHANGED_MEMBER(DEVICE_SELF, webtv1_state, pbuff_index_changed, 0)
+	PORT_CONFNAME(0x03, 0x00, "Pixel buffer index")
 	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
 	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
 
