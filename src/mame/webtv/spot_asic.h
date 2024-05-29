@@ -224,8 +224,13 @@ protected:
 	uint32_t m_vid_intenable;
 	uint32_t m_vid_intstat;
 
-	uint32_t m_vid_drawstart;
-	uint32_t m_vid_drawvsize;
+	// Values set from software are corrected then stored here to draw the actual screen.
+	uint32_t m_vid_draw_nstart;
+	uint32_t m_vid_draw_hstart;
+	uint32_t m_vid_draw_hsize;
+	uint32_t m_vid_draw_vstart;
+	uint32_t m_vid_draw_vsize;
+	uint32_t m_vid_draw_blank_color;
 
 	uint8_t m_aud_clkdiv;
 	uint32_t m_aud_cstart;
