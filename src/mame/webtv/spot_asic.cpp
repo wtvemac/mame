@@ -466,7 +466,10 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 uint32_t spot_asic_device::reg_0008_r()
 {
 	logerror("%s: reg_0008_r (BUS_INTSTAT)\n", machine().describe_context());
-	return m_intstat;
+	if(m_intstat == 0x0)
+		return BUS_INT_VIDINT;
+	else
+		return m_intstat;
 }
 
 void spot_asic_device::reg_0108_w(uint32_t data)
