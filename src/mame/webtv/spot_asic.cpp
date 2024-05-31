@@ -171,11 +171,11 @@ void spot_asic_device::dev_unit_map(address_map &map)
 
 void spot_asic_device::mem_unit_map(address_map &map)
 {
-    map(0x000, 0x003).rw(FUNC(spot_asic_device::reg_5000_r), FUNC(spot_asic_device::reg_5000_w)); // MEM_CNTL
-    map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_5004_r), FUNC(spot_asic_device::reg_5004_w)); // MEM_REFCNT
-    map(0x008, 0x00b).rw(FUNC(spot_asic_device::reg_5008_r), FUNC(spot_asic_device::reg_5008_w)); // MEM_DATA
-    map(0x00c, 0x00f).w(FUNC(spot_asic_device::reg_500c_w));                                      // MEM_CMD
-    map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_5010_r), FUNC(spot_asic_device::reg_5010_w)); // MEM_TIMING
+	map(0x000, 0x003).rw(FUNC(spot_asic_device::reg_5000_r), FUNC(spot_asic_device::reg_5000_w)); // MEM_CNTL
+	map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_5004_r), FUNC(spot_asic_device::reg_5004_w)); // MEM_REFCNT
+	map(0x008, 0x00b).rw(FUNC(spot_asic_device::reg_5008_r), FUNC(spot_asic_device::reg_5008_w)); // MEM_DATA
+	map(0x00c, 0x00f).w(FUNC(spot_asic_device::reg_500c_w));                                      // MEM_CMD
+	map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_5010_r), FUNC(spot_asic_device::reg_5010_w)); // MEM_TIMING
 }
 
 void spot_asic_device::device_add_mconfig(machine_config &config)
@@ -195,9 +195,9 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_modem_uart->out_dtr_callback().set("modem", FUNC(rs232_port_device::write_dtr));
 	m_modem_uart->out_rts_callback().set("modem", FUNC(rs232_port_device::write_rts));
 	m_modem_uart->out_int_callback().set(FUNC(spot_asic_device::irq_modem_w));
-    
+
 	rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
-    rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
+	rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
 	rs232.rxd_handler().set(m_modem_uart, FUNC(ns16450_device::rx_w));
 	rs232.dcd_handler().set(m_modem_uart, FUNC(ns16450_device::dcd_w));
 	rs232.dsr_handler().set(m_modem_uart, FUNC(ns16450_device::dsr_w));
@@ -363,6 +363,10 @@ void spot_asic_device::device_reset()
 	spot_asic_device::watchdog_enable(m_wdenable);
 }
 
+void spot_asic_device::device_stop()
+{
+}
+
 void spot_asic_device::validate_active_area()
 {
 	// The active h size can't be larger than the screen width or smaller than 2 pixels.
@@ -388,10 +392,6 @@ void spot_asic_device::validate_active_area()
 		m_vid_draw_vstart = 0;
 
 	spot_asic_device::pixel_buffer_index_update();
-}
-
-void spot_asic_device::device_stop()
-{
 }
 
 void spot_asic_device::pixel_buffer_index_update()
@@ -425,7 +425,7 @@ void spot_asic_device::watchdog_enable(int state)
 {
 	m_wdenable = state;
 
-	if(m_wdenable)
+	if (m_wdenable)
 		m_watchdog->set_time(attotime::from_usec(WATCHDOG_TIMER_USEC));
 	else
 		m_watchdog->set_time(attotime::zero);
@@ -436,7 +436,7 @@ void spot_asic_device::watchdog_enable(int state)
 uint32_t spot_asic_device::reg_0000_r()
 {
 	//logerror("%s: reg_0000_r (BUS_CHIPID)\n", machine().describe_context());
-    return 0x01010000;
+	return 0x01010000;
 }
 
 uint32_t spot_asic_device::reg_0004_r()
@@ -457,9 +457,9 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 
 		// Count down to disable (3, 2, 1, 0), count up to enable (0, 1, 2, 3)
 		// This doesn't track the count history but gets the expected result for the ROM.
-		if(
-			(!m_wdenable && wd_diff == CHPCNTL_WDENAB_UP && wd_cntl == CHPCNTL_WDENAB_SEQ3)
-			|| (m_wdenable && wd_diff == CHPCNTL_WDENAB_DWN && wd_cntl == CHPCNTL_WDENAB_SEQ0)
+		if (
+			(!m_wdenable && wd_diff > 0 && wd_cntl == CHPCNTL_WDENAB_SEQ3)
+			|| (m_wdenable && wd_diff < 0 && wd_cntl == CHPCNTL_WDENAB_SEQ0)
 		)
 		{
 			spot_asic_device::watchdog_enable(wd_cntl == CHPCNTL_WDENAB_SEQ3);
@@ -515,7 +515,7 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 uint32_t spot_asic_device::reg_0008_r()
 {
 	logerror("%s: reg_0008_r (BUS_INTSTAT)\n", machine().describe_context());
-	if(m_intstat == 0x0)
+	if (m_intstat == 0x0)
 		return BUS_INT_VIDINT;
 	else
 		return m_intstat;
@@ -537,39 +537,40 @@ uint32_t spot_asic_device::reg_000c_r()
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
 	logerror("%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
-    if (data&BUS_INT_AUDDMA)
-        logerror("%s: AUDDMA bus interrupt set\n", machine().describe_context());
-    if (data&BUS_INT_DEVSMC)
-        logerror("%s: DEVSMC bus interrupt set\n", machine().describe_context());
-    if (data&BUS_INT_DEVIR)
-        logerror("%s: DEVIR bus interrupt set\n", machine().describe_context());
-    if (data&BUS_INT_DEVMOD)
-        logerror("%s: DEVMOD bus interrupt set\n", machine().describe_context());
-    if (data&BUS_INT_DEVKBD)
-        logerror("%s: DEVKBD bus interrupt set\n", machine().describe_context());
-    if (data&BUS_INT_VIDINT)
-        logerror("%s: VIDINT bus interrupt set\n", machine().describe_context());
-    m_intenable |= data & 0xFF;
+	if (data&BUS_INT_AUDDMA)
+		logerror("%s: AUDDMA bus interrupt set\n", machine().describe_context());
+	if (data&BUS_INT_DEVSMC)
+		logerror("%s: DEVSMC bus interrupt set\n", machine().describe_context());
+	if (data&BUS_INT_DEVIR)
+		logerror("%s: DEVIR bus interrupt set\n", machine().describe_context());
+	if (data&BUS_INT_DEVMOD)
+		logerror("%s: DEVMOD bus interrupt set\n", machine().describe_context());
+	if (data&BUS_INT_DEVKBD)
+		logerror("%s: DEVKBD bus interrupt set\n", machine().describe_context());
+	if (data&BUS_INT_VIDINT)
+		logerror("%s: VIDINT bus interrupt set\n", machine().describe_context());
+
+	m_intenable |= data & 0xFF;
 }
 
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
 	logerror("%s: reg_010c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
-    if (data&BUS_INT_AUDDMA)
-        logerror("%s: AUDDMA bus interrupt cleared\n", machine().describe_context());
-    if (data&BUS_INT_DEVSMC)
-        logerror("%s: DEVSMC bus interrupt cleared\n", machine().describe_context());
-    if (data&BUS_INT_DEVIR)
-        logerror("%s: DEVIR bus interrupt cleared\n", machine().describe_context());
-    if (data&BUS_INT_DEVMOD)
-        logerror("%s: DEVMOD bus interrupt cleared\n", machine().describe_context());
-    if (data&BUS_INT_DEVKBD)
-        logerror("%s: DEVKBD bus interrupt cleared\n", machine().describe_context());
-    if (data&BUS_INT_VIDINT)
-        logerror("%s: VIDINT bus interrupt cleared\n", machine().describe_context());
+	if (data&BUS_INT_AUDDMA)
+		logerror("%s: AUDDMA bus interrupt cleared\n", machine().describe_context());
+	if (data&BUS_INT_DEVSMC)
+		logerror("%s: DEVSMC bus interrupt cleared\n", machine().describe_context());
+	if (data&BUS_INT_DEVIR)
+		logerror("%s: DEVIR bus interrupt cleared\n", machine().describe_context());
+	if (data&BUS_INT_DEVMOD)
+		logerror("%s: DEVMOD bus interrupt cleared\n", machine().describe_context());
+	if (data&BUS_INT_DEVKBD)
+		logerror("%s: DEVKBD bus interrupt cleared\n", machine().describe_context());
+	if (data&BUS_INT_VIDINT)
+		logerror("%s: VIDINT bus interrupt cleared\n", machine().describe_context());
 
-    if(data != BUS_INT_DEVMOD) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
-        m_intenable &= ~(data & 0xFF);
+	if (data != BUS_INT_DEVMOD) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
+		m_intenable &= ~(data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_0010_r()
@@ -580,26 +581,26 @@ uint32_t spot_asic_device::reg_0010_r()
 
 void spot_asic_device::reg_0110_w(uint32_t data)
 {
-    logerror("%s: reg_0110_w %08x (BUS_ERRSTAT clear)\n", machine().describe_context(), data);
-    m_errstat &= (~data) & 0xFF;
+	logerror("%s: reg_0110_w %08x (BUS_ERRSTAT clear)\n", machine().describe_context(), data);
+	m_errstat &= (~data) & 0xFF;
 }
 
 uint32_t spot_asic_device::reg_0014_r()
 {
 	logerror("%s: reg_0014_r (BUS_ERREN)\n", machine().describe_context());
-    return m_errenable;
+	return m_errenable;
 }
 
 void spot_asic_device::reg_0014_w(uint32_t data)
 {
-    logerror("%s: reg_0014_w %08x (BUS_ERREN set)\n", machine().describe_context(), data);
-    m_errenable |= data & 0xFF;
+	logerror("%s: reg_0014_w %08x (BUS_ERREN set)\n", machine().describe_context(), data);
+	m_errenable |= data & 0xFF;
 }
 
 void spot_asic_device::reg_0114_w(uint32_t data)
 {
-    logerror("%s: reg_0114_w %08x (BUS_ERREN clear)\n", machine().describe_context(), data);
-    m_errenable &= (~data) & 0xFF;
+	logerror("%s: reg_0114_w %08x (BUS_ERREN clear)\n", machine().describe_context(), data);
+	m_errenable &= (~data) & 0xFF;
 }
 
 uint32_t spot_asic_device::reg_0018_r()
@@ -611,7 +612,7 @@ uint32_t spot_asic_device::reg_0018_r()
 void spot_asic_device::reg_0118_w(uint32_t data)
 {
 	logerror("%s: reg_0118_w %08x (BUS_WDREG clear)\n", machine().describe_context(), data);
-	if(m_wdenable)
+	if (m_wdenable)
 		m_watchdog->reset_w(data);
 }
 
@@ -666,7 +667,7 @@ void spot_asic_device::reg_0028_w(uint32_t data)
 uint32_t spot_asic_device::reg_1000_r()
 {
 	logerror("%s: reg_1000_r (ROM_SYSCONF)\n", machine().describe_context());
-    return m_sys_config->read();
+	return m_sys_config->read();
 }
 
 uint32_t spot_asic_device::reg_1004_r()
@@ -772,10 +773,10 @@ uint32_t spot_asic_device::reg_201c_r()
 
 void spot_asic_device::reg_201c_w(uint32_t data)
 {
-    logerror("%s: reg_201c_w %08x (AUD_DMACNTL)\n", machine().describe_context(), data);
+	logerror("%s: reg_201c_w %08x (AUD_DMACNTL)\n", machine().describe_context(), data);
 	if ((m_aud_dmacntl ^ data) & AUD_DMACNTL_DMAEN)
 	{
-		if(data & AUD_DMACNTL_DMAEN)
+		if (data & AUD_DMACNTL_DMAEN)
 		{
 			m_lspeaker->set_input_gain(0, AUD_OUTPUT_GAIN);
 			m_rspeaker->set_input_gain(0, AUD_OUTPUT_GAIN);
@@ -820,7 +821,7 @@ void spot_asic_device::reg_300c_w(uint32_t data)
 
 	m_vid_nstart = data;
 
-	if(has_changed)
+	if (has_changed)
 		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
@@ -838,7 +839,7 @@ void spot_asic_device::reg_3010_w(uint32_t data)
 
 	m_vid_nsize = data;
 
-	if(has_changed)
+	if (has_changed)
 		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
@@ -899,7 +900,7 @@ void spot_asic_device::reg_3020_w(uint32_t data)
 
 	m_vid_hstart = data;
 
-	if(has_changed)
+	if (has_changed)
 		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
@@ -917,7 +918,7 @@ void spot_asic_device::reg_3024_w(uint32_t data)
 
 	m_vid_hsize = data;
 
-	if(has_changed)
+	if (has_changed)
 		spot_asic_device::validate_active_area();
 
 	//logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
@@ -935,9 +936,9 @@ void spot_asic_device::reg_3028_w(uint32_t data)
 
 	m_vid_vstart = data;
 
-	if(has_changed)
+	if (has_changed)
 		spot_asic_device::validate_active_area();
-	
+
 	//logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
 }
 
@@ -953,16 +954,16 @@ void spot_asic_device::reg_302c_w(uint32_t data)
 
 	m_vid_vsize = data;
 
-	if(has_changed)
+	if (has_changed)
 		spot_asic_device::validate_active_area();
-	
+
 	//logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3030_r()
 {
-    //logerror("%s: reg_3030_r (VID_HINTLINE)\n", machine().describe_context());
-    return m_vid_hintline;
+	//logerror("%s: reg_3030_r (VID_HINTLINE)\n", machine().describe_context());
+	return m_vid_hintline;
 }
 
 void spot_asic_device::reg_3030_w(uint32_t data)
@@ -999,8 +1000,8 @@ uint32_t spot_asic_device::reg_303c_r()
 
 void spot_asic_device::reg_303c_w(uint32_t data)
 {
-    logerror("%s: reg_303c_w %08x (VID_INTEN_S)\n", machine().describe_context(), data);
-    m_vid_intenable |= (data & 0xff);
+	logerror("%s: reg_303c_w %08x (VID_INTEN_S)\n", machine().describe_context(), data);
+	m_vid_intenable |= (data & 0xff);
 }
 
 void spot_asic_device::reg_313c_w(uint32_t data)
@@ -1043,24 +1044,24 @@ uint32_t spot_asic_device::reg_4008_r()
 {
 	dev_id_bit = 0x0;
 
-	if(dev_id_state == SSID_STATE_PRESENCE)
+	if (dev_id_state == SSID_STATE_PRESENCE)
 	{
 		dev_id_bit = 0x0; // We're present.
 		dev_id_state = SSID_STATE_COMMAND; // This normally would stay in presence mode for 480us then command, but we immediatly go into command mode.
 		dev_id_bitidx = 0x0;
 	}
-	else if(dev_id_state == SSID_STATE_READROM_PULSEEND)
+	else if (dev_id_state == SSID_STATE_READROM_PULSEEND)
 	{
 		dev_id_state = SSID_STATE_READROM_BIT;
 	}
-	else if(dev_id_state == SSID_STATE_READROM_BIT)
+	else if (dev_id_state == SSID_STATE_READROM_BIT)
 	{
 		dev_id_state = SSID_STATE_READROM; // Go back into the read ROM pulse state
 
 		dev_id_bit = m_serial_id->direct_read(dev_id_bitidx / 8) >> (dev_id_bitidx & 0x7);
 
 		dev_id_bitidx++;
-		if(dev_id_bitidx == 64)
+		if (dev_id_bitidx == 64)
 		{
 			// We've read the entire SSID. Go back into idle.
 			dev_id_state = SSID_STATE_IDLE;
@@ -1075,7 +1076,7 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 {
 	dev_idcntl = (data & 0x2);
 
-	if(dev_idcntl & 0x2)
+	if (dev_idcntl & 0x2)
 	{
 		switch(dev_id_state) // States for high
 		{
@@ -1086,7 +1087,7 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 			case SSID_STATE_COMMAND: // Ended a command bit pulse. Increment bit index. We always assume a read from ROM command after we get 8 bits.
 				dev_id_bitidx++;
 
-				if(dev_id_bitidx == 8)
+				if (dev_id_bitidx == 8)
 				{
 					dev_id_state = SSID_STATE_READROM; // Now we can read back the SSID. ROM reads it as two 32-bit integers.
 					dev_id_bitidx = 0;
@@ -1148,16 +1149,17 @@ void spot_asic_device::reg_400c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4010_r()
 {
-    logerror("%s: reg_4010_r (DEV_SCCNTL)\n", machine().describe_context());
-    if(m_emu_config->read() & EMUCONFIG_BANGSERIAL)
-    {
-        // bitbang functionality does not accept smartcard input
-        return 0;
-    } else {
-        // TODO: get data!
-        return 0;
-    }
-
+	logerror("%s: reg_4010_r (DEV_SCCNTL)\n", machine().describe_context());
+	if (m_emu_config->read() & EMUCONFIG_BANGSERIAL)
+	{
+		// bitbang functionality does not accept smartcard input
+		return 0;
+	}
+	else
+	{
+		// TODO: get data!
+		return 0;
+	}
 }
 
 void spot_asic_device::reg_4010_w(uint32_t data)
@@ -1173,7 +1175,7 @@ void spot_asic_device::reg_4010_w(uint32_t data)
 			uint8_t bangserial_config = (m_emu_config->read() & EMUCONFIG_BANGSERIAL);
 			uint8_t rxbyte = 0x00;
 
-			if((bangserial_config == EMUCONFIG_BANGSERIAL_AUTO && ((m_smrtcrd_serial_rxdata & 0x700) != 0x600)) || (bangserial_config == EMUCONFIG_BANGSERIAL_V1))
+			if ((bangserial_config == EMUCONFIG_BANGSERIAL_AUTO && ((m_smrtcrd_serial_rxdata & 0x700) != 0x600)) || (bangserial_config == EMUCONFIG_BANGSERIAL_V1))
 				// V1: there's 2 bits at the start (1 high and 1 low), 8 data bits and 1 bit at the end.
 				rxbyte = (m_smrtcrd_serial_rxdata >> 1);
 			else
@@ -1191,10 +1193,10 @@ void spot_asic_device::reg_4010_w(uint32_t data)
 			m_smrtcrd_serial_rxdata = 0x0;
 		}
 	}
-    else
-    {
-        // TODO: reimplement smartcard slot
-    }
+	else
+	{
+		// TODO: reimplement smartcard slot
+	}
 
 	logerror("%s: reg_4010_w %08x (DEV_SCCNTL)\n", machine().describe_context(), data);
 }
@@ -1316,7 +1318,7 @@ void spot_asic_device::reg_4040_w(uint32_t data)
 {
 	logerror("%s: reg_4040_w %08x (DEV_MOD0)\n", machine().describe_context(), data);
 
-	if(modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	if (modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
 		m_modem_uart->ins8250_w(0x0, data & 0xFF);
 	}
@@ -1337,7 +1339,7 @@ uint32_t spot_asic_device::reg_4044_r()
 void spot_asic_device::reg_4044_w(uint32_t data)
 {
 	logerror("%s: reg_4044_w %08x (DEV_MOD1)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x1, data & 0xFF);
+	m_modem_uart->ins8250_w(0x1, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4048_r()
@@ -1349,7 +1351,7 @@ uint32_t spot_asic_device::reg_4048_r()
 void spot_asic_device::reg_4048_w(uint32_t data)
 {
 	logerror("%s: reg_4048_w %08x (DEV_MOD2)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x2, data & 0xFF);
+	m_modem_uart->ins8250_w(0x2, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_404c_r()
@@ -1361,7 +1363,7 @@ uint32_t spot_asic_device::reg_404c_r()
 void spot_asic_device::reg_404c_w(uint32_t data)
 {
 	logerror("%s: reg_404c_w %08x (DEV_MOD3)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x3, data & 0xFF);
+	m_modem_uart->ins8250_w(0x3, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4050_r()
@@ -1373,7 +1375,7 @@ uint32_t spot_asic_device::reg_4050_r()
 void spot_asic_device::reg_4050_w(uint32_t data)
 {
 	logerror("%s: reg_4050_w %08x (DEV_MOD4)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x4, data & 0xFF);
+	m_modem_uart->ins8250_w(0x4, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4054_r()
@@ -1385,7 +1387,7 @@ uint32_t spot_asic_device::reg_4054_r()
 void spot_asic_device::reg_4054_w(uint32_t data)
 {
 	logerror("%s: reg_4054_w %08x (DEV_MOD5)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x5, data & 0xFF);
+	m_modem_uart->ins8250_w(0x5, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4058_r()
@@ -1397,7 +1399,7 @@ uint32_t spot_asic_device::reg_4058_r()
 void spot_asic_device::reg_4058_w(uint32_t data)
 {
 	logerror("%s: reg_4058_w %08x (DEV_MOD6)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x6, data & 0xFF);
+	m_modem_uart->ins8250_w(0x6, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_405c_r()
@@ -1409,7 +1411,7 @@ uint32_t spot_asic_device::reg_405c_r()
 void spot_asic_device::reg_405c_w(uint32_t data)
 {
 	logerror("%s: reg_405c_w %08x (DEV_MOD7)\n", machine().describe_context(), data);
-    m_modem_uart->ins8250_w(0x7, data & 0xFF);
+	m_modem_uart->ins8250_w(0x7, data & 0xFF);
 }
 
 // memUnit registers
@@ -1476,7 +1478,7 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 
 TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 {
-	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN)
+	if (m_aud_dmacntl & AUD_DMACNTL_DMAEN)
 	{
 		if (m_aud_dma_ongoing)
 		{
@@ -1511,7 +1513,7 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 					m_dac[1]->write((samplel >> 0x8) & 0xFF);
 					break;
 			}
-			if(m_aud_ccnt >= m_aud_cend)
+			if (m_aud_ccnt >= m_aud_cend)
 			{
 				spot_asic_device::irq_audio_w(1);
 				m_aud_dma_ongoing = false; // nothing more to DMA
@@ -1533,21 +1535,19 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 
 TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
 {
-	if(modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	if (modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
 		m_modem_uart->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
 
-		if(modem_txbuff_index == modem_txbuff_size)
+		if (modem_txbuff_index == modem_txbuff_size)
 		{
 			modem_txbuff_index = 0x0;
 			modem_txbuff_size = 0x0;
 		}
 	}
 
-	if(modem_txbuff_size > 0)
-	{
+	if (modem_txbuff_size > 0)
 		modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
-	}
 }
 
 // The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
@@ -1566,7 +1566,7 @@ void spot_asic_device::irq_keyboard_w(int state)
 
 void spot_asic_device::irq_smartcard_w(int state)
 {
-    spot_asic_device::set_bus_irq(BUS_INT_DEVSMC, state);
+	spot_asic_device::set_bus_irq(BUS_INT_DEVSMC, state);
 }
 
 void spot_asic_device::irq_audio_w(int state)
@@ -1608,7 +1608,7 @@ void spot_asic_device::set_vid_irq(uint8_t mask, int state)
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	uint16_t screen_width = bitmap.width();
-	uint16_t screen_height =  bitmap.height();
+	uint16_t screen_height = bitmap.height();
 	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
 
 	m_vid_cstart = m_vid_nstart;
@@ -1650,9 +1650,9 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 			}
 
 			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
-			int32_t Cb  = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
+			int32_t Cb = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
 			int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
-			int32_t Cr  = ((pixel) & 0xff) - VID_UV_OFFSET;
+			int32_t Cr = ((pixel) & 0xff) - VID_UV_OFFSET;
 
 			y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
 			y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
