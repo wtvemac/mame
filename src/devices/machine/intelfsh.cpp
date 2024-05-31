@@ -225,7 +225,7 @@ amd_29f800t_device::amd_29f800t_device(const machine_config &mconfig, const char
 	: intelfsh8_device(mconfig, AMD_29F800T, tag, owner, clock, 0x100000, MFG_AMD, 0xda) { m_top_boot_sector = true; }
 
 amd_29f800b_16bit_device::amd_29f800b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, AMD_29F800B_16BIT, tag, owner, clock, 0x100000, MFG_AMD, 0x2258)
+	: intelfsh16_device(mconfig, AMD_29F800B_16BIT, tag, owner, clock, 0x200000, MFG_AMD, 0x2258)
 {
 	m_sector_is_16k = true;
 	//m_bot_boot_sector = true;

@@ -83,7 +83,8 @@ void watchdog_timer_device::device_reset()
 	// set up the watchdog timer; only start off enabled if explicitly configured
 	m_enabled = (m_vblank_count != 0 || m_time != attotime::zero);
 	watchdog_reset();
-	m_enabled = true;
+	// Not sure if this is here by mistake? Removing since it's antithetical to the previous commennt. WebTV starts with the watchdog disabled.
+	//m_enabled = true;
 }
 
 
@@ -93,6 +94,7 @@ void watchdog_timer_device::device_reset()
 
 TIMER_CALLBACK_MEMBER(watchdog_timer_device::watchdog_expired)
 {
+	printf("watchdog_expired\n");
 	watchdog_fired();
 }
 
@@ -128,6 +130,8 @@ void watchdog_timer_device::watchdog_reset()
 void watchdog_timer_device::watchdog_enable(int state)
 {
 	const bool enable = bool(state);
+
+	printf("=============================> m_enabled (%02x) != enable (%02x)\n", m_enabled, enable);
 
 	// when re-enabled, we reset our state
 	if (m_enabled != enable)

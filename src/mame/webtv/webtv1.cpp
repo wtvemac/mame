@@ -45,7 +45,7 @@
 #include "main.h"
 #include "screen.h"
 
-#define SYSCLOCK         56000000 // TODO: confirm this is correct
+#define SYSCLOCK         56448000 // TODO: confirm this is correct
 #define RAM_FLASHER_SIZE 0x100
 
 class webtv1_state : public driver_device
@@ -419,8 +419,8 @@ static INPUT_PORTS_START( sys_config )
 	PORT_DIPUNUSED_DIPLOC(0x400, 0x400, "SW1:10")
 
 	PORT_DIPNAME(0x800, 0x800, "NTSC/PAL");
-	PORT_DIPSETTING(0x000, "PAL mode w/ 14.75MHz pixel clock")
-	PORT_DIPSETTING(0x800, "NTSC mode w/ 12.26MHz pixel clock")
+	PORT_DIPSETTING(0x000, "PAL mode")
+	PORT_DIPSETTING(0x800, "NTSC mode")
 
 	PORT_DIPUNUSED_DIPLOC(0x1000, 0x1000, "SW1:12")
 

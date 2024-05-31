@@ -96,7 +96,7 @@ void spot_asic_device::bus_unit_map(address_map &map)
 	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_000c_r), FUNC(spot_asic_device::reg_000c_w)); // BUS_ERRSTAT
 	map(0x10c, 0x10f).rw(FUNC(spot_asic_device::reg_010c_r), FUNC(spot_asic_device::reg_010c_w)); // BUS_INTEN_C
 	map(0x010, 0x013).r(FUNC(spot_asic_device::reg_0010_r));                                      // BUS_ERRSTAT
-	map(0x110, 0x113).rw(FUNC(spot_asic_device::reg_0110_r), FUNC(spot_asic_device::reg_0110_w));  // BUS_ERRSTAT_C
+	map(0x110, 0x113).rw(FUNC(spot_asic_device::reg_0110_r), FUNC(spot_asic_device::reg_0110_w)); // BUS_ERRSTAT_C
 	map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0014_w)); // BUS_ERREN_S
 	map(0x114, 0x117).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0114_w)); // BUS_ERREN_C
 	map(0x018, 0x01b).r(FUNC(spot_asic_device::reg_0018_r));                                      // BUS_ERRADDR
@@ -242,7 +242,8 @@ void spot_asic_device::device_start()
 	m_power_led.resolve();
 	m_connect_led.resolve();
 	m_message_led.resolve();
-
+	
+	power_led_timer = timer_alloc(FUNC(spot_asic_device::flash_power_led), this);
 	dac_update_timer = timer_alloc(FUNC(spot_asic_device::dac_update), this);
 	modem_buffer_timer = timer_alloc(FUNC(spot_asic_device::flush_modem_buffer), this);
 
@@ -275,6 +276,7 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
 	save_item(NAME(m_ledstate));
+	save_item(NAME(m_power_ledstate));
 	save_item(NAME(m_rom_cntl0));
 	save_item(NAME(m_rom_cntl1));
 	save_item(NAME(dev_idcntl));
@@ -285,7 +287,10 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-	dac_update_timer->adjust(attotime::from_hz(AUD_SAMPLE_RATE), 0, attotime::from_hz(AUD_SAMPLE_RATE));
+	dac_update_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
+
+	// The power LED flashes on reset until the ROM sets a LED state.
+	spot_asic_device::set_power_ledstate(POWER_LED_FLASH);	
 
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
@@ -338,6 +343,7 @@ void spot_asic_device::device_reset()
 	m_rom_cntl1 = 0x0;
 
 	m_ledstate = 0xFFFFFFFF;
+	m_power_ledstate = POWER_LED_FLASH;
 
 	dev_idcntl = 0x00;
 	dev_id_state = SSID_STATE_IDLE;
@@ -416,12 +422,20 @@ void spot_asic_device::watchdog_enable(int state)
 {
 	m_wdenable = state;
 
-	m_watchdog->watchdog_enable(m_wdenable);
-
 	if(m_wdenable)
 		m_watchdog->set_time(attotime::from_usec(WATCHDOG_TIMER_USEC));
 	else
 		m_watchdog->set_time(attotime::zero);
+
+	m_watchdog->watchdog_enable(m_wdenable);
+}
+
+void spot_asic_device::set_power_ledstate(uint8_t power_ledstate)
+{
+	if(power_ledstate ^ m_power_ledstate)
+		power_led_timer->adjust(attotime::from_msec(POWER_LED_FLASH_TIME));
+
+	m_power_ledstate = power_ledstate;
 }
 
 uint32_t spot_asic_device::reg_0000_r()
@@ -436,31 +450,81 @@ uint32_t spot_asic_device::reg_0004_r()
 
 void spot_asic_device::reg_0004_w(uint32_t data)
 {
-	if ((m_chpcntl ^ data) & 0xC0000000)
+	if ((m_chpcntl ^ data) & CHPCNTL_WDENAB_MASK)
 	{
-		uint8_t wd_cntl = (data >> 30);
+		uint32_t wd_cntl = (data & CHPCNTL_WDENAB_MASK);
 
-		int8_t wd_diff = wd_cntl - (m_chpcntl >> 30);
-
-		printf("reg_0004_w data=%08x, wd_cntl=%02x\n", data, wd_cntl);
+		int32_t wd_diff = wd_cntl - (m_chpcntl & CHPCNTL_WDENAB_MASK);
 
 		// Count down to disable (3, 2, 1, 0), count up to enable (0, 1, 2, 3)
 		// This doesn't track the count history but gets the expected result for the ROM.
-		if((!m_wdenable && wd_diff == 1 && wd_cntl == 3) || (m_wdenable && wd_diff == -1 && wd_cntl == 0))
+		if(
+			(!m_wdenable && wd_diff == CHPCNTL_WDENAB_UP && wd_cntl == CHPCNTL_WDENAB_SEQ3)
+			|| (m_wdenable && wd_diff == CHPCNTL_WDENAB_DWN && wd_cntl == CHPCNTL_WDENAB_SEQ0)
+		)
 		{
-			printf("\twatchdog_enable=%02x\n", (wd_cntl == 3));
-			spot_asic_device::watchdog_enable(wd_cntl == 3);
+			if(wd_cntl == CHPCNTL_WDENAB_SEQ3) {
+				printf("WD:: ___STOP__ BLINK THE LEDS!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+			} else {
+				printf("WD:: BLINK THE LEDS!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+			}
+
+			spot_asic_device::watchdog_enable(wd_cntl == CHPCNTL_WDENAB_SEQ3);
 		}
 	}
 
-	m_chpcntl = data;
+	if (!(m_sys_config->read() & SYSCONFIG_AUDDACMODE) && (m_chpcntl ^ data) & CHPCNTL_AUDCLKDIV_MASK)
+	{
+		uint32_t audclk_cntl = (data & CHPCNTL_AUDCLKDIV_MASK);
 
-	m_aud_clkdiv = (m_chpcntl >> 26) & 0xF;
+		uint32_t sys_clk = spot_asic_device::clock();
+		uint32_t aud_clk = AUD_DEFAULT_CLK;
+
+		switch(audclk_cntl)
+		{
+			case CHPCNTL_AUDCLKDIV_EXTC:
+			default:
+				aud_clk = AUD_DEFAULT_CLK;
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV1:
+				aud_clk = sys_clk / (1 * 256);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV2:
+				aud_clk = sys_clk / (2 * 256);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV3:
+				aud_clk = sys_clk / (3 * 256);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV4:
+				aud_clk = sys_clk / (4 * 256);
+				break;
+			
+			case CHPCNTL_AUDCLKDIV_DIV5:
+				aud_clk = sys_clk / (5 * 256);
+				break;
+
+			case CHPCNTL_AUDCLKDIV_DIV6:
+				aud_clk = sys_clk / (6 * 256);
+				break;
+
+		}
+
+		dac_update_timer->adjust(attotime::from_hz(aud_clk), 0, attotime::from_hz(aud_clk));
+	}
+
+	m_chpcntl = data;
 }
 
 uint32_t spot_asic_device::reg_0008_r()
 {
-	return m_intstat;
+	if(m_intstat == 0x0)
+		return BUS_INT_VIDINT;
+	else
+		return m_intstat;
 }
 
 void spot_asic_device::reg_0108_w(uint32_t data)
@@ -475,6 +539,11 @@ uint32_t spot_asic_device::reg_000c_r()
 
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
+	printf("|m_intenable=%08x\n", m_intenable);
+	if(!(m_intenable & BUS_INT_VIDINT) && (data & BUS_INT_VIDINT)) {
+		printf("LED:: ___STOP__ BLINK THE LEDS!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+	}
+
 	m_intenable |= data & 0xFF;
 }
 
@@ -487,6 +556,11 @@ void spot_asic_device::reg_010c_w(uint32_t data)
 {
 	if(data != BUS_INT_DEVMOD)
 		m_intenable &= ~(data & 0xFF);
+
+	printf("~m_intenable=%08x\n", m_intenable);
+	if(!(m_intenable & BUS_INT_VIDINT)) {
+		printf("LED:: BLINK THE LEDS!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+	}
 }
 
 uint32_t spot_asic_device::reg_0010_r()
@@ -531,6 +605,8 @@ uint32_t spot_asic_device::reg_0018_r()
 
 void spot_asic_device::reg_0118_w(uint32_t data)
 {
+	//printf("reg_0118_w data=%08x\n", data);
+
 	if(m_wdenable)
 		m_watchdog->reset_w(data);
 }
@@ -832,7 +908,8 @@ void spot_asic_device::reg_3030_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_3034_r()
 {
-	return (m_vid_cline++) & 0x1ffff;
+	return m_screen->vpos();
+	//return (m_vid_cline++) & 0x1ffff;
 }
 
 uint32_t spot_asic_device::reg_3038_r()
@@ -870,15 +947,18 @@ uint32_t spot_asic_device::reg_4000_r()
 // Read LED states
 uint32_t spot_asic_device::reg_4004_r()
 {
-    m_power_led = !BIT(m_ledstate, 2);
-    m_connect_led = !BIT(m_ledstate, 1);
-    m_message_led = !BIT(m_ledstate, 0);
     return m_ledstate;
 }
 
 // Update LED states
 void spot_asic_device::reg_4004_w(uint32_t data)
 {
+	// Cancel the flashing power LED state after ROM a LED change.
+	if(m_power_ledstate == POWER_LED_FLASH)
+	{
+		spot_asic_device::set_power_ledstate(data & 0x4);
+	}
+		
 	m_ledstate = data;
 	m_power_led = !BIT(m_ledstate, 2);
 	m_connect_led = !BIT(m_ledstate, 1);
@@ -1347,6 +1427,20 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 	return 0;
 }
 
+TIMER_CALLBACK_MEMBER(spot_asic_device::flash_power_led)
+{
+	if(!(m_power_ledstate & POWER_LED_FLASH))
+	{
+		m_power_led = !BIT(m_power_ledstate, 2);
+	}
+	else
+	{
+		m_power_led = !m_power_led;
+
+		power_led_timer->adjust(attotime::from_msec(POWER_LED_FLASH_TIME));
+	}
+}
+
 TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 {
 	if(m_aud_dmacntl & AUD_DMACNTL_DMAEN && m_aud_dmacntl & AUD_DMACNTL_NV)
@@ -1441,12 +1535,16 @@ void spot_asic_device::irq_audio_w(int state)
 
 void spot_asic_device::set_bus_irq(uint8_t mask, int state)
 {
-	if (m_intenable & mask && (m_emu_config->read() & EMUCONFIG_INTERRUPTS))
+	if (((m_intenable & mask) == mask) && (m_emu_config->read() & EMUCONFIG_INTERRUPTS))
 	{
+		//uint32_t m_intstat_bef = m_intstat;
+
 		if (state)
 			m_intstat |= mask;
 		else
 			m_intstat &= ~(mask);
+
+		//printf("m_intenable=%08x, &=%08x, m_intstat=%08x, m_intstat_bef=%08x, dif=%08x, mask=%08x, state=%08x\n", (m_intenable * 1), (m_intenable & mask), m_intstat, m_intstat_bef, (m_intstat ^ m_intstat_bef), mask, state);
 
 		m_hostcpu->set_input_line(MIPS3_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
 	}

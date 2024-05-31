@@ -2089,6 +2089,7 @@ bool mips3_device::generate_opcode(drcuml_block &block, compiler_state &compiler
 			return generate_cop1x(block, compiler, desc);
 
 		case 0x12:  /* COP2 - MIPS I */
+			printf("COP2 pc=%08x\n", desc->pc);
 			UML_EXH(block, *m_exception[EXCEPTION_INVALIDOP], 0);// exh     invalidop,0
 			return true;
 
@@ -2215,6 +2216,7 @@ bool mips3_device::generate_special(drcuml_block &block, compiler_state &compile
 		case 0x20:  /* ADD - MIPS I */
 			if (m_drcoptions & MIPS3DRC_CHECK_OVERFLOWS)
 			{
+				printf("ADD pc=%08x\n", desc->pc);
 				UML_ADD(block, I0, R32(RSREG), R32(RTREG));                 // add     i0,<rsreg>,<rtreg>
 				UML_EXHc(block, COND_V, *m_exception[EXCEPTION_OVERFLOW], 0);
 																					// exh     overflow,0,V
@@ -2239,6 +2241,7 @@ bool mips3_device::generate_special(drcuml_block &block, compiler_state &compile
 		case 0x2c:  /* DADD - MIPS III */
 			if (m_drcoptions & MIPS3DRC_CHECK_OVERFLOWS)
 			{
+				printf("DADD pc=%08x\n", desc->pc);
 				UML_DADD(block, I0, R64(RSREG), R64(RTREG));                    // dadd    i0,<rsreg>,<rtreg>
 				UML_EXHc(block, COND_V, *m_exception[EXCEPTION_OVERFLOW], 0);
 																					// exh     overflow,0,V
@@ -2257,6 +2260,7 @@ bool mips3_device::generate_special(drcuml_block &block, compiler_state &compile
 		case 0x22:  /* SUB - MIPS I */
 			if (m_drcoptions & MIPS3DRC_CHECK_OVERFLOWS)
 			{
+				printf("DSUB pc=%08x\n", desc->pc);
 				UML_SUB(block, I0, R32(RSREG), R32(RTREG));                 // sub     i0,<rsreg>,<rtreg>
 				UML_EXHc(block, COND_V, *m_exception[EXCEPTION_OVERFLOW], 0);
 																					// exh     overflow,0,V
@@ -2281,6 +2285,7 @@ bool mips3_device::generate_special(drcuml_block &block, compiler_state &compile
 		case 0x2e:  /* DSUB - MIPS III */
 			if (m_drcoptions & MIPS3DRC_CHECK_OVERFLOWS)
 			{
+				printf("DSUB pc=%08x\n", desc->pc);
 				UML_DSUB(block, I0, R64(RSREG), R64(RTREG));                    // dsub    i0,<rsreg>,<rtreg>
 				UML_EXHc(block, COND_V, *m_exception[EXCEPTION_OVERFLOW], 0);
 																					// exh     overflow,0,V
@@ -2385,31 +2390,37 @@ bool mips3_device::generate_special(drcuml_block &block, compiler_state &compile
 		/* ----- conditional traps ----- */
 
 		case 0x30:  /* TGE - MIPS II */
+			printf("TGE pc=%08x\n", desc->pc);
 			UML_DCMP(block, R64(RSREG), R64(RTREG));                                // dcmp    <rsreg>,<rtreg>
 			UML_EXHc(block, COND_GE, *m_exception[EXCEPTION_TRAP], 0);// exh     trap,0,GE
 			return true;
 
 		case 0x31:  /* TGEU - MIPS II */
+			printf("TGEU pc=%08x\n", desc->pc);
 			UML_DCMP(block, R64(RSREG), R64(RTREG));                                // dcmp    <rsreg>,<rtreg>
 			UML_EXHc(block, COND_AE, *m_exception[EXCEPTION_TRAP], 0);// exh     trap,0,AE
 			return true;
 
 		case 0x32:  /* TLT - MIPS II */
+			printf("TLT pc=%08x\n", desc->pc);
 			UML_DCMP(block, R64(RSREG), R64(RTREG));                                // dcmp    <rsreg>,<rtreg>
 			UML_EXHc(block, COND_L, *m_exception[EXCEPTION_TRAP], 0);// exh     trap,0,LT
 			return true;
 
 		case 0x33:  /* TLTU - MIPS II */
+			printf("TLTU pc=%08x\n", desc->pc);
 			UML_DCMP(block, R64(RSREG), R64(RTREG));                                // dcmp    <rsreg>,<rtreg>
 			UML_EXHc(block, COND_B, *m_exception[EXCEPTION_TRAP], 0);// exh     trap,0,B
 			return true;
 
 		case 0x34:  /* TEQ - MIPS II */
+			printf("TEQ pc=%08x\n", desc->pc);
 			UML_DCMP(block, R64(RSREG), R64(RTREG));                                // dcmp    <rsreg>,<rtreg>
 			UML_EXHc(block, COND_E, *m_exception[EXCEPTION_TRAP], 0);// exh     trap,0,E
 			return true;
 
 		case 0x36:  /* TNE - MIPS II */
+			printf("TNE pc=%08x\n", desc->pc);
 			UML_DCMP(block, R64(RSREG), R64(RTREG));                                // dcmp    <rsreg>,<rtreg>
 			UML_EXHc(block, COND_NE, *m_exception[EXCEPTION_TRAP], 0);// exh     trap,0,NE
 			return true;
@@ -2457,10 +2468,12 @@ bool mips3_device::generate_special(drcuml_block &block, compiler_state &compile
 		/* ----- system calls ----- */
 
 		case 0x0c:  /* SYSCALL - MIPS I */
+			printf("SYSCALL pc=%08x\n", desc->pc);
 			UML_EXH(block, *m_exception[EXCEPTION_SYSCALL], 0);  // exh     syscall,0
 			return true;
 
 		case 0x0d:  /* BREAK - MIPS I */
+			printf("BREAK pc=%08x\n", desc->pc);
 			UML_EXH(block, *m_exception[EXCEPTION_BREAK], 0);    // exh     break,0
 			return true;
 

@@ -53,6 +53,22 @@
 #define EMUCONFIG_SCREEN_UPDATES  1 << 4
 #define EMUCONFIG_INTERRUPTS      1 << 5
 
+#define CHPCNTL_WDENAB_MASK     3 << 30
+#define CHPCNTL_WDENAB_SEQ0     0 << 30
+#define CHPCNTL_WDENAB_SEQ1     1 << 30
+#define CHPCNTL_WDENAB_SEQ2     2 << 30
+#define CHPCNTL_WDENAB_SEQ3     3 << 30
+#define CHPCNTL_WDENAB_DWN     -1 << 30
+#define CHPCNTL_WDENAB_UP       1 << 30
+#define CHPCNTL_AUDCLKDIV_MASK  15 << 26
+#define CHPCNTL_AUDCLKDIV_EXTC  0 << 26
+#define CHPCNTL_AUDCLKDIV_DIV1  1 << 26
+#define CHPCNTL_AUDCLKDIV_DIV2  2 << 26
+#define CHPCNTL_AUDCLKDIV_DIV3  3 << 26
+#define CHPCNTL_AUDCLKDIV_DIV4  4 << 26
+#define CHPCNTL_AUDCLKDIV_DIV5  5 << 26
+#define CHPCNTL_AUDCLKDIV_DIV6  6 << 26
+
 #define ERR_F1READ  1 << 6 // BUS_FENADDR1 read fence check error
 #define ERR_F1WRITE 1 << 5 // BUS_FENADDR1 write fence check error
 #define ERR_F2READ  1 << 4 // BUS_FENADDR2 read fence check error
@@ -85,7 +101,7 @@
 #define BUS_INT_DEVSMC 1 << 3 // SmartCard inserted
 #define BUS_INT_AUDDMA 1 << 2 // audUnit DMA completion
 
-#define NTSC_SCREEN_XTAL   XTAL(18'432'000)
+#define NTSC_SCREEN_XTAL   XTAL(18'414'000)
 #define NTSC_SCREEN_WIDTH  640
 #define NTSC_SCREEN_HSTART 40
 #define NTSC_SCREEN_HSIZE  560
@@ -93,7 +109,7 @@
 #define NTSC_SCREEN_VSTART 30
 #define NTSC_SCREEN_VSIZE  420
 
-#define PAL_SCREEN_XTAL   XTAL(14'750'000)
+#define PAL_SCREEN_XTAL   XTAL(21'060'000)
 #define PAL_SCREEN_WIDTH  768
 #define PAL_SCREEN_HSTART 72
 #define PAL_SCREEN_HSIZE  624
@@ -117,7 +133,7 @@
 #define VID_Y_RANGE         (VID_Y_WHITE - VID_Y_BLACK)
 #define VID_UV_OFFSET       0x80
 #define VID_BYTES_PER_PIXEL 2
-#define VID_DEFAULT_COLOR   (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
+#define VID_DEFAULT_COLOR   (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET
 
 #define VID_INT_FIDO   1 << 6 // TODO: docs don't have info on FIDO mode! figure this out!
 #define VID_INT_VSYNCE 1 << 5 // even field VSYNC
@@ -142,7 +158,7 @@
 #define AUD_CONFIG_8BIT 1 << 1 // 8-bit audio
 #define AUD_CONFIG_MONO 1 << 0 // Mono audio
 
-#define AUD_SAMPLE_RATE 44100
+#define AUD_DEFAULT_CLK 44100
 #define AUD_OUTPUT_GAIN 0.25
 
 #define AUD_DMACNTL_DMAEN  1 << 2 // audUnit DMA channel enabled
@@ -153,6 +169,11 @@
 #define AUD_CONFIG_16BIT_MONO   1
 #define AUD_CONFIG_8BIT_STEREO  2
 #define AUD_CONFIG_8BIT_MONO    3
+
+#define POWER_LED_ON         0 << 2
+#define POWER_LED_OFF        1 << 2
+#define POWER_LED_FLASH      1 << 3
+#define POWER_LED_FLASH_TIME 500 // time is in milliseconds
 
 #define NVCNTL_SCL      1 << 3
 #define NVCNTL_WRITE_EN 1 << 2
@@ -227,6 +248,7 @@ protected:
 	uint8_t m_nvcntl;
 
 	uint32_t m_ledstate;
+	uint8_t m_power_ledstate;
 
 	uint8_t m_fcntl;
 
@@ -302,6 +324,9 @@ private:
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
 
+	emu_timer *power_led_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(flash_power_led);
+
 	emu_timer *dac_update_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(dac_update);
 
@@ -323,6 +348,7 @@ private:
 	void validate_active_area();
 	void pixel_buffer_index_update();
 	void watchdog_enable(int state);
+	void set_power_ledstate(uint8_t power_ledstate);
 
 	/* busUnit registers */
 
