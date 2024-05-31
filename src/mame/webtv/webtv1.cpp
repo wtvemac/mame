@@ -41,7 +41,9 @@
 #include "main.h"
 #include "screen.h"
 
-#define SYSCLOCK         56448000 // confirmed
+// The system clock is used to drive the SPOT ASIC, drive the CPU and is used to calculate the audio clock.
+// 56.448MHz was probably chosen because it's a multiple of the audio clock? (44100Hz)
+#define SYSCLOCK         XTAL(56'448'000)
 #define RAM_FLASHER_SIZE 0x100
 
 class webtv1_state : public driver_device
@@ -57,7 +59,7 @@ public:
 		m_flash0(*this, "bank0_flash0"), // labeled U0501, contains upper bits
 		m_flash1(*this, "bank0_flash1")  // labeled U0502, contains lower bits
 	{ }
-	
+
 	void webtv1_base(machine_config& config);
 	void webtv1_sony(machine_config& config);
 	void webtv1_philips(machine_config& config);
@@ -65,7 +67,7 @@ public:
 protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
-    
+
 private:
 	required_device<mips3_device> m_maincpu;
 	required_device<spot_asic_device> m_spotasic;
@@ -253,6 +255,7 @@ static INPUT_PORTS_START( sys_config )
 	PORT_DIPUNUSED_DIPLOC(0x200, 0x200, "SW1:9")
 	PORT_DIPUNUSED_DIPLOC(0x400, 0x400, "SW1:10")
 
+	// A 24.54MHz or 29.5MHz crystal drives the SAA7187 encoder chip. These pixel clocks are divisors of that input.
 	PORT_DIPNAME(0x800, 0x800, "NTSC/PAL");
 	PORT_DIPSETTING(0x000, "PAL mode w/ 14.75MHz pixel clock")
 	PORT_DIPSETTING(0x800, "NTSC mode w/ 12.26MHz pixel clock")
@@ -337,10 +340,6 @@ static INPUT_PORTS_START( emu_config )
 	PORT_CONFSETTING(0x04, "V1 bangserial data")
 	PORT_CONFSETTING(0x08, "V2 bangserial data")
 	PORT_CONFSETTING(0x0c, "Autodetect")
-
-	PORT_CONFNAME(0x10, 0x10, "Allow real-time screen size updates")
-	PORT_CONFSETTING(0x00, "No")
-	PORT_CONFSETTING(0x10, "Yes")
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( webtv1_input )
