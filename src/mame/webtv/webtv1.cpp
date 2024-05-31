@@ -235,7 +235,7 @@ void webtv1_state::machine_reset()
 }
 
 // Sysconfig options are usually configured via resistors on the board.
-static INPUT_PORTS_START( sys_config )
+static INPUT_PORTS_START( retail_sys_config )
 	PORT_START("sys_config")
 
 	PORT_DIPUNUSED_DIPLOC(0x01, 0x01, "SW1:1")
@@ -340,8 +340,8 @@ static INPUT_PORTS_START( emu_config )
 	PORT_CONFSETTING(0x0c, "Autodetect")
 INPUT_PORTS_END
 
-static INPUT_PORTS_START( webtv1_input )
-	PORT_INCLUDE(sys_config)
+static INPUT_PORTS_START( retail_input )
+	PORT_INCLUDE(retail_sys_config)
 	PORT_INCLUDE(emu_config)
 INPUT_PORTS_END
 
@@ -366,5 +366,5 @@ ROM_START( wtv1phil )
 ROM_END
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT         CLASS         INIT        COMPANY               FULLNAME                            FLAGS
-CONS( 1996, wtv1sony,      0,      0, webtv1_sony,    webtv1_input, webtv1_state, empty_init, "Sony",               "INT-W100 WebTV Internet Terminal", MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
-CONS( 1996, wtv1phil,      0,      0, webtv1_philips, webtv1_input, webtv1_state, empty_init, "Philips-Magnavox",   "MAT960 WebTV Internet Terminal",   MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
+CONS( 1996, wtv1sony,      0,      0, webtv1_sony,    retail_input, webtv1_state, empty_init, "Sony",               "INT-W100 WebTV Internet Terminal", MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
+CONS( 1996, wtv1phil,      0,      0, webtv1_philips, retail_input, webtv1_state, empty_init, "Philips-Magnavox",   "MAT960 WebTV Internet Terminal",   MACHINE_NOT_WORKING + MACHINE_NO_SOUND )
