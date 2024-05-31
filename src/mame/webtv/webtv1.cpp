@@ -226,7 +226,7 @@ void webtv1_state::webtv1_philips(machine_config& config)
 
 void webtv1_state::machine_start()
 {
-
+	popmessage("WebTV starts with the display off. Press F1 to power on.\n");
 }
 
 void webtv1_state::machine_reset()
