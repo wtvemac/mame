@@ -43,8 +43,8 @@
 
 // The system clock is used to drive the SPOT ASIC, drive the CPU and is used to calculate the audio clock.
 // 56.448MHz was probably chosen because it's a multiple of the audio clock? (44100Hz)
-#define SYSCLOCK         XTAL(56'448'000)
-#define RAM_FLASHER_SIZE 0x100
+constexpr XTAL     SYSCLOCK         = XTAL(56'448'000);
+constexpr uint16_t RAM_FLASHER_SIZE = 0x100;
 
 class webtv1_state : public driver_device
 {
@@ -129,7 +129,7 @@ void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
 	uint16_t upper_value = (data >> 16) & 0xffff;
 	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
 	m_flash0->write(offset, upper_value);
-	
+
 	uint16_t lower_value = data & 0xffff;
 	//lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
 	m_flash1->write(offset, lower_value);
@@ -143,7 +143,7 @@ uint32_t webtv1_state::bank0_flash_r(offs_t offset)
 	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
 	uint16_t lower_value = m_flash1->read(offset);
 	//lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
-    return (upper_value << 16) | (lower_value);
+	return (upper_value << 16) | (lower_value);
 }
 
 // WebTV's firmware writes the flashing code to the lower 256 bytes of RAM
@@ -156,11 +156,9 @@ uint8_t webtv1_state::ram_flasher_r(offs_t offset)
 }
 void webtv1_state::ram_flasher_w(offs_t offset, uint8_t data)
 {
-	if(offset == 0)
-	{
+	if (offset == 0)
 		// New code is being written, clear drc cache.
 		m_maincpu->code_flush_cache();
-	}
 
 	ram_flasher[offset & (RAM_FLASHER_SIZE - 1)] = data;
 }
@@ -200,7 +198,7 @@ void webtv1_state::webtv1_base(machine_config &config)
 	m_maincpu->set_icache_size(0x2000);
 	m_maincpu->set_dcache_size(0x2000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_map);
-	
+
 	AMD_29F800B_16BIT(config, m_flash0, 0);
 	AMD_29F800B_16BIT(config, m_flash1, 0);
 
@@ -242,7 +240,7 @@ static INPUT_PORTS_START( sys_config )
 
 	PORT_DIPUNUSED_DIPLOC(0x01, 0x01, "SW1:1")
 	PORT_DIPUNUSED_DIPLOC(0x02, 0x02, "SW1:2")
-	
+
 	PORT_DIPNAME(0x0c, 0x0c, "Board type")
 	PORT_DIPSETTING(0x00, "Reserved")
 	PORT_DIPSETTING(0x04, "Reserved")
@@ -285,7 +283,7 @@ static INPUT_PORTS_START( sys_config )
 	PORT_DIPSETTING(0x40000, "Reserved")
 	PORT_DIPSETTING(0x80000, "Reserved")
 	PORT_DIPSETTING(0xc0000, "AKM 4310/4309")
-	
+
 	PORT_DIPNAME(0x300000, 0x200000, "Memory vendor")
 	PORT_DIPSETTING(0x000000, "Other")
 	PORT_DIPSETTING(0x100000, "Samsung")
@@ -311,7 +309,7 @@ static INPUT_PORTS_START( sys_config )
 	PORT_DIPNAME(0x8000000, 0x8000000, "Bank 1 ROM type")
 	PORT_DIPSETTING(0x0000000, "Flash ROM")
 	PORT_DIPSETTING(0x8000000, "Mask ROM (emulated behavior)")
-	
+
 	PORT_DIPNAME(0x30000000, 0x20000000, "Bank 0 ROM speed")
 	PORT_DIPSETTING(0x00000000, "200ns/100ns")
 	PORT_DIPSETTING(0x10000000, "100ns/50ns")
