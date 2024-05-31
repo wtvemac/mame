@@ -93,6 +93,8 @@ private:
 	uint32_t bank0_flash_r(offs_t offset);
 	uint8_t ram_flasher_r(offs_t offset);
 	void ram_flasher_w(offs_t offset, uint8_t data);
+	uint32_t status_r(offs_t offset);
+	void status_w(offs_t offset, uint32_t data);
 };
 
 //
@@ -169,6 +171,17 @@ void webtv1_state::ram_flasher_w(offs_t offset, uint8_t data)
 	ram_flasher[offset & (RAM_FLASHER_SIZE - 1)] = data;
 }
 
+// The flash programing code for the MX chips incorrectly bleeds over into the next memory region to read the status.
+// This will return the correct status so it can continue.
+uint32_t webtv1_state::status_r(offs_t offset)
+{
+	return 0x00800080;
+}
+void webtv1_state::status_w(offs_t offset, uint32_t data)
+{
+}
+
+
 void webtv1_state::webtv1_base_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
@@ -228,7 +241,7 @@ void webtv1_state::webtv1_dev_map(address_map &map)
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
 	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv1_state::bank0_flash_r), FUNC(webtv1_state::bank0_flash_w)).share("bank0");
-	//map(0x1f400000, 0x1f400003).rw(FUNC(webtv1_state::status_r), FUNC(webtv1_state::status_w));
+	map(0x1f400000, 0x1f400003).rw(FUNC(webtv1_state::status_r), FUNC(webtv1_state::status_w));
 
 	// Diagnostic Space (0xf400000-0x1f7fffff)
 
