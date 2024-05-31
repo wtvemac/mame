@@ -89,11 +89,10 @@ void spot_asic_device::bus_unit_map(address_map &map)
 	map(0x008, 0x00b).r(FUNC(spot_asic_device::reg_0008_r));                                      // BUS_INTSTAT
 	map(0x108, 0x10b).w(FUNC(spot_asic_device::reg_0108_w));                                      // BUS_INTEN_S
 	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_000c_r), FUNC(spot_asic_device::reg_000c_w)); // BUS_ERRSTAT
-	map(0x10c, 0x10f).w(FUNC(spot_asic_device::reg_010c_w));                                      // BUS_INTEN_C
-	map(0x010, 0x013).r(FUNC(spot_asic_device::reg_0010_r));                                      // BUS_ERRSTAT
-	map(0x110, 0x113).w(FUNC(spot_asic_device::reg_0110_w));                                      // BUS_ERRSTAT_C
+	map(0x10c, 0x10f).rw(FUNC(spot_asic_device::reg_010c_r), FUNC(spot_asic_device::reg_010c_w)); // BUS_INTEN_C
+	map(0x110, 0x113).rw(FUNC(spot_asic_device::reg_0110_r), FUNC(spot_asic_device::reg_0110_w)); // BUS_ERRSTAT, BUS_ERRSTAT_C
 	map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_0014_r), FUNC(spot_asic_device::reg_0014_w)); // BUS_ERREN_S
-	map(0x114, 0x117).w(FUNC(spot_asic_device::reg_0114_w));                                      // BUS_ERREN_C
+	map(0x114, 0x117).rw(FUNC(spot_asic_device::reg_0114_r), FUNC(spot_asic_device::reg_0114_w)); // BUS_ERREN_C
 	map(0x018, 0x01b).r(FUNC(spot_asic_device::reg_0018_r));                                      // BUS_ERRADDR
 	map(0x118, 0x11b).w(FUNC(spot_asic_device::reg_0118_w));                                      // BUS_WDREG_C
 	map(0x01c, 0x01f).rw(FUNC(spot_asic_device::reg_001c_r), FUNC(spot_asic_device::reg_001c_w)); // BUS_FENADDR1
@@ -151,6 +150,7 @@ void spot_asic_device::dev_unit_map(address_map &map)
 	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_400c_r), FUNC(spot_asic_device::reg_400c_w)); // DEV_NVCNTL
 	map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_4010_r), FUNC(spot_asic_device::reg_4010_w)); // DEV_SCCNTL
 	map(0x014, 0x017).rw(FUNC(spot_asic_device::reg_4014_r), FUNC(spot_asic_device::reg_4014_w)); // DEV_EXTTIME
+	map(0x018, 0x01b).rw(FUNC(spot_asic_device::reg_4018_r), FUNC(spot_asic_device::reg_4018_w)); // DEV_
 	map(0x020, 0x023).rw(FUNC(spot_asic_device::reg_4020_r), FUNC(spot_asic_device::reg_4020_w)); // DEV_KBD0
 	map(0x024, 0x027).rw(FUNC(spot_asic_device::reg_4024_r), FUNC(spot_asic_device::reg_4024_w)); // DEV_KBD1
 	map(0x028, 0x02b).rw(FUNC(spot_asic_device::reg_4028_r), FUNC(spot_asic_device::reg_4028_w)); // DEV_KBD2
@@ -174,7 +174,7 @@ void spot_asic_device::mem_unit_map(address_map &map)
 	map(0x000, 0x003).rw(FUNC(spot_asic_device::reg_5000_r), FUNC(spot_asic_device::reg_5000_w)); // MEM_CNTL
 	map(0x004, 0x007).rw(FUNC(spot_asic_device::reg_5004_r), FUNC(spot_asic_device::reg_5004_w)); // MEM_REFCNT
 	map(0x008, 0x00b).rw(FUNC(spot_asic_device::reg_5008_r), FUNC(spot_asic_device::reg_5008_w)); // MEM_DATA
-	map(0x00c, 0x00f).w(FUNC(spot_asic_device::reg_500c_w));                                      // MEM_CMD
+	map(0x00c, 0x00f).rw(FUNC(spot_asic_device::reg_500c_r), FUNC(spot_asic_device::reg_500c_w)); // MEM_CMD
 	map(0x010, 0x013).rw(FUNC(spot_asic_device::reg_5010_r), FUNC(spot_asic_device::reg_5010_w)); // MEM_TIMING
 }
 
@@ -435,20 +435,16 @@ void spot_asic_device::watchdog_enable(int state)
 
 uint32_t spot_asic_device::reg_0000_r()
 {
-	//logerror("%s: reg_0000_r (BUS_CHIPID)\n", machine().describe_context());
 	return 0x01010000;
 }
 
 uint32_t spot_asic_device::reg_0004_r()
 {
-	logerror("%s: reg_0004_r (BUS_CHPCNTL)\n", machine().describe_context());
 	return m_chpcntl;
 }
 
 void spot_asic_device::reg_0004_w(uint32_t data)
 {
-	logerror("%s: reg_0004_w %08x (BUS_CHPCNTL)\n", machine().describe_context(), data);
-
 	if ((m_chpcntl ^ data) & CHPCNTL_WDENAB_MASK)
 	{
 		uint32_t wd_cntl = (data & CHPCNTL_WDENAB_MASK);
@@ -514,7 +510,6 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_0008_r()
 {
-	logerror("%s: reg_0008_r (BUS_INTSTAT)\n", machine().describe_context());
 	if (m_intstat == 0x0)
 		return BUS_INT_VIDINT;
 	else
@@ -523,249 +518,197 @@ uint32_t spot_asic_device::reg_0008_r()
 
 void spot_asic_device::reg_0108_w(uint32_t data)
 {
-	logerror("%s: reg_0108_w %08x (BUS_INTSTAT clear)\n", machine().describe_context(), data);
-
 	spot_asic_device::set_bus_irq(data, 0);
 }
 
 uint32_t spot_asic_device::reg_000c_r()
 {
-	logerror("%s: reg_000c_r (BUS_INTEN)\n", machine().describe_context());
 	return m_intenable;
 }
 
 void spot_asic_device::reg_000c_w(uint32_t data)
 {
-	logerror("%s: reg_000c_w %08x (BUS_INTEN)\n", machine().describe_context(), data);
-	if (data&BUS_INT_AUDDMA)
-		logerror("%s: AUDDMA bus interrupt set\n", machine().describe_context());
-	if (data&BUS_INT_DEVSMC)
-		logerror("%s: DEVSMC bus interrupt set\n", machine().describe_context());
-	if (data&BUS_INT_DEVIR)
-		logerror("%s: DEVIR bus interrupt set\n", machine().describe_context());
-	if (data&BUS_INT_DEVMOD)
-		logerror("%s: DEVMOD bus interrupt set\n", machine().describe_context());
-	if (data&BUS_INT_DEVKBD)
-		logerror("%s: DEVKBD bus interrupt set\n", machine().describe_context());
-	if (data&BUS_INT_VIDINT)
-		logerror("%s: VIDINT bus interrupt set\n", machine().describe_context());
-
 	m_intenable |= data & 0xFF;
+}
+
+uint32_t spot_asic_device::reg_010c_r()
+{
+	return m_intenable;
 }
 
 void spot_asic_device::reg_010c_w(uint32_t data)
 {
-	logerror("%s: reg_010c_w %08x (BUS_INTEN clear)\n", machine().describe_context(), data);
-	if (data&BUS_INT_AUDDMA)
-		logerror("%s: AUDDMA bus interrupt cleared\n", machine().describe_context());
-	if (data&BUS_INT_DEVSMC)
-		logerror("%s: DEVSMC bus interrupt cleared\n", machine().describe_context());
-	if (data&BUS_INT_DEVIR)
-		logerror("%s: DEVIR bus interrupt cleared\n", machine().describe_context());
-	if (data&BUS_INT_DEVMOD)
-		logerror("%s: DEVMOD bus interrupt cleared\n", machine().describe_context());
-	if (data&BUS_INT_DEVKBD)
-		logerror("%s: DEVKBD bus interrupt cleared\n", machine().describe_context());
-	if (data&BUS_INT_VIDINT)
-		logerror("%s: VIDINT bus interrupt cleared\n", machine().describe_context());
-
 	if (data != BUS_INT_DEVMOD) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
 		m_intenable &= ~(data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_0010_r()
 {
-	logerror("%s: reg_0010_r (BUS_ERRSTAT)\n", machine().describe_context());
 	return m_errstat;
+}
+
+uint32_t spot_asic_device::reg_0110_r()
+{
+	return 0x00000000;
 }
 
 void spot_asic_device::reg_0110_w(uint32_t data)
 {
-	logerror("%s: reg_0110_w %08x (BUS_ERRSTAT clear)\n", machine().describe_context(), data);
 	m_errstat &= (~data) & 0xFF;
 }
 
 uint32_t spot_asic_device::reg_0014_r()
 {
-	logerror("%s: reg_0014_r (BUS_ERREN)\n", machine().describe_context());
 	return m_errenable;
 }
 
 void spot_asic_device::reg_0014_w(uint32_t data)
 {
-	logerror("%s: reg_0014_w %08x (BUS_ERREN set)\n", machine().describe_context(), data);
 	m_errenable |= data & 0xFF;
+}
+
+uint32_t spot_asic_device::reg_0114_r()
+{
+	return 0x00000000;
 }
 
 void spot_asic_device::reg_0114_w(uint32_t data)
 {
-	logerror("%s: reg_0114_w %08x (BUS_ERREN clear)\n", machine().describe_context(), data);
 	m_errenable &= (~data) & 0xFF;
 }
 
 uint32_t spot_asic_device::reg_0018_r()
 {
-	logerror("%s: reg_0018_r (BUS_ERRADDR)\n", machine().describe_context());
 	return 0x00000000;
 }
 
 void spot_asic_device::reg_0118_w(uint32_t data)
 {
-	logerror("%s: reg_0118_w %08x (BUS_WDREG clear)\n", machine().describe_context(), data);
 	if (m_wdenable)
 		m_watchdog->reset_w(data);
 }
 
 uint32_t spot_asic_device::reg_001c_r()
 {
-	logerror("%s: reg_001c_r (BUS_FENADDR1)\n", machine().describe_context());
 	return m_fence1_addr;
 }
 
 void spot_asic_device::reg_001c_w(uint32_t data)
 {
-	logerror("%s: reg_001c_w %08x (BUS_FENADDR1)\n", machine().describe_context(), data);
 	m_fence1_addr = data;
 }
 
 uint32_t spot_asic_device::reg_0020_r()
 {
-	logerror("%s: reg_0020_r (BUS_FENMASK1)\n", machine().describe_context());
 	return m_fence1_mask;
 }
 
 void spot_asic_device::reg_0020_w(uint32_t data)
 {
-	logerror("%s: reg_0020_w %08x (BUS_FENMASK1)\n", machine().describe_context(), data);
 	m_fence1_mask = data;
 }
 
 uint32_t spot_asic_device::reg_0024_r()
 {
-	logerror("%s: reg_0024_r (BUS_FENADDR2)\n", machine().describe_context());
 	return m_fence2_addr;
 }
 
 void spot_asic_device::reg_0024_w(uint32_t data)
 {
-	logerror("%s: reg_0024_w %08x (BUS_FENADDR2)\n", machine().describe_context(), data);
 	m_fence2_addr = data;
 }
 
 uint32_t spot_asic_device::reg_0028_r()
 {
-	logerror("%s: reg_0028_r (BUS_FENMASK2)\n", machine().describe_context());
 	return m_fence2_mask;
 }
 
 void spot_asic_device::reg_0028_w(uint32_t data)
 {
-	logerror("%s: reg_0028_w %08x (BUS_FENMASK2)\n", machine().describe_context(), data);
 	m_fence2_mask = data;
 }
 
 uint32_t spot_asic_device::reg_1000_r()
 {
-	logerror("%s: reg_1000_r (ROM_SYSCONF)\n", machine().describe_context());
 	return m_sys_config->read();
 }
 
 uint32_t spot_asic_device::reg_1004_r()
 {
-	logerror("%s: reg_1004_r (ROM_CNTL0)\n", machine().describe_context());
 	return m_rom_cntl0;
 }
-
 void spot_asic_device::reg_1004_w(uint32_t data)
 {
-	logerror("%s: reg_1004_w %08x (ROM_CNTL0)\n", machine().describe_context(), data);
 	m_rom_cntl0 = data;
 }
 
 uint32_t spot_asic_device::reg_1008_r()
 {
-	logerror("%s: reg_1008_r (ROM_CNTL1)\n", machine().describe_context());
 	return m_rom_cntl1;
 }
 
 void spot_asic_device::reg_1008_w(uint32_t data)
 {
-	logerror("%s: reg_1008_w %08x (ROM_CNTL1)\n", machine().describe_context(), data);
 	m_rom_cntl1 = data;
 }
 
 uint32_t spot_asic_device::reg_2000_r()
 {
-	logerror("%s: reg_2000_r (AUD_CSTART)\n", machine().describe_context());
 	return m_aud_cstart;
 }
 
 uint32_t spot_asic_device::reg_2004_r()
 {
-	logerror("%s: reg_2004_r (AUD_CSIZE)\n", machine().describe_context());
 	return m_aud_csize;
 }
 
 uint32_t spot_asic_device::reg_2008_r()
 {
-	logerror("%s: reg_2008_r (AUD_CCONFIG)\n", machine().describe_context());
 	return m_aud_cconfig;
 }
 
 void spot_asic_device::reg_2008_w(uint32_t data)
 {
-	logerror("%s: reg_2008_w %08x (AUD_CCONFIG)\n", machine().describe_context(), data);
 	m_aud_cconfig = data;
 }
 
 uint32_t spot_asic_device::reg_200c_r()
 {
-	logerror("%s: reg_200c_r (AUD_CCNT)\n", machine().describe_context());
 	return m_aud_ccnt;
 }
 
 uint32_t spot_asic_device::reg_2010_r()
 {
-	logerror("%s: reg_2010_r (AUD_NSTART)\n", machine().describe_context());
 	return m_aud_nstart;
 }
 
 void spot_asic_device::reg_2010_w(uint32_t data)
 {
-	logerror("%s: reg_2010_w %08x (AUD_NSTART)\n", machine().describe_context(), data);
 	m_aud_nstart = data;
 }
 
 uint32_t spot_asic_device::reg_2014_r()
 {
-	logerror("%s: reg_2014_r (AUD_NSIZE)\n", machine().describe_context());
 	return m_aud_nsize;
 }
 
 void spot_asic_device::reg_2014_w(uint32_t data)
 {
-	logerror("%s: reg_2014_w %08x (AUD_NSIZE)\n", machine().describe_context(), data);
-
 	m_aud_nsize = data;
 }
 
 uint32_t spot_asic_device::reg_2018_r()
 {
-	logerror("%s: reg_2018_r (AUD_NCONFIG)\n", machine().describe_context());
 	return m_aud_nconfig;
 }
 
 void spot_asic_device::reg_2018_w(uint32_t data)
 {
-	logerror("%s: reg_2018_w %08x (AUD_NCONFIG)\n", machine().describe_context(), data);
-
 	m_aud_nconfig = data;
 }
 
 uint32_t spot_asic_device::reg_201c_r()
 {
-	logerror("%s: reg_201c_r (AUD_DMACNTL)\n", machine().describe_context());
-
 	spot_asic_device::irq_audio_w(0);
 
 	return m_aud_dmacntl;
@@ -773,7 +716,6 @@ uint32_t spot_asic_device::reg_201c_r()
 
 void spot_asic_device::reg_201c_w(uint32_t data)
 {
-	logerror("%s: reg_201c_w %08x (AUD_DMACNTL)\n", machine().describe_context(), data);
 	if ((m_aud_dmacntl ^ data) & AUD_DMACNTL_DMAEN)
 	{
 		if (data & AUD_DMACNTL_DMAEN)
@@ -793,25 +735,21 @@ void spot_asic_device::reg_201c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_3000_r()
 {
-	//logerror("%s: reg_3000_r (VID_CSTART)\n", machine().describe_context());
 	return m_vid_cstart;
 }
 
 uint32_t spot_asic_device::reg_3004_r()
 {
-	//logerror("%s: reg_3004_r (VID_CSIZE)\n", machine().describe_context());
 	return m_vid_csize;
 }
 
 uint32_t spot_asic_device::reg_3008_r()
 {
-	//logerror("%s: reg_3008_r (VID_CCNT)\n", machine().describe_context());
 	return m_vid_ccnt;
 }
 
 uint32_t spot_asic_device::reg_300c_r()
 {
-	//logerror("%s: reg_300c_r (VID_NSTART)\n", machine().describe_context());
 	return m_vid_nstart;
 }
 
@@ -823,13 +761,10 @@ void spot_asic_device::reg_300c_w(uint32_t data)
 
 	if (has_changed)
 		spot_asic_device::validate_active_area();
-
-	//logerror("%s: reg_300c_w %08x (VID_NSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3010_r()
 {
-	//logerror("%s: reg_3010_r (VID_NSIZE)\n", machine().describe_context());
 	return m_vid_nsize;
 }
 
@@ -841,13 +776,10 @@ void spot_asic_device::reg_3010_w(uint32_t data)
 
 	if (has_changed)
 		spot_asic_device::validate_active_area();
-
-	//logerror("%s: reg_3010_w %08x (VID_NSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3014_r()
 {
-	//logerror("%s: reg_3014_r (VID_DMACNTL)\n", machine().describe_context());
 	return m_vid_dmacntl;
 }
 
@@ -857,32 +789,25 @@ void spot_asic_device::reg_3014_w(uint32_t data)
 		spot_asic_device::pixel_buffer_index_update();
 
 	m_vid_dmacntl = data;
-
-	//logerror("%s: reg_3014_w %08x (VID_DMACNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3018_r()
 {
-	//logerror("%s: reg_3018_r (VID_FCNTL)\n", machine().describe_context());
 	return m_vid_fcntl;
 }
 
 void spot_asic_device::reg_3018_w(uint32_t data)
 {
 	m_vid_fcntl = data;
-
-	//logerror("%s: reg_3018_w %08x (VID_FCNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_301c_r()
 {
-	logerror("%s: reg_301c_r (VID_BLNKCOL)\n", machine().describe_context());
 	return m_vid_blank_color;
 }
 
 void spot_asic_device::reg_301c_w(uint32_t data)
 {
-	logerror("%s: reg_301c_r %08x (VID_BLNKCOL)\n", machine().describe_context(), data);
 	m_vid_blank_color = data;
 
 	m_vid_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);	
@@ -890,7 +815,6 @@ void spot_asic_device::reg_301c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_3020_r()
 {
-	//logerror("%s: reg_3020_r (VID_HSTART)\n", machine().describe_context());
 	return m_vid_hstart;
 }
 
@@ -902,13 +826,10 @@ void spot_asic_device::reg_3020_w(uint32_t data)
 
 	if (has_changed)
 		spot_asic_device::validate_active_area();
-
-	//logerror("%s: reg_3020_w %08x (VID_HSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3024_r()
 {
-	//logerror("%s: reg_3024_r (VID_HSIZE)\n", machine().describe_context());
 	return m_vid_hsize;
 }
 
@@ -920,13 +841,10 @@ void spot_asic_device::reg_3024_w(uint32_t data)
 
 	if (has_changed)
 		spot_asic_device::validate_active_area();
-
-	//logerror("%s: reg_3024_w %08x (VID_HSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3028_r()
 {
-	//logerror("%s: reg_3028_r (VID_VSTART)\n", machine().describe_context());
 	return m_vid_vstart;
 }
 
@@ -938,13 +856,10 @@ void spot_asic_device::reg_3028_w(uint32_t data)
 
 	if (has_changed)
 		spot_asic_device::validate_active_area();
-
-	//logerror("%s: reg_3028_w %08x (VID_VSTART)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_302c_r()
 {
-	//logerror("%s: reg_302c_r (VID_VSIZE)\n", machine().describe_context());
 	return m_vid_vsize;
 }
 
@@ -956,64 +871,52 @@ void spot_asic_device::reg_302c_w(uint32_t data)
 
 	if (has_changed)
 		spot_asic_device::validate_active_area();
-
-	//logerror("%s: reg_302c_w %08x (VID_VSIZE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3030_r()
 {
-	//logerror("%s: reg_3030_r (VID_HINTLINE)\n", machine().describe_context());
 	return m_vid_hintline;
 }
 
 void spot_asic_device::reg_3030_w(uint32_t data)
 {
 	m_vid_hintline = data;
-	//logerror("%s: reg_3030_w %08x (VID_HINTLINE)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_3034_r()
 {
-	//logerror("%s: reg_3034_r (VID_CLINE)\n", machine().describe_context());
-
 	return m_screen->vpos();
 	//return (m_vid_cline++) & 0x1ffff;
 }
 
 uint32_t spot_asic_device::reg_3038_r()
 {
-	//logerror("%s: reg_3038_r (VID_INTSTAT read)\n", machine().describe_context());
 	return m_vid_intstat;
 }
 
 void spot_asic_device::reg_3138_w(uint32_t data)
 {
-	//logerror("%s: reg_3138_w %08x (VID_INTSTAT clear)\n", machine().describe_context(), data);
 	m_vid_intstat &= (~data) & 0xff;
 }
 
 uint32_t spot_asic_device::reg_303c_r()
 {
-	logerror("%s: reg_303c_r (VID_INTEN_S)\n", machine().describe_context());
 	return m_vid_intenable;
 }
 
 void spot_asic_device::reg_303c_w(uint32_t data)
 {
-	logerror("%s: reg_303c_w %08x (VID_INTEN_S)\n", machine().describe_context(), data);
 	m_vid_intenable |= (data & 0xff);
 }
 
 void spot_asic_device::reg_313c_w(uint32_t data)
 {
-	logerror("%s: reg_313c_w %08x (VID_INTEN_C clear)\n", machine().describe_context(), data);
 	 m_vid_intenable &= (~data) & 0xff;
 }
 
 // Read IR receiver chip
 uint32_t spot_asic_device::reg_4000_r()
 {
-	logerror("%s: reg_4000_r (DEV_IRDATA)\n", machine().describe_context());
 	// TODO: This seems to have been handled by a PIC16CR54AT. We do not have the ROM for this chip, so its behavior will need to be emulated at a high level.
 	return 0;
 }
@@ -1021,7 +924,6 @@ uint32_t spot_asic_device::reg_4000_r()
 // Read LED states
 uint32_t spot_asic_device::reg_4004_r()
 {
-    logerror("%s: reg_4004_r (DEV_LED)\n", machine().describe_context());
     m_power_led = !BIT(m_ledstate, 2);
     m_connect_led = !BIT(m_ledstate, 1);
     m_message_led = !BIT(m_ledstate, 0);
@@ -1031,7 +933,6 @@ uint32_t spot_asic_device::reg_4004_r()
 // Update LED states
 void spot_asic_device::reg_4004_w(uint32_t data)
 {
-	logerror("%s: reg_4004_w %08x (DEV_LED)\n", machine().describe_context(), data);
 	m_ledstate = data;
 	m_power_led = !BIT(m_ledstate, 2);
 	m_connect_led = !BIT(m_ledstate, 1);
@@ -1149,7 +1050,6 @@ void spot_asic_device::reg_400c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4010_r()
 {
-	logerror("%s: reg_4010_r (DEV_SCCNTL)\n", machine().describe_context());
 	if (m_emu_config->read() & EMUCONFIG_BANGSERIAL)
 	{
 		// bitbang functionality does not accept smartcard input
@@ -1197,127 +1097,114 @@ void spot_asic_device::reg_4010_w(uint32_t data)
 	{
 		// TODO: reimplement smartcard slot
 	}
-
-	logerror("%s: reg_4010_w %08x (DEV_SCCNTL)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_4014_r()
 {
-	//logerror("%s: reg_4014_r (DEV_EXTTIME)\n", machine().describe_context());
 	return 0;
 }
 
 void spot_asic_device::reg_4014_w(uint32_t data)
 {
-	//logerror("%s: reg_4014_w %08x (DEV_EXTTIME)\n", machine().describe_context(), data);
+}
+
+uint32_t spot_asic_device::reg_4018_r()
+{
+	return 0x00000000; //
+}
+
+void spot_asic_device::reg_4018_w(uint32_t data)
+{
+	//
 }
 
 uint32_t spot_asic_device::reg_4020_r()
 {
-	logerror("%s: reg_4020_r (DEV_KBD0)\n", machine().describe_context());
 	return m_kbdc->data_r(0x0);
 }
 
 void spot_asic_device::reg_4020_w(uint32_t data)
 {
-	logerror("%s: reg_4020_w %08x (DEV_KBD0)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x0, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4024_r()
 {
-	logerror("%s: reg_4024_r (DEV_KBD1)\n", machine().describe_context());
 	return m_kbdc->data_r(0x4);
 }
 
 void spot_asic_device::reg_4024_w(uint32_t data)
 {
-	logerror("%s: reg_4024_w %08x (DEV_KBD1)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x4, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4028_r()
 {
-	logerror("%s: reg_4028_r (DEV_KBD2)\n", machine().describe_context());
 	return m_kbdc->data_r(0x2);
 }
 
 void spot_asic_device::reg_4028_w(uint32_t data)
 {
-	logerror("%s: reg_4028_w %08x (DEV_KBD2)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x2, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_402c_r()
 {
-	logerror("%s: reg_402c_r (DEV_KBD3)\n", machine().describe_context());
 	return m_kbdc->data_r(0x3);
 }
 
 void spot_asic_device::reg_402c_w(uint32_t data)
 {
-	logerror("%s: reg_402c_w %08x (DEV_KBD3)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x3, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4030_r()
 {
-	logerror("%s: reg_4030_r (DEV_KBD4)\n", machine().describe_context());
 	return m_kbdc->data_r(0x1);
 }
 
 void spot_asic_device::reg_4030_w(uint32_t data)
 {
-	logerror("%s: reg_4030_w %08x (DEV_KBD4)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x1, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4034_r()
 {
-	logerror("%s: reg_4034_r (DEV_KBD5)\n", machine().describe_context());
 	return m_kbdc->data_r(0x5);
 }
 
 void spot_asic_device::reg_4034_w(uint32_t data)
 {
-	logerror("%s: reg_4034_w %08x (DEV_KBD5)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x5, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4038_r()
 {
-	logerror("%s: reg_4038_r (DEV_KBD6)\n", machine().describe_context());
 	return m_kbdc->data_r(0x6);
 }
 
 void spot_asic_device::reg_4038_w(uint32_t data)
 {
-	logerror("%s: reg_4038_w %08x (DEV_KBD6)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x6, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_403c_r()
 {
-	logerror("%s: reg_403c_r (DEV_KBD7)\n", machine().describe_context());
 	return m_kbdc->data_r(0x7);
 }
 
 void spot_asic_device::reg_403c_w(uint32_t data)
 {
-	logerror("%s: reg_403c_w %08x (DEV_KBD7)\n", machine().describe_context(), data);
 	m_kbdc->data_w(0x7, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4040_r()
 {
-	logerror("%s: reg_4040_r (DEV_MOD0)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x0);
 }
 
 void spot_asic_device::reg_4040_w(uint32_t data)
 {
-	logerror("%s: reg_4040_w %08x (DEV_MOD0)\n", machine().describe_context(), data);
-
 	if (modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
 		m_modem_uart->ins8250_w(0x0, data & 0xFF);
@@ -1332,85 +1219,71 @@ void spot_asic_device::reg_4040_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4044_r()
 {
-	logerror("%s: reg_4044_r (DEV_MOD1)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x1);
 }
 
 void spot_asic_device::reg_4044_w(uint32_t data)
 {
-	logerror("%s: reg_4044_w %08x (DEV_MOD1)\n", machine().describe_context(), data);
 	m_modem_uart->ins8250_w(0x1, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4048_r()
 {
-	logerror("%s: reg_4048_r (DEV_MOD2)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x2);
 }
 
 void spot_asic_device::reg_4048_w(uint32_t data)
 {
-	logerror("%s: reg_4048_w %08x (DEV_MOD2)\n", machine().describe_context(), data);
 	m_modem_uart->ins8250_w(0x2, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_404c_r()
 {
-	logerror("%s: reg_404c_r (DEV_MOD3)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x3);
 }
 
 void spot_asic_device::reg_404c_w(uint32_t data)
 {
-	logerror("%s: reg_404c_w %08x (DEV_MOD3)\n", machine().describe_context(), data);
 	m_modem_uart->ins8250_w(0x3, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4050_r()
 {
-	logerror("%s: reg_4050_r (DEV_MOD4)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x4);
 }
 
 void spot_asic_device::reg_4050_w(uint32_t data)
 {
-	logerror("%s: reg_4050_w %08x (DEV_MOD4)\n", machine().describe_context(), data);
 	m_modem_uart->ins8250_w(0x4, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4054_r()
 {
-	logerror("%s: reg_4054_r (DEV_MOD5)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x5);
 }
 
 void spot_asic_device::reg_4054_w(uint32_t data)
 {
-	logerror("%s: reg_4054_w %08x (DEV_MOD5)\n", machine().describe_context(), data);
 	m_modem_uart->ins8250_w(0x5, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_4058_r()
 {
-	logerror("%s: reg_4058_r (DEV_MOD6)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x6);
 }
 
 void spot_asic_device::reg_4058_w(uint32_t data)
 {
-	logerror("%s: reg_4058_w %08x (DEV_MOD6)\n", machine().describe_context(), data);
 	m_modem_uart->ins8250_w(0x6, data & 0xFF);
 }
 
 uint32_t spot_asic_device::reg_405c_r()
 {
-	logerror("%s: reg_405c_r (DEV_MOD7)\n", machine().describe_context());
 	return m_modem_uart->ins8250_r(0x7);
 }
 
 void spot_asic_device::reg_405c_w(uint32_t data)
 {
-	logerror("%s: reg_405c_w %08x (DEV_MOD7)\n", machine().describe_context(), data);
 	m_modem_uart->ins8250_w(0x7, data & 0xFF);
 }
 
@@ -1418,61 +1291,51 @@ void spot_asic_device::reg_405c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_5000_r()
 {
-	logerror("%s: reg_5000_r (MEM_CNTL)\n", machine().describe_context());
 	return m_memcntl;
 }
 
 void spot_asic_device::reg_5000_w(uint32_t data)
 {
-	logerror("%s: reg_5000_w %08x (MEM_CNTL)\n", machine().describe_context(), data);
 	m_memcntl = data;
 }
 
 uint32_t spot_asic_device::reg_5004_r()
 {
-	logerror("%s: reg_5004_r (MEM_REFCNT)\n", machine().describe_context());
 	return m_memrefcnt;
 }
 
 void spot_asic_device::reg_5004_w(uint32_t data)
 {
-	logerror("%s: reg_5004_w %08x (MEM_REFCNT)\n", machine().describe_context(), data);
 	m_memrefcnt = data;
 }
 
 uint32_t spot_asic_device::reg_5008_r()
 {
-	logerror("%s: reg_5008_r (MEM_DATA)\n", machine().describe_context());
 	return m_memdata;
 }
 
 void spot_asic_device::reg_5008_w(uint32_t data)
 {
-	logerror("%s: reg_5008_w %08x (MEM_DATA)\n", machine().describe_context(), data);
 	m_memdata = data;
 }
 
-/*uint32_t spot_asic_device::reg_500c_r()
+uint32_t spot_asic_device::reg_500c_r()
 {
-	logerror("%s: reg_500c_r (MEM_CMD - not a readable register!)\n", machine().describe_context());
 	// FIXME: This is defined as a write-only register, yet the WebTV software reads from it? Still need to see what the software expects from this.
 	return 0;
-}*/
+}
 
 void spot_asic_device::reg_500c_w(uint32_t data)
 {
-	//logerror("%s: reg_500c_w %08x (MEM_CMD)\n", machine().describe_context(), data);
 }
 
 uint32_t spot_asic_device::reg_5010_r()
 {
-	//logerror("%s: reg_5010_r (MEM_TIMING)\n", machine().describe_context());
 	return m_memtiming;
 }
 
 void spot_asic_device::reg_5010_w(uint32_t data)
 {
-	logerror("%s: reg_500c_w %08x (MEM_TIMING)\n", machine().describe_context(), data);
 	m_memtiming = data;
 }
 
