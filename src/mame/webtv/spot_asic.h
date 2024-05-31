@@ -47,7 +47,6 @@
 #define EMUCONFIG_BANGSERIAL_V1   1 << 2
 #define EMUCONFIG_BANGSERIAL_V2   1 << 3
 #define EMUCONFIG_BANGSERIAL_AUTO 3 << 2
-#define EMUCONFIG_SCREEN_UPDATES  1 << 4
 
 #define CHPCNTL_WDENAB_MASK     3 << 30
 #define CHPCNTL_WDENAB_SEQ0     0 << 30
@@ -81,30 +80,38 @@
 #define BUS_INT_DEVSMC 1 << 3 // SmartCard inserted
 #define BUS_INT_AUDDMA 1 << 2 // audUnit DMA completion
 
-#define NTSC_SCREEN_XTAL   XTAL(18'414'000)
-#define NTSC_SCREEN_WIDTH  640
-#define NTSC_SCREEN_HSTART 40
-#define NTSC_SCREEN_HSIZE  560
-#define NTSC_SCREEN_HEIGHT 480
-#define NTSC_SCREEN_VSTART 30
-#define NTSC_SCREEN_VSIZE  420
+// These are guessed pixel clocks. They were chosen because they cause expected behaviour in emulation.
 
-#define PAL_SCREEN_XTAL   XTAL(21'060'000)
-#define PAL_SCREEN_WIDTH  768
-#define PAL_SCREEN_HSTART 72
-#define PAL_SCREEN_HSIZE  624
-#define PAL_SCREEN_HEIGHT 560
-#define PAL_SCREEN_VSTART 40
-#define PAL_SCREEN_VSIZE  480
+#define NTSC_SCREEN_XTAL    18393540 // Pixel clock. 480 lines and 640 "pixes" per line @ 60Hz
+#define NTSC_SCREEN_HTOTAL  640      // Total pixels per line (total screen width)
+#define NTSC_SCREEN_HSTART  40       // How many pixel before the active screen starts
+#define NTSC_SCREEN_HSIZE   560      // How many pixels to draw (active screen width)
+#define NTSC_SCREEN_HBSTART 640      // How many pixels before the blanking interval starts
+#define NTSC_SCREEN_VTOTAL  480      // Total lines (total screen height)
+#define NTSC_SCREEN_VSTART  30       // How many lines before the active screen starts
+#define NTSC_SCREEN_VSIZE   420      // How many lines to draw (active screen height)
+#define NTSC_SCREEN_VBSTART 480      // How many lines before the blanking interval starts
 
-#define VID_DEFAULT_XTAL   NTSC_SCREEN_XTAL
-#define VID_DEFAULT_WIDTH  NTSC_SCREEN_WIDTH
-#define VID_DEFAULT_HSTART NTSC_SCREEN_HSTART
-#define VID_DEFAULT_HSIZE  NTSC_SCREEN_HSIZE
-#define VID_DEFAULT_HEIGHT NTSC_SCREEN_HEIGHT
-#define VID_DEFAULT_VSTART NTSC_SCREEN_VSTART
-#define VID_DEFAULT_VSIZE  NTSC_SCREEN_VSIZE
-// This is always 0x77 on SPOT and SOLO for some reason (even on hardware)
+#define PAL_SCREEN_XTAL    21465500 // Pixel clock. 560 lines and 768 "pixes" per line @ 50Hz
+#define PAL_SCREEN_HTOTAL  768      // Total pixels per line (total screen width)
+#define PAL_SCREEN_HSTART  72       // How many pixel before the active screen starts
+#define PAL_SCREEN_HSIZE   624      // How many pixels to draw (active screen width)
+#define PAL_SCREEN_HBSTART 768      // How many pixels before the blanking interval starts
+#define PAL_SCREEN_VTOTAL  560      // Total lines (total screen height)
+#define PAL_SCREEN_VSTART  40       // How many lines before the active screen starts
+#define PAL_SCREEN_VSIZE   480      // How many lines to draw (active screen height)
+#define PAL_SCREEN_VBSTART 560      // How many lines before the blanking interval starts
+
+#define VID_DEFAULT_XTAL    NTSC_SCREEN_XTAL
+#define VID_DEFAULT_HTOTAL  NTSC_SCREEN_HTOTAL
+#define VID_DEFAULT_HSTART  NTSC_SCREEN_HSTART
+#define VID_DEFAULT_HBSTART NTSC_SCREEN_HBSTART
+#define VID_DEFAULT_HSIZE   NTSC_SCREEN_HSIZE
+#define VID_DEFAULT_VTOTAL  NTSC_SCREEN_VTOTAL
+#define VID_DEFAULT_VSTART  NTSC_SCREEN_VSTART
+#define VID_DEFAULT_VBSTART NTSC_SCREEN_VBSTART
+#define VID_DEFAULT_VSIZE   NTSC_SCREEN_VSIZE
+// This is always 0x77 on SPOT for some reason (even on hardware)
 // This is needed to correct the HSTART value.
 #define VID_HSTART_OFFSET  0x77
 
@@ -155,7 +162,7 @@
 #define INS8250_LSR_TSRE 0x40
 #define INS8250_LSR_THRE 0x20
 #define MBUFF_MAX_SIZE   0x800
-#define MBUFF_FLUSH_TIME 100
+#define MBUFF_FLUSH_TIME 100   // time is in microseconds
 
 #define SSID_STATE_IDLE               0x0
 #define SSID_STATE_RESET              0x1
@@ -185,15 +192,13 @@ public:
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
-	void pixel_buffer_index_update();
 protected:
 	// device-level overrides
 	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_resolve_objects() override;
 	virtual void device_start() override;
 	virtual void device_reset() override;
 	virtual void device_stop() override;
-
-	void reconfigure_screen(bool use_pal);
 
 	uint32_t m_chpcntl;
 	uint8_t m_wdenable;
@@ -319,6 +324,7 @@ private:
 	void validate_active_area();
 	void spot_update_cycle_counting();
 	void watchdog_enable(int state);
+	void pixel_buffer_index_update();
 
 	/* busUnit registers */
 
