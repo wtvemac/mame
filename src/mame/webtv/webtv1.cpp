@@ -132,7 +132,6 @@ private:
 //
 void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
 {
-	logerror("%s: bank0_flash_w 0x1f%06x = %08x\n", machine().describe_context(), offset, data);
 	//uint32_t actual_offset = offset & 0xfffff;
 	uint16_t upper_value = (data >> 16) & 0xffff;
 	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
@@ -145,7 +144,6 @@ void webtv1_state::bank0_flash_w(offs_t offset, uint32_t data)
 
 uint32_t webtv1_state::bank0_flash_r(offs_t offset)
 {
-	//logerror("%s: bank0_flash_r 0x1f%06x\n", machine().describe_context(), offset);
 	//uint32_t actual_offset = offset & 0xfffff;
 	uint16_t upper_value = m_flash0->read(offset);
 	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
