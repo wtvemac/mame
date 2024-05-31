@@ -34,6 +34,9 @@
 #include "render.h"
 #include "spot_asic.h"
 #include "screen.h"
+#include "main.h"
+#include "machine.h"
+#include "config.h"
 
 #define LOG_UNKNOWN     (1U << 1)
 #define LOG_READS       (1U << 2)
@@ -180,7 +183,7 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
 	m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
 	m_screen->screen_vblank().set(FUNC(spot_asic_device::vblank_irq));
-	m_screen->set_raw(VID_DEFAULT_XTAL, VID_DEFAULT_WIDTH, 0, VID_DEFAULT_WIDTH, VID_DEFAULT_HEIGHT, 0, VID_DEFAULT_HEIGHT);
+	m_screen->set_raw(VID_DEFAULT_XTAL, VID_DEFAULT_HTOTAL, 0, VID_DEFAULT_HBSTART, VID_DEFAULT_VTOTAL, 0, VID_DEFAULT_VBSTART);
 
 	SPEAKER(config, m_lspeaker).front_left();
 	SPEAKER(config, m_rspeaker).front_right();
@@ -214,17 +217,16 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	spot_asic_device::watchdog_enable(0);
 }
 
-void spot_asic_device::reconfigure_screen(bool use_pal)
+void spot_asic_device::device_resolve_objects()
 {
-	if(m_emu_config->read() & EMUCONFIG_SCREEN_UPDATES)
-	{
-		// The border region should be shown, colored in with m_vid_blank_color
+	// This grabs the configuration before it's usually done so we can read the PAL or NTSC bit to configure the screen.
+	machine().manager().before_load_settings(machine());
+	machine().configuration().load_settings();
 
-		if (use_pal)
-			m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_WIDTH - 2, 0, PAL_SCREEN_WIDTH, PAL_SCREEN_HEIGHT, 0, PAL_SCREEN_HEIGHT - 2);
-		else
-			m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_WIDTH - 2, 0, NTSC_SCREEN_WIDTH, NTSC_SCREEN_HEIGHT, 0, NTSC_SCREEN_HEIGHT - 2);
-	}
+	if (m_sys_config->read() & SYSCONFIG_NTSC)
+		m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_HTOTAL, 0, NTSC_SCREEN_HBSTART, NTSC_SCREEN_VTOTAL, 0, NTSC_SCREEN_VBSTART);
+	else
+		m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_HTOTAL, 0, PAL_SCREEN_HBSTART, PAL_SCREEN_VTOTAL, 0, PAL_SCREEN_VBSTART);
 }
 
 void spot_asic_device::device_start()
@@ -308,7 +310,7 @@ void spot_asic_device::device_reset()
 	m_vid_nstart = 0x0;
 	m_vid_nsize = 0x0;
 	m_vid_dmacntl = 0x0;
-	m_vid_hstart = VID_DEFAULT_HSTART;
+	m_vid_hstart = VID_HSTART_OFFSET + VID_DEFAULT_HSTART;
 	m_vid_hsize = VID_DEFAULT_HSIZE;
 	m_vid_vstart = VID_DEFAULT_VSTART;
 	m_vid_vsize = VID_DEFAULT_VSIZE;
@@ -321,7 +323,7 @@ void spot_asic_device::device_reset()
 	m_vid_cline = 0x0;
 
 	m_vid_draw_nstart = 0x0;
-	m_vid_draw_hstart = m_vid_hstart;
+	m_vid_draw_hstart = VID_HSTART_OFFSET;
 	m_vid_draw_hsize = m_vid_hsize;
 	m_vid_draw_vstart = m_vid_vstart;
 	m_vid_draw_vsize = m_vid_vsize;
@@ -357,34 +359,29 @@ void spot_asic_device::device_reset()
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
 
+	spot_asic_device::validate_active_area();
 	spot_asic_device::watchdog_enable(m_wdenable);
 }
 
 void spot_asic_device::validate_active_area()
 {
-	// hsize and vsize changes will break the screen but it would break on hardware.
+	// The active h size can't be larger than the screen width or smaller than 2 pixels.
+	m_vid_draw_hsize = std::clamp(m_vid_hsize, (uint32_t)0x2, (uint32_t)m_screen->width());
+	// The active v size can't be larger than the screen height or smaller than 2 pixels.
+	m_vid_draw_vsize = std::clamp(m_vid_vsize, (uint32_t)0x2, (uint32_t)m_screen->height());
 
-	m_vid_draw_hsize = m_vid_hsize;
-	m_vid_draw_vsize = m_vid_vsize;
+	// The active h start can't be smaller than 2
+	m_vid_draw_hstart = std::max(m_vid_hstart - VID_HSTART_OFFSET, (uint32_t)0x2);
+	// The active v start can't be smaller than 2
+	m_vid_draw_vstart = std::max(m_vid_vstart, (uint32_t)0x2);
 
-	// The active h size can't be larger than the screen width.
-	if (m_vid_draw_hsize > m_screen->width())
-		m_vid_draw_hsize = m_screen->width();
-
-	// The active v size can't be larger than the screen height.
-	if (m_vid_draw_vsize > m_screen->height())
-		m_vid_draw_vsize = m_screen->height();
-
-	m_vid_draw_hstart = m_vid_hstart - VID_HSTART_OFFSET;
-	m_vid_draw_vstart = m_vid_vstart;
-
-	// The active h offset (hstart) can't push the active area off the screen.
+	// The active h start can't push the active area off the screen.
 	if ((m_vid_draw_hstart + m_vid_draw_hsize) > m_screen->width())
 		m_vid_draw_hstart = (m_screen->width() - m_vid_draw_hsize); // to screen edge
 	else if (m_vid_draw_hstart < 0)
 		m_vid_draw_hstart = 0;
 
-	// The active v offset (vstart) can't push the active area off the screen.
+	// The active v start can't push the active area off the screen.
 	if ((m_vid_draw_vstart + m_vid_draw_vsize) > m_screen->height())
 		m_vid_draw_vstart = (m_screen->height() - m_vid_draw_vsize); // to screen edge
 	else if (m_vid_draw_vstart < 0)
@@ -871,9 +868,6 @@ uint32_t spot_asic_device::reg_3018_r()
 
 void spot_asic_device::reg_3018_w(uint32_t data)
 {
-	if ((m_vid_fcntl ^ data) & VID_FCNTL_PAL)
-		spot_asic_device::reconfigure_screen(data & VID_FCNTL_PAL);
-	
 	m_vid_fcntl = data;
 
 	//logerror("%s: reg_3018_w %08x (VID_FCNTL)\n", machine().describe_context(), data);
