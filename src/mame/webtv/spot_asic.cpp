@@ -1484,9 +1484,9 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
 		{
 			address_space &space = m_hostcpu->space(AS_PROGRAM);
 
-			int16_t samplel = space.read_dword(m_aud_ccnt);
+			int16_t samplel = space.read_word(m_aud_ccnt);
 			m_aud_ccnt += 2;
-			int16_t sampler = space.read_dword(m_aud_ccnt);
+			int16_t sampler = space.read_word(m_aud_ccnt);
 			m_aud_ccnt += 2;
 
 			// For 8-bit we're assuming left-aligned samples
