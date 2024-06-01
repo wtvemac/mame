@@ -4104,6 +4104,16 @@ void mips3_device::handle_idt(uint32_t op)
 {
 	switch (op & 0x1f)
 	{
+		case 0: /* MADD */
+		{
+			uint64_t temp64 = (int64_t)((int32_t)RSVAL32 * (int32_t)RTVAL32);
+			LOVAL64 += (int32_t)temp64;
+			HIVAL64 += (int32_t)(temp64 >> 32);
+			if (RDREG)
+				RDVAL64 = LOVAL;
+			m_core->icount -= 3;
+			break;
+		}
 		case 2: /* MUL */
 			RDVAL64 = (int32_t)((int32_t)RSVAL32 * (int32_t)RTVAL32);
 			m_core->icount -= 3;
