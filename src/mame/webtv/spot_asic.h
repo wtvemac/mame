@@ -146,7 +146,7 @@ constexpr uint32_t AUD_CONFIG_8BIT_STEREO  = 2;
 constexpr uint32_t AUD_CONFIG_8BIT_MONO    = 3;
 
 constexpr uint32_t AUD_DEFAULT_CLK = 44100;
-constexpr float    AUD_OUTPUT_GAIN = 0.25;
+constexpr float    AUD_OUTPUT_GAIN = 0.45;
 
 constexpr uint32_t AUD_DMACNTL_DMAEN  = 1 << 2; // audUnit DMA channel enabled
 constexpr uint32_t AUD_DMACNTL_NV     = 1 << 1; // audUnit DMA next registers are valid
