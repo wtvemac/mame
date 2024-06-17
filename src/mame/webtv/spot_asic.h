@@ -218,6 +218,7 @@ protected:
 	uint32_t m_memcntl;
 	uint32_t m_memrefcnt;
 	uint32_t m_memdata;
+	uint32_t m_memcmd;
 	uint32_t m_memtiming;
 
 	uint8_t m_nvcntl;
