@@ -592,6 +592,9 @@ void rom_load_manager::verify_length_and_hash(emu_file *file, std::string_view n
 	if (!file)
 		return;
 
+	// EMAC: ignore any ROM verification. Allows ROM tinkering without getting cock blocked by MAME complaining about ROMs.
+	return;
+
 	// verify length
 	u64 const actlength(file->size());
 	if (explength != actlength)
