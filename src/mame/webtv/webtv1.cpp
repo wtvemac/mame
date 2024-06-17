@@ -321,9 +321,13 @@ void webtv1_state::webtv1_pal(machine_config& config)
 	// manufacturer is determined by the contents of DS2401
 	webtv1_state::webtv1_base(config);
 
-	// 2MB bf0app Approm
-	AMD_29F800B_16BIT(config, m_flash0, 0);
-	AMD_29F800B_16BIT(config, m_flash1, 0);
+	// 4MB bf0app Debug Approm
+	MACRONIX_29F1610_16BIT(config, m_flash0, 0);
+	MACRONIX_29F1610_16BIT(config, m_flash1, 0);
+
+	// 2MB Flashable Bootrom
+	//AMD_29F800B_16BIT(config, m_bootrom_flash0, 0);
+	//AMD_29F800B_16BIT(config, m_bootrom_flash1, 0);
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::webtv1_retail_map);
 }
