@@ -147,6 +147,8 @@ void watchdog_timer_device::watchdog_fired()
 {
 	logerror("watchdog_fired: reset issued\n");
 
+	popmessage("Watchdog reset fired");
+
 	machine().schedule_soft_reset();
 }
 
