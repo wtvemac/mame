@@ -293,6 +293,7 @@ void spot_asic_device::device_reset()
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
 	m_memdata = 0x0;
+	m_memcmd = 0x0;
 	m_memtiming = 0xadbadffa;
 	m_intenable = 0x0;
 	m_intstat = 0x0;
@@ -1322,11 +1323,12 @@ void spot_asic_device::reg_5008_w(uint32_t data)
 uint32_t spot_asic_device::reg_500c_r()
 {
 	// FIXME: This is defined as a write-only register, yet the WebTV software reads from it? Still need to see what the software expects from this.
-	return 0;
+	return m_memcmd;
 }
 
 void spot_asic_device::reg_500c_w(uint32_t data)
 {
+	m_memcmd = data;
 }
 
 uint32_t spot_asic_device::reg_5010_r()
