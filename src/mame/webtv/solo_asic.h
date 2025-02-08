@@ -74,6 +74,23 @@ constexpr uint32_t BUS_INT_DEVIR  = 1 << 4; // IR data ready to read
 constexpr uint32_t BUS_INT_DEVSMC = 1 << 3; // SmartCard inserted
 constexpr uint32_t BUS_INT_AUDDMA = 1 << 2; // audUnit DMA completion
 
+constexpr uint16_t VID_Y_BLACK         = 0x10;
+constexpr uint16_t VID_Y_WHITE         = 0xeb;
+constexpr uint16_t VID_Y_RANGE         = (VID_Y_WHITE - VID_Y_BLACK);
+constexpr uint16_t VID_UV_OFFSET       = 0x80;
+constexpr uint8_t  VID_BYTES_PER_PIXEL = 2;
+
+constexpr uint32_t VID_INT_FIDO   = 1 << 6; // TODO: docs don't have info on FIDO mode! figure this out!
+constexpr uint32_t VID_INT_VSYNCE = 1 << 5; // even field VSYNC
+constexpr uint32_t VID_INT_VSYNCO = 1 << 4; // odd field VSYNC
+constexpr uint32_t VID_INT_HSYNC  = 1 << 3; // HSYNC on line specified by VID_HINTLINE
+constexpr uint32_t VID_INT_DMA    = 1 << 2; // vidUnit DMA completion
+
+constexpr uint32_t VID_DMACNTL_ITRLEN = 1 << 3; // interlaced video in DMA channel
+constexpr uint32_t VID_DMACNTL_DMAEN  = 1 << 2; // DMA channel enabled
+constexpr uint32_t VID_DMACNTL_NV     = 1 << 1; // DMA next registers are valid
+constexpr uint32_t VID_DMACNTL_NVF    = 1 << 0; // DMA next registers are always valid
+
 // These are guessed pixel clocks. They were chosen because they cause expected behaviour in emulation.
 
 constexpr uint32_t NTSC_SCREEN_XTAL    = 18393540; // Pixel clock. 480 lines and 640 "pixes" per line @ 60Hz
@@ -96,45 +113,33 @@ constexpr uint32_t PAL_SCREEN_VSTART  = 40;       // How many lines before the a
 constexpr uint32_t PAL_SCREEN_VSIZE   = 480;      // How many lines to draw (active screen height)
 constexpr uint32_t PAL_SCREEN_VBSTART = 560;      // How many lines before the blanking interval starts
 
-constexpr uint32_t VID_DEFAULT_XTAL    = NTSC_SCREEN_XTAL;
-constexpr uint32_t VID_DEFAULT_HTOTAL  = NTSC_SCREEN_HTOTAL;
-constexpr uint32_t VID_DEFAULT_HSTART  = NTSC_SCREEN_HSTART;
-constexpr uint32_t VID_DEFAULT_HBSTART = NTSC_SCREEN_HBSTART;
-constexpr uint32_t VID_DEFAULT_HSIZE   = NTSC_SCREEN_HSIZE;
-constexpr uint32_t VID_DEFAULT_VTOTAL  = NTSC_SCREEN_VTOTAL;
-constexpr uint32_t VID_DEFAULT_VSTART  = NTSC_SCREEN_VSTART;
-constexpr uint32_t VID_DEFAULT_VBSTART = NTSC_SCREEN_VBSTART;
-constexpr uint32_t VID_DEFAULT_VSIZE   = NTSC_SCREEN_VSIZE;
+constexpr uint32_t POT_DEFAULT_XTAL    = NTSC_SCREEN_XTAL;
+constexpr uint32_t POT_DEFAULT_HTOTAL  = NTSC_SCREEN_HTOTAL;
+constexpr uint32_t POT_DEFAULT_HSTART  = NTSC_SCREEN_HSTART;
+constexpr uint32_t POT_DEFAULT_HBSTART = NTSC_SCREEN_HBSTART;
+constexpr uint32_t POT_DEFAULT_HSIZE   = NTSC_SCREEN_HSIZE;
+constexpr uint32_t POT_DEFAULT_VTOTAL  = NTSC_SCREEN_VTOTAL;
+constexpr uint32_t POT_DEFAULT_VSTART  = NTSC_SCREEN_VSTART;
+constexpr uint32_t POT_DEFAULT_VBSTART = NTSC_SCREEN_VBSTART;
+constexpr uint32_t POT_DEFAULT_VSIZE   = NTSC_SCREEN_VSIZE;
 // This is always 0x77 on SOLO for some reason (even on hardware)
 // This is needed to correct the HSTART value.
-constexpr uint32_t VID_HSTART_OFFSET  = 0x77;
+constexpr uint32_t POT_HSTART_OFFSET  = 0x77;
 
-constexpr uint16_t VID_Y_BLACK         = 0x10;
-constexpr uint16_t VID_Y_WHITE         = 0xeb;
-constexpr uint16_t VID_Y_RANGE         = (VID_Y_WHITE - VID_Y_BLACK);
-constexpr uint16_t VID_UV_OFFSET       = 0x80;
-constexpr uint8_t  VID_BYTES_PER_PIXEL = 2;
-constexpr uint32_t VID_DEFAULT_COLOR   = (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
+constexpr uint32_t POT_DEFAULT_COLOR   = (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
 
-constexpr uint32_t VID_INT_FIDO   = 1 << 6; // TODO: docs don't have info on FIDO mode! figure this out!
-constexpr uint32_t VID_INT_VSYNCE = 1 << 5; // even field VSYNC
-constexpr uint32_t VID_INT_VSYNCO = 1 << 4; // odd field VSYNC
-constexpr uint32_t VID_INT_HSYNC  = 1 << 3; // HSYNC on line specified by VID_HINTLINE
-constexpr uint32_t VID_INT_DMA    = 1 << 2; // vidUnit DMA completion
-
-constexpr uint32_t VID_FCNTL_UVSELSWAP  = 1 << 7; // UV is swapped. 1=YCbYCr, 0=YCrYCb
-constexpr uint32_t VID_FCNTL_CRCBINVERT = 1 << 6; // invert MSB Cb and Cb
-constexpr uint32_t VID_FCNTL_FIDO       = 1 << 5; // enable FIDO mode. details unknown
-constexpr uint32_t VID_FCNTL_GAMMA      = 1 << 4; // enable gamma correction
-constexpr uint32_t VID_FCNTL_BLNKCOLEN  = 1 << 3; // enable VID_BLANK color
-constexpr uint32_t VID_FCNTL_INTERLACE  = 1 << 2; // interlaced video enabled
-constexpr uint32_t VID_FCNTL_PAL        = 1 << 1; // PAL mode enabled
-constexpr uint32_t VID_FCNTL_VIDENAB    = 1 << 0; // video output enable
-
-constexpr uint32_t VID_DMACNTL_ITRLEN = 1 << 3; // interlaced video in DMA channel
-constexpr uint32_t VID_DMACNTL_DMAEN  = 1 << 2; // DMA channel enabled
-constexpr uint32_t VID_DMACNTL_NV     = 1 << 1; // DMA next registers are valid
-constexpr uint32_t VID_DMACNTL_NVF    = 1 << 0; // DMA next registers are always valid
+constexpr uint32_t POT_FCNTL_USEGFX444    = 1 << 6; // Use 4:4:4 date from gfxUnit when source from dveUnit
+constexpr uint32_t POT_FCNTL_DVECCS       = 1 << 6; // Select wich edge of CrCbSel used to latch GFX->DVE interp
+constexpr uint32_t POT_FCNTL_DVEHALFSHIFT = 1 << 6; // Shift pipeline to dveUnit 1/2 pixel (debug bit)
+constexpr uint32_t POT_FCNTL_HINT2XFLINE  = 1 << 6; // hint is in 2x field lines (off = 1x frame lines)
+constexpr uint32_t POT_FCNTL_SOUTEN       = 1 << 6; // Enable video sync outpuit pins  (DVE_TEN is set needs to be set)
+constexpr uint32_t POT_FCNTL_DOUTEN       = 1 << 6; // Enable video output pins (DVE_TEN is set needs to be set)
+constexpr uint32_t POT_FCNTL_HALFSHIFT    = 1 << 6; // Shifts the external encoder pixel pipeline 1/2 pixel (debug bit)
+constexpr uint32_t POT_FCNTL_CRCBINVERT   = 1 << 6; // invert MSB Cb and Cb
+constexpr uint32_t POT_FCNTL_USEGFX       = 1 << 3; // Use gfxUnit as the video source, rather than vidUnit
+constexpr uint32_t POT_FCNTL_SOFTRESET    = 1 << 3; // Soft reset potUnit
+constexpr uint32_t POT_FCNTL_PROGRESSIVE  = 1 << 1; // progressive video enabled
+constexpr uint32_t POT_FCNTL_EN           = 1 << 0; // potUnit output enable
 
 constexpr uint32_t AUD_CONFIG_16BIT_STEREO = 0;
 constexpr uint32_t AUD_CONFIG_16BIT_MONO   = 1;
@@ -179,6 +184,12 @@ public:
 	void vid_unit_map(address_map &map);
 	void dev_unit_map(address_map &map);
 	void mem_unit_map(address_map &map);
+	void gfx_unit_map(address_map &map);
+	void dve_unit_map(address_map &map);
+	void div_unit_map(address_map &map);
+	void pot_unit_map(address_map &map);
+	void suc_unit_map(address_map &map);
+	void mod_unit_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
@@ -201,6 +212,8 @@ protected:
 	uint32_t m_fence1_mask;
 	uint32_t m_fence2_addr;
 	uint32_t m_fence2_mask;
+
+	uint32_t m_tcompare;
 
 	uint8_t m_intenable;
 	uint8_t m_intstat;
@@ -226,27 +239,31 @@ protected:
 	uint32_t m_vid_nstart;
 	uint32_t m_vid_nsize;
 	uint32_t m_vid_dmacntl;
-	uint32_t m_vid_hstart;
-	uint32_t m_vid_hsize;
-	uint32_t m_vid_vstart;
-	uint32_t m_vid_vsize;
-	uint8_t m_vid_fcntl;
-	uint32_t m_vid_blank_color;
 	uint32_t m_vid_cstart;
 	uint32_t m_vid_csize;
 	uint32_t m_vid_ccnt;
 	uint32_t m_vid_cline;
-	uint32_t m_vid_hintline;
+	uint32_t m_vid_vdata;
 	uint32_t m_vid_intenable;
 	uint32_t m_vid_intstat;
 
+	uint8_t m_pot_cntl;
+	uint32_t m_pot_hintline;
+	uint32_t m_pot_vstart;
+	uint32_t m_pot_vsize;
+	uint32_t m_pot_blank_color;
+	uint32_t m_pot_hstart;
+	uint32_t m_pot_hsize;
+	uint32_t m_pot_intenable;
+	uint32_t m_pot_intstat;
+
 	// Values set from software are corrected then stored here to draw the actual screen.
 	uint32_t m_vid_draw_nstart;
-	uint32_t m_vid_draw_hstart;
-	uint32_t m_vid_draw_hsize;
-	uint32_t m_vid_draw_vstart;
-	uint32_t m_vid_draw_vsize;
-	uint32_t m_vid_draw_blank_color;
+	uint32_t m_pot_draw_hstart;
+	uint32_t m_pot_draw_hsize;
+	uint32_t m_pot_draw_vstart;
+	uint32_t m_pot_draw_vsize;
+	uint32_t m_pot_draw_blank_color;
 
 	uint8_t m_aud_clkdiv;
 	uint32_t m_aud_cstart;
@@ -345,6 +362,10 @@ private:
 	void reg_0024_w(uint32_t data); // BUS_FENADDR1 (write)
 	uint32_t reg_0028_r();          // BUS_FENMASK2 (read)
 	void reg_0028_w(uint32_t data); // BUS_FENMASK2 (write)
+	uint32_t reg_0048_r();          // BUS_TCOUNT (read)
+	void reg_0048_w(uint32_t data); // BUS_TCOUNT (write)
+	uint32_t reg_004c_r();          // BUS_TCOMPARE (read)
+	void reg_004c_w(uint32_t data); // BUS_TCOMPARE (write)
 
 	/* romUnit registers */
 
@@ -381,26 +402,13 @@ private:
 	void reg_3010_w(uint32_t data); // VID_NSIZE (write)
 	uint32_t reg_3014_r();          // VID_DMACNTL (read)
 	void reg_3014_w(uint32_t data); // VID_DMACNTL (write)
-	uint32_t reg_3018_r();          // VID_FCNTL (read)
-	void reg_3018_w(uint32_t data); // VID_FCNTL (write)
-	uint32_t reg_301c_r();          // VID_BLNKCOL (read)
-	void reg_301c_w(uint32_t data); // VID_BLNKCOL (write)
-	uint32_t reg_3020_r();          // VID_HSTART (read)
-	void reg_3020_w(uint32_t data); // VID_HSTART (write)
-	uint32_t reg_3024_r();          // VID_HSIZE (read)
-	void reg_3024_w(uint32_t data); // VID_HSIZE (write)
-	uint32_t reg_3028_r();          // VID_VSTART (read)
-	void reg_3028_w(uint32_t data); // VID_VSTART (write)
-	uint32_t reg_302c_r();          // VID_VSIZE (read)
-	void reg_302c_w(uint32_t data); // VID_VSIZE (write)
-	uint32_t reg_3030_r();          // VID_HINTLINE (read)
-	void reg_3030_w(uint32_t data); // VID_HINTLINE (write)
-	uint32_t reg_3034_r();          // VID_CLINE (read-only)
 	uint32_t reg_3038_r();          // VID_INTSTAT (read)
 	void reg_3138_w(uint32_t data); // VID_INTSTAT (clear)
 	uint32_t reg_303c_r();          // VID_INTEN_S (read)
 	void reg_303c_w(uint32_t data); // VID_INTEN_S (write)
 	void reg_313c_w(uint32_t data); // VID_INTEN_C (clear)
+	uint32_t reg_3040_r();          // VID_VDATA (read)
+	void reg_3040_w(uint32_t data); // VID_VDATA (write)
 
 	/* devUnit registers */
 
@@ -432,6 +440,47 @@ private:
 	void reg_500c_w(uint32_t data); // MEM_CMD (write-only)
 	uint32_t reg_5010_r();          // MEM_TIMING (read)
 	void reg_5010_w(uint32_t data); // MEM_TIMING (write)
+
+	/* gfxUnit registers */
+
+
+	/* dveUnit registers */
+
+
+	/* divUnit registers */
+
+
+	/* potUnit registers */
+
+	uint32_t reg_9080_r();          // POT_VSTART (read)
+	void reg_9080_w(uint32_t data); // POT_VSTART (write)
+	uint32_t reg_9084_r();          // POT_VSIZE (read)
+	void reg_9084_w(uint32_t data); // POT_VSIZE (write)
+	uint32_t reg_9088_r();          // POT_BLNKCOL (read)
+	void reg_9088_w(uint32_t data); // POT_BLNKCOL (write)
+	uint32_t reg_908c_r();          // POT_HSTART (read)
+	void reg_908c_w(uint32_t data); // POT_HSTART (write)
+	uint32_t reg_9090_r();          // POT_HSIZE (read)
+	void reg_9090_w(uint32_t data); // POT_HSIZE (write)
+	uint32_t reg_9094_r();          // POT_CNTL (read)
+	void reg_9094_w(uint32_t data); // POT_CNTL (write)
+	uint32_t reg_9098_r();          // POT_HINTLINE (read)
+	void reg_9098_w(uint32_t data); // POT_HINTLINE (write)
+	uint32_t reg_909c_r();          // POT_INTEN   (read)
+	void reg_909c_w(uint32_t data); // POT_INTEN_S (write)
+	void reg_90a4_w(uint32_t data); // POT_INTEN_C (write)
+	uint32_t reg_90a0_r();          // POT_INTSTAT (read)
+	void reg_90a8_w(uint32_t data); // POT_INTSTAT_C (write)
+	uint32_t reg_90ac_r();          // POT_CLINE (read)
+
+	/* sucUnit registers */
+
+	uint32_t reg_a000_r();          // SUCGPU_TFFHR (read)
+	void reg_a000_w(uint32_t data); // SUCGPU_TFFHR (write)
+	uint32_t reg_a00c_r();          // SUCGPU_TFFCNT (read)
+	uint32_t reg_a010_r();          // SUCGPU_TFFMAX (read)
+
+	/* modUnit registers */
 };
 
 DECLARE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device)

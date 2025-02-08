@@ -194,6 +194,12 @@ void webtv2_state::webtv2_base_map(address_map &map)
 	map(0x04003000, 0x04003fff).m(m_soloasic, FUNC(solo_asic_device::vid_unit_map));
 	map(0x04004000, 0x04004fff).m(m_soloasic, FUNC(solo_asic_device::dev_unit_map));
 	map(0x04005000, 0x04005fff).m(m_soloasic, FUNC(solo_asic_device::mem_unit_map));
+	map(0x04006000, 0x04006fff).m(m_soloasic, FUNC(solo_asic_device::gfx_unit_map));
+	map(0x04007000, 0x04007fff).m(m_soloasic, FUNC(solo_asic_device::dve_unit_map));
+	map(0x04008000, 0x04008fff).m(m_soloasic, FUNC(solo_asic_device::div_unit_map));
+	map(0x04009000, 0x04009fff).m(m_soloasic, FUNC(solo_asic_device::pot_unit_map));
+	map(0x0400a000, 0x0400afff).m(m_soloasic, FUNC(solo_asic_device::suc_unit_map));
+	map(0x0400b000, 0x0400bfff).m(m_soloasic, FUNC(solo_asic_device::mod_unit_map));
 
 	// Reserved (0x04800000-0x1f7fffff)
 }
