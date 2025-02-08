@@ -119,6 +119,8 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_0020_r), FUNC(solo_asic_device::reg_0020_w)); // BUS_FENMASK1
 	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_0024_r), FUNC(solo_asic_device::reg_0024_w)); // BUS_FENADDR2
 	map(0x028, 0x02b).rw(FUNC(solo_asic_device::reg_0028_r), FUNC(solo_asic_device::reg_0028_w)); // BUS_FENMASK2
+	map(0x048, 0x04b).rw(FUNC(solo_asic_device::reg_0048_r), FUNC(solo_asic_device::reg_0048_w)); // BUS_TCOUNT
+	map(0x04c, 0x04f).rw(FUNC(solo_asic_device::reg_004c_r), FUNC(solo_asic_device::reg_004c_w)); // BUS_TCOMPARE
 }
 
 void solo_asic_device::rom_unit_map(address_map &map)
@@ -148,18 +150,11 @@ void solo_asic_device::vid_unit_map(address_map &map)
 	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_300c_r), FUNC(solo_asic_device::reg_300c_w)); // VID_NSTART
 	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_3010_r), FUNC(solo_asic_device::reg_3010_w)); // VID_NSIZE
 	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_3014_r), FUNC(solo_asic_device::reg_3014_w)); // VID_DMACNTL
-	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_3018_r), FUNC(solo_asic_device::reg_3018_w)); // VID_FCNTL
-	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_301c_r), FUNC(solo_asic_device::reg_301c_w)); // VID_BLNKCOL
-	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_3020_r), FUNC(solo_asic_device::reg_3020_w)); // VID_HSTART
-	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_3024_r), FUNC(solo_asic_device::reg_3024_w)); // VID_HSIZE
-	map(0x028, 0x02b).rw(FUNC(solo_asic_device::reg_3028_r), FUNC(solo_asic_device::reg_3028_w)); // VID_VSTART
-	map(0x02c, 0x02f).rw(FUNC(solo_asic_device::reg_302c_r), FUNC(solo_asic_device::reg_302c_w)); // VID_VSIZE
-	map(0x030, 0x033).rw(FUNC(solo_asic_device::reg_3030_r), FUNC(solo_asic_device::reg_3030_w)); // VID_HINTLINE
-	map(0x034, 0x037).r(FUNC(solo_asic_device::reg_3034_r));                                      // VID_CLINE
 	map(0x038, 0x03b).r(FUNC(solo_asic_device::reg_3038_r));                                      // VID_INTSTAT
 	map(0x138, 0x13b).w(FUNC(solo_asic_device::reg_3138_w));                                      // VID_INTSTAT_C
 	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_303c_r), FUNC(solo_asic_device::reg_303c_w)); // VID_INTEN_S
 	map(0x13c, 0x13f).w(FUNC(solo_asic_device::reg_313c_w));                                      // VID_INTEN_C
+	map(0x040, 0x043).rw(FUNC(solo_asic_device::reg_3040_r), FUNC(solo_asic_device::reg_3040_w)); // VID_VDATA
 }
 
 void solo_asic_device::dev_unit_map(address_map &map)
@@ -182,12 +177,53 @@ void solo_asic_device::mem_unit_map(address_map &map)
 	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_5010_r), FUNC(solo_asic_device::reg_5010_w)); // MEM_TIMING
 }
 
+void solo_asic_device::gfx_unit_map(address_map &map)
+{
+	//
+}
+
+void solo_asic_device::dve_unit_map(address_map &map)
+{
+	//
+}
+
+void solo_asic_device::div_unit_map(address_map &map)
+{
+}
+
+void solo_asic_device::pot_unit_map(address_map &map)
+{
+	map(0x080, 0x083).rw(FUNC(solo_asic_device::reg_9080_r), FUNC(solo_asic_device::reg_9080_w)); // POT_VSTART
+	map(0x084, 0x087).rw(FUNC(solo_asic_device::reg_9084_r), FUNC(solo_asic_device::reg_9084_w)); // POT_VSIZE
+	map(0x088, 0x08b).rw(FUNC(solo_asic_device::reg_9088_r), FUNC(solo_asic_device::reg_9088_w)); // POT_BLNKCOL
+	map(0x08c, 0x08f).rw(FUNC(solo_asic_device::reg_908c_r), FUNC(solo_asic_device::reg_908c_w)); // POT_HSTART
+	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_9090_r), FUNC(solo_asic_device::reg_9090_w)); // POT_HSIZE
+	map(0x094, 0x097).rw(FUNC(solo_asic_device::reg_9094_r), FUNC(solo_asic_device::reg_9094_w)); // POT_CNTL
+	map(0x098, 0x09b).rw(FUNC(solo_asic_device::reg_9098_r), FUNC(solo_asic_device::reg_9098_w)); // POT_HINTLINE
+	map(0x09c, 0x09f).rw(FUNC(solo_asic_device::reg_909c_r), FUNC(solo_asic_device::reg_909c_w)); // POT_INTEN_S
+	map(0x0a4, 0x0a7).w(FUNC(solo_asic_device::reg_90a4_w));                                      // POT_INTEN_C
+	map(0x0a0, 0x0a3).r(FUNC(solo_asic_device::reg_90a0_r));                                      // POT_INTSTAT
+	map(0x0a8, 0x0ab).w(FUNC(solo_asic_device::reg_90a8_w));                                      // POT_INTSTAT_C
+	map(0x0ac, 0x0af).r(FUNC(solo_asic_device::reg_90ac_r));                                      // POT_CLINE
+}
+
+void solo_asic_device::suc_unit_map(address_map &map)
+{
+	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_a000_r), FUNC(solo_asic_device::reg_a000_w)); // SUCGPU_TFFHR
+	map(0x00c, 0x00f).r(FUNC(solo_asic_device::reg_a00c_r));                                      // SUCGPU_TFFCNT
+	map(0x010, 0x013).r(FUNC(solo_asic_device::reg_a010_r));                                      // SUCGPU_TFFMAX
+}
+
+void solo_asic_device::mod_unit_map(address_map &map)
+{
+}
+
 void solo_asic_device::device_add_mconfig(machine_config &config)
 {
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
 	m_screen->set_screen_update(FUNC(solo_asic_device::screen_update));
 	m_screen->screen_vblank().set(FUNC(solo_asic_device::vblank_irq));
-	m_screen->set_raw(VID_DEFAULT_XTAL, VID_DEFAULT_HTOTAL, 0, VID_DEFAULT_HBSTART, VID_DEFAULT_VTOTAL, 0, VID_DEFAULT_VBSTART);
+	m_screen->set_raw(POT_DEFAULT_XTAL, POT_DEFAULT_HTOTAL, 0, POT_DEFAULT_HBSTART, POT_DEFAULT_VTOTAL, 0, POT_DEFAULT_VBSTART);
 
 	SPEAKER(config, m_lspeaker).front_left();
 	SPEAKER(config, m_rspeaker).front_right();
@@ -235,6 +271,7 @@ void solo_asic_device::device_start()
 
 	solo_asic_device::device_reset();
 
+	save_item(NAME(m_tcompare));
 	save_item(NAME(m_intenable));
 	save_item(NAME(m_intstat));
 	save_item(NAME(m_errenable));
@@ -244,23 +281,26 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_vid_nstart));
 	save_item(NAME(m_vid_nsize));
 	save_item(NAME(m_vid_dmacntl));
-	save_item(NAME(m_vid_hstart));
-	save_item(NAME(m_vid_hsize));
-	save_item(NAME(m_vid_vstart));
-	save_item(NAME(m_vid_vsize));
-	save_item(NAME(m_vid_fcntl));
-	save_item(NAME(m_vid_blank_color));
-	save_item(NAME(m_vid_hintline));
 	save_item(NAME(m_vid_cstart));
 	save_item(NAME(m_vid_csize));
 	save_item(NAME(m_vid_ccnt));
 	save_item(NAME(m_vid_cline));
+	save_item(NAME(m_vid_vdata));
+	
+	save_item(NAME(m_pot_vstart));
+	save_item(NAME(m_pot_vsize));
+	save_item(NAME(m_pot_blank_color));
+	save_item(NAME(m_pot_hstart));
+	save_item(NAME(m_pot_hsize));
+	save_item(NAME(m_pot_cntl));
+	save_item(NAME(m_pot_hintline));
+
 	save_item(NAME(m_vid_draw_nstart));
-	save_item(NAME(m_vid_draw_hstart));
-	save_item(NAME(m_vid_draw_hsize));
-	save_item(NAME(m_vid_draw_vstart));
-	save_item(NAME(m_vid_draw_vsize));
-	save_item(NAME(m_vid_draw_blank_color));
+	save_item(NAME(m_pot_draw_hstart));
+	save_item(NAME(m_pot_draw_hsize));
+	save_item(NAME(m_pot_draw_vstart));
+	save_item(NAME(m_pot_draw_vsize));
+	save_item(NAME(m_pot_draw_blank_color));
 
 	save_item(NAME(m_aud_cstart));
 	save_item(NAME(m_aud_csize));
@@ -302,28 +342,31 @@ void solo_asic_device::device_reset()
 	m_fence1_mask = 0x0;
 	m_fence2_addr = 0x0;
 	m_fence2_mask = 0x0;
+	m_tcompare = 0x0;
 
 	m_vid_nstart = 0x0;
 	m_vid_nsize = 0x0;
 	m_vid_dmacntl = 0x0;
-	m_vid_hstart = VID_HSTART_OFFSET + VID_DEFAULT_HSTART;
-	m_vid_hsize = VID_DEFAULT_HSIZE;
-	m_vid_vstart = VID_DEFAULT_VSTART;
-	m_vid_vsize = VID_DEFAULT_VSIZE;
-	m_vid_fcntl = 0x0;
-	m_vid_blank_color = VID_DEFAULT_COLOR;
-	m_vid_hintline = 0x0;
 	m_vid_cstart = 0x0;
 	m_vid_csize = 0x0;
 	m_vid_ccnt = 0x0;
 	m_vid_cline = 0x0;
+	m_vid_vdata = 0x0;
 
+	m_pot_vstart = POT_DEFAULT_VSTART;
+	m_pot_vsize = POT_DEFAULT_VSIZE;
+	m_pot_blank_color = POT_DEFAULT_COLOR;
+	m_pot_hstart = POT_HSTART_OFFSET + POT_DEFAULT_HSTART;
+	m_pot_hsize = POT_DEFAULT_HSIZE;
+	m_pot_cntl = 0x0;
+	m_pot_hintline = 0x0;
+	
 	m_vid_draw_nstart = 0x0;
-	m_vid_draw_hstart = VID_HSTART_OFFSET;
-	m_vid_draw_hsize = m_vid_hsize;
-	m_vid_draw_vstart = m_vid_vstart;
-	m_vid_draw_vsize = m_vid_vsize;
-	m_vid_draw_blank_color = m_vid_blank_color;
+	m_pot_draw_hstart = POT_HSTART_OFFSET;
+	m_pot_draw_hsize = m_pot_hsize;
+	m_pot_draw_vstart = m_pot_vstart;
+	m_pot_draw_vsize = m_pot_vsize;
+	m_pot_draw_blank_color = m_pot_blank_color;
 
 	m_aud_cstart = 0x0;
 	m_aud_csize = 0x0;
@@ -366,36 +409,36 @@ void solo_asic_device::device_stop()
 void solo_asic_device::validate_active_area()
 {
 	// The active h size can't be larger than the screen width or smaller than 2 pixels.
-	m_vid_draw_hsize = std::clamp(m_vid_hsize, (uint32_t)0x2, (uint32_t)m_screen->width());
+	m_pot_draw_hsize = std::clamp(m_pot_hsize, (uint32_t)0x2, (uint32_t)m_screen->width());
 	// The active v size can't be larger than the screen height or smaller than 2 pixels.
-	m_vid_draw_vsize = std::clamp(m_vid_vsize, (uint32_t)0x2, (uint32_t)m_screen->height());
+	m_pot_draw_vsize = std::clamp(m_pot_vsize, (uint32_t)0x2, (uint32_t)m_screen->height());
 
 	// The active h start can't be smaller than 2
-	m_vid_draw_hstart = std::max(m_vid_hstart - VID_HSTART_OFFSET, (uint32_t)0x2);
+	m_pot_draw_hstart = std::max(m_pot_hstart - POT_HSTART_OFFSET, (uint32_t)0x2);
 	// The active v start can't be smaller than 2
-	m_vid_draw_vstart = std::max(m_vid_vstart, (uint32_t)0x2);
+	m_pot_draw_vstart = std::max(m_pot_vstart, (uint32_t)0x2);
 
 	// The active h start can't push the active area off the screen.
-	if ((m_vid_draw_hstart + m_vid_draw_hsize) > m_screen->width())
-		m_vid_draw_hstart = (m_screen->width() - m_vid_draw_hsize); // to screen edge
-	else if (m_vid_draw_hstart < 0)
-		m_vid_draw_hstart = 0;
+	if ((m_pot_draw_hstart + m_pot_draw_hsize) > m_screen->width())
+		m_pot_draw_hstart = (m_screen->width() - m_pot_draw_hsize); // to screen edge
+	else if (m_pot_draw_hstart < 0)
+		m_pot_draw_hstart = 0;
 
 	// The active v start can't push the active area off the screen.
-	if ((m_vid_draw_vstart + m_vid_draw_vsize) > m_screen->height())
-		m_vid_draw_vstart = (m_screen->height() - m_vid_draw_vsize); // to screen edge
-	else if (m_vid_draw_vstart < 0)
-		m_vid_draw_vstart = 0;
+	if ((m_pot_draw_vstart + m_pot_draw_vsize) > m_screen->height())
+		m_pot_draw_vstart = (m_screen->height() - m_pot_draw_vsize); // to screen edge
+	else if (m_pot_draw_vstart < 0)
+		m_pot_draw_vstart = 0;
 
 	solo_asic_device::pixel_buffer_index_update();
 }
 
 void solo_asic_device::pixel_buffer_index_update()
 {
-	uint32_t screen_lines = m_vid_draw_vsize;
+	uint32_t screen_lines = m_pot_draw_vsize;
 	uint32_t screen_buffer_size = m_vid_nsize;
 
-	if (m_vid_fcntl & VID_FCNTL_INTERLACE)
+	if (!(m_pot_cntl & POT_FCNTL_PROGRESSIVE))
 	{
 		// Interlace mode splits the buffer into two halfs. We can capture both halfs if we double the line count.
 		screen_buffer_size = (screen_buffer_size * 2);
@@ -407,13 +450,13 @@ void solo_asic_device::pixel_buffer_index_update()
 	if (m_emu_config->read() & EMUCONFIG_PBUFF1)
 	{
 		m_vid_draw_nstart += screen_buffer_size;
-		m_vid_draw_nstart -= (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_draw_vsize = screen_lines;
+		m_vid_draw_nstart -= (m_pot_draw_hsize * VID_BYTES_PER_PIXEL);
+		m_pot_draw_vsize = screen_lines;
 	}
 	else
 	{
-		m_vid_draw_nstart += 2 * (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_draw_vsize = screen_lines - 3;
+		m_vid_draw_nstart += 2 * (m_pot_draw_hsize * VID_BYTES_PER_PIXEL);
+		m_pot_draw_vsize = screen_lines - 3;
 	}
 }
 
@@ -624,6 +667,25 @@ void solo_asic_device::reg_0028_w(uint32_t data)
 	m_fence2_mask = data;
 }
 
+uint32_t solo_asic_device::reg_0048_r()
+{
+	return m_hostcpu->total_cycles();
+}
+
+void solo_asic_device::reg_0048_w(uint32_t data)
+{
+}
+
+uint32_t solo_asic_device::reg_004c_r()
+{
+	return m_tcompare;
+}
+
+void solo_asic_device::reg_004c_w(uint32_t data)
+{
+	m_tcompare = data;
+}
+
 uint32_t solo_asic_device::reg_1000_r()
 {
 	return m_sys_config->read();
@@ -787,104 +849,6 @@ void solo_asic_device::reg_3014_w(uint32_t data)
 	m_vid_dmacntl = data;
 }
 
-uint32_t solo_asic_device::reg_3018_r()
-{
-	return m_vid_fcntl;
-}
-
-void solo_asic_device::reg_3018_w(uint32_t data)
-{
-	m_vid_fcntl = data;
-}
-
-uint32_t solo_asic_device::reg_301c_r()
-{
-	return m_vid_blank_color;
-}
-
-void solo_asic_device::reg_301c_w(uint32_t data)
-{
-	m_vid_blank_color = data;
-
-	m_vid_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);	
-}
-
-uint32_t solo_asic_device::reg_3020_r()
-{
-	return m_vid_hstart;
-}
-
-void solo_asic_device::reg_3020_w(uint32_t data)
-{
-	bool has_changed = (m_vid_hstart != data);
-
-	m_vid_hstart = data;
-
-	if (has_changed)
-		solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_3024_r()
-{
-	return m_vid_hsize;
-}
-
-void solo_asic_device::reg_3024_w(uint32_t data)
-{
-	bool has_changed = (m_vid_hsize != data);
-
-	m_vid_hsize = data;
-
-	if (has_changed)
-		solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_3028_r()
-{
-	return m_vid_vstart;
-}
-
-void solo_asic_device::reg_3028_w(uint32_t data)
-{
-	bool has_changed = (m_vid_vstart != data);
-
-	m_vid_vstart = data;
-
-	if (has_changed)
-		solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_302c_r()
-{
-	return m_vid_vsize;
-}
-
-void solo_asic_device::reg_302c_w(uint32_t data)
-{
-	bool has_changed = (m_vid_vstart != data);
-
-	m_vid_vsize = data;
-
-	if (has_changed)
-		solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_3030_r()
-{
-	return m_vid_hintline;
-}
-
-void solo_asic_device::reg_3030_w(uint32_t data)
-{
-	m_vid_hintline = data;
-}
-
-uint32_t solo_asic_device::reg_3034_r()
-{
-	return m_screen->vpos();
-	//return (m_vid_cline++) & 0x1ffff;
-}
-
 uint32_t solo_asic_device::reg_3038_r()
 {
 	return m_vid_intstat;
@@ -908,6 +872,16 @@ void solo_asic_device::reg_303c_w(uint32_t data)
 void solo_asic_device::reg_313c_w(uint32_t data)
 {
 	 m_vid_intenable &= (~data) & 0xff;
+}
+
+uint32_t solo_asic_device::reg_3040_r()
+{
+	return m_vid_vdata;
+}
+
+void solo_asic_device::reg_3040_w(uint32_t data)
+{
+	m_vid_vdata = data;
 }
 
 // Read IR receiver chip
@@ -1126,6 +1100,155 @@ void solo_asic_device::reg_5010_w(uint32_t data)
 	m_memtiming = data;
 }
 
+uint32_t solo_asic_device::reg_9080_r()
+{
+	return m_pot_vstart;
+}
+
+void solo_asic_device::reg_9080_w(uint32_t data)
+{
+	bool has_changed = (m_pot_vstart != data);
+
+	m_pot_vstart = data;
+
+	if (has_changed)
+			solo_asic_device::validate_active_area();
+}
+
+uint32_t solo_asic_device::reg_9084_r()
+{
+	return m_pot_vsize;
+}
+
+void solo_asic_device::reg_9084_w(uint32_t data)
+{
+	bool has_changed = (m_pot_vstart != data);
+
+	m_pot_vsize = data;
+
+	if (has_changed)
+			solo_asic_device::validate_active_area();
+}
+
+uint32_t solo_asic_device::reg_9088_r()
+{
+	return m_pot_blank_color;
+}
+
+void solo_asic_device::reg_9088_w(uint32_t data)
+{
+	m_pot_blank_color = data;
+
+	m_pot_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);     
+}
+
+uint32_t solo_asic_device::reg_908c_r()
+{
+	return m_pot_hstart;
+}
+
+void solo_asic_device::reg_908c_w(uint32_t data)
+{
+	bool has_changed = (m_pot_hstart != data);
+
+	m_pot_hstart = data;
+
+	if (has_changed)
+			solo_asic_device::validate_active_area();
+}
+
+uint32_t solo_asic_device::reg_9090_r()
+{
+	return m_pot_hsize;
+}
+
+void solo_asic_device::reg_9090_w(uint32_t data)
+{
+	bool has_changed = (m_pot_hsize != data);
+
+	m_pot_hsize = data;
+
+	if (has_changed)
+			solo_asic_device::validate_active_area();
+}
+
+uint32_t solo_asic_device::reg_9094_r()
+{
+	return m_pot_cntl;
+}
+
+void solo_asic_device::reg_9094_w(uint32_t data)
+{
+	m_pot_cntl = data;
+}
+
+uint32_t solo_asic_device::reg_9098_r()
+{
+	return m_pot_hintline;
+}
+
+void solo_asic_device::reg_9098_w(uint32_t data)
+{
+	m_pot_hintline = data;
+}
+
+// _vid_ int variables are being used because everything fires as Vvid interrupts right now (code was copied from SPOT)
+
+uint32_t solo_asic_device::reg_909c_r()
+{
+	return m_vid_intenable;
+	//return m_pot_intenable;
+}
+
+void solo_asic_device::reg_909c_w(uint32_t data)
+{
+	m_vid_intenable |= (data & 0xff);
+	//m_pot_intenable |= (data & 0xff);
+}
+
+void solo_asic_device::reg_90a4_w(uint32_t data)
+{
+	m_vid_intenable &= (~data) & 0xff;
+	//m_pot_intenable &= (~data) & 0xff;
+}
+
+uint32_t solo_asic_device::reg_90a0_r()
+{
+	return m_vid_intstat;
+	//return m_pot_intstat;
+}
+
+void solo_asic_device::reg_90a8_w(uint32_t data)
+{
+	m_vid_intstat &= (~data) & 0xff;
+	//m_pot_intstat &= (~data) & 0xff;
+}
+
+uint32_t solo_asic_device::reg_90ac_r()
+{
+	return m_screen->vpos();
+}
+
+uint32_t solo_asic_device::reg_a000_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_a000_w(uint32_t data)
+{
+	osd_printf_verbose("%c", (data & 0xff));
+}
+
+uint32_t solo_asic_device::reg_a00c_r()
+{
+	return 0x00000000;
+}
+
+uint32_t solo_asic_device::reg_a010_r()
+{
+	return 0x00000001;
+}
+
 TIMER_CALLBACK_MEMBER(solo_asic_device::dac_update)
 {
 	if (m_aud_dmacntl & AUD_DMACNTL_DMAEN)
@@ -1263,30 +1386,30 @@ uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 		m_vid_cline = y;
 
-		if (m_vid_cline == m_vid_hintline)
+		if (m_vid_cline == m_pot_hintline)
 			solo_asic_device::set_vid_irq(VID_INT_HSYNC, 1);
 
 		for (int x = 0; x < screen_width; x += 2)
 		{
-			uint32_t pixel = VID_DEFAULT_COLOR;
+			uint32_t pixel = POT_DEFAULT_COLOR;
 
 			bool is_active_area = (
-				y >= m_vid_draw_vstart
-				&& y < (m_vid_draw_vstart + m_vid_draw_vsize)
+				y >= m_pot_draw_vstart
+				&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
 
-				&& x >= m_vid_draw_hstart
-				&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
+				&& x >= m_pot_draw_hstart
+				&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
 			);
 
-			if (m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
+			if (m_pot_cntl & POT_FCNTL_EN && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
 			{
 				pixel = space.read_dword(m_vid_ccnt);
 
 				m_vid_ccnt += vid_step;
 			}
-			else if (m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
+			else
 			{
-				pixel = m_vid_draw_blank_color;
+				pixel = m_pot_draw_blank_color;
 			}
 
 			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
