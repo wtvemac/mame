@@ -1714,7 +1714,7 @@ inline bool r4640_device::RBYTE(offs_t address, uint32_t *result)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = (*m_memory.read_byte)(*m_program, address);
+		*result = m_program->read_dword(address);
 		return true;
 	}
 
@@ -1724,7 +1724,7 @@ inline bool r4640_device::RBYTE(offs_t address, uint32_t *result)
 		*result = 0;
 		return false;
 	}
-	*result = (*m_memory.read_byte)(*m_program, address + m_core->cpr[0][COP0_R4640_DBase]);
+	*result = m_program->read_dword(address + m_core->cpr[0][COP0_R4640_DBase]);
 	return true;
 }
 
@@ -1732,7 +1732,7 @@ inline bool r4640_device::RHALF(offs_t address, uint32_t *result)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = (*m_memory.read_word)(*m_program, address);
+		*result = m_program->read_word(address);
 		return true;
 	}
 
@@ -1742,7 +1742,7 @@ inline bool r4640_device::RHALF(offs_t address, uint32_t *result)
 		*result = 0;
 		return false;
 	}
-	*result = (*m_memory.read_word)(*m_program, address + m_core->cpr[0][COP0_R4640_DBase]);
+	*result = m_program->read_word(address + m_core->cpr[0][COP0_R4640_DBase]);
 	return true;
 }
 
@@ -1750,7 +1750,7 @@ inline bool r4640_device::RWORD(offs_t address, uint32_t *result, bool insn)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = (*m_memory.read_dword)(*m_program, address);
+		*result = m_program->read_word(address);
 		return true;
 	}
 
@@ -1764,7 +1764,7 @@ inline bool r4640_device::RWORD(offs_t address, uint32_t *result, bool insn)
 		*result = 0;
 		return false;
 	}
-	*result = (*m_memory.read_dword)(*m_program, address + base);
+	*result = m_program->read_word(address + base);
 	return true;
 }
 
@@ -1772,7 +1772,7 @@ inline bool r4640_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = (*m_memory.read_dword_masked)(*m_program, address, mem_mask);
+		*result = m_program->read_dword(address, mem_mask);
 		return true;
 	}
 
@@ -1782,7 +1782,7 @@ inline bool r4640_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_
 		*result = 0;
 		return false;
 	}
-	*result = (*m_memory.read_dword_masked)(*m_program, address + m_core->cpr[0][COP0_R4640_DBase], mem_mask);
+	*result = m_program->read_dword(address + m_core->cpr[0][COP0_R4640_DBase], mem_mask);
 	return true;
 }
 
@@ -1790,7 +1790,7 @@ inline bool r4640_device::RDOUBLE(offs_t address, uint64_t *result)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = (*m_memory.read_qword)(*m_program, address);
+		*result = m_program->read_qword(address);
 		return true;
 	}
 
@@ -1800,7 +1800,7 @@ inline bool r4640_device::RDOUBLE(offs_t address, uint64_t *result)
 		*result = 0;
 		return false;
 	}
-	*result = (*m_memory.read_qword)(*m_program, address + m_core->cpr[0][COP0_R4640_DBase]);
+	*result = m_program->read_qword(address + m_core->cpr[0][COP0_R4640_DBase]);
 	return true;
 }
 
@@ -1808,7 +1808,7 @@ inline bool r4640_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint6
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = (*m_memory.read_qword_masked)(*m_program, address, mem_mask);
+		*result = m_program->read_qword(address, mem_mask);
 		return true;
 	}
 
@@ -1818,68 +1818,68 @@ inline bool r4640_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint6
 		*result = 0;
 		return false;
 	}
-	*result = (*m_memory.read_qword_masked)(*m_program, address + m_core->cpr[0][COP0_R4640_DBase], mem_mask);
+	*result = m_program->read_qword(address + m_core->cpr[0][COP0_R4640_DBase], mem_mask);
 	return true;
 }
 
 inline void r4640_device::WBYTE(offs_t address, uint8_t data)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
-		(*m_memory.write_byte)(*m_program, address, data);
+		m_program->write_byte(address, data);
 	else if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4640_DBound])
 		generate_tlb_exception(EXCEPTION_ADDRSTORE, address);
 	else
-		(*m_memory.write_byte)(*m_program, address + m_core->cpr[0][COP0_R4640_DBound], data);
+		m_program->write_byte(address + m_core->cpr[0][COP0_R4640_DBound], data);
 }
 
 inline void r4640_device::WHALF(offs_t address, uint16_t data)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
-		(*m_memory.write_word)(*m_program, address, data);
+		m_program->write_word(address, data);
 	else if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4640_DBound])
 		generate_tlb_exception(EXCEPTION_ADDRSTORE, address);
 	else
-		(*m_memory.write_word)(*m_program, address + m_core->cpr[0][COP0_R4640_DBound], data);
+		m_program->write_word(address + m_core->cpr[0][COP0_R4640_DBound], data);
 }
 
 inline void r4640_device::WWORD(offs_t address, uint32_t data)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
-		(*m_memory.write_dword)(*m_program, address, data);
+		m_program->write_dword(address, data);
 	else if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4640_DBound])
 		generate_tlb_exception(EXCEPTION_ADDRSTORE, address);
 	else
-		(*m_memory.write_dword)(*m_program, address + m_core->cpr[0][COP0_R4640_DBound], data);
+		m_program->write_dword(address + m_core->cpr[0][COP0_R4640_DBound], data);
 }
 
 inline void r4640_device::WWORD_MASKED(offs_t address, uint32_t data, uint32_t mem_mask)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
-		(*m_memory.write_dword_masked)(*m_program, address, data, mem_mask);
+		m_program->write_dword(address, data, mem_mask);
 	else if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4640_DBound])
 		generate_tlb_exception(EXCEPTION_ADDRSTORE, address);
 	else
-		(*m_memory.write_dword_masked)(*m_program, address + m_core->cpr[0][COP0_R4640_DBound], data, mem_mask);
+		m_program->write_dword(address + m_core->cpr[0][COP0_R4640_DBound], data, mem_mask);
 }
 
 inline void r4640_device::WDOUBLE(offs_t address, uint64_t data)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
-		(*m_memory.write_qword)(*m_program, address, data);
+		m_program->write_qword(address, data);
 	else if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4640_DBound])
 		generate_tlb_exception(EXCEPTION_ADDRSTORE, address);
 	else
-		(*m_memory.write_qword)(*m_program, address + m_core->cpr[0][COP0_R4640_DBound], data);
+		m_program->write_qword(address + m_core->cpr[0][COP0_R4640_DBound], data);
 }
 
 inline void r4640_device::WDOUBLE_MASKED(offs_t address, uint64_t data, uint64_t mem_mask)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
-		(*m_memory.write_qword_masked)(*m_program, address, data, mem_mask);
+		m_program->write_qword(address, data, mem_mask);
 	else if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4640_DBound])
 		generate_tlb_exception(EXCEPTION_ADDRSTORE, address);
 	else
-		(*m_memory.write_qword_masked)(*m_program, address + m_core->cpr[0][COP0_R4640_DBound], data, mem_mask);
+		m_program->write_qword(address + m_core->cpr[0][COP0_R4640_DBound], data, mem_mask);
 }
 
 inline void r5900_device::WBYTE(offs_t address, uint8_t data)
