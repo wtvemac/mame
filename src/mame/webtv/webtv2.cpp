@@ -202,6 +202,7 @@ void webtv2_state::webtv2_base_map(address_map &map)
 	map(0x0400b000, 0x0400bfff).m(m_soloasic, FUNC(solo_asic_device::mod_unit_map));
 
 	// Reserved (0x04800000-0x1f7fffff)
+	map(0x1e000000, 0x1e00001f).m(m_soloasic, FUNC(solo_asic_device::hardware_modem_map));
 }
 
 void webtv2_state::webtv2_base(machine_config &config)

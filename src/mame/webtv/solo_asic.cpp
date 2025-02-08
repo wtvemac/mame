@@ -218,6 +218,18 @@ void solo_asic_device::mod_unit_map(address_map &map)
 {
 }
 
+void solo_asic_device::hardware_modem_map(address_map &map)
+{
+	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_modem_0000_r), FUNC(solo_asic_device::reg_modem_0000_w)); // Modem I/O port base   (RBR/THR/DLL)
+	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_modem_0004_r), FUNC(solo_asic_device::reg_modem_0004_w)); // Modem I/O port base+1 (IER/DLM)
+	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_modem_0008_r), FUNC(solo_asic_device::reg_modem_0008_w)); // Modem I/O port base+2 (IIR/FCR)
+	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_modem_000c_r), FUNC(solo_asic_device::reg_modem_000c_w)); // Modem I/O port base+3 (LCR)
+	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_modem_0010_r), FUNC(solo_asic_device::reg_modem_0010_w)); // Modem I/O port base+4 (MCR)
+	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_modem_0014_r), FUNC(solo_asic_device::reg_modem_0014_w)); // Modem I/O port base+5 (LSR)
+	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_modem_0018_r), FUNC(solo_asic_device::reg_modem_0018_w)); // Modem I/O port base+6 (MSR)
+	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_modem_001c_r), FUNC(solo_asic_device::reg_modem_001c_w)); // Modem I/O port base+7 (SCR)
+}
+
 void solo_asic_device::device_add_mconfig(machine_config &config)
 {
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
@@ -1247,6 +1259,95 @@ uint32_t solo_asic_device::reg_a00c_r()
 uint32_t solo_asic_device::reg_a010_r()
 {
 	return 0x00000001;
+}
+
+uint32_t solo_asic_device::reg_modem_0000_r()
+{
+	return m_modem_uart->ins8250_r(0x0);
+}
+
+void solo_asic_device::reg_modem_0000_w(uint32_t data)
+{
+	if (modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	{
+			m_modem_uart->ins8250_w(0x0, data & 0xff);
+	}
+	else
+	{
+			modem_txbuff[modem_txbuff_size++ & (MBUFF_MAX_SIZE - 1)] = data & 0xff;
+
+			modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
+	}
+}
+
+uint32_t solo_asic_device::reg_modem_0004_r()
+{
+	return m_modem_uart->ins8250_r(0x1);
+}
+
+void solo_asic_device::reg_modem_0004_w(uint32_t data)
+{
+	m_modem_uart->ins8250_w(0x1, data & 0xff);
+}
+
+uint32_t solo_asic_device::reg_modem_0008_r()
+{
+	return m_modem_uart->ins8250_r(0x2);
+}
+
+void solo_asic_device::reg_modem_0008_w(uint32_t data)
+{
+	m_modem_uart->ins8250_w(0x2, data & 0xff);
+}
+
+uint32_t solo_asic_device::reg_modem_000c_r()
+{
+	return m_modem_uart->ins8250_r(0x3);
+}
+
+void solo_asic_device::reg_modem_000c_w(uint32_t data)
+{
+	m_modem_uart->ins8250_w(0x3, data & 0xff);
+}
+
+uint32_t solo_asic_device::reg_modem_0010_r()
+{
+	return m_modem_uart->ins8250_r(0x4);
+}
+
+void solo_asic_device::reg_modem_0010_w(uint32_t data)
+{
+	m_modem_uart->ins8250_w(0x4, data & 0xff);
+}
+
+uint32_t solo_asic_device::reg_modem_0014_r()
+{
+	return m_modem_uart->ins8250_r(0x5);
+}
+
+void solo_asic_device::reg_modem_0014_w(uint32_t data)
+{
+	m_modem_uart->ins8250_w(0x5, data & 0xff);
+}
+
+uint32_t solo_asic_device::reg_modem_0018_r()
+{
+	return m_modem_uart->ins8250_r(0x6);
+}
+
+void solo_asic_device::reg_modem_0018_w(uint32_t data)
+{
+	m_modem_uart->ins8250_w(0x6, data & 0xff);
+}
+
+uint32_t solo_asic_device::reg_modem_001c_r()
+{
+	return m_modem_uart->ins8250_r(0x7);
+}
+
+void solo_asic_device::reg_modem_001c_w(uint32_t data)
+{
+	m_modem_uart->ins8250_w(0x7, data & 0xff);
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::dac_update)
