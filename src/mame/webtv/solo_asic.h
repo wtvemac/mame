@@ -191,6 +191,8 @@ public:
 	void suc_unit_map(address_map &map);
 	void mod_unit_map(address_map &map);
 
+	void hardware_modem_map(address_map &map);
+
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
@@ -481,6 +483,25 @@ private:
 	uint32_t reg_a010_r();          // SUCGPU_TFFMAX (read)
 
 	/* modUnit registers */
+
+	/* Hardware modem registers */
+	uint32_t reg_modem_0000_r();          // Modem I/O port base   (RBR/DLL read)
+	void reg_modem_0000_w(uint32_t data); // Modem I/O port base   (THR/DLL write)
+	uint32_t reg_modem_0004_r();          // Modem I/O port base+1 (IER/DLM read)
+	void reg_modem_0004_w(uint32_t data); // Modem I/O port base+1 (IER/DLM write)
+	uint32_t reg_modem_0008_r();          // Modem I/O port base+2 (IIR/FCR read)
+	void reg_modem_0008_w(uint32_t data); // Modem I/O port base+2 (IIR/FCR write)
+	uint32_t reg_modem_000c_r();          // Modem I/O port base+3 (LCR read)
+	void reg_modem_000c_w(uint32_t data); // Modem I/O port base+3 (LCR write)
+	uint32_t reg_modem_0010_r();          // Modem I/O port base+4 (MCR read)
+	void reg_modem_0010_w(uint32_t data); // Modem I/O port base+4 (MCR write)
+	uint32_t reg_modem_0014_r();          // Modem I/O port base+5 (LSR read)
+	void reg_modem_0014_w(uint32_t data); // Modem I/O port base+5 (LSR write)
+	uint32_t reg_modem_0018_r();          // Modem I/O port base+6 (MSR read)
+	void reg_modem_0018_w(uint32_t data); // Modem I/O port base+6 (MSR write)
+	uint32_t reg_modem_001c_r();          // Modem I/O port base+7 (SCR read)
+	void reg_modem_001c_w(uint32_t data); // Modem I/O port base+7 (SCR write)
+
 };
 
 DECLARE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device)
