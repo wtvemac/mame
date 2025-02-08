@@ -32,37 +32,25 @@
  * - Audio output
  * - Dummy emulation of tuner (required for booting Plus ROMs all the way)
  * 
- * NOTE: This driver is currently on hold in preparation of refactoring.
- * 
  ***************************************************************************************/
 
 #include "emu.h"
 
+#include "bus/pc_kbd/keyboards.h"
 #include "cpu/mips/mips3.h"
-#include "solo1_asic.h"
-#include "solo1_asic_vid.h"
-#include "bus/ata/ataintf.h"
-#include "bus/ata/hdd.h"
+#include "machine/ds2401.h"
+#include "machine/intelfsh.h"
+#include "solo_asic.h"
 
 #include "webtv.lh"
 
 #include "main.h"
 #include "screen.h"
 
-#define CPUCLOCK 167000000
-#define SYSCLOCK 83300000
-
-#define POT_INT_SHIFT     1 << 2 // SOLO1 never sets this bit
-#define POT_INT_VIDHSYNC  1 << 3 // Interrupt fires on hsync
-#define POT_INT_VIDVSYNCO 1 << 4 // Interrupt fires on odd field vsync
-#define POT_INT_VIDVSYNCE 1 << 5 // Interrupt fires on even field vsync
-
-#define BUS_VID_INTSTAT_POT 1 << 3 // Interrupt trigger in potUnit
-#define BUS_VID_INTSTAT_VID 1 << 2 // Interrupt trigger in vidUnit
-
-#define SOLO1_NTSC_CLOCK 3.579575_MHz_XTAL
-
-namespace {
+// The system clock is used to drive the SOLO ASIC, drive the CPU and is used to calculate the audio clock.
+constexpr XTAL     SYSCLOCK         = XTAL(87'183'360);
+constexpr uint16_t RAM_FLASHER_SIZE = 0x100;
+constexpr uint32_t MAX_RAM_SIZE     = 0x4000000;
 
 class webtv2_state : public driver_device
 {
@@ -72,15 +60,12 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_soloasic(*this, "solo"),
-    	m_solovid(*this, "solo_vid"),
-//    	m_soloaud(*this, "solo_aud"),
-//		m_ata0(*this, "ata"),
-		m_power_led(*this, "power_led"),
-		m_connect_led(*this, "connect_led"),
-		m_message_led(*this, "message_led")
+		m_serial_id(*this, "serial_id"),
+		m_nvram(*this, "nvram"),
+		m_flash0(*this, "bank0_flash0"), // labeled U0501, contains upper bits
+		m_flash1(*this, "bank0_flash1")  // labeled U0502, contains lower bits
 	{ }
 
-	void webtv2_base(machine_config& config);
 	void webtv2_sony(machine_config& config);
 	void webtv2_philips(machine_config& config);
 
@@ -88,147 +73,208 @@ protected:
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
-	void solo_hsync_callback(uint16_t data);
-	void solo_vsync_callback(uint16_t data);
-
 private:
 	required_device<mips3_device> m_maincpu;
-	required_device<solo1_asic_device> m_soloasic;
-	required_device<solo1_asic_vid_device> m_solovid;
-//	required_device<solo1_asic_aud_device> m_soloaud;
-//	required_device<ata_interface_device> m_ata0;
+	required_device<solo_asic_device> m_soloasic;
+	required_device<ds2401_device> m_serial_id;
+	required_device<i2cmem_device> m_nvram;
 
-	output_finder<1> m_power_led;
-	output_finder<1> m_connect_led;
-	output_finder<1> m_message_led;
+	required_device<intelfsh16_device> m_flash0;
+	required_device<intelfsh16_device> m_flash1;
 
-	enum
-	{
-		LED_POWER = 0x4,
-		LED_CONNECTED = 0x2,
-		LED_MESSAGE = 0x1
-	};
+	uint8_t ram_flasher[RAM_FLASHER_SIZE];
 
-	void led_w(uint32_t data);
-	uint32_t led_r();
-
-	void webtv2_map(address_map& map);
+	void webtv2_base_map(address_map &map);
+	void webtv2_base(machine_config& config);
+	void webtv2_ram_map(address_map &map, uint32_t ram_size);
+	void webtv2_retail_map(address_map &map);
+	
+	void bank0_flash_w(offs_t offset, uint32_t data);
+	uint32_t bank0_flash_r(offs_t offset);
+	uint8_t ram_flasher_r(offs_t offset);
+	void ram_flasher_w(offs_t offset, uint8_t data);
+	uint32_t status_r(offs_t offset);
+	void status_w(offs_t offset, uint32_t data);
 };
 
-void webtv2_state::led_w(uint32_t data)
+//
+// WebTV stores the approm across 2 flash chips. The approm firmware is upgradable over a network.
+//
+// There's two 16-bit flash chips striped across a 32-bit bus. The chip with the upper 16-bits is labeled U0501, and lower is U0502.
+//
+// WebTV supports flash configurations to allow 1MB (2 x 4Mbit chips), 2MB (2 x 8Mbit chips) and 4MB (2 x 16Mbit chips) approm images.
+// The 1MB flash configuration seems possible but it's unknown if it was used, 2MB flash configuration was released to the public
+// and it seemed a 4MB flash configuration was used for debug builds during approm development as well as for a prototype Japan box.
+//
+// 1MB:          AM29F400AT + AM29F400AT (citation needed)
+// Production:   AM29F800BT + AM29F800BT
+// 4MB debug/JP: MX29F1610  + MX29F1610  (citation needed)
+//
+// WebTV supported SO-44 flash chips:
+//
+// Fujitsu:
+//    MBM29F400B:  bottom bs, 5v 4Mbit  device id=0x22ab
+//    MBM29F400T:  top bs,    5v 4Mbit  device id=0x2223 (have MAME support)
+//    MBM29F800B:  bottom bs, 5v 8Mbit  device id=0x2258
+//    MBM29F800T:  top bs,    5v 8Mbit  device id=0x22d6
+//
+// AMD:
+//    AM29F400AB:  bottom bs, 5v 4Mbit  device id=0x22ab
+//    AM29F400AT:  top bs,    5v 4Mbit  device id=0x2223
+//    AM29F800BB:  bottom bs, 5v 8Mbit  device id=0x2258 (have MAME support)
+//    AM29F800BT:  top bs,    5v 8Mbit  device id=0x22d6
+//
+// Macronix:
+//    MX29F1610:   top bs,    5v 16Mbit device id=0x00f1 (have MAME support)
+//
+// bank0_flash0 = U0501
+// bank0_flash1 = U0502
+//
+// NOTE: if you dump these chips you may need to byte swap the output. The bus is big-endian.
+//
+void webtv2_state::bank0_flash_w(offs_t offset, uint32_t data)
 {
-	m_power_led[0] = BIT(~data, 2);
-	m_connect_led[0] = BIT(~data, 1);
-	m_message_led[0] = BIT(~data, 0);
+	//uint32_t actual_offset = offset & 0xfffff;
+	uint16_t upper_value = (data >> 16) & 0xffff;
+	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
+	m_flash0->write(offset, upper_value);
+
+	uint16_t lower_value = data & 0xffff;
+	//lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
+	m_flash1->write(offset, lower_value);
 }
 
-uint32_t webtv2_state::led_r()
+uint32_t webtv2_state::bank0_flash_r(offs_t offset)
 {
-    return 0;
+	//uint32_t actual_offset = offset & 0xfffff;
+	uint16_t upper_value = m_flash0->read(offset);
+	//upper_value = (upper_value << 8) | ((upper_value >> 8) & 0xff);
+	uint16_t lower_value = m_flash1->read(offset);
+	//lower_value = (lower_value << 8) | ((lower_value >> 8) & 0xff);
+	return (upper_value << 16) | (lower_value);
 }
 
-void webtv2_state::webtv2_map(address_map &map)
+// WebTV's firmware writes the flashing code to the lower 256 bytes of RAM
+// The flash ID instructions are written first, then the flash erase instructions then the flash program instructions.
+// Since everything is written to the same place, the drc cache becomes out of sync and just re-executes the ID instructions.
+// This allows us to capture when new code is written and then clear the drc cache.
+uint8_t webtv2_state::ram_flasher_r(offs_t offset)
+{
+	return ram_flasher[offset & (RAM_FLASHER_SIZE - 1)];
+}
+void webtv2_state::ram_flasher_w(offs_t offset, uint8_t data)
+{
+	if (offset == 0)
+		// New code is being written, clear drc cache.
+		m_maincpu->code_flush_cache();
+
+	ram_flasher[offset & (RAM_FLASHER_SIZE - 1)] = data;
+}
+
+// The flash programing code for the MX chips incorrectly bleeds over into the next memory region to read the status.
+// This will return the correct status so it can continue.
+uint32_t webtv2_state::status_r(offs_t offset)
+{
+	return 0x00800080;
+}
+void webtv2_state::status_w(offs_t offset, uint32_t data)
+{
+}
+
+void webtv2_state::webtv2_base_map(address_map &map)
 {
 	map.global_mask(0x1fffffff);
 
-	// RAM
-	map(0x00000000, 0x03ffffff).ram().share("mainram"); // TODO: allocating all 64MB is inaccurate to retail hardware!
+	// Expansion device #1 to #7 8MB each (0x00800000-0x03ffffff)
 
-	// SOLO
-	// busUnit: 0x04000000 - 0x04000fff
-	map(0x04000000, 0x04000fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_bus_r), FUNC(solo1_asic_device::reg_bus_w)); // busUnit
+	// WebTV Control Space (0x04000000-0x047fffff)
+	map(0x04000000, 0x04000fff).m(m_soloasic, FUNC(solo_asic_device::bus_unit_map));
+	map(0x04001000, 0x04001fff).m(m_soloasic, FUNC(solo_asic_device::rom_unit_map));
+	map(0x04002000, 0x04002fff).m(m_soloasic, FUNC(solo_asic_device::aud_unit_map));
+	map(0x04003000, 0x04003fff).m(m_soloasic, FUNC(solo_asic_device::vid_unit_map));
+	map(0x04004000, 0x04004fff).m(m_soloasic, FUNC(solo_asic_device::dev_unit_map));
+	map(0x04005000, 0x04005fff).m(m_soloasic, FUNC(solo_asic_device::mem_unit_map));
 
-	// rioUnit: 0x04001000 - 0x04001fff
-    //map(0x04001000, 0x04001fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_rio_r), FUNC(solo1_asic_device::reg_rio_w)); // rioUnit
-
-	// audUnit: 0x04002000 - 0x04002fff
-    //map(0x04002000, 0x04002fff).rw(m_soloaud, FUNC(solo1_asic_aud_device::reg_aud_r), FUNC(solo1_asic_aud_device::reg_aud_w)); // audUnit
-
-	// vidUnit: 0x04003000 - 0x04003fff
-    map(0x04003000, 0x04003fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_vid_r), FUNC(solo1_asic_vid_device::reg_vid_w)); // vidUnit
-
-	// devUnit: 0x04004000 - 0x04004fff
-    map(0x04004000, 0x04004003).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
-	map(0x04004004, 0x04004007).rw(FUNC(webtv2_state::led_r), FUNC(webtv2_state::led_w));
-	map(0x04004008, 0x04004fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_dev_r), FUNC(solo1_asic_device::reg_dev_w)); // devUnit
-
-	// memUnit: 0x04005000 - 0x04005fff
-    map(0x04005000, 0x04005fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_mem_r), FUNC(solo1_asic_device::reg_mem_w)); // memUnit
-
-	// gfxUnit: 0x04006000 - 0x04006fff
-    //map(0x04006000, 0x04006fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_gfx_r), FUNC(solo1_asic_vid_device::reg_gfx_w)); // gfxUnit
-
-	// dveUnit: 0x04007000 - 0x04007fff
-    map(0x04007000, 0x04007fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_dve_r), FUNC(solo1_asic_vid_device::reg_dve_w)); // dveUnit
-
-	// divUnit: 0x04008000 - 0x04008fff
-    //map(0x04008000, 0x04008fff).rw(m_soloasic, FUNC(solo1_asic_device::reg_div_r), FUNC(solo1_asic_device::reg_div_w)); // divUnit
-
-	// potUnit: 0x04009000 - 0x04009fff
-    map(0x04009000, 0x04009fff).rw(m_solovid, FUNC(solo1_asic_vid_device::reg_pot_r), FUNC(solo1_asic_vid_device::reg_pot_w)); // potUnit
-
-	// sucUnit: 0x0400a000 - 0x0400afff
-    //map(0x0400a000, 0x0400afff).rw(m_soloasic, FUNC(solo1_asic_device::reg_suc_r), FUNC(solo1_asic_device::reg_suc_w)); // sucUnit
-
-	// modUnit: 0x0400b000 - 0x0400bfff
-    //map(0x0400b000, 0x0400bfff).rw(m_soloaud, FUNC(solo1_asic_aud_device::reg_mod_r), FUNC(solo1_asic_aud_device::reg_mod_w)); // modUnit
-
-	// expansion device areas
-	//map(0x04800000, 0x04ffffff).ram().share("exp1");
-	//map(0x05000000, 0x057fffff).ram().share("exp2");
-	//map(0x05800000, 0x05ffffff).ram().share("exp3");
-	//map(0x06000000, 0x067fffff).ram().share("exp4");
-	//map(0x06800000, 0x06ffffff).ram().share("exp5");
-	//map(0x07000000, 0x077fffff).ram().share("exp6");
-	//map(0x07800000, 0x07ffffff).ram().share("exp7");
-	
-	// 0x1d000000 - 0x1d3fffff: secondary device 4 (unassigned)
-	// 0x1d400000 - 0x1d7fffff: secondary device 5 (IDE CD-ROM)
-	// 0x1d800000 - 0x1dbfffff: secondary device 6 (IDE CD-ROM)
-	// 0x1dc00000 - 0x1dffffff: secondary device 7 (unassigned)
-
-	// 0x1e000000 - 0x1e3fffff: primary device 0 (modem/ethernet)
-	// 0x1e400000 - 0x1e7fffff: primary device 1 (IDE hard disk)
-	// 0x1e800000 - 0x1ebfffff: primary device 2 (IDE hard disk)
-	// 0x1ec00000 - 0x1effffff: primary device 3 (unassigned)
-
-	map(0x1f000000, 0x1f7fffff).rom().region("bank0", 0); // Flash ROM
-	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0); // Mask ROM
+	// Reserved (0x04800000-0x1f7fffff)
 }
 
-void webtv2_state::webtv2_base(machine_config& config)
+void webtv2_state::webtv2_base(machine_config &config)
 {
 	config.set_default_layout(layout_webtv);
 
-	R4640BE(config, m_maincpu, CPUCLOCK);
-	m_maincpu->set_icache_size(8192);
-	m_maincpu->set_dcache_size(8192);
-	m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::webtv2_map);
+	R4640BE(config, m_maincpu, SYSCLOCK*2);
+	m_maincpu->set_icache_size(0x2000);
+	m_maincpu->set_dcache_size(0x2000);
 
-	SOLO1_ASIC(config, m_soloasic, SYSCLOCK);
+	DS2401(config, m_serial_id, 0);
+
+	I2C_24C01(config, m_nvram, 0);
+
+	SOLO_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
-	
-    SOLO1_ASIC_VID(config, m_solovid, 0); // clock freq will be set internally during screen initialization
-	m_solovid->set_hostcpu(m_maincpu);
-	m_solovid->hsync_callback().set(FUNC(webtv2_state::solo_hsync_callback));
-	m_solovid->vsync_callback().set(FUNC(webtv2_state::solo_vsync_callback));
+	m_soloasic->set_serial_id(m_serial_id);
+	m_soloasic->set_nvram(m_nvram);
+}
+
+void webtv2_state::webtv2_ram_map(address_map &map, uint32_t ram_size)
+{
+	ram_size = std::min(ram_size, MAX_RAM_SIZE);
+
+	if ((MAX_RAM_SIZE - ram_size) > ram_size)
+		map(0x00000000, (ram_size - 1)).ram().mirror(MAX_RAM_SIZE - ram_size).share("ram");
+	else
+		map(0x00000000, (ram_size - 1)).ram().share("ram");
+
+	// The RAM flash code gets mirrored across the entire RAM region.
+	for (uint32_t ram_flasher_base = 0x00000000; ram_flasher_base < MAX_RAM_SIZE; ram_flasher_base += ram_size)
+		map(ram_flasher_base, ram_flasher_base + (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv2_state::ram_flasher_r), FUNC(webtv2_state::ram_flasher_w));
+}
+
+void webtv2_state::webtv2_retail_map(address_map &map)
+{
+	webtv2_state::webtv2_base_map(map);
+
+	// 2MB RAM
+	webtv2_state::webtv2_ram_map(map, 0x800000);
+
+	// ROML Bank 0 (0x1f000000-0x1f3fffff)
+	map(0x1f000000, 0x1f3fffff).rw(FUNC(webtv2_state::bank0_flash_r), FUNC(webtv2_state::bank0_flash_w)).share("bank0");
+
+	// Diagnostic Space (0xf400000-0x1f7fffff)
+
+	// ROMU Bank 1 (0x1f800000-0x1fffffff)
+	map(0x1f800000, 0x1fdfffff).rom().region("bank1", 0);
+
+	// Reserved (0x20000000-0xffffffff)
 }
 
 void webtv2_state::webtv2_sony(machine_config& config)
 {
-	webtv2_base(config);
-	// TODO: differentiate manufacturers via emulated serial id
+	// manufacturer is determined by the contents of DS2401
+	webtv2_state::webtv2_base(config);
+
+	// 2MB bf0app Approm
+	MACRONIX_29F1610_16BIT(config, m_flash0, 0);
+	MACRONIX_29F1610_16BIT(config, m_flash1, 0);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::webtv2_retail_map);
 }
 
 void webtv2_state::webtv2_philips(machine_config& config)
 {
-	webtv2_base(config);
-	// TODO: differentiate manufacturers via emulated serial id
+	// manufacturer is determined by the contents of DS2401
+	webtv2_state::webtv2_base(config);
+
+	// 2MB bf0app Approm
+	MACRONIX_29F1610_16BIT(config, m_flash0, 0);
+	MACRONIX_29F1610_16BIT(config, m_flash1, 0);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::webtv2_retail_map);
 }
 
 void webtv2_state::machine_start()
 {
-
+	popmessage("WebTV starts with the display off. Press F1 to power on.\n");
 }
 
 void webtv2_state::machine_reset()
@@ -236,73 +282,139 @@ void webtv2_state::machine_reset()
 
 }
 
+// This is emulator-specific config options that go beyond sysconfig offers.
+static INPUT_PORTS_START( emu_config )
+	PORT_START("emu_config")
 
-void webtv2_state::solo_hsync_callback(uint16_t data)
-{
-	if(data==0) return;
-    if(m_solovid->m_pot_int_enable&POT_INT_VIDHSYNC)
-    {
-        m_solovid->m_pot_int_status |= POT_INT_VIDHSYNC;
-        m_soloasic->set_vid_int_flag(BUS_VID_INTSTAT_POT);
-        m_maincpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
-    }
-}
+	PORT_CONFNAME(0x03, 0x00, "Pixel buffer index")
+	PORT_CONFSETTING(0x00, "Use pixel buffer 0")
+	PORT_CONFSETTING(0x01, "Use pixel buffer 1")
 
-void webtv2_state::solo_vsync_callback(uint16_t data)
-{
-	if(data==0) return;
-    if(m_solovid->is_even_field())
-    {
-        // even
-        if(m_solovid->m_pot_int_enable&POT_INT_VIDVSYNCE)
-        {
-            m_solovid->m_pot_int_status |= POT_INT_VIDVSYNCE;
-            m_soloasic->set_vid_int_flag(BUS_VID_INTSTAT_POT);
-            m_maincpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
-        }
-    }
-    else
-    {
-        // odd
-        if(m_solovid->m_pot_int_enable&POT_INT_VIDVSYNCO)
-        {
-            m_solovid->m_pot_int_status |= POT_INT_VIDVSYNCO;
-            m_soloasic->set_vid_int_flag(BUS_VID_INTSTAT_POT);
-            m_maincpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
-        }
-    }
-}
+INPUT_PORTS_END
+
+////////////////////////////////////////////
+////////////////////////////////////////////
+////////////////////////////////////////////
+
+
+static INPUT_PORTS_START( retail_sys_config )
+	PORT_START("sys_config")
+
+	PORT_DIPNAME(0x03, 0x00, "Unknown")
+	PORT_DIPSETTING(0x00, "Unknown")
+	PORT_DIPSETTING(0x01, "Unknown")
+	PORT_DIPSETTING(0x02, "Unknown")
+	PORT_DIPSETTING(0x03, "Unknown")
+
+	PORT_DIPNAME(0x04, 0x00, "Disk present")
+	PORT_DIPSETTING(0x00, "Present")
+	PORT_DIPSETTING(0x04, "Not present")
+
+	PORT_DIPNAME(0x08, 0x00, "TV Standard")
+	PORT_DIPSETTING(0x00, "NTSC")
+	PORT_DIPSETTING(0x08, "PAL")
+
+	PORT_DIPNAME(0xf0, 0x000, "Unknown")
+	PORT_DIPSETTING(0x00, "Unknown")
+	PORT_DIPSETTING(0x10, "Unknown")
+	PORT_DIPSETTING(0x20, "Unknown")
+	PORT_DIPSETTING(0x30, "Unknown")
+	PORT_DIPSETTING(0x40, "Unknown")
+	PORT_DIPSETTING(0x50, "Unknown")
+	PORT_DIPSETTING(0x60, "Unknown")
+	PORT_DIPSETTING(0x70, "Unknown")
+	PORT_DIPSETTING(0x80, "Unknown")
+	PORT_DIPSETTING(0x90, "Unknown")
+	PORT_DIPSETTING(0xa0, "Unknown")
+	PORT_DIPSETTING(0xb0, "Unknown")
+	PORT_DIPSETTING(0xc0, "Unknown")
+	PORT_DIPSETTING(0xd0, "Unknown")
+	PORT_DIPSETTING(0xe0, "Unknown")
+	PORT_DIPSETTING(0xf0, "Unknown")
+
+	PORT_DIPNAME(0xf00, 0x700, "Board revision")
+	PORT_DIPSETTING(0x000, "Unknown")
+	PORT_DIPSETTING(0x100, "Unknown")
+	PORT_DIPSETTING(0x200, "Unknown")
+	PORT_DIPSETTING(0x300, "Unknown")
+	PORT_DIPSETTING(0x400, "Unknown")
+	PORT_DIPSETTING(0x500, "Unknown")
+	PORT_DIPSETTING(0x600, "Unknown")
+	PORT_DIPSETTING(0x700, "Unknown")
+	PORT_DIPSETTING(0x800, "Unknown")
+	PORT_DIPSETTING(0x900, "Unknown")
+	PORT_DIPSETTING(0xa00, "Unknown")
+	PORT_DIPSETTING(0xb00, "Unknown")
+	PORT_DIPSETTING(0xc00, "Unknown")
+	PORT_DIPSETTING(0xd00, "Unknown")
+	PORT_DIPSETTING(0xe00, "Unknown")
+	PORT_DIPSETTING(0xf00, "Unknown")
+
+	PORT_DIPNAME(0x7000, 0x0000, "Board type")
+	PORT_DIPSETTING(0x0000, "Unknown")
+	PORT_DIPSETTING(0x1000, "Unknown")
+	PORT_DIPSETTING(0x2000, "Unknown")
+	PORT_DIPSETTING(0x3000, "Unknown")
+	PORT_DIPSETTING(0x4000, "Unknown")
+	PORT_DIPSETTING(0x5000, "Unknown")
+	PORT_DIPSETTING(0x6000, "Unknown")
+	PORT_DIPSETTING(0x7000, "Unknown")
+
+	PORT_DIPNAME(0x18000, 0xc000, "CPU drive");
+	PORT_DIPSETTING(0x0000, "Bus speed = 83%")
+	PORT_DIPSETTING(0x4000, "Bus speed = 100%")
+	PORT_DIPSETTING(0x8000, "Bus speed = 50%")
+	PORT_DIPSETTING(0xc000, "Bus speed = 67%")
+
+	PORT_DIPNAME(0x20000, 0x20000, "CPU clock multiplier")
+	PORT_DIPSETTING(0x00000, "CPU clock = 3x bus clock")
+	PORT_DIPSETTING(0x20000, "CPU clock = 2x bus clock")
+
+	PORT_DIPNAME(0x40000, 0x40000, "Unknown")
+	PORT_DIPSETTING(0x00000, "Unknown")
+	PORT_DIPSETTING(0x40000, "Unknown")
+
+	PORT_DIPNAME(0x80000, 0x80000, "CPU endian")
+	PORT_DIPSETTING(0x00000, "Little endian")
+	PORT_DIPSETTING(0x80000, "Big endian")
+
+	PORT_DIPNAME(0x100000, 0x100000, "CPU class")
+	PORT_DIPSETTING(0x000000, "IDT 5230")
+	PORT_DIPSETTING(0x100000, "IDT 4640")
+
+	PORT_DIPNAME(0x200000, 0x200000, "SMARTCARD0 present")
+	PORT_DIPSETTING(0x000000, "Not present")
+	PORT_DIPSETTING(0x200000, "Present")
+
+	PORT_DIPNAME(0x400000, 0x000000, "SMARTCARD1 present")
+	PORT_DIPSETTING(0x000000, "Not present")
+	PORT_DIPSETTING(0x400000, "Present")
+
+INPUT_PORTS_END
+
+static INPUT_PORTS_START( retail_input )
+	PORT_INCLUDE(retail_sys_config)
+	PORT_INCLUDE(emu_config)
+INPUT_PORTS_END
 
 ROM_START( wtv2sony )
-	ROM_REGION32_BE(0x800000, "bank0", ROMREGION_ERASEFF)
-	// this area is reserved for flash ROM
+	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
+	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
 
-	ROM_REGION32_BE(0x800000, "bank1", 0)
-	ROM_SYSTEM_BIOS(0, "2046ndbg", "Standard Boot ROM (2.0, build 2046)")
-	ROMX_LOAD("2046ndbg.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(0))
-	ROM_RELOAD(0x200000, 0x200000)
-	ROM_RELOAD(0x400000, 0x200000)
-	ROM_RELOAD(0x600000, 0x200000)
-	ROM_SYSTEM_BIOS(1, "joedebug", "Joe Britt's Debug Boot ROM (build 32767)")
-	ROMX_LOAD("joedebug.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(1))
-	ROM_RELOAD(0x200000, 0x200000)
-	ROM_RELOAD(0x400000, 0x200000)
-	ROM_RELOAD(0x600000, 0x200000)
+	ROM_REGION32_BE(0x600000, "bank1", 0)
+	ROM_SYSTEM_BIOS(0, "bootrom", "LC2 Retail BootROM (2.0, build 2046)")
+	ROM_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
 ROM_END
 
 ROM_START( wtv2phil )
-	ROM_REGION32_BE(0x800000, "bank0", ROMREGION_ERASEFF)
-	// this area is reserved for flash ROM
+	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
+	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
 
-	ROM_REGION32_BE(0x800000, "bank1", 0)
-	ROM_LOAD("2046ndbg.o", 0x000000, 0x200000, NO_DUMP)
-	ROM_RELOAD(0x200000, 0x200000)
-	ROM_RELOAD(0x400000, 0x200000)
-	ROM_RELOAD(0x600000, 0x200000)
+	ROM_REGION32_BE(0x600000, "bank1", 0)
+	ROM_SYSTEM_BIOS(0, "bootrom", "LC2 Retail BootROM (2.0, build 2046)")
+	ROM_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
 ROM_END
 
-}
-
-//    YEAR  NAME      PARENT  COMPAT  MACHINE        INPUT  CLASS         INIT        COMPANY               FULLNAME                        FLAGS
-CONS( 1997, wtv2sony,      0,      0, webtv2_sony,       0, webtv2_state, empty_init, "Sony",               "INT-W200 WebTV Plus Receiver", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_MICROPHONE | MACHINE_NODEVICE_PRINTER )
-CONS( 1997, wtv2phil,      0,      0, webtv2_philips,    0, webtv2_state, empty_init, "Philips-Magnavox",   "MAT972 WebTV Plus Receiver",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_MICROPHONE | MACHINE_NODEVICE_PRINTER )
+//    YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT         CLASS         INIT        COMPANY               FULLNAME                            FLAGS
+CONS( 1996, wtv2sony,      0,      0, webtv2_sony,    retail_input, webtv2_state, empty_init, "Sony",               "INT-W200 WebTV Plus Receiver", MACHINE_UNOFFICIAL )
+CONS( 1996, wtv2phil,      0,      0, webtv2_philips, retail_input, webtv2_state, empty_init, "Philips-Magnavox",   "MAT972 WebTV Plus Receiver",   MACHINE_UNOFFICIAL )
