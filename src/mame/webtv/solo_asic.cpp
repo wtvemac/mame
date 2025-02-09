@@ -378,6 +378,10 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_vid_intenable));
 	save_item(NAME(m_vid_intstat));
 
+	save_item(NAME(m_gfx_cntl));
+	save_item(NAME(m_gfx_activelines));
+	save_item(NAME(m_gfx_wbdstart));
+	save_item(NAME(m_gfx_wbdlsize));
 	save_item(NAME(m_gfx_intenable));
 	save_item(NAME(m_gfx_intstat));
 
@@ -464,6 +468,10 @@ void solo_asic_device::device_reset()
 	m_vid_intenable = 0x0;
 	m_vid_intstat = 0x0;
 
+	m_gfx_cntl = 0x0;
+	m_gfx_activelines = 0x0;
+	m_gfx_wbdstart = 0x0;
+	m_gfx_wbdlsize = 0x0;
 	m_gfx_intenable = 0x0;
 	m_gfx_intstat = 0x0;
 
@@ -1462,12 +1470,12 @@ void solo_asic_device::reg_5010_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_6004_r()
 {
-	return 0x00000000;
+	return m_gfx_cntl;
 }
 
 void solo_asic_device::reg_6004_w(uint32_t data)
 {
-	//
+	m_gfx_cntl = data;
 }
 
 uint32_t solo_asic_device::reg_6010_r()
@@ -1622,12 +1630,12 @@ void solo_asic_device::reg_6048_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_604c_r()
 {
-	return 0x00000000;
+	return m_gfx_activelines;
 }
 
 void solo_asic_device::reg_604c_w(uint32_t data)
 {
-	//
+	m_gfx_activelines = data;
 }
 
 uint32_t solo_asic_device::reg_6060_r()
@@ -1662,21 +1670,21 @@ void solo_asic_device::reg_606c_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_6080_r()
 {
-	return 0x00000000;
+	return m_gfx_wbdstart;
 }
 
 void solo_asic_device::reg_6080_w(uint32_t data)
 {
-	//
+	m_gfx_wbdstart = data;
 }
 uint32_t solo_asic_device::reg_6084_r()
 {
-	return 0x00000000;
+	return m_gfx_wbdlsize;
 }
 
 void solo_asic_device::reg_6084_w(uint32_t data)
 {
-	//
+	m_gfx_wbdlsize = data;
 }
 uint32_t solo_asic_device::reg_608c_r()
 {
@@ -2405,7 +2413,14 @@ uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 		}
 	}
 
-	solo_asic_device::set_video_irq(BUS_INT_VID_VIDUNIT, VID_INT_DMA, 1);
+	if(m_pot_cntl & POT_FCNTL_USEGFX)
+	{
+		solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, GFX_INT_RANGEINT_WBEOF, 1);
+	}
+	else
+	{
+		solo_asic_device::set_video_irq(BUS_INT_VID_VIDUNIT, VID_INT_DMA, 1);
+	}
 
 	return 0;
 }
