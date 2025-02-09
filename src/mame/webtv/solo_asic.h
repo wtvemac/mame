@@ -67,12 +67,35 @@ constexpr uint32_t ERR_OW      = 1 << 0; // double-fault
 
 constexpr uint32_t WATCHDOG_TIMER_USEC = 1000000;
 
-constexpr uint32_t BUS_INT_VIDINT = 1 << 7; // vidUnit interrupt (program should read VID_INTSTAT)
-constexpr uint32_t BUS_INT_DEVKBD = 1 << 6; // keyboard IRQ
-constexpr uint32_t BUS_INT_DEVMOD = 1 << 5; // modem IRQ
-constexpr uint32_t BUS_INT_DEVIR  = 1 << 4; // IR data ready to read
-constexpr uint32_t BUS_INT_DEVSMC = 1 << 3; // SmartCard inserted
-constexpr uint32_t BUS_INT_AUDDMA = 1 << 2; // audUnit DMA completion
+constexpr uint32_t BUS_INT_VIDEO = 1 << 7; // putUnit, gfxUnit, vidUnit interrupt
+constexpr uint32_t BUS_INT_AUDIO = 1 << 6; // Soft mode, divUnit and audio in/out interrupt
+constexpr uint32_t BUS_INT_RIO   = 1 << 5; // modem IRQ
+constexpr uint32_t BUS_INT_DEV   = 1 << 4; // IR data ready to read
+constexpr uint32_t BUS_INT_TIMER = 1 << 3; // SmartCard inserted
+constexpr uint32_t BUS_INT_FENCE = 1 << 2; // SmartCard inserted
+
+constexpr uint32_t BUS_INT_AUD_SMODEMIN  = 1 << 6; // Soft modem DMA in
+constexpr uint32_t BUS_INT_AUD_SMODEMOUT = 1 << 5; // Soft modem DMA out
+constexpr uint32_t BUS_INT_AUD_DIVUNIT   = 1 << 4; // divUnit audio
+constexpr uint32_t BUS_INT_AUD_AUDDMAIN  = 1 << 3; // Audio in
+constexpr uint32_t BUS_INT_AUD_AUDDMAOUT = 1 << 2; // Audio out
+
+constexpr uint32_t BUS_INT_DEV_GPIO      = 1 << 6;
+constexpr uint32_t BUS_INT_DEV_UART      = 1 << 5;
+constexpr uint32_t BUS_INT_DEV_SMARTCARD = 1 << 4;
+constexpr uint32_t BUS_INT_DEV_PARPORT   = 1 << 3;
+constexpr uint32_t BUS_INT_DEV_IRIN      = 1 << 2;
+constexpr uint32_t BUS_INT_DEV_IROUT     = 1 << 2;
+
+constexpr uint32_t BUS_INT_VID_DIVUNIT = 1 << 5;
+constexpr uint32_t BUS_INT_VID_GFXUNIT = 1 << 4;
+constexpr uint32_t BUS_INT_VID_POTUNIT = 1 << 3;
+constexpr uint32_t BUS_INT_VID_VIDUNIT = 1 << 2;
+
+constexpr uint32_t BUS_INT_RIO_DEVICE3 = 1 << 5;
+constexpr uint32_t BUS_INT_RIO_DEVICE2 = 1 << 4;
+constexpr uint32_t BUS_INT_RIO_DEVICE1 = 1 << 3;
+constexpr uint32_t BUS_INT_RIO_DEVICE0 = 1 << 2;
 
 constexpr uint16_t VID_Y_BLACK         = 0x10;
 constexpr uint16_t VID_Y_WHITE         = 0xeb;
@@ -80,16 +103,12 @@ constexpr uint16_t VID_Y_RANGE         = (VID_Y_WHITE - VID_Y_BLACK);
 constexpr uint16_t VID_UV_OFFSET       = 0x80;
 constexpr uint8_t  VID_BYTES_PER_PIXEL = 2;
 
-constexpr uint32_t VID_INT_FIDO   = 1 << 6; // TODO: docs don't have info on FIDO mode! figure this out!
-constexpr uint32_t VID_INT_VSYNCE = 1 << 5; // even field VSYNC
-constexpr uint32_t VID_INT_VSYNCO = 1 << 4; // odd field VSYNC
-constexpr uint32_t VID_INT_HSYNC  = 1 << 3; // HSYNC on line specified by VID_HINTLINE
-constexpr uint32_t VID_INT_DMA    = 1 << 2; // vidUnit DMA completion
-
 constexpr uint32_t VID_DMACNTL_ITRLEN = 1 << 3; // interlaced video in DMA channel
 constexpr uint32_t VID_DMACNTL_DMAEN  = 1 << 2; // DMA channel enabled
 constexpr uint32_t VID_DMACNTL_NV     = 1 << 1; // DMA next registers are valid
 constexpr uint32_t VID_DMACNTL_NVF    = 1 << 0; // DMA next registers are always valid
+
+constexpr uint32_t VID_INT_DMA = 1 << 2; // vidUnit DMA completion
 
 // These are guessed pixel clocks. They were chosen because they cause expected behaviour in emulation.
 
@@ -140,6 +159,15 @@ constexpr uint32_t POT_FCNTL_USEGFX       = 1 << 3; // Use gfxUnit as the video 
 constexpr uint32_t POT_FCNTL_SOFTRESET    = 1 << 3; // Soft reset potUnit
 constexpr uint32_t POT_FCNTL_PROGRESSIVE  = 1 << 1; // progressive video enabled
 constexpr uint32_t POT_FCNTL_EN           = 1 << 0; // potUnit output enable
+
+constexpr uint32_t GFX_INT_RANGEINT_WBEOFL = 1 << 4; // Writeback has finished field
+constexpr uint32_t GFX_INT_RANGEINT_OOT    = 1 << 3; // qfxUnit ran out of time compositing line
+constexpr uint32_t GFX_INT_RANGEINT_WBEOF  = 1 << 2; // Writeback has finished frame
+
+constexpr uint32_t POT_INT_VSYNCE = 1 << 5; // even field VSYNC
+constexpr uint32_t POT_INT_VSYNCO = 1 << 4; // odd field VSYNC
+constexpr uint32_t POT_INT_HSYNC  = 1 << 3; // HSYNC on line specified by VID_HINTLINE
+constexpr uint32_t POT_INT_SHIFT  = 1 << 2; // when shiftage occures (no valid pixels from vidUnit when read)
 
 constexpr uint32_t AUD_CONFIG_16BIT_STEREO = 0;
 constexpr uint32_t AUD_CONFIG_16BIT_MONO   = 1;
@@ -217,8 +245,18 @@ protected:
 
 	uint32_t m_tcompare;
 
-	uint8_t m_intenable;
-	uint8_t m_intstat;
+	uint8_t m_bus_intenable;
+	uint8_t m_bus_intstat;
+	uint8_t m_busgpio_intenable;
+	uint8_t m_busgpio_intstat;
+	uint8_t m_busaud_intenable;
+	uint8_t m_busaud_intstat;
+	uint8_t m_busdev_intenable;
+	uint8_t m_busdev_intstat;
+	uint8_t m_busvid_intenable;
+	uint8_t m_busvid_intstat;
+	uint8_t m_busrio_intenable;
+	uint8_t m_busrio_intstat;
 
 	uint8_t m_errenable;
 	uint8_t m_errstat;
@@ -248,6 +286,12 @@ protected:
 	uint32_t m_vid_vdata;
 	uint32_t m_vid_intenable;
 	uint32_t m_vid_intstat;
+
+	uint32_t m_gfx_intenable;
+	uint32_t m_gfx_intstat;
+
+	uint32_t m_div_intenable;
+	uint32_t m_div_intstat;
 
 	uint8_t m_pot_cntl;
 	uint32_t m_pot_hintline;
@@ -326,11 +370,12 @@ private:
 	int m_serial_id_tx;
 
 	void vblank_irq(int state);
-	void irq_audio_w(int state);
 	void irq_modem_w(int state);
-
+	void set_audio_irq(uint8_t mask, int state);
+	void set_dev_irq(uint8_t mask, int state);
+	void set_video_irq(uint8_t mask, uint8_t sub_mask, int state);
+	void set_rio_irq(uint8_t mask, int state);
 	void set_bus_irq(uint8_t mask, int state);
-	void set_vid_irq(uint8_t mask, int state);
 
 	void validate_active_area();
 	void watchdog_enable(int state);
@@ -368,6 +413,46 @@ private:
 	void reg_0048_w(uint32_t data); // BUS_TCOUNT (write)
 	uint32_t reg_004c_r();          // BUS_TCOMPARE (read)
 	void reg_004c_w(uint32_t data); // BUS_TCOMPARE (write)
+	uint32_t reg_005c_r();          // BUS_GPINTEN_S (read)
+	void reg_005c_w(uint32_t data); // BUS_GPINTEN_S (write)
+	uint32_t reg_015c_r();          // BUS_GPINTEN_C (read)
+	void reg_015c_w(uint32_t data); // BUS_GPINTEN_C (write)
+	uint32_t reg_0058_r();          // BUS_GPINTSTAT (read)
+	uint32_t reg_0060_r();          // BUS_GPINTSTAT_S (read)
+	void reg_0060_w(uint32_t data); // BUS_GPINTSTAT_S (write)
+	void reg_0158_w(uint32_t data); // BUS_GPINTSTAT_C (write)
+	uint32_t reg_0070_r();          // BUS_AUDINTEN_S (read)
+	void reg_0070_w(uint32_t data); // BUS_AUDINTEN_S (write)
+	uint32_t reg_0170_r();          // BUS_AUDINTEN_C (read)
+	void reg_0170_w(uint32_t data); // BUS_AUDINTEN_C (write)
+	uint32_t reg_0068_r();          // BUS_AUDINTSTAT (read)
+	uint32_t reg_006c_r();          // BUS_AUDINTSTAT_S (read)
+	void reg_006c_w(uint32_t data); // BUS_AUDINTSTAT_S (write)
+	void reg_0168_w(uint32_t data); // BUS_AUDINTSTAT_C (write)
+	uint32_t reg_007c_r();          // BUS_DEVINTEN_S (read)
+	void reg_007c_w(uint32_t data); // BUS_DEVINTEN_S (write)
+	uint32_t reg_017c_r();          // BUS_DEVINTEN_C (read)
+	void reg_017c_w(uint32_t data); // BUS_DEVINTEN_C (write)
+	uint32_t reg_0074_r();          // BUS_DEVINTSTAT (read)
+	uint32_t reg_0078_r();          // BUS_DEVINTSTAT_S (read)
+	void reg_0078_w(uint32_t data); // BUS_DEVINTSTAT_S (write)
+	void reg_0174_w(uint32_t data); // BUS_DEVINTSTAT_C (write)
+	uint32_t reg_0088_r();          // BUS_VIDINTEN_S (read)
+	void reg_0088_w(uint32_t data); // BUS_VIDINTEN_S (write)
+	uint32_t reg_0188_r();          // BUS_VIDINTEN_C (read)
+	void reg_0188_w(uint32_t data); // BUS_VIDINTEN_C (write)
+	uint32_t reg_0080_r();          // BUS_VIDINTSTAT (read)
+	uint32_t reg_0084_r();          // BUS_VIDINTSTAT_S (read)
+	void reg_0084_w(uint32_t data); // BUS_VIDINTSTAT_S (write)
+	void reg_0180_w(uint32_t data); // BUS_VIDINTSTAT_C (write)
+	uint32_t reg_0098_r();          // BUS_RIOINTEN_S (read)
+	void reg_0098_w(uint32_t data); // BUS_RIOINTEN_S (write)
+	uint32_t reg_0198_r();          // BUS_RIOINTEN_C (read)
+	void reg_0198_w(uint32_t data); // BUS_RIOINTEN_C (write)
+	uint32_t reg_008c_r();          // BUS_RIOINTSTAT (read)
+	uint32_t reg_0090_r();          // BUS_RIOINTSTAT_S (read)
+	void reg_0090_w(uint32_t data); // BUS_RIOINTSTAT_S (write)
+	void reg_018c_w(uint32_t data); // BUS_RIOINTSTAT_C (write)
 
 	/* romUnit registers */
 
