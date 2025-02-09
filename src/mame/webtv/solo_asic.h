@@ -624,9 +624,9 @@ private:
 	void reg_9098_w(uint32_t data); // POT_HINTLINE (write)
 	uint32_t reg_909c_r();          // POT_INTEN   (read)
 	void reg_909c_w(uint32_t data); // POT_INTEN_S (write)
-	void reg_90a4_w(uint32_t data); // POT_INTEN_C (write)
+	void reg_90a4_w(uint32_t data); // POT_INTEN_C (write-only)
 	uint32_t reg_90a0_r();          // POT_INTSTAT (read)
-	void reg_90a8_w(uint32_t data); // POT_INTSTAT_C (write)
+	void reg_90a8_w(uint32_t data); // POT_INTSTAT_C (write-only)
 	uint32_t reg_90ac_r();          // POT_CLINE (read)
 
 	/* sucUnit registers */
