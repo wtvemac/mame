@@ -88,7 +88,8 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
     m_emu_config(*owner, "emu_config"),
     m_power_led(*this, "power_led"),
     m_connect_led(*this, "connect_led"),
-    m_message_led(*this, "message_led")
+    m_message_led(*this, "message_led"),
+    m_ata(*this, finder_base::DUMMY_TAG)
 {
 }
 
@@ -254,6 +255,20 @@ void solo_asic_device::hardware_modem_map(address_map &map)
 	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_modem_0014_r), FUNC(solo_asic_device::reg_modem_0014_w)); // Modem I/O port base+5 (LSR)
 	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_modem_0018_r), FUNC(solo_asic_device::reg_modem_0018_w)); // Modem I/O port base+6 (MSR)
 	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_modem_001c_r), FUNC(solo_asic_device::reg_modem_001c_w)); // Modem I/O port base+7 (SCR)
+}
+
+void solo_asic_device::ide_map(address_map &map)
+{
+	map(0x000000, 0x000003).rw(FUNC(solo_asic_device::reg_ide_000000_r), FUNC(solo_asic_device::reg_ide_000000_w)); // IDE I/O port cs0[0] (data)
+	map(0x000004, 0x000007).rw(FUNC(solo_asic_device::reg_ide_000004_r), FUNC(solo_asic_device::reg_ide_000004_w)); // IDE I/O port cs0[1] (error or feature)
+	map(0x000008, 0x00000b).rw(FUNC(solo_asic_device::reg_ide_000008_r), FUNC(solo_asic_device::reg_ide_000008_w)); // IDE I/O port cs0[2] (sector count)
+	map(0x00000c, 0x00000f).rw(FUNC(solo_asic_device::reg_ide_00000c_r), FUNC(solo_asic_device::reg_ide_00000c_w)); // IDE I/O port cs0[3] (sector number)
+	map(0x000010, 0x000013).rw(FUNC(solo_asic_device::reg_ide_000010_r), FUNC(solo_asic_device::reg_ide_000010_w)); // IDE I/O port cs0[4] (cylinder low)
+	map(0x000014, 0x000017).rw(FUNC(solo_asic_device::reg_ide_000014_r), FUNC(solo_asic_device::reg_ide_000014_w)); // IDE I/O port cs0[5] (cylinder high)
+	map(0x000018, 0x00001b).rw(FUNC(solo_asic_device::reg_ide_000018_r), FUNC(solo_asic_device::reg_ide_000018_w)); // IDE I/O port cs0[6] (drive/head)
+	map(0x00001c, 0x00001f).rw(FUNC(solo_asic_device::reg_ide_00001c_r), FUNC(solo_asic_device::reg_ide_00001c_w)); // IDE I/O port cs0[7] (status or command)
+	map(0x400018, 0x40001b).rw(FUNC(solo_asic_device::reg_ide_400018_r), FUNC(solo_asic_device::reg_ide_400018_w)); // IDE I/O port cs1[6] (altstatus or device control)
+	map(0x40001c, 0x40001f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
 }
 
 void solo_asic_device::device_add_mconfig(machine_config &config)
@@ -1647,6 +1662,106 @@ void solo_asic_device::reg_modem_001c_w(uint32_t data)
 	m_modem_uart->ins8250_w(0x7, data & 0xff);
 }
 
+uint32_t solo_asic_device::reg_ide_000000_r()
+{
+	return m_ata->cs0_r(0);
+}
+
+void solo_asic_device::reg_ide_000000_w(uint32_t data)
+{
+	m_ata->cs0_w(0, data);
+}
+
+uint32_t solo_asic_device::reg_ide_000004_r()
+{
+	return m_ata->cs0_r(1);
+}
+
+void solo_asic_device::reg_ide_000004_w(uint32_t data)
+{
+	m_ata->cs0_w(1, data);
+}
+
+uint32_t solo_asic_device::reg_ide_000008_r()
+{
+	return m_ata->cs0_r(2);
+}
+
+void solo_asic_device::reg_ide_000008_w(uint32_t data)
+{
+	m_ata->cs0_w(2, data);
+}
+
+uint32_t solo_asic_device::reg_ide_00000c_r()
+{
+	return m_ata->cs0_r(3);
+}
+
+void solo_asic_device::reg_ide_00000c_w(uint32_t data)
+{
+	m_ata->cs0_w(3, data);
+}
+
+uint32_t solo_asic_device::reg_ide_000010_r()
+{
+	return m_ata->cs0_r(4);
+}
+
+void solo_asic_device::reg_ide_000010_w(uint32_t data)
+{
+	m_ata->cs0_w(4, data);
+}
+
+uint32_t solo_asic_device::reg_ide_000014_r()
+{
+	return m_ata->cs0_r(5);
+}
+
+void solo_asic_device::reg_ide_000014_w(uint32_t data)
+{
+	m_ata->cs0_w(5, data);
+}
+
+uint32_t solo_asic_device::reg_ide_000018_r()
+{
+	return m_ata->cs0_r(6);
+}
+
+void solo_asic_device::reg_ide_000018_w(uint32_t data)
+{
+	m_ata->cs0_w(6, data);
+}
+
+uint32_t solo_asic_device::reg_ide_00001c_r()
+{
+	return m_ata->cs0_r(7);
+}
+
+void solo_asic_device::reg_ide_00001c_w(uint32_t data)
+{
+	m_ata->cs0_w(7, data);
+}
+
+uint32_t solo_asic_device::reg_ide_400018_r()
+{
+	return m_ata->cs1_r(6);
+}
+
+void solo_asic_device::reg_ide_400018_w(uint32_t data)
+{
+	m_ata->cs1_w(6, data);
+}
+
+uint32_t solo_asic_device::reg_ide_40001c_r()
+{
+	return m_ata->cs1_r(7);
+}
+
+void solo_asic_device::reg_ide_40001c_w(uint32_t data)
+{
+	m_ata->cs1_w(7, data);
+}
+
 TIMER_CALLBACK_MEMBER(solo_asic_device::dac_update)
 {
 	if (m_aud_dmacntl & AUD_DMACNTL_DMAEN)
@@ -1733,6 +1848,11 @@ void solo_asic_device::vblank_irq(int state)
 void solo_asic_device::irq_modem_w(int state) 
 {
 	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, state);
+}
+
+void solo_asic_device::irq_ide_w(int state)
+{
+	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
 }
 
 void solo_asic_device::set_audio_irq(uint8_t mask, int state)
