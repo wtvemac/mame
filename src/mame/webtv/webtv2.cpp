@@ -260,7 +260,7 @@ void webtv2_state::webtv2_retail_map(address_map &map)
 	// Diagnostic Space (0xf400000-0x1f7fffff)
 
 	// ROMU Bank 1 (0x1f800000-0x1fffffff)
-	map(0x1f800000, 0x1fdfffff).rom().region("bank1", 0);
+	map(0x1f800000, 0x1fffffff).rom().region("bank1", 0);
 
 	// Reserved (0x20000000-0xffffffff)
 }
@@ -418,9 +418,10 @@ ROM_START( wtv2sony )
 	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
 	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
 
-	ROM_REGION32_BE(0x600000, "bank1", 0)
+	ROM_REGION32_BE(0x800000, "bank1", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "LC2 Retail BootROM (2.0, build 2046)")
 	ROM_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
+	ROM_RELOAD(0x600000, 0x200000)
 
 	DISK_REGION("ata:0:hdd")
 	DISK_IMAGE("wtvhdd", 0x0000, NO_DUMP )
@@ -430,9 +431,10 @@ ROM_START( wtv2phil )
 	ROM_REGION(0x8, "serial_id", 0)     /* Electronic Serial DS2401 */
 	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
 
-	ROM_REGION32_BE(0x600000, "bank1", 0)
+	ROM_REGION32_BE(0x800000, "bank1", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "LC2 Retail BootROM (2.0, build 2046)")
 	ROM_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
+	ROM_RELOAD(0x600000, 0x200000)
 
 	DISK_REGION("ata:0:hdd")
 	DISK_IMAGE("wtvhdd", 0x0000, NO_DUMP )
