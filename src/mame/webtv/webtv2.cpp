@@ -40,6 +40,7 @@
 #include "cpu/mips/mips3.h"
 #include "machine/ds2401.h"
 #include "machine/intelfsh.h"
+#include "bus/ata/ataintf.h"
 #include "solo_asic.h"
 
 #include "webtv.lh"
@@ -63,7 +64,8 @@ public:
 		m_serial_id(*this, "serial_id"),
 		m_nvram(*this, "nvram"),
 		m_flash0(*this, "bank0_flash0"), // labeled U0501, contains upper bits
-		m_flash1(*this, "bank0_flash1")  // labeled U0502, contains lower bits
+		m_flash1(*this, "bank0_flash1"), // labeled U0502, contains lower bits
+		m_ata(*this, "ata")
 	{ }
 
 	void webtv2_sony(machine_config& config);
@@ -81,6 +83,8 @@ private:
 
 	required_device<intelfsh16_device> m_flash0;
 	required_device<intelfsh16_device> m_flash1;
+
+	optional_device<ata_interface_device> m_ata;
 
 	uint8_t ram_flasher[RAM_FLASHER_SIZE];
 
@@ -203,6 +207,8 @@ void webtv2_state::webtv2_base_map(address_map &map)
 
 	// Reserved (0x04800000-0x1f7fffff)
 	map(0x1e000000, 0x1e00001f).m(m_soloasic, FUNC(solo_asic_device::hardware_modem_map));
+	map(0x1e400000, 0x1e80001f).m(m_soloasic, FUNC(solo_asic_device::ide_map));
+	map(0x1d400000, 0x1d80001f).m(m_soloasic, FUNC(solo_asic_device::ide_map));
 }
 
 void webtv2_state::webtv2_base(machine_config &config)
@@ -217,9 +223,13 @@ void webtv2_state::webtv2_base(machine_config &config)
 
 	I2C_24C01(config, m_nvram, 0);
 
+	ATA_INTERFACE(config, m_ata).options(ata_devices, "hdd", nullptr, true);
+	m_ata->irq_handler().set(m_soloasic, FUNC(solo_asic_device::irq_ide_w));
+
 	SOLO_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
 	m_soloasic->set_serial_id(m_serial_id);
+	 m_soloasic->set_ata(m_ata);
 	m_soloasic->set_nvram(m_nvram);
 }
 
@@ -411,6 +421,9 @@ ROM_START( wtv2sony )
 	ROM_REGION32_BE(0x600000, "bank1", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "LC2 Retail BootROM (2.0, build 2046)")
 	ROM_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
+
+	DISK_REGION("ata:0:hdd")
+	DISK_IMAGE("wtvhdd", 0x0000, NO_DUMP )
 ROM_END
 
 ROM_START( wtv2phil )
@@ -420,6 +433,9 @@ ROM_START( wtv2phil )
 	ROM_REGION32_BE(0x600000, "bank1", 0)
 	ROM_SYSTEM_BIOS(0, "bootrom", "LC2 Retail BootROM (2.0, build 2046)")
 	ROM_LOAD("bootrom.o", 0x400000, 0x200000, NO_DUMP) /* pre-decoded; from archival efforts of the WebTV update servers */
+
+	DISK_REGION("ata:0:hdd")
+	DISK_IMAGE("wtvhdd", 0x0000, NO_DUMP )
 ROM_END
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT         CLASS         INIT        COMPANY               FULLNAME                            FLAGS

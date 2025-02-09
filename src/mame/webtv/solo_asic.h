@@ -28,6 +28,7 @@
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 #include "machine/ins8250.h"
+#include "bus/ata/ataintf.h"
 #include "sound/dac.h"
 #include "speaker.h"
 #include "machine/watchdog.h"
@@ -220,10 +221,14 @@ public:
 	void mod_unit_map(address_map &map);
 
 	void hardware_modem_map(address_map &map);
+	void ide_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
+	template <typename T> void set_ata(T &&tag) { m_ata.set_tag(std::forward<T>(tag)); }
+
+	void irq_ide_w(int state);
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
@@ -356,6 +361,8 @@ private:
 	output_finder<> m_power_led;
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
+
+	optional_device<ata_interface_device> m_ata;
 
 	emu_timer *dac_update_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(dac_update);
@@ -570,6 +577,7 @@ private:
 	/* modUnit registers */
 
 	/* Hardware modem registers */
+
 	uint32_t reg_modem_0000_r();          // Modem I/O port base   (RBR/DLL read)
 	void reg_modem_0000_w(uint32_t data); // Modem I/O port base   (THR/DLL write)
 	uint32_t reg_modem_0004_r();          // Modem I/O port base+1 (IER/DLM read)
@@ -587,6 +595,28 @@ private:
 	uint32_t reg_modem_001c_r();          // Modem I/O port base+7 (SCR read)
 	void reg_modem_001c_w(uint32_t data); // Modem I/O port base+7 (SCR write)
 
+	/* IDE registers */
+	
+	uint32_t reg_ide_000000_r();          // IDE I/O port cs0[0] (data read)
+	void reg_ide_000000_w(uint32_t data); // IDE I/O port cs0[0] (data write)
+	uint32_t reg_ide_000004_r();          // IDE I/O port cs0[1] (error read)
+	void reg_ide_000004_w(uint32_t data); // IDE I/O port cs0[1] (feature write)
+	uint32_t reg_ide_000008_r();          // IDE I/O port cs0[2] (sector count read)
+	void reg_ide_000008_w(uint32_t data); // IDE I/O port cs0[2] (sector count write)
+	uint32_t reg_ide_00000c_r();          // IDE I/O port cs0[3] (sector number read)
+	void reg_ide_00000c_w(uint32_t data); // IDE I/O port cs0[3] (sector number write)
+	uint32_t reg_ide_000010_r();          // IDE I/O port cs0[4] (cylinder low read)
+	void reg_ide_000010_w(uint32_t data); // IDE I/O port cs0[4] (cylinder low write)
+	uint32_t reg_ide_000014_r();          // IDE I/O port cs0[5] (cylinder high read)
+	void reg_ide_000014_w(uint32_t data); // IDE I/O port cs0[5] (cylinder high write)
+	uint32_t reg_ide_000018_r();          // IDE I/O port cs0[6] (drive/head read)
+	void reg_ide_000018_w(uint32_t data); // IDE I/O port cs0[6] (drive/head write)
+	uint32_t reg_ide_00001c_r();          // IDE I/O port cs0[7] (drive/head read)
+	void reg_ide_00001c_w(uint32_t data); // IDE I/O port cs0[7] (drive/head write)
+	uint32_t reg_ide_400018_r();          // IDE I/O port cs1[6] (altstatus read)
+	void reg_ide_400018_w(uint32_t data); // IDE I/O port cs1[6] (device control write)
+	uint32_t reg_ide_40001c_r();          // IDE I/O port cs1[7] (device address read)
+	void reg_ide_40001c_w(uint32_t data); // IDE I/O port cs1[7] (device address write)
 };
 
 DECLARE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device)
