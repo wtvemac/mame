@@ -491,6 +491,10 @@ void solo_asic_device::device_reset()
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
+	modfw_mode = true;
+	modfw_message_index = 0x0;
+	modfw_will_flush = false;
+	modfw_will_ack = false;
 
 	solo_asic_device::validate_active_area();
 	solo_asic_device::watchdog_enable(m_wdenable);
@@ -1575,22 +1579,63 @@ uint32_t solo_asic_device::reg_a010_r()
 
 uint32_t solo_asic_device::reg_modem_0000_r()
 {
-	return m_modem_uart->ins8250_r(0x0);
-}
-
-void solo_asic_device::reg_modem_0000_w(uint32_t data)
-{
-	if (modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	if(modfw_mode)
 	{
-			m_modem_uart->ins8250_w(0x0, data & 0xff);
+		if(modfw_will_ack)
+		{
+			modfw_will_ack = false;
+
+			return MODFW_RBR_ACK;
+		}
+		else
+		{
+			if(modfw_message_index < sizeof(modfw_message))
+			{
+				uint32_t message_chr = modfw_message[modfw_message_index++] & 0xff;
+
+				if(modfw_message_index == MODFW_MSG_IDX_FLUSH0 || modfw_message_index == MODFW_MSG_IDX_FLUSH1)
+				{
+					modfw_will_flush = true;
+				}
+				else if((modfw_message_index + 1) >= sizeof(modfw_message))
+				{
+					modfw_mode = false;
+				}
+
+				return message_chr;
+			}
+			else
+			{
+				return MODFW_NULL_RESULT;
+			}
+		}
 	}
 	else
 	{
+		return m_modem_uart->ins8250_r(0x0);
+	}
+}
+
+ void solo_asic_device::reg_modem_0000_w(uint32_t data)
+ {
+	if(modfw_mode)
+	{
+		modfw_will_ack = true;
+	}
+	else
+	{
+		if (modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+		{
+			m_modem_uart->ins8250_w(0x0, data & 0xff);
+		}
+		else
+		{
 			modem_txbuff[modem_txbuff_size++ & (MBUFF_MAX_SIZE - 1)] = data & 0xff;
 
 			modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
+		}
 	}
-}
+ }
 
 uint32_t solo_asic_device::reg_modem_0004_r()
 {
@@ -1634,7 +1679,23 @@ void solo_asic_device::reg_modem_0010_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_modem_0014_r()
 {
-	return m_modem_uart->ins8250_r(0x5);
+	if(modfw_mode)
+	{
+		if(modfw_will_flush)
+		{
+			modfw_will_flush = false;
+
+			return MODFW_NULL_RESULT;
+		}
+		else
+		{
+			return MODFW_LSR_READY;
+		}
+	}
+	else
+	{
+			return m_modem_uart->ins8250_r(0x5);
+	}
 }
 
 void solo_asic_device::reg_modem_0014_w(uint32_t data)

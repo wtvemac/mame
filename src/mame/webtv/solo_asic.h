@@ -201,6 +201,14 @@ constexpr uint8_t SSID_STATE_READROM_PULSESTART = 0x5;
 constexpr uint8_t SSID_STATE_READROM_PULSEEND   = 0x6;
 constexpr uint8_t SSID_STATE_READROM_BIT        = 0x7;
 
+constexpr uint8_t MODFW_NULL_RESULT             = 0x00000000;
+constexpr uint8_t MODFW_RBR_ACK                 = 0x2e;
+constexpr uint8_t MODFW_LSR_READY               = 0x21;
+constexpr uint8_t MODFW_MSG_IDX_FLUSH0          = 0x2;
+constexpr uint8_t MODFW_MSG_IDX_FLUSH1          = 0x1c;
+
+constexpr uint8_t modfw_message[] = "\x{0a}\x{0a}Download Modem Firmware ..\x{0d}\x{0a}Modem Firmware Successfully Loaded";
+
 class solo_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
 public:
@@ -341,6 +349,10 @@ protected:
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
 	uint32_t modem_txbuff_index;
+	bool modfw_mode;
+	uint32_t modfw_message_index;
+	bool modfw_will_flush;
+	bool modfw_will_ack;
 private:
 	required_device<mips3_device> m_hostcpu;
 	required_device<ds2401_device> m_serial_id;
@@ -596,7 +608,7 @@ private:
 	void reg_modem_001c_w(uint32_t data); // Modem I/O port base+7 (SCR write)
 
 	/* IDE registers */
-	
+
 	uint32_t reg_ide_000000_r();          // IDE I/O port cs0[0] (data read)
 	void reg_ide_000000_w(uint32_t data); // IDE I/O port cs0[0] (data write)
 	uint32_t reg_ide_000004_r();          // IDE I/O port cs0[1] (error read)
