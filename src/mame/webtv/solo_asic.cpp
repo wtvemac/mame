@@ -179,7 +179,7 @@ void solo_asic_device::vid_unit_map(address_map &map)
 	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_3014_r), FUNC(solo_asic_device::reg_3014_w)); // VID_DMACNTL
 	map(0x038, 0x03b).r(FUNC(solo_asic_device::reg_3038_r));                                      // VID_INTSTAT
 	map(0x138, 0x13b).w(FUNC(solo_asic_device::reg_3138_w));                                      // VID_INTSTAT_C
-	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_303c_r), FUNC(solo_asic_device::reg_303c_w)); // VID_INTEN_S
+	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_303c_r), FUNC(solo_asic_device::reg_303c_w)); // VID_INTEN
 	map(0x13c, 0x13f).w(FUNC(solo_asic_device::reg_313c_w));                                      // VID_INTEN_C
 	map(0x040, 0x043).rw(FUNC(solo_asic_device::reg_3040_r), FUNC(solo_asic_device::reg_3040_w)); // VID_VDATA
 }
@@ -252,7 +252,7 @@ void solo_asic_device::pot_unit_map(address_map &map)
 	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_9090_r), FUNC(solo_asic_device::reg_9090_w)); // POT_HSIZE
 	map(0x094, 0x097).rw(FUNC(solo_asic_device::reg_9094_r), FUNC(solo_asic_device::reg_9094_w)); // POT_CNTL
 	map(0x098, 0x09b).rw(FUNC(solo_asic_device::reg_9098_r), FUNC(solo_asic_device::reg_9098_w)); // POT_HINTLINE
-	map(0x09c, 0x09f).rw(FUNC(solo_asic_device::reg_909c_r), FUNC(solo_asic_device::reg_909c_w)); // POT_INTEN_S
+	map(0x09c, 0x09f).rw(FUNC(solo_asic_device::reg_909c_r), FUNC(solo_asic_device::reg_909c_w)); // POT_INTEN
 	map(0x0a4, 0x0a7).w(FUNC(solo_asic_device::reg_90a4_w));                                      // POT_INTEN_C
 	map(0x0a0, 0x0a3).r(FUNC(solo_asic_device::reg_90a0_r));                                      // POT_INTSTAT
 	map(0x0a8, 0x0ab).w(FUNC(solo_asic_device::reg_90a8_w));                                      // POT_INTSTAT_C
@@ -1229,7 +1229,7 @@ void solo_asic_device::reg_303c_w(uint32_t data)
 
 void solo_asic_device::reg_313c_w(uint32_t data)
 {
-	 m_vid_intenable &= (~data) & 0xff;
+	m_vid_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_3040_r()
@@ -1705,6 +1705,8 @@ void solo_asic_device::reg_6094_w(uint32_t data)
 {
 	//
 }
+
+// potUnit registers
 
 uint32_t solo_asic_device::reg_9080_r()
 {
