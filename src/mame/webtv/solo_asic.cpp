@@ -536,12 +536,12 @@ void solo_asic_device::pixel_buffer_index_update()
 	uint32_t screen_lines = m_pot_draw_vsize;
 	uint32_t screen_buffer_size = m_vid_nsize;
 
-	if (!(m_pot_cntl & POT_FCNTL_PROGRESSIVE))
+	/*if (!(m_pot_cntl & POT_FCNTL_PROGRESSIVE))
 	{
 		// Interlace mode splits the buffer into two halfs. We can capture both halfs if we double the line count.
 		screen_buffer_size = (screen_buffer_size * 2);
 		screen_lines = (screen_lines * 2);
-	}
+	}*/
 
 	m_vid_draw_nstart = m_vid_nstart;
 
