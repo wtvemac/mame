@@ -229,7 +229,7 @@ void webtv2_state::webtv2_base(machine_config &config)
 	SOLO_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
 	m_soloasic->set_serial_id(m_serial_id);
-	 m_soloasic->set_ata(m_ata);
+	m_soloasic->set_ata(m_ata);
 	m_soloasic->set_nvram(m_nvram);
 }
 
@@ -251,7 +251,7 @@ void webtv2_state::webtv2_retail_map(address_map &map)
 {
 	webtv2_state::webtv2_base_map(map);
 
-	// 2MB RAM
+	// 8MB RAM
 	webtv2_state::webtv2_ram_map(map, 0x800000);
 
 	// ROML Bank 0 (0x1f000000-0x1f3fffff)
@@ -270,7 +270,7 @@ void webtv2_state::webtv2_sony(machine_config& config)
 	// manufacturer is determined by the contents of DS2401
 	webtv2_state::webtv2_base(config);
 
-	// 2MB bf0app Approm
+	// 4MB approm
 	MACRONIX_29F1610_16BIT(config, m_flash0, 0);
 	MACRONIX_29F1610_16BIT(config, m_flash1, 0);
 
@@ -282,7 +282,7 @@ void webtv2_state::webtv2_philips(machine_config& config)
 	// manufacturer is determined by the contents of DS2401
 	webtv2_state::webtv2_base(config);
 
-	// 2MB bf0app Approm
+	// 4MB approm
 	MACRONIX_29F1610_16BIT(config, m_flash0, 0);
 	MACRONIX_29F1610_16BIT(config, m_flash1, 0);
 
