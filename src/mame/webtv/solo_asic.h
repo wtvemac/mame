@@ -111,6 +111,13 @@ constexpr uint32_t VID_DMACNTL_NVF    = 1 << 0; // DMA next registers are always
 
 constexpr uint32_t VID_INT_DMA = 1 << 2; // vidUnit DMA completion
 
+constexpr uint32_t GFX_FCNTL_EN          = 1 << 7; // gfxUnit processing enable
+constexpr uint32_t GFX_FCNTL_DELTATIME   = 1 << 6; // dx calculation correction
+constexpr uint32_t GFX_FCNTL_WAITDISABLE = 1 << 5; // "should always be set to 0"
+constexpr uint32_t GFX_FCNTL_WRITEBACKEN = 1 << 4; // 1=Use write-back operation. 0=use ping-pong operation
+constexpr uint32_t GFX_FCNTL_FTB         = 1 << 3; // "must always be programmed as 1 for proper write-back operation"
+constexpr uint32_t GFX_FCNTL_SOFTRESET   = 1 << 0; // Soft reset gfxUnit
+
 // These are guessed pixel clocks. They were chosen because they cause expected behaviour in emulation.
 
 constexpr uint32_t NTSC_SCREEN_XTAL    = 18393540; // Pixel clock. 480 lines and 640 "pixes" per line @ 60Hz
@@ -300,6 +307,10 @@ protected:
 	uint32_t m_vid_intenable;
 	uint32_t m_vid_intstat;
 
+	uint32_t m_gfx_cntl;
+	uint32_t m_gfx_activelines;
+	uint32_t m_gfx_wbdstart;
+	uint32_t m_gfx_wbdlsize;
 	uint32_t m_gfx_intenable;
 	uint32_t m_gfx_intstat;
 
