@@ -1842,7 +1842,7 @@ void solo_asic_device::vblank_irq(int state)
 {
 	// Not to spec but does get the intended result.
 	// All video interrupts are classed the same in the ROM.
-	solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_VSYNCO, state);
+	solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_VSYNCO, 1);
 }
 
 void solo_asic_device::irq_modem_w(int state) 
@@ -2016,8 +2016,9 @@ uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 		m_vid_cline = y;
 
-		if (m_vid_cline == m_pot_hintline)
-			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
+		// When the hintline interrupt is enabled, the vsync interrupt doesn't seem to fire properly in the OS, causing timing issues.
+		/*if (m_vid_cline == m_pot_hintline)
+			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);*/
 
 		for (int x = 0; x < screen_width; x += 2)
 		{
