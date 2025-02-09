@@ -206,7 +206,32 @@ void solo_asic_device::mem_unit_map(address_map &map)
 
 void solo_asic_device::gfx_unit_map(address_map &map)
 {
-	//
+	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_6004_r), FUNC(solo_asic_device::reg_6004_w)); // GFX_CONTROL
+	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_6010_r), FUNC(solo_asic_device::reg_6010_w)); // GFX_OOTYCOUNT
+	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_6014_r), FUNC(solo_asic_device::reg_6014_w)); // GFX_CELSBASE
+	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_6018_r), FUNC(solo_asic_device::reg_6018_w)); // GFX_YMAPBASE
+	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_601c_r), FUNC(solo_asic_device::reg_601c_w)); // GFX_CELSBASEMASTER
+	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_6020_r), FUNC(solo_asic_device::reg_6020_w)); // GFX_YMAPBASEMASTER
+	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_6024_r), FUNC(solo_asic_device::reg_6024_w)); // GFX_INITCOLOR
+	map(0x028, 0x02b).rw(FUNC(solo_asic_device::reg_6028_r), FUNC(solo_asic_device::reg_6028_w)); // GFX_YCOUNTERINlT
+	map(0x02c, 0x02f).rw(FUNC(solo_asic_device::reg_602c_r), FUNC(solo_asic_device::reg_602c_w)); // GFX_PAUSECYCLES
+	map(0x030, 0x033).rw(FUNC(solo_asic_device::reg_6030_r), FUNC(solo_asic_device::reg_6030_w)); // GFX_OOTCELSBASE
+	map(0x034, 0x037).rw(FUNC(solo_asic_device::reg_6034_r), FUNC(solo_asic_device::reg_6034_w)); // GFX_OOTYMAPBASE
+	map(0x038, 0x03b).rw(FUNC(solo_asic_device::reg_6038_r), FUNC(solo_asic_device::reg_6038_w)); // GFX_OOTCELSOFFSET
+	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_603c_r), FUNC(solo_asic_device::reg_603c_w)); // GFX_OOTYMAPCOUNT
+	map(0x040, 0x043).rw(FUNC(solo_asic_device::reg_6040_r), FUNC(solo_asic_device::reg_6040_w)); // GFX_TERMCYCLECOUNT
+	map(0x044, 0x047).rw(FUNC(solo_asic_device::reg_6044_r), FUNC(solo_asic_device::reg_6044_w)); // GFX_HCOUNTERINIT
+	map(0x048, 0x04b).rw(FUNC(solo_asic_device::reg_6048_r), FUNC(solo_asic_device::reg_6048_w)); // GFX_BLANKLINES
+	map(0x04c, 0x04f).rw(FUNC(solo_asic_device::reg_604c_r), FUNC(solo_asic_device::reg_604c_w)); // GFX_ACTIVELINES
+	map(0x060, 0x063).rw(FUNC(solo_asic_device::reg_6060_r), FUNC(solo_asic_device::reg_6060_w)); // GFX_INTEN
+	map(0x064, 0x067).w(FUNC(solo_asic_device::reg_6064_w));                                      // GFX_INTEN_C
+	map(0x068, 0x06b).rw(FUNC(solo_asic_device::reg_6068_r), FUNC(solo_asic_device::reg_6068_w)); // GFX_INTSTAT
+	map(0x06c, 0x06f).w(FUNC(solo_asic_device::reg_606c_w));                                      // GFX_INTSTAT_C
+	map(0x080, 0x083).rw(FUNC(solo_asic_device::reg_6080_r), FUNC(solo_asic_device::reg_6080_w)); // GFX_WBDSTART
+	map(0x084, 0x087).rw(FUNC(solo_asic_device::reg_6084_r), FUNC(solo_asic_device::reg_6084_w)); // GFX_WBDLSIZE
+	map(0x08c, 0x08f).rw(FUNC(solo_asic_device::reg_608c_r), FUNC(solo_asic_device::reg_608c_w)); // GFX_WBSTRIDE
+	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_6090_r), FUNC(solo_asic_device::reg_6090_w)); // GFX_WBDCONFIG
+	map(0x094, 0x097).rw(FUNC(solo_asic_device::reg_6094_r), FUNC(solo_asic_device::reg_6094_w)); // GFX_WBDSTART
 }
 
 void solo_asic_device::dve_unit_map(address_map &map)
@@ -1431,6 +1456,254 @@ uint32_t solo_asic_device::reg_5010_r()
 void solo_asic_device::reg_5010_w(uint32_t data)
 {
 	m_memtiming = data;
+}
+
+// gfxUnit registers
+
+uint32_t solo_asic_device::reg_6004_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6004_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6010_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6010_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6014_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6014_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6018_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6018_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_601c_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_601c_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6020_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6020_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6024_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6024_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6028_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6028_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_602c_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_602c_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6030_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6030_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6034_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6034_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6038_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6038_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_603c_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_603c_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6040_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6040_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6044_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6044_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6048_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6048_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_604c_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_604c_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_6060_r()
+{
+	return m_gfx_intenable;
+}
+
+void solo_asic_device::reg_6060_w(uint32_t data)
+{
+	m_gfx_intenable |= (data & 0xff);
+}
+
+void solo_asic_device::reg_6064_w(uint32_t data)
+{
+	m_gfx_intenable &= (~data) & 0xff;
+}
+
+uint32_t solo_asic_device::reg_6068_r()
+{
+	return m_gfx_intstat;
+}
+
+void solo_asic_device::reg_6068_w(uint32_t data)
+{
+	m_gfx_intstat |= (data & 0xff);
+}
+
+void solo_asic_device::reg_606c_w(uint32_t data)
+{
+	m_gfx_intstat &= (~data) & 0xff;
+}
+
+uint32_t solo_asic_device::reg_6080_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6080_w(uint32_t data)
+{
+	//
+}
+uint32_t solo_asic_device::reg_6084_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6084_w(uint32_t data)
+{
+	//
+}
+uint32_t solo_asic_device::reg_608c_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_608c_w(uint32_t data)
+{
+	//
+}
+uint32_t solo_asic_device::reg_6090_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6090_w(uint32_t data)
+{
+	//
+}
+uint32_t solo_asic_device::reg_6094_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_device::reg_6094_w(uint32_t data)
+{
+	//
 }
 
 uint32_t solo_asic_device::reg_9080_r()
