@@ -332,10 +332,10 @@ void solo_asic_device::device_resolve_objects()
 	machine().manager().before_load_settings(machine());
 	machine().configuration().load_settings();
 
-	if (m_sys_config->read() & SYSCONFIG_NTSC)
-		m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_HTOTAL, 0, NTSC_SCREEN_HBSTART, NTSC_SCREEN_VTOTAL, 0, NTSC_SCREEN_VBSTART);
-	else
+	if (m_sys_config->read() & SYSCONFIG_PAL)
 		m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_HTOTAL, 0, PAL_SCREEN_HBSTART, PAL_SCREEN_VTOTAL, 0, PAL_SCREEN_VBSTART);
+	else
+		m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_HTOTAL, 0, NTSC_SCREEN_HBSTART, NTSC_SCREEN_VTOTAL, 0, NTSC_SCREEN_VBSTART);
 }
 
 void solo_asic_device::device_start()
@@ -634,7 +634,7 @@ void solo_asic_device::reg_0004_w(uint32_t data)
 		}
 	}
 
-	if (!(m_sys_config->read() & SYSCONFIG_AUDDACMODE) && (m_chpcntl ^ data) & CHPCNTL_AUDCLKDIV_MASK)
+	if ((m_chpcntl ^ data) & CHPCNTL_AUDCLKDIV_MASK)
 	{
 		uint32_t audclk_cntl = (data & CHPCNTL_AUDCLKDIV_MASK);
 
