@@ -33,14 +33,7 @@
 #include "speaker.h"
 #include "machine/watchdog.h"
 
-constexpr uint32_t SYSCONFIG_ROMTYP0    = 1 << 31; // ROM bank 0 is present
-constexpr uint32_t SYSCONFIG_ROMMODE0   = 1 << 30; // ROM bank 0 supports page mode
-constexpr uint32_t SYSCONFIG_ROMTYP1    = 1 << 27; // ROM bank 1 is present
-constexpr uint32_t SYSCONFIG_ROMMODE1   = 1 << 26; // ROM bank 1 supports page mode
-constexpr uint32_t SYSCONFIG_AUDDACMODE = 1 << 17; // use external DAC clock
-constexpr uint32_t SYSCONFIG_VIDCLKSRC  = 1 << 16; // use external video encoder clock
-constexpr uint32_t SYSCONFIG_CPUBUFF    = 1 << 13; // 0=50% output buffer strength, 1=83% output buffer strength
-constexpr uint32_t SYSCONFIG_NTSC       = 1 << 11; // use NTSC mode
+constexpr uint32_t SYSCONFIG_PAL = 1 << 3;  // use PAL mode
 
 constexpr uint32_t EMUCONFIG_PBUFF0          = 0;      // Render the screen using data exactly at nstart. Only seen in the prealpha bootrom.
 constexpr uint32_t EMUCONFIG_PBUFF1          = 1 << 0; // Render the screen using data one buffer length beyond nstart. Seems to be what they settled on.
