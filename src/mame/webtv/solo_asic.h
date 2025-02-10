@@ -155,18 +155,18 @@ constexpr uint32_t POT_HSTART_OFFSET  = 0x37;
 
 constexpr uint32_t POT_DEFAULT_COLOR   = (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
 
-constexpr uint32_t POT_FCNTL_USEGFX444    = 1 << 6; // Use 4:4:4 date from gfxUnit when source from dveUnit
-constexpr uint32_t POT_FCNTL_DVECCS       = 1 << 6; // Select wich edge of CrCbSel used to latch GFX->DVE interp
-constexpr uint32_t POT_FCNTL_DVEHALFSHIFT = 1 << 6; // Shift pipeline to dveUnit 1/2 pixel (debug bit)
-constexpr uint32_t POT_FCNTL_HINT2XFLINE  = 1 << 6; // hint is in 2x field lines (off = 1x frame lines)
-constexpr uint32_t POT_FCNTL_SOUTEN       = 1 << 6; // Enable video sync outpuit pins  (DVE_TEN is set needs to be set)
-constexpr uint32_t POT_FCNTL_DOUTEN       = 1 << 6; // Enable video output pins (DVE_TEN is set needs to be set)
-constexpr uint32_t POT_FCNTL_HALFSHIFT    = 1 << 6; // Shifts the external encoder pixel pipeline 1/2 pixel (debug bit)
-constexpr uint32_t POT_FCNTL_CRCBINVERT   = 1 << 6; // invert MSB Cb and Cb
-constexpr uint32_t POT_FCNTL_USEGFX       = 1 << 3; // Use gfxUnit as the video source, rather than vidUnit
-constexpr uint32_t POT_FCNTL_SOFTRESET    = 1 << 3; // Soft reset potUnit
-constexpr uint32_t POT_FCNTL_PROGRESSIVE  = 1 << 1; // progressive video enabled
-constexpr uint32_t POT_FCNTL_EN           = 1 << 0; // potUnit output enable
+constexpr uint32_t POT_FCNTL_USEGFX444    = 1 << 11; // Use 4:4:4 data from gfxUnit when source from dveUnit
+constexpr uint32_t POT_FCNTL_DVECCS       = 1 << 10; // Select wich edge of CrCbSel used to latch GFX->DVE interp
+constexpr uint32_t POT_FCNTL_DVEHALFSHIFT = 1 << 9;  // Shift pipeline to dveUnit 1/2 pixel (debug bit)
+constexpr uint32_t POT_FCNTL_HINT2XFLINE  = 1 << 8;  // hint is in 2x field lines (off = 1x frame lines)
+constexpr uint32_t POT_FCNTL_SOUTEN       = 1 << 7;  // Enable video sync outpuit pins  (DVE_TEN is set needs to be set)
+constexpr uint32_t POT_FCNTL_DOUTEN       = 1 << 6;  // Enable video output pins (DVE_TEN is set needs to be set)
+constexpr uint32_t POT_FCNTL_HALFSHIFT    = 1 << 5;  // Shifts the external encoder pixel pipeline 1/2 pixel (debug bit)
+constexpr uint32_t POT_FCNTL_CRCBINVERT   = 1 << 4;  // invert MSB Cb and Cb
+constexpr uint32_t POT_FCNTL_USEGFX       = 1 << 3;  // Use gfxUnit as the video source, rather than vidUnit
+constexpr uint32_t POT_FCNTL_SOFTRESET    = 1 << 2;  // Soft reset potUnit
+constexpr uint32_t POT_FCNTL_PROGRESSIVE  = 1 << 1;  // progressive video enabled
+constexpr uint32_t POT_FCNTL_EN           = 1 << 0;  // potUnit output enable
 
 constexpr uint32_t GFX_INT_RANGEINT_WBEOFL = 1 << 4; // Writeback has finished field
 constexpr uint32_t GFX_INT_RANGEINT_OOT    = 1 << 3; // qfxUnit ran out of time compositing line
@@ -334,6 +334,7 @@ protected:
 	uint32_t m_pot_draw_vstart;
 	uint32_t m_pot_draw_vsize;
 	uint32_t m_pot_draw_blank_color;
+	uint32_t m_pot_draw_hintline;
 
 	uint8_t m_aud_clkdiv;
 	uint32_t m_aud_cstart;
@@ -411,6 +412,9 @@ private:
 	void watchdog_enable(int state);
 	void pixel_buffer_index_update();
 
+	uint32_t gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	uint32_t vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	
 	/* busUnit registers */
 
 	uint32_t reg_0000_r();          // BUS_CHIPID (read-only)
