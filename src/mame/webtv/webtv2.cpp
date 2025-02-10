@@ -49,7 +49,7 @@
 #include "screen.h"
 
 // The system clock is used to drive the SOLO ASIC, drive the CPU and is used to calculate the audio clock.
-constexpr XTAL     SYSCLOCK         = XTAL(87'183'360);
+constexpr XTAL     SYSCLOCK         = (XTAL(41'539'000) * 2);
 constexpr uint16_t RAM_FLASHER_SIZE = 0x100;
 constexpr uint32_t MAX_RAM_SIZE     = 0x4000000;
 
