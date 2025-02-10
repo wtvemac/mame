@@ -695,7 +695,7 @@ uint32_t solo_asic_device::reg_000c_r()
 
 void solo_asic_device::reg_000c_w(uint32_t data)
 {
-	m_bus_intenable |= data & 0xFF;
+	m_bus_intenable |= data & 0xff;
 }
 
 uint32_t solo_asic_device::reg_010c_r()
@@ -705,7 +705,7 @@ uint32_t solo_asic_device::reg_010c_r()
 
 void solo_asic_device::reg_010c_w(uint32_t data)
 {
-	m_bus_intenable &= ~(data & 0xFF);
+	m_bus_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_0010_r()
@@ -830,7 +830,7 @@ uint32_t solo_asic_device::reg_015c_r()
 
 void solo_asic_device::reg_015c_w(uint32_t data)
 {
-	m_busgpio_intenable &= ~(data & 0xff);
+	m_busgpio_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_0058_r()
@@ -861,21 +861,20 @@ uint32_t solo_asic_device::reg_0070_r()
 void solo_asic_device::reg_0070_w(uint32_t data)
 {
 	m_busaud_intenable |= data & 0xff;
-	m_bus_intenable |= BUS_INT_AUDIO;
+	if (m_busaud_intenable != 0x0)
+	{
+		m_bus_intenable |= BUS_INT_AUDIO;
+	}
 }
 
 uint32_t solo_asic_device::reg_0170_r()
 {
 	return m_busaud_intenable;
-	if(m_busaud_intenable == 0x00)
-	{
-			m_busaud_intenable &= ~(BUS_INT_AUDIO & 0xff);
-	}
 }
 
 void solo_asic_device::reg_0170_w(uint32_t data)
 {
-	set_audio_irq(data, 0);
+	m_busaud_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_0068_r()
@@ -895,11 +894,7 @@ void solo_asic_device::reg_006c_w(uint32_t data)
 
 void solo_asic_device::reg_0168_w(uint32_t data)
 {
-	m_busaud_intstat &= (~data) & 0xff;
-	if (m_busaud_intstat == 0x00)
-	{
-			solo_asic_device::set_bus_irq(BUS_INT_AUDIO, 0);
-	}
+	solo_asic_device::set_audio_irq(data, 0);
 }
 
 uint32_t solo_asic_device::reg_007c_r()
@@ -910,7 +905,10 @@ uint32_t solo_asic_device::reg_007c_r()
 void solo_asic_device::reg_007c_w(uint32_t data)
 {
 	m_busdev_intenable |= data & 0xff;
-	m_bus_intenable |= BUS_INT_DEV;
+	if (m_busdev_intenable != 0x0)
+	{
+		m_bus_intenable |= BUS_INT_DEV;
+	}
 }
 
 uint32_t solo_asic_device::reg_017c_r()
@@ -920,11 +918,7 @@ uint32_t solo_asic_device::reg_017c_r()
 
 void solo_asic_device::reg_017c_w(uint32_t data)
 {
-	m_busdev_intenable &= ~(data & 0xff);
-	if(m_busdev_intenable == 0x00)
-	{
-			m_bus_intenable &= ~(BUS_INT_DEV & 0xff);
-	}
+	m_busdev_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_0074_r()
@@ -944,11 +938,7 @@ void solo_asic_device::reg_0078_w(uint32_t data)
 
 void solo_asic_device::reg_0174_w(uint32_t data)
 {
-	m_busdev_intstat &= (~data) & 0xff;
-	if (m_busdev_intstat == 0x00)
-	{
-			solo_asic_device::set_bus_irq(BUS_INT_DEV, 0);
-	}
+	solo_asic_device::set_dev_irq(data, 0);
 }
 
 uint32_t solo_asic_device::reg_0088_r()
@@ -959,7 +949,10 @@ uint32_t solo_asic_device::reg_0088_r()
 void solo_asic_device::reg_0088_w(uint32_t data)
 {
 	m_busvid_intenable |= data & 0xff;
-	m_bus_intenable |= BUS_INT_VIDEO;
+	if (m_busvid_intenable != 0x0)
+	{
+		m_bus_intenable |= BUS_INT_VIDEO;
+	}
 }
 
 uint32_t solo_asic_device::reg_0188_r()
@@ -969,11 +962,7 @@ uint32_t solo_asic_device::reg_0188_r()
 
 void solo_asic_device::reg_0188_w(uint32_t data)
 {
-	m_busvid_intenable &= ~(data & 0xff);
-	if(m_busvid_intenable == 0x00)
-	{
-			m_bus_intenable &= ~(BUS_INT_VIDEO & 0xff);
-	}
+	m_busvid_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_0080_r()
@@ -993,10 +982,35 @@ void solo_asic_device::reg_0084_w(uint32_t data)
 
 void solo_asic_device::reg_0180_w(uint32_t data)
 {
-	m_busvid_intstat &= (~data) & 0xff;
-	if (m_busvid_intstat == 0x00)
+	uint32_t check_intstat = 0x0;
+
+	switch (data)
 	{
+		case BUS_INT_VID_DIVUNIT:
+			check_intstat = m_div_intstat;
+			break;
+
+		case BUS_INT_VID_GFXUNIT:
+			check_intstat = m_gfx_intstat;
+			break;
+
+		case BUS_INT_VID_POTUNIT:
+			check_intstat = m_pot_intstat;
+			break;
+
+		case BUS_INT_VID_VIDUNIT:
+			check_intstat = m_vid_intstat;
+			break;
+	}
+
+	if (check_intstat == 0x0)
+	{
+		m_busvid_intstat &= (~data) & 0xff;
+
+		if(m_busvid_intstat == 0x0)
+		{
 			solo_asic_device::set_bus_irq(BUS_INT_VIDEO, 0);
+		}
 	}
 }
 
@@ -1008,7 +1022,10 @@ uint32_t solo_asic_device::reg_0098_r()
 void solo_asic_device::reg_0098_w(uint32_t data)
 {
 	m_busrio_intenable |= data & 0xff;
-	m_bus_intenable |= BUS_INT_RIO;
+	if (m_busrio_intenable != 0x0)
+	{
+		m_bus_intenable |= BUS_INT_RIO;
+	}
 }
 
 uint32_t solo_asic_device::reg_0198_r()
@@ -1020,11 +1037,7 @@ void solo_asic_device::reg_0198_w(uint32_t data)
 {
 	if (data != BUS_INT_RIO_DEVICE0) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
 	{
-			m_busrio_intenable &= ~(data & 0xff);
-			if (m_busrio_intenable == 0x00)
-			{
-					solo_asic_device::set_bus_irq(BUS_INT_RIO, 0);
-			}
+		m_busrio_intenable &= (~data) & 0xff;
 	}
 }
 
@@ -1045,11 +1058,7 @@ void solo_asic_device::reg_0090_w(uint32_t data)
 
 void solo_asic_device::reg_018c_w(uint32_t data)
 {
-	m_busrio_intstat &= (~data) & 0xff;
-	if (m_busvid_intstat == 0x00)
-	{
-			solo_asic_device::set_bus_irq(BUS_INT_RIO, 0);
-	}
+	solo_asic_device::set_rio_irq(data, 0);
 }
 
 uint32_t solo_asic_device::reg_1000_r()
@@ -1222,7 +1231,7 @@ uint32_t solo_asic_device::reg_3038_r()
 
 void solo_asic_device::reg_3138_w(uint32_t data)
 {
-	m_vid_intstat &= (~data) & 0xff;
+	solo_asic_device::set_video_irq(BUS_INT_VID_VIDUNIT, data, 0);
 }
 
 uint32_t solo_asic_device::reg_303c_r()
@@ -1233,6 +1242,11 @@ uint32_t solo_asic_device::reg_303c_r()
 void solo_asic_device::reg_303c_w(uint32_t data)
 {
 	m_vid_intenable |= (data & 0xff);
+	if (m_vid_intenable != 0x0)
+	{
+		m_busvid_intenable |= BUS_INT_VID_VIDUNIT;
+		m_bus_intenable |= BUS_INT_VIDEO;
+	}
 }
 
 void solo_asic_device::reg_313c_w(uint32_t data)
@@ -1646,11 +1660,16 @@ uint32_t solo_asic_device::reg_6060_r()
 void solo_asic_device::reg_6060_w(uint32_t data)
 {
 	m_gfx_intenable |= (data & 0xff);
+	if (m_gfx_intenable != 0x0)
+	{
+		m_busvid_intenable |= BUS_INT_VID_GFXUNIT;
+		m_bus_intenable |= BUS_INT_VIDEO;
+	}
 }
 
 void solo_asic_device::reg_6064_w(uint32_t data)
 {
-	m_gfx_intenable &= (~data) & 0xff;
+	solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, data, 0);
 }
 
 uint32_t solo_asic_device::reg_6068_r()
@@ -1818,6 +1837,11 @@ uint32_t solo_asic_device::reg_909c_r()
 void solo_asic_device::reg_909c_w(uint32_t data)
 {
 	m_pot_intenable |= (data & 0xff);
+	if (m_pot_intenable != 0x0)
+	{
+		m_busvid_intenable |= BUS_INT_VID_POTUNIT;
+		m_bus_intenable |= BUS_INT_VIDEO;
+	}
 }
 
 void solo_asic_device::reg_90a4_w(uint32_t data)
@@ -1832,7 +1856,7 @@ uint32_t solo_asic_device::reg_90a0_r()
 
 void solo_asic_device::reg_90a8_w(uint32_t data)
 {
-	m_pot_intstat &= (~data) & 0xff;
+	solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, data, 0);
 }
 
 uint32_t solo_asic_device::reg_90ac_r()
@@ -2181,11 +2205,8 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 }
 
 // The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
-
 void solo_asic_device::vblank_irq(int state) 
 {
-	// Not to spec but does get the intended result.
-	// All video interrupts are classed the same in the ROM.
 	solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_VSYNCO, 1);
 }
 
@@ -2211,11 +2232,11 @@ void solo_asic_device::set_audio_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_busaud_intstat &= ~(mask);
+			m_busaud_intstat &= (~mask) & 0xff;
 
 			if(m_busaud_intstat == 0x00)
 			{
-					solo_asic_device::set_bus_irq(BUS_INT_AUDIO, state);
+				solo_asic_device::set_bus_irq(BUS_INT_AUDIO, state);
 			}
 		}
 	}
@@ -2233,11 +2254,11 @@ void solo_asic_device::set_dev_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_busdev_intstat &= ~(mask);
+			m_busdev_intstat &= (~mask) & 0xff;
 
 			if(m_busdev_intstat == 0x00)
 			{
-					solo_asic_device::set_bus_irq(BUS_INT_DEV, state);
+				solo_asic_device::set_bus_irq(BUS_INT_DEV, state);
 			}
 		}
 	}
@@ -2255,11 +2276,11 @@ void solo_asic_device::set_rio_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_busrio_intstat &= ~(mask);
+			m_busrio_intstat &= (~mask) & 0xff;
 
 			if(m_busrio_intstat == 0x00)
 			{
-					solo_asic_device::set_bus_irq(BUS_INT_RIO, state);
+				solo_asic_device::set_bus_irq(BUS_INT_RIO, state);
 			}
 		}
 	}
@@ -2271,41 +2292,65 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 	{
 		uint32_t sub_intstat = 0x00;
 
-		switch(mask)
+		switch (mask)
 		{
 			case BUS_INT_VID_DIVUNIT:
-				if (state)
+				if (m_div_intenable & sub_mask)
+				{
+					if (state)
 						m_div_intstat |= sub_mask;
+					else
+						m_div_intstat &= (~sub_mask) & 0xff;
+				}
 				else
-						m_div_intstat &= ~(sub_mask);
-
+				{
+					state = 0;
+				}
 				sub_intstat = m_div_intstat;
 				break;
 
 			case BUS_INT_VID_GFXUNIT:
-				if (state)
+				if (m_gfx_intenable & sub_mask)
+				{
+					if (state)
 						m_gfx_intstat |= sub_mask;
+					else
+						m_gfx_intstat &= (~sub_mask) & 0xff;
+				}
 				else
-						m_gfx_intstat &= ~(sub_mask);
-
+				{
+					state = 0;
+				}
 				sub_intstat = m_gfx_intstat;
 				break;
 
 			case BUS_INT_VID_POTUNIT:
-				if (state)
+				if (m_pot_intenable & sub_mask)
+				{
+					if (state)
 						m_pot_intstat |= sub_mask;
+					else
+						m_pot_intstat &= (~sub_mask) & 0xff;
+				}
 				else
-						m_pot_intstat &= ~(sub_mask);
-
+				{
+					state = 0;
+				}
 				sub_intstat = m_pot_intstat;
 				break;
 
 			case BUS_INT_VID_VIDUNIT:
-				if (state)
+				if (m_vid_intenable & sub_mask)
+				{
+					if (state)
 						m_vid_intstat |= sub_mask;
+					else
+						m_vid_intstat &= (~sub_mask) & 0xff;
+				}
 				else
-						m_vid_intstat &= ~(sub_mask);
-
+				{
+					state = 0;
+				}
 				sub_intstat = m_vid_intstat;
 				break;
 		}
@@ -2316,13 +2361,13 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 
 			solo_asic_device::set_bus_irq(BUS_INT_VIDEO, state);
 		}
-		else if(sub_intstat == 0x00)
+		else if(sub_intstat == 0x0)
 		{
-			m_busvid_intstat &= ~(mask);
+			m_busvid_intstat &= (~mask) & 0xff;
 
-			if(m_busvid_intstat == 0x00)
+			if(m_busvid_intstat == 0x0)
 			{
-					solo_asic_device::set_bus_irq(BUS_INT_VIDEO, state);
+				solo_asic_device::set_bus_irq(BUS_INT_VIDEO, state);
 			}
 		}
 	}
@@ -2335,7 +2380,7 @@ void solo_asic_device::set_bus_irq(uint8_t mask, int state)
 		if (state)
 			m_bus_intstat |= mask;
 		else
-			m_bus_intstat &= ~(mask);
+			m_bus_intstat &= (~mask) & 0xff;
 		
 		m_hostcpu->set_input_line(MIPS3_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
 	}
@@ -2360,9 +2405,8 @@ uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 		m_vid_cline = y;
 
-		// When the hintline interrupt is enabled, the vsync interrupt doesn't seem to fire properly in the OS, causing timing issues.
-		/*if (m_vid_cline == m_pot_hintline)
-			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);*/
+		if (m_vid_cline == m_pot_hintline)
+			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
 
 		for (int x = 0; x < screen_width; x += 2)
 		{
