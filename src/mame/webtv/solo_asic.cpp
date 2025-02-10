@@ -404,6 +404,7 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_pot_draw_vstart));
 	save_item(NAME(m_pot_draw_vsize));
 	save_item(NAME(m_pot_draw_blank_color));
+	save_item(NAME(m_pot_draw_hintline));
 
 	save_item(NAME(m_aud_cstart));
 	save_item(NAME(m_aud_csize));
@@ -494,6 +495,7 @@ void solo_asic_device::device_reset()
 	m_pot_draw_vstart = m_pot_vstart;
 	m_pot_draw_vsize = m_pot_vsize;
 	m_pot_draw_blank_color = m_pot_blank_color;
+	m_pot_draw_hintline = 0x0;
 
 	m_aud_cstart = 0x0;
 	m_aud_csize = 0x0;
@@ -1825,6 +1827,8 @@ uint32_t solo_asic_device::reg_9098_r()
 void solo_asic_device::reg_9098_w(uint32_t data)
 {
 	m_pot_hintline = data;
+
+	m_pot_draw_hintline = std::min(m_pot_hintline, (uint32_t)(m_screen->height() - 1));
 }
 
 // _vid_ int variables are being used because everything fires as Vvid interrupts right now (code was copied from SPOT)
@@ -2386,16 +2390,23 @@ void solo_asic_device::set_bus_irq(uint8_t mask, int state)
 	}
  }
 
-
-uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+uint32_t solo_asic_device::gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height = bitmap.height();
 	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
+	bool screen_enabled = (m_pot_cntl & POT_FCNTL_EN) && (m_gfx_cntl & GFX_FCNTL_EN);
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_vid_draw_nstart;
+	m_vid_ccnt = m_gfx_wbdstart;
+
+	// These values are quick hacks to get gfxUnit to draw properly.
+	// Changes will come once we understand gfxUnit better
+	uint32_t _m_pot_draw_hstart = 40;
+	uint32_t _m_pot_draw_hsize = m_gfx_wbdlsize;
+	uint32_t _m_pot_draw_vstart = m_pot_vstart;
+	uint32_t _m_pot_draw_vsize = m_pot_vsize - 59;
 
 	address_space &space = m_hostcpu->space(AS_PROGRAM);
 
@@ -2405,7 +2416,7 @@ uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 		m_vid_cline = y;
 
-		if (m_vid_cline == m_pot_hintline)
+		if (m_vid_cline == m_pot_draw_hintline)
 			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
 
 		for (int x = 0; x < screen_width; x += 2)
@@ -2413,14 +2424,14 @@ uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 			uint32_t pixel = POT_DEFAULT_COLOR;
 
 			bool is_active_area = (
-				y >= m_pot_draw_vstart
-				&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
+				y >= _m_pot_draw_vstart
+				&& y < (_m_pot_draw_vstart + _m_pot_draw_vsize)
 
-				&& x >= m_pot_draw_hstart
-				&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
+				&& x >= _m_pot_draw_hstart
+				&& x < (_m_pot_draw_hstart + _m_pot_draw_hsize)
 			);
 
-			if (m_pot_cntl & POT_FCNTL_EN && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
+			if (screen_enabled && is_active_area)
 			{
 				pixel = space.read_dword(m_vid_ccnt);
 
@@ -2457,14 +2468,95 @@ uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 		}
 	}
 
-	if(m_pot_cntl & POT_FCNTL_USEGFX)
+	solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, GFX_INT_RANGEINT_WBEOF, 1);
+
+	return 0;
+}
+
+uint32_t solo_asic_device::vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+	uint16_t screen_width = bitmap.width();
+	uint16_t screen_height = bitmap.height();
+	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
+	bool screen_enabled = (m_pot_cntl & POT_FCNTL_EN) && (m_vid_dmacntl & VID_DMACNTL_DMAEN);
+
+	m_vid_cstart = m_vid_nstart;
+	m_vid_csize = m_vid_nsize;
+	m_vid_ccnt = m_vid_draw_nstart;
+
+	address_space &space = m_hostcpu->space(AS_PROGRAM);
+
+	for (int y = 0; y < screen_height; y++)
 	{
-		solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, GFX_INT_RANGEINT_WBEOF, 1);
+		uint32_t *line = &bitmap.pix(y);
+
+		m_vid_cline = y;
+
+		if (m_vid_cline == m_pot_draw_hintline)
+			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
+
+		for (int x = 0; x < screen_width; x += 2)
+		{
+			uint32_t pixel = POT_DEFAULT_COLOR;
+
+			bool is_active_area = (
+				y >= m_pot_draw_vstart
+				&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
+
+				&& x >= m_pot_draw_hstart
+				&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
+			);
+
+			if (screen_enabled && is_active_area)
+			{
+				pixel = space.read_dword(m_vid_ccnt);
+
+				m_vid_ccnt += vid_step;
+			}
+			else
+			{
+				pixel = m_pot_draw_blank_color;
+			}
+
+			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
+			int32_t Cb = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
+			int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
+			int32_t Cr = ((pixel) & 0xff) - VID_UV_OFFSET;
+
+			y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+			y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+
+			int32_t r = ((0x166 * Cr) + VID_UV_OFFSET) >> 8;
+			int32_t b = ((0x1C7 * Cb) + VID_UV_OFFSET) >> 8;
+			int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
+
+			*line++ = (
+				std::clamp(y1 + r, 0x00, 0xff) << 0x10
+				| std::clamp(y1 - g, 0x00, 0xff) << 0x08
+				| std::clamp(y1 + b, 0x00, 0xff)
+			);
+
+			*line++ = (
+				std::clamp(y2 + r, 0x00, 0xff) << 0x10
+				| std::clamp(y2 - g, 0x00, 0xff) << 0x08
+				| std::clamp(y2 + b, 0x00, 0xff)
+			);
+		}
+	}
+
+	solo_asic_device::set_video_irq(BUS_INT_VID_VIDUNIT, VID_INT_DMA, 1);
+
+	return 0;
+}
+
+uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+	if (m_pot_cntl & POT_FCNTL_USEGFX)
+	{
+		return gfxunit_screen_update(screen, bitmap, cliprect);
 	}
 	else
 	{
-		solo_asic_device::set_video_irq(BUS_INT_VID_VIDUNIT, VID_INT_DMA, 1);
+		return vidunit_screen_update(screen, bitmap, cliprect);
 	}
-
-	return 0;
 }
