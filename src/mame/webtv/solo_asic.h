@@ -25,6 +25,7 @@
 #include "diserial.h"
 #include "bus/rs232/rs232.h"
 #include "cpu/mips/mips3.h"
+#include "wtvir.h"
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 #include "machine/ins8250.h"
@@ -362,6 +363,7 @@ private:
 	required_device<mips3_device> m_hostcpu;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
+	required_device<wtvir_seijin_device> m_irkbdc;
 	required_device<screen_device> m_screen;
 
 	required_device_array<dac_word_interface, 2> m_dac;
@@ -395,6 +397,7 @@ private:
 
 	void vblank_irq(int state);
 	void irq_modem_w(int state);
+	void irq_keyboard_w(int state);
 	void set_audio_irq(uint8_t mask, int state);
 	void set_dev_irq(uint8_t mask, int state);
 	void set_video_irq(uint8_t mask, uint8_t sub_mask, int state);
@@ -526,7 +529,7 @@ private:
 
 	/* devUnit registers */
 
-	uint32_t reg_4000_r();          // DEV_IRDATA (read-only)
+	uint32_t reg_4000_r();          // DEV_IROLD (read-only)
 	uint32_t reg_4004_r();          // DEV_LED (read)
 	void reg_4004_w(uint32_t data); // DEV_LED (write)
 	uint32_t reg_4008_r();          // DEV_IDCNTL (read)
@@ -539,6 +542,15 @@ private:
 	void reg_4014_w(uint32_t data); // DEV_EXTTIME (write)
 	uint32_t reg_4018_r();          // DEV_ (read)
 	void reg_4018_w(uint32_t data); // DEV_ (write)
+	uint32_t reg_4020_r();          // DEV_IRIN_SAMPLE (read)
+	void reg_4020_w(uint32_t data); // DEV_IRIN_SAMPLE (write)
+	uint32_t reg_4024_r();          // DEV_IRIN_REJECT_INT (read)
+	void reg_4024_w(uint32_t data); // DEV_IRIN_REJECT_INT (write)
+	uint32_t reg_4028_r();          // DEV_IRIN_TRANS_DATA (read)
+	uint32_t reg_402c_r();          // DEV_IRIN_STATCNTL (read)
+	void reg_402c_w(uint32_t data); // DEV_IRIN_STATCNTL (write)
+
+	
 
 	// The boot ROM seems to write to register 4018, which is not mentioned anywhere in the documentation.
 
