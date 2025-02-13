@@ -148,7 +148,8 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x08c, 0x08f).r(FUNC(solo_asic_device::reg_008c_r));                                      // BUS_RIOINTSTAT
 	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_0090_r), FUNC(solo_asic_device::reg_0090_w)); // BUS_RIOINTSTAT_S
 	map(0x18c, 0x18f).w(FUNC(solo_asic_device::reg_018c_w));                                      // BUS_RIOINTSTAT_C
-
+	map(0x0a8, 0x0ab).rw(FUNC(solo_asic_device::reg_00a8_r), FUNC(solo_asic_device::reg_00a8_w)); // BUS_RESETCAUSE
+	map(0x0ac, 0x0af).w(FUNC(solo_asic_device::reg_00ac_w));                                      // BUS_RESETCAUSE_C
 }
 
 void solo_asic_device::rom_unit_map(address_map &map)
@@ -374,6 +375,7 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_chpcntl));
 	save_item(NAME(m_wdenable));
 	save_item(NAME(m_errstat));
+	save_item(NAME(m_resetcause));
 
 	save_item(NAME(m_vid_nstart));
 	save_item(NAME(m_vid_nsize));
@@ -431,6 +433,8 @@ void solo_asic_device::device_start()
 	save_item(NAME(dev_id_state));
 	save_item(NAME(dev_id_bit));
 	save_item(NAME(dev_id_bitidx));
+
+	m_resetcause = 0x0;
 }
 
 void solo_asic_device::device_reset()
@@ -542,6 +546,12 @@ void solo_asic_device::device_reset()
 	solo_asic_device::validate_active_area();
 	solo_asic_device::watchdog_enable(m_wdenable);
 	m_irkbdc->enable(1);
+
+	// Assume it's a watchdog reset if the reset wasn't commanded using the BUS_RESETCAUSE register
+	if (m_resetcause != RESETCAUSE_SOFTWARE)
+	{
+		m_resetcause = RESETCAUSE_WATCHDOG;
+	}
 }
 
 void solo_asic_device::device_stop()
@@ -1070,6 +1080,30 @@ void solo_asic_device::reg_0090_w(uint32_t data)
 void solo_asic_device::reg_018c_w(uint32_t data)
 {
 	solo_asic_device::set_rio_irq(data, 0);
+}
+
+uint32_t solo_asic_device::reg_00a8_r()
+{
+	return m_resetcause;
+}
+
+void solo_asic_device::reg_00a8_w(uint32_t data)
+{
+	m_resetcause |= data;
+
+	if (m_resetcause & RESETCAUSE_SOFTWARE)
+	{
+		m_resetcause = RESETCAUSE_SOFTWARE;
+
+		popmessage("Software reset fired");
+
+		machine().schedule_soft_reset();
+	}
+}
+
+void solo_asic_device::reg_00ac_w(uint32_t data)
+{
+	m_resetcause &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_1000_r()
