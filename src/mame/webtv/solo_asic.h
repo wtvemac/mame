@@ -60,6 +60,10 @@ constexpr uint32_t ERR_F2WRITE = 1 << 3; // BUS_FENADDR2 write fence check error
 constexpr uint32_t ERR_TIMEOUT = 1 << 2; // io timeout error
 constexpr uint32_t ERR_OW      = 1 << 0; // double-fault
 
+constexpr uint32_t RESETCAUSE_SOFTWARE = 1 << 2;
+constexpr uint32_t RESETCAUSE_WATCHDOG = 1 << 1;
+constexpr uint32_t RESETCAUSE_SWITCH   = 1 << 0;
+
 constexpr uint32_t WATCHDOG_TIMER_USEC = 1000000;
 
 constexpr uint32_t BUS_INT_VIDEO = 1 << 7; // putUnit, gfxUnit, vidUnit interrupt
@@ -256,8 +260,8 @@ protected:
 	uint32_t m_fence1_mask;
 	uint32_t m_fence2_addr;
 	uint32_t m_fence2_mask;
-
 	uint32_t m_tcompare;
+	uint32_t m_resetcause;
 
 	uint8_t m_bus_intenable;
 	uint8_t m_bus_intstat;
@@ -483,6 +487,9 @@ private:
 	uint32_t reg_0090_r();          // BUS_RIOINTSTAT_S (read)
 	void reg_0090_w(uint32_t data); // BUS_RIOINTSTAT_S (write)
 	void reg_018c_w(uint32_t data); // BUS_RIOINTSTAT_C (write)
+	uint32_t reg_00a8_r();          // BUS_RESETCAUSE (read)
+	void reg_00a8_w(uint32_t data); // BUS_RESETCAUSE (write)
+	void reg_00ac_w(uint32_t data); // BUS_RESETCAUSE_C (write)
 
 	/* romUnit registers */
 
