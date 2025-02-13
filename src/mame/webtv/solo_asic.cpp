@@ -78,6 +78,7 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
 	m_hostcpu(*this, finder_base::DUMMY_TAG),
 	m_serial_id(*this, finder_base::DUMMY_TAG),
 	m_nvram(*this, finder_base::DUMMY_TAG),
+	m_irkbdc(*this, "irkbdc"),
 	m_screen(*this, "screen"),
 	m_dac(*this, "dac%u", 0),
 	m_lspeaker(*this, "lspeaker"),
@@ -186,13 +187,17 @@ void solo_asic_device::vid_unit_map(address_map &map)
 
 void solo_asic_device::dev_unit_map(address_map &map)
 {
-	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_4000_r));                                      // DEV_IRDATA
+	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_4000_r));                                      // DEV_IROLD
 	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_4004_r), FUNC(solo_asic_device::reg_4004_w)); // DEV_LED
 	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_4008_r), FUNC(solo_asic_device::reg_4008_w)); // DEV_IDCNTL
 	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_400c_r), FUNC(solo_asic_device::reg_400c_w)); // DEV_NVCNTL
 	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_4010_r), FUNC(solo_asic_device::reg_4010_w)); // DEV_SCCNTL
 	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_4014_r), FUNC(solo_asic_device::reg_4014_w)); // DEV_EXTTIME
 	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_4018_r), FUNC(solo_asic_device::reg_4018_w)); // DEV_
+	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_4020_r), FUNC(solo_asic_device::reg_4020_w)); // DEV_IRIN_SAMPLE
+	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_4024_r), FUNC(solo_asic_device::reg_4024_w)); // DEV_IRIN_REJECT_INT
+	map(0x028, 0x02b).r(FUNC(solo_asic_device::reg_4028_r));                                      // DEV_IRIN_TRANS_DATA
+	map(0x02c, 0x02f).rw(FUNC(solo_asic_device::reg_402c_r), FUNC(solo_asic_device::reg_402c_w)); // DEV_IRIN_STATCNTL
 }
 
 void solo_asic_device::mem_unit_map(address_map &map)
@@ -321,6 +326,9 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 	rs232.dsr_handler().set(m_modem_uart, FUNC(ns16450_device::dsr_w));
 	rs232.ri_handler().set(m_modem_uart, FUNC(ns16450_device::ri_w));
 	rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
+
+	SEIJIN_KBD(config, m_irkbdc);
+	m_irkbdc->sample_fifo_trigger_callback().set(FUNC(solo_asic_device::irq_keyboard_w));
 
 	WATCHDOG_TIMER(config, m_watchdog);
 	solo_asic_device::watchdog_enable(0);
@@ -533,6 +541,7 @@ void solo_asic_device::device_reset()
 
 	solo_asic_device::validate_active_area();
 	solo_asic_device::watchdog_enable(m_wdenable);
+	m_irkbdc->enable(1);
 }
 
 void solo_asic_device::device_stop()
@@ -1269,8 +1278,7 @@ void solo_asic_device::reg_3040_w(uint32_t data)
 // Read IR receiver chip
 uint32_t solo_asic_device::reg_4000_r()
 {
-	// TODO: This seems to have been handled by a PIC16CR54AT. We do not have the ROM for this chip, so its behavior will need to be emulated at a high level.
-	return 0;
+	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IROLD);
 }
 
 // Read LED states
@@ -1427,6 +1435,41 @@ uint32_t solo_asic_device::reg_4018_r()
 void solo_asic_device::reg_4018_w(uint32_t data)
 {
 	//
+}
+
+uint32_t solo_asic_device::reg_4020_r()
+{
+	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_SAMPLE);
+}
+
+void solo_asic_device::reg_4020_w(uint32_t data)
+{
+	m_irkbdc->data_w(wtvir_seijin_device::DEV_IRIN_SAMPLE, data);
+}
+
+uint32_t solo_asic_device::reg_4024_r()
+{
+	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_REJECT_INT);
+}
+
+void solo_asic_device::reg_4024_w(uint32_t data)
+{
+	m_irkbdc->data_w(wtvir_seijin_device::DEV_IRIN_REJECT_INT, data);
+}
+
+uint32_t solo_asic_device::reg_4028_r()
+{
+	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_TRANS_DATA);
+}
+
+uint32_t solo_asic_device::reg_402c_r()
+{
+	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_STATCNTL);
+}
+
+void solo_asic_device::reg_402c_w(uint32_t data)
+{
+	m_irkbdc->data_w(wtvir_seijin_device::DEV_IRIN_STATCNTL, data);
 }
 
 // memUnit registers
@@ -2222,6 +2265,11 @@ void solo_asic_device::irq_modem_w(int state)
 void solo_asic_device::irq_ide_w(int state)
 {
 	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
+}
+
+void solo_asic_device::irq_keyboard_w(int state)
+{
+	solo_asic_device::set_dev_irq(BUS_INT_DEV_IRIN, state);
 }
 
 void solo_asic_device::set_audio_irq(uint8_t mask, int state)
