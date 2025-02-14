@@ -84,6 +84,7 @@ private:
 	uint8_t           m_user_password_enable;
 	const uint8_t *   m_master_password;
 	const uint8_t *   m_user_password;
+	uint8_t           m_power_mode;
 	// DMA data transfer time for 1 sector
 	attotime          m_dma_transfer_time;
 };
