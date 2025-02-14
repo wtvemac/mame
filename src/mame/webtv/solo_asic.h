@@ -65,13 +65,14 @@ constexpr uint32_t RESETCAUSE_WATCHDOG = 1 << 1;
 constexpr uint32_t RESETCAUSE_SWITCH   = 1 << 0;
 
 constexpr uint32_t WATCHDOG_TIMER_USEC = 1000000;
+constexpr uint16_t TCOMPARE_TIMER_USEC = 10000;
 
 constexpr uint32_t BUS_INT_VIDEO = 1 << 7; // putUnit, gfxUnit, vidUnit interrupt
 constexpr uint32_t BUS_INT_AUDIO = 1 << 6; // Soft mode, divUnit and audio in/out interrupt
 constexpr uint32_t BUS_INT_RIO   = 1 << 5; // modem IRQ
 constexpr uint32_t BUS_INT_DEV   = 1 << 4; // IR data ready to read
-constexpr uint32_t BUS_INT_TIMER = 1 << 3; // SmartCard inserted
-constexpr uint32_t BUS_INT_FENCE = 1 << 2; // SmartCard inserted
+constexpr uint32_t BUS_INT_TIMER = 1 << 3; // Timer interrupt (TCOUNT == TCOMPARE)
+constexpr uint32_t BUS_INT_FENCE = 1 << 2; // Fence error
 
 constexpr uint32_t BUS_INT_AUD_SMODEMIN  = 1 << 6; // Soft modem DMA in
 constexpr uint32_t BUS_INT_AUD_SMODEMOUT = 1 << 5; // Soft modem DMA out
@@ -95,6 +96,9 @@ constexpr uint32_t BUS_INT_RIO_DEVICE3 = 1 << 5;
 constexpr uint32_t BUS_INT_RIO_DEVICE2 = 1 << 4;
 constexpr uint32_t BUS_INT_RIO_DEVICE1 = 1 << 3;
 constexpr uint32_t BUS_INT_RIO_DEVICE0 = 1 << 2;
+
+constexpr uint32_t BUS_INT_TIM_SYSTIMER = 1 << 3;
+constexpr uint32_t BUS_INT_TIM_BUSTOUT  = 1 << 2;
 
 constexpr uint16_t VID_Y_BLACK         = 0x10;
 constexpr uint16_t VID_Y_WHITE         = 0xeb;
@@ -275,12 +279,10 @@ protected:
 	uint8_t m_busvid_intstat;
 	uint8_t m_busrio_intenable;
 	uint8_t m_busrio_intstat;
+	uint8_t m_bustim_intstat;
 
 	uint8_t m_errenable;
 	uint8_t m_errstat;
-
-	uint16_t m_timeout_count;
-	uint16_t m_timeout_compare;
 
 	uint32_t m_memcntl;
 	uint32_t m_memrefcnt;
@@ -393,7 +395,8 @@ private:
 	emu_timer *modem_buffer_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
 
-	uint32_t m_compare_armed;
+	emu_timer *compare_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(timer_irq);
 
 	bool m_aud_dma_ongoing;
 
@@ -404,8 +407,9 @@ private:
 	void irq_keyboard_w(int state);
 	void set_audio_irq(uint8_t mask, int state);
 	void set_dev_irq(uint8_t mask, int state);
-	void set_video_irq(uint8_t mask, uint8_t sub_mask, int state);
 	void set_rio_irq(uint8_t mask, int state);
+	void set_video_irq(uint8_t mask, uint8_t sub_mask, int state);
+	void set_timer_irq(uint8_t mask, int state);
 	void set_bus_irq(uint8_t mask, int state);
 
 	void validate_active_area();
@@ -487,6 +491,10 @@ private:
 	uint32_t reg_0090_r();          // BUS_RIOINTSTAT_S (read)
 	void reg_0090_w(uint32_t data); // BUS_RIOINTSTAT_S (write)
 	void reg_018c_w(uint32_t data); // BUS_RIOINTSTAT_C (write)
+	uint32_t reg_009c_r();          // BUS_TIMINTSTAT (read)
+	uint32_t reg_00a0_r();          // BUS_TIMINTSTAT_S (read)
+	void reg_00a0_w(uint32_t data); // BUS_TIMINTSTAT_S (write)
+	void reg_019c_w(uint32_t data); // BUS_TIMINTSTAT_C (write)
 	uint32_t reg_00a8_r();          // BUS_RESETCAUSE (read)
 	void reg_00a8_w(uint32_t data); // BUS_RESETCAUSE (write)
 	void reg_00ac_w(uint32_t data); // BUS_RESETCAUSE_C (write)
