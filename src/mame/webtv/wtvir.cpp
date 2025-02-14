@@ -344,7 +344,7 @@ void wtvir_seijin_device::polling()
 					if (state_diff & key_bitmask)
 					{
 						uint8_t scancode = ((port_idx << 4) | key_idx);
-						bool is_make = ((curr_state & key_bitmask) != 0x0);
+						bool is_make = ((prev_state & key_bitmask) != 0x0);
 
 						enqueue_button(scancode, is_make, wtvir_seijin_device::SEIJIN_DEFAULT_IR_DATA);
 					}
