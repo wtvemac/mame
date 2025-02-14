@@ -673,6 +673,7 @@ private:
 	void reg_a000_w(uint32_t data); // SUCGPU_TFFHR (write)
 	uint32_t reg_a00c_r();          // SUCGPU_TFFCNT (read)
 	uint32_t reg_a010_r();          // SUCGPU_TFFMAX (read)
+	uint32_t reg_aab8_r();          // SUCSC0_GPIOVAL (read)
 
 	/* modUnit registers */
 
