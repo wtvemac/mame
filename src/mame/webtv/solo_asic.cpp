@@ -789,7 +789,7 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 {
 	// When ERR_LOWWRITE is disabled then we're in a shutdown phase.
 	// This makes sure our hacks are in the appropriate state to work after shutdown.
-	if(data == ERR_LOWWRITE)
+	if(data == ERR_LOWWRITE || data == 0xffff)
 	{
 		// Turn back on the modem downloader hack.
 		modfw_mode = true;
@@ -798,6 +798,11 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 		modfw_will_ack = false;
 
 		// Disable the timer interrupt. This is related to a reg_019c_w issue.
+		m_bus_intenable &= (~BUS_INT_VIDEO) & 0xff;
+		m_bus_intstat &= (~BUS_INT_VIDEO) & 0xff;
+		m_bus_intenable &= (~BUS_INT_RIO) & 0xff;
+		m_bus_intstat &= (~BUS_INT_RIO) & 0xff;
+		m_bus_intenable &= (~BUS_INT_TIMER) & 0xff;
 		m_bus_intstat &= (~BUS_INT_TIMER) & 0xff;
 	}
 
