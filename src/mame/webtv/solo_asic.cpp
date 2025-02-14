@@ -845,7 +845,7 @@ void solo_asic_device::reg_0028_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_0048_r()
 {
-	return m_hostcpu->total_cycles();
+	return m_hostcpu->total_cycles() >> 1;
 }
 
 void solo_asic_device::reg_0048_w(uint32_t data)
