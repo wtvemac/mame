@@ -273,6 +273,7 @@ void solo_asic_device::suc_unit_map(address_map &map)
 	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_a000_r), FUNC(solo_asic_device::reg_a000_w)); // SUCGPU_TFFHR
 	map(0x00c, 0x00f).r(FUNC(solo_asic_device::reg_a00c_r));                                      // SUCGPU_TFFCNT
 	map(0x010, 0x013).r(FUNC(solo_asic_device::reg_a010_r));                                      // SUCGPU_TFFMAX
+	map(0xab8, 0xabb).r(FUNC(solo_asic_device::reg_aab8_r));                                      // SUCSC0_GPIOVAL
 }
 
 void solo_asic_device::mod_unit_map(address_map &map)
@@ -2032,6 +2033,11 @@ uint32_t solo_asic_device::reg_a00c_r()
 uint32_t solo_asic_device::reg_a010_r()
 {
 	return 0x00000001;
+}
+
+uint32_t solo_asic_device::reg_aab8_r()
+{
+	return (0x1 << 4);
 }
 
 uint32_t solo_asic_device::reg_modem_0000_r()
