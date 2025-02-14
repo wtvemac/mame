@@ -706,7 +706,16 @@ void solo_asic_device::reg_0004_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_0008_r()
 {
-	return m_bus_intstat;
+	if (do7e_hack)
+	{
+		do7e_hack = false;
+
+		return 0x01;
+	}
+	else
+	{
+		return m_bus_intstat;
+	}
 }
 
 void solo_asic_device::reg_0108_w(uint32_t data)
@@ -766,6 +775,20 @@ uint32_t solo_asic_device::reg_0114_r()
 
 void solo_asic_device::reg_0114_w(uint32_t data)
 {
+	// When ERR_LOWWRITE is disabled then we're in a shutdown phase.
+	// This makes sure our hacks are in the appropriate state to work after shutdown.
+	if(data == ERR_LOWWRITE)
+	{
+		// Turn back on the modem downloader hack.
+		modfw_mode = true;
+		modfw_message_index = 0x0;
+		modfw_will_flush = false;
+		modfw_will_ack = false;
+
+		// Disable the timer interrupt. This is related to a reg_019c_w issue.
+		m_bus_intstat &= (~BUS_INT_TIMER) & 0xff;
+	}
+
 	m_errenable &= (~data) & 0xFF;
 }
 
@@ -2035,7 +2058,18 @@ uint32_t solo_asic_device::reg_modem_0000_r()
 	}
 	else
 	{
-		return m_modem_uart->ins8250_r(0x0);
+		uint32_t data = m_modem_uart->ins8250_r(0x0);
+
+		// There's a bug in the WebTV OS/firmware that sets the modem base address to 0xa4000000
+		// This happens after it does a PPP signal call when it recieves a 0x7e byte. This causes everything to be messed up and crash.
+		// So then prepare the reg_0008_r register ("Modem IIR") to return a no interrupt pending ID after we pre-emptidly detect the 0x7e byte.
+		// No idea why this doesn't happen on real hardware but this is a workaround for MAME.
+		if (data == 0x7e)
+		{
+			do7e_hack = true;
+		}
+
+		return data;
 	}
 }
 
@@ -2087,6 +2121,9 @@ uint32_t solo_asic_device::reg_modem_000c_r()
 
 void solo_asic_device::reg_modem_000c_w(uint32_t data)
 {
+	// If this register is written to then the downloader phase has finished. Make sure to turn the modemfw hack off.
+	modfw_mode = false;
+
 	m_modem_uart->ins8250_w(0x3, data & 0xff);
 }
 
@@ -2117,7 +2154,7 @@ uint32_t solo_asic_device::reg_modem_0014_r()
 	}
 	else
 	{
-			return m_modem_uart->ins8250_r(0x5);
+		return m_modem_uart->ins8250_r(0x5);
 	}
 }
 
