@@ -499,7 +499,7 @@ void solo_asic_device::device_reset()
 	m_pot_vstart = POT_DEFAULT_VSTART;
 	m_pot_vsize = POT_DEFAULT_VSIZE;
 	m_pot_blank_color = POT_DEFAULT_COLOR;
-	m_pot_hstart = POT_HSTART_OFFSET + POT_DEFAULT_HSTART;
+	m_pot_hstart = POT_VIDUNIT_HSTART_OFFSET + POT_DEFAULT_HSTART;
 	m_pot_hsize = POT_DEFAULT_HSIZE;
 	m_pot_cntl = 0x0;
 	m_pot_hintline = 0x0;
@@ -507,7 +507,7 @@ void solo_asic_device::device_reset()
 	m_pot_intstat = 0x0;
 
 	m_vid_draw_nstart = 0x0;
-	m_pot_draw_hstart = POT_HSTART_OFFSET;
+	m_pot_draw_hstart = POT_VIDUNIT_HSTART_OFFSET;
 	m_pot_draw_hsize = m_pot_hsize;
 	m_pot_draw_vstart = m_pot_vstart;
 	m_pot_draw_vsize = m_pot_vsize;
@@ -570,8 +570,19 @@ void solo_asic_device::validate_active_area()
 	// The active v size can't be larger than the screen height or smaller than 2 pixels.
 	m_pot_draw_vsize = std::clamp(m_pot_vsize, (uint32_t)0x2, (uint32_t)m_screen->height());
 
+
+	uint32_t hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
+	if (m_pot_cntl & POT_FCNTL_USEGFX)
+	{
+		hstart_offset = POT_GFXUNIT_HSTART_OFFSET;
+	}
+	else
+	{
+		hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
+	}
+
 	// The active h start can't be smaller than 2
-	m_pot_draw_hstart = std::max(m_pot_hstart - POT_HSTART_OFFSET, (uint32_t)0x2);
+	m_pot_draw_hstart = std::max(m_pot_hstart - hstart_offset, (uint32_t)0x2);
 	// The active v start can't be smaller than 2
 	m_pot_draw_vstart = std::max(m_pot_vstart, (uint32_t)0x2);
 
