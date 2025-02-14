@@ -81,15 +81,15 @@ protected:
 	TIMER_CALLBACK_MEMBER(poll_buttons);
 };
 
-class wtvir_seijin_device : public wtvir_device_base
+class wtvir_sejin_device : public wtvir_device_base
 {
 public:
 
-	static constexpr uint32_t SEIJIN_SCANCODE_COUNT    =  128;
-	static constexpr uint32_t SEIJIN_DEFAULT_IR_DATA   =  0x200508;
-	static constexpr uint32_t SEIJIN_DATA_BIT_COUNT    =  22;
+	static constexpr uint32_t SEJIN_SCANCODE_COUNT    =  128;
+	static constexpr uint32_t SEJIN_DEFAULT_IR_DATA   =  0x200508;
+	static constexpr uint32_t SEJIN_DATA_BIT_COUNT    =  22;
 
-	wtvir_seijin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+	wtvir_sejin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	bool enqueue_button(uint8_t scancode, bool is_make, uint32_t ir_data) override;
 
@@ -103,7 +103,7 @@ private:
 	uint8_t m_device_id;
 
 	optional_ioport_array<8> m_ioport;
-	uint32_t m_port_state[SEIJIN_SCANCODE_COUNT >> 4];
+	uint32_t m_port_state[SEJIN_SCANCODE_COUNT >> 4];
 
 protected:
 
@@ -114,6 +114,6 @@ protected:
 
 };
 
-DECLARE_DEVICE_TYPE(SEIJIN_KBD, wtvir_seijin_device)
+DECLARE_DEVICE_TYPE(SEJIN_KBD, wtvir_sejin_device)
 
 #endif // MAME_MACHINE_WTVIR_H
