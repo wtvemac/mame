@@ -625,7 +625,7 @@ void solo_asic_device::pixel_buffer_index_update()
 	else
 	{
 		m_vid_draw_nstart += 2 * (m_pot_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_pot_draw_vsize = screen_lines - 3;
+		m_pot_draw_vsize = screen_lines - 1;
 	}
 }
 
