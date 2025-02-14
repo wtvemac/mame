@@ -148,6 +148,9 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x08c, 0x08f).r(FUNC(solo_asic_device::reg_008c_r));                                      // BUS_RIOINTSTAT
 	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_0090_r), FUNC(solo_asic_device::reg_0090_w)); // BUS_RIOINTSTAT_S
 	map(0x18c, 0x18f).w(FUNC(solo_asic_device::reg_018c_w));                                      // BUS_RIOINTSTAT_C
+	map(0x09c, 0x09f).r(FUNC(solo_asic_device::reg_009c_r));                                      // BUS_TIMINTSTAT
+	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_00a0_r), FUNC(solo_asic_device::reg_00a0_w)); // BUS_TIMINTSTAT_S
+	map(0x18c, 0x18f).w(FUNC(solo_asic_device::reg_019c_w));                                      // BUS_TIMINTSTAT_C
 	map(0x0a8, 0x0ab).rw(FUNC(solo_asic_device::reg_00a8_r), FUNC(solo_asic_device::reg_00a8_w)); // BUS_RESETCAUSE
 	map(0x0ac, 0x0af).w(FUNC(solo_asic_device::reg_00ac_w));                                      // BUS_RESETCAUSE_C
 }
@@ -355,6 +358,7 @@ void solo_asic_device::device_start()
 
 	dac_update_timer = timer_alloc(FUNC(solo_asic_device::dac_update), this);
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
+	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
 
 	solo_asic_device::device_reset();
 
@@ -371,6 +375,7 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_busvid_intstat));
 	save_item(NAME(m_busrio_intenable));
 	save_item(NAME(m_busrio_intstat));
+	save_item(NAME(m_bustim_intstat));
 	save_item(NAME(m_errenable));
 	save_item(NAME(m_chpcntl));
 	save_item(NAME(m_wdenable));
@@ -450,7 +455,6 @@ void solo_asic_device::device_reset()
 	m_chpcntl = 0x0;
 	m_wdenable = 0x0;
 	m_errstat = 0x0;
-	m_timeout_compare = 0xffff;
 	m_nvcntl = 0x0;
 	m_fence1_addr = 0x0;
 	m_fence1_mask = 0x0;
@@ -469,6 +473,7 @@ void solo_asic_device::device_reset()
 	m_busvid_intstat = 0x0;
 	m_busrio_intenable = 0x0;
 	m_busrio_intstat = 0x0;
+	m_bustim_intstat = 0x0;
 
 	m_vid_nstart = 0x0;
 	m_vid_nsize = 0x0;
@@ -831,7 +836,16 @@ uint32_t solo_asic_device::reg_004c_r()
 
 void solo_asic_device::reg_004c_w(uint32_t data)
 {
+	// Make sure the interrupt is cleared. Fix for a reg_019c_w issue.
+	solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 0);
+
 	m_tcompare = data;
+
+	m_bus_intenable |= BUS_INT_TIMER;
+
+	// There seems to be an issue using the timer compare value. Hardcoding this to around 0.01s which seems to be what the firmware is using.
+	compare_timer->adjust(attotime::from_usec(TCOMPARE_TIMER_USEC));
+	//compare_timer->adjust(m_hostcpu->cycles_to_attotime(((m_tcompare - m_hostcpu->total_cycles()) * 2)));
 }
 
 uint32_t solo_asic_device::reg_005c_r()
@@ -1080,6 +1094,27 @@ void solo_asic_device::reg_0090_w(uint32_t data)
 void solo_asic_device::reg_018c_w(uint32_t data)
 {
 	solo_asic_device::set_rio_irq(data, 0);
+}
+
+uint32_t solo_asic_device::reg_009c_r()
+{
+	return m_bustim_intstat;
+}
+
+uint32_t solo_asic_device::reg_00a0_r()
+{
+	return m_bustim_intstat;
+}
+
+void solo_asic_device::reg_00a0_w(uint32_t data)
+{
+	m_bustim_intstat |= data & 0xff;
+}
+
+void solo_asic_device::reg_019c_w(uint32_t data)
+{
+	// Removing due to problems. The interrupt will be cleared when a new compare value is written.
+	//solo_asic_device::set_timer_irq(data, 0);
 }
 
 uint32_t solo_asic_device::reg_00a8_r()
@@ -2285,6 +2320,11 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 		modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
 }
 
+TIMER_CALLBACK_MEMBER(solo_asic_device::timer_irq)
+{
+	solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 1);
+}
+
 // The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
 void solo_asic_device::vblank_irq(int state) 
 {
@@ -2454,6 +2494,30 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 			if(m_busvid_intstat == 0x0)
 			{
 				solo_asic_device::set_bus_irq(BUS_INT_VIDEO, state);
+			}
+		}
+	}
+}
+
+void solo_asic_device::set_timer_irq(uint8_t mask, int state)
+{
+	if (m_bus_intenable & BUS_INT_TIMER)
+	{
+		if (state)
+		{
+			m_bus_intstat |= BUS_INT_TIMER;
+			m_bustim_intstat |= mask;
+
+			m_hostcpu->set_input_line(MIPS3_IRQ5, ASSERT_LINE);
+		}
+		else
+		{
+			m_bustim_intstat &= (~mask) & 0xff;
+
+			if(m_bustim_intstat == 0x00)
+			{
+				m_bus_intstat &= (~BUS_INT_TIMER) & 0xff;
+				m_hostcpu->set_input_line(MIPS3_IRQ5, CLEAR_LINE);
 			}
 		}
 	}
