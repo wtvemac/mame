@@ -182,7 +182,7 @@ void device_ata_mass_storage_device_interface::ide_build_identify_device()
 
 	m_identify_buffer[104] = 0x00;                     /* 104-126: reserved */
 	m_identify_buffer[127] = 0x00;                     /* 127: removable media status notification */
-	m_identify_buffer[128] = 0x00;                     /* 128: security status */
+	m_identify_buffer[128] = 0x01;                     /* 128: security status */
 	m_identify_buffer[129] = 0x00;                     /* 129-159: vendor specific */
 	m_identify_buffer[160] = 0x00;                     /* 160: CFA power mode 1 */
 	m_identify_buffer[161] = 0x00;                     /* 161-175: reserved for CompactFlash */
@@ -518,7 +518,17 @@ void device_ata_mass_storage_device_interface::read_first_sector()
 
 void device_ata_mass_storage_device_interface::process_buffer()
 {
-	if (m_command == IDE_COMMAND_SECURITY_UNLOCK)
+	if (m_command == IDE_COMMAND_SECURITY_SET_PASSWORD)
+	{
+		std::string unlock;
+		for (int i = 0; i < 32; i ++)
+			unlock += util::string_format(" 0x%02x,", m_buffer[i + 2]);
+
+		std::string_view type = (m_buffer[0] & IDE_SECURITY_UNLOCK_MASTER) ? "master" : "user";
+
+		LOGSECURITY("Set %s password %s\n", type, unlock);
+	}
+	else if (m_command == IDE_COMMAND_SECURITY_UNLOCK)
 	{
 		const uint8_t *password = (m_buffer[0] & IDE_SECURITY_UNLOCK_MASTER) ? m_master_password : m_user_password;
 
@@ -552,6 +562,22 @@ void device_ata_mass_storage_device_interface::process_buffer()
 
 		if (m_master_password_enable || m_user_password_enable)
 			security_error();
+	}
+	else if (m_command == IDE_COMMAND_SECURITY_ERASE_PREPARE)
+	{
+		LOG("IDE Done unimplemented SECURITY_ERASE_PREPARE command\n");
+	}
+	else if (m_command == IDE_COMMAND_SECURITY_ERASE_UNIT)
+	{
+		LOG("IDE Done unimplemented SECURITY_ERASE_UNIT command\n");
+	}
+	else if (m_command == IDE_COMMAND_SECURITY_FREEZE_LOCK)
+	{
+		LOG("IDE Done unimplemented SECURITY_FREEZE_LOCK command\n");
+	}
+	else if (m_command == IDE_COMMAND_SECURITY_FREEZE_LOCK)
+	{
+		LOG("IDE Done unimplemented SECURITY_DISABLE_PASSWORD command\n");
 	}
 	else if (m_command == IDE_COMMAND_SECURITY_DISABLE_PASSWORD)
 	{
@@ -773,8 +799,44 @@ void device_ata_mass_storage_device_interface::process_command()
 		set_dmarq(ASSERT_LINE);
 		break;
 
+	case IDE_COMMAND_SECURITY_SET_PASSWORD:
+		LOG("IDE SECURITY SET PASSWORD command\n");
+
+		/* mark the buffer ready */
+		m_status |= IDE_STATUS_DRQ;
+
+		set_irq(ASSERT_LINE);
+		break;
+
 	case IDE_COMMAND_SECURITY_UNLOCK:
 		LOGSECURITY("Security unlock\n");
+
+		/* mark the buffer ready */
+		m_status |= IDE_STATUS_DRQ;
+
+		set_irq(ASSERT_LINE);
+		break;
+
+	case IDE_COMMAND_SECURITY_ERASE_PREPARE:
+		LOG("IDE Unimplemented SECURITY ERASE PREPARE command\n");
+
+		/* mark the buffer ready */
+		m_status |= IDE_STATUS_DRQ;
+
+		set_irq(ASSERT_LINE);
+		break;
+
+	case IDE_COMMAND_SECURITY_ERASE_UNIT:
+		LOG("IDE Unimplemented SECURITY ERASE PREPARE command\n");
+
+		/* mark the buffer ready */
+		m_status |= IDE_STATUS_DRQ;
+
+		set_irq(ASSERT_LINE);
+		break;
+
+	case IDE_COMMAND_SECURITY_FREEZE_LOCK:
+		LOG("IDE Unimplemented SECURITY FREEZE LOCK command\n");
 
 		/* mark the buffer ready */
 		m_status |= IDE_STATUS_DRQ;
