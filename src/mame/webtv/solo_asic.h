@@ -372,7 +372,7 @@ private:
 	required_device<mips3_device> m_hostcpu;
 	required_device<ds2401_device> m_serial_id;
 	required_device<i2cmem_device> m_nvram;
-	required_device<wtvir_seijin_device> m_irkbdc;
+	required_device<wtvir_sejin_device> m_irkbdc;
 	required_device<screen_device> m_screen;
 
 	required_device_array<dac_word_interface, 2> m_dac;

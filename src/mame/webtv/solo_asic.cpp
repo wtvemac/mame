@@ -332,7 +332,7 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 	rs232.ri_handler().set(m_modem_uart, FUNC(ns16450_device::ri_w));
 	rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
 
-	SEIJIN_KBD(config, m_irkbdc);
+	SEJIN_KBD(config, m_irkbdc);
 	m_irkbdc->sample_fifo_trigger_callback().set(FUNC(solo_asic_device::irq_keyboard_w));
 
 	WATCHDOG_TIMER(config, m_watchdog);
@@ -1382,7 +1382,7 @@ void solo_asic_device::reg_3040_w(uint32_t data)
 // Read IR receiver chip
 uint32_t solo_asic_device::reg_4000_r()
 {
-	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IROLD);
+	return m_irkbdc->data_r(wtvir_sejin_device::DEV_IROLD);
 }
 
 // Read LED states
@@ -1543,37 +1543,37 @@ void solo_asic_device::reg_4018_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_4020_r()
 {
-	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_SAMPLE);
+	return m_irkbdc->data_r(wtvir_sejin_device::DEV_IRIN_SAMPLE);
 }
 
 void solo_asic_device::reg_4020_w(uint32_t data)
 {
-	m_irkbdc->data_w(wtvir_seijin_device::DEV_IRIN_SAMPLE, data);
+	m_irkbdc->data_w(wtvir_sejin_device::DEV_IRIN_SAMPLE, data);
 }
 
 uint32_t solo_asic_device::reg_4024_r()
 {
-	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_REJECT_INT);
+	return m_irkbdc->data_r(wtvir_sejin_device::DEV_IRIN_REJECT_INT);
 }
 
 void solo_asic_device::reg_4024_w(uint32_t data)
 {
-	m_irkbdc->data_w(wtvir_seijin_device::DEV_IRIN_REJECT_INT, data);
+	m_irkbdc->data_w(wtvir_sejin_device::DEV_IRIN_REJECT_INT, data);
 }
 
 uint32_t solo_asic_device::reg_4028_r()
 {
-	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_TRANS_DATA);
+	return m_irkbdc->data_r(wtvir_sejin_device::DEV_IRIN_TRANS_DATA);
 }
 
 uint32_t solo_asic_device::reg_402c_r()
 {
-	return m_irkbdc->data_r(wtvir_seijin_device::DEV_IRIN_STATCNTL);
+	return m_irkbdc->data_r(wtvir_sejin_device::DEV_IRIN_STATCNTL);
 }
 
 void solo_asic_device::reg_402c_w(uint32_t data)
 {
-	m_irkbdc->data_w(wtvir_seijin_device::DEV_IRIN_STATCNTL, data);
+	m_irkbdc->data_w(wtvir_sejin_device::DEV_IRIN_STATCNTL, data);
 }
 
 // memUnit registers

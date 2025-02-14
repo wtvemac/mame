@@ -244,15 +244,15 @@ void wtvir_device_base::polling()
 	}
 }
 
-DEFINE_DEVICE_TYPE(SEIJIN_KBD, wtvir_seijin_device, "seijinkbd", "Seijin IR Keyboard")
+DEFINE_DEVICE_TYPE(SEJIN_KBD, wtvir_sejin_device, "sejinkbd", "Sejin IR Keyboard")
 
-wtvir_seijin_device::wtvir_seijin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	wtvir_device_base(mconfig, SEIJIN_KBD, tag, owner, clock),
+wtvir_sejin_device::wtvir_sejin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	wtvir_device_base(mconfig, SEJIN_KBD, tag, owner, clock),
 	m_ioport(*this, "wtvir_kbd%u", 0)
 {
 }
 
-void wtvir_seijin_device::device_start()
+void wtvir_sejin_device::device_start()
 {
 	wtvir_device_base::device_start();
 
@@ -261,17 +261,17 @@ void wtvir_seijin_device::device_start()
 
 	m_device_id = 0x01;
 
-	m_fifo_data_bit_count = wtvir_seijin_device::SEIJIN_DATA_BIT_COUNT;
+	m_fifo_data_bit_count = wtvir_sejin_device::SEJIN_DATA_BIT_COUNT;
 
 	std::fill(std::begin(m_port_state), std::end(m_port_state), 0);
 }
 
-void wtvir_seijin_device::device_reset()
+void wtvir_sejin_device::device_reset()
 {
 	wtvir_device_base::device_reset();
 }
 
-uint8_t wtvir_seijin_device::calculate_odd_parity(uint32_t data, uint8_t bit_start, uint8_t bit_count)
+uint8_t wtvir_sejin_device::calculate_odd_parity(uint32_t data, uint8_t bit_start, uint8_t bit_count)
 {
 	uint8_t parity_bit = 0x0;
 
@@ -302,10 +302,10 @@ uint8_t wtvir_seijin_device::calculate_odd_parity(uint32_t data, uint8_t bit_sta
 	return parity_bit;
 }
 
-bool wtvir_seijin_device::enqueue_button(uint8_t scancode, bool is_make, uint32_t ir_data)
+bool wtvir_sejin_device::enqueue_button(uint8_t scancode, bool is_make, uint32_t ir_data)
 {
 	//
-	//  Seijin IR keyboard data bits:
+	//  Sejin IR keyboard data bits:
 	//
 	//  [1 P 0 SSSSSSS 0] [1 P 1 M DD 0100 0]
 	//
@@ -324,11 +324,11 @@ bool wtvir_seijin_device::enqueue_button(uint8_t scancode, bool is_make, uint32_
 	return wtvir_device_base::enqueue_button(scancode, is_make, ir_data);
 }
 
-void wtvir_seijin_device::polling()
+void wtvir_sejin_device::polling()
 {
 	if (queued_button_count() < wtvir_device_base::MAX_QUEUED_BUTTONS)
 	{
-		for (uint8_t port_idx = 0x0; port_idx < (wtvir_seijin_device::SEIJIN_SCANCODE_COUNT >> 4); port_idx++)
+		for (uint8_t port_idx = 0x0; port_idx < (wtvir_sejin_device::SEJIN_SCANCODE_COUNT >> 4); port_idx++)
 		{
 			uint32_t prev_state = m_port_state[port_idx];
 			uint32_t curr_state = readport(port_idx);
@@ -346,7 +346,7 @@ void wtvir_seijin_device::polling()
 						uint8_t scancode = ((port_idx << 4) | key_idx);
 						bool is_make = ((prev_state & key_bitmask) != 0x0);
 
-						enqueue_button(scancode, is_make, wtvir_seijin_device::SEIJIN_DEFAULT_IR_DATA);
+						enqueue_button(scancode, is_make, wtvir_sejin_device::SEJIN_DEFAULT_IR_DATA);
 					}
 				}
 			}
@@ -364,7 +364,7 @@ void wtvir_seijin_device::polling()
 	}
 }
 
-uint32_t wtvir_seijin_device::readport(int port)
+uint32_t wtvir_sejin_device::readport(int port)
 {
 	if ((port < m_ioport.size()) && m_ioport[port].found())
 	{
@@ -524,7 +524,7 @@ INPUT_PORTS_START(wtvir_kbd)
 
 INPUT_PORTS_END
 
-ioport_constructor wtvir_seijin_device::device_input_ports() const
+ioport_constructor wtvir_sejin_device::device_input_ports() const
 {
 	return INPUT_PORTS_NAME(wtvir_kbd);
 }
