@@ -864,6 +864,38 @@ void ata_mass_storage_device_base::process_command()
 		start_busy(MINIMUM_COMMAND_TIME, PARAM_COMMAND);
 		break;
 
+	case IDE_COMMAND_STANDBY:
+		LOG("IDE Standby\n");
+
+		m_power_mode = 0x00;
+		
+		start_busy(MINIMUM_COMMAND_TIME, PARAM_COMMAND);
+		break;
+
+	case IDE_COMMAND_STANDBY_IMMEDIATE:
+		LOG("IDE Standby Immediate\n");
+
+		m_power_mode = 0x00;
+
+		start_busy(MINIMUM_COMMAND_TIME, PARAM_COMMAND);
+		break;
+
+	case IDE_COMMAND_CHECK_POWER_MODE:
+		LOG("IDE Check Power Mode\n");
+
+		m_sector_count = m_power_mode;
+
+		set_irq(ASSERT_LINE);
+		break;
+
+	case IDE_COMMAND_IDLE_IMMEDIATE:
+		LOG("IDE Idle Immediate\n");
+
+		m_power_mode = 0x80;
+
+		start_busy(MINIMUM_COMMAND_TIME, PARAM_COMMAND);
+		break;
+
 	default:
 		ata_hle_device_base::process_command();
 		break;
