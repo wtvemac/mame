@@ -53,12 +53,13 @@ constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV4  =  4 << 26;
 constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV5  =  5 << 26;
 constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV6  =  6 << 26;
 
-constexpr uint32_t ERR_F1READ  = 1 << 6; // BUS_FENADDR1 read fence check error
-constexpr uint32_t ERR_F1WRITE = 1 << 5; // BUS_FENADDR1 write fence check error
-constexpr uint32_t ERR_F2READ  = 1 << 4; // BUS_FENADDR2 read fence check error
-constexpr uint32_t ERR_F2WRITE = 1 << 3; // BUS_FENADDR2 write fence check error
-constexpr uint32_t ERR_TIMEOUT = 1 << 2; // io timeout error
-constexpr uint32_t ERR_OW      = 1 << 0; // double-fault
+constexpr uint32_t ERR_LOWWRITE = 1 << 7; // low memory write fence error
+constexpr uint32_t ERR_F1READ   = 1 << 6; // BUS_FENADDR1 read fence check error
+constexpr uint32_t ERR_F1WRITE  = 1 << 5; // BUS_FENADDR1 write fence check error
+constexpr uint32_t ERR_F2READ   = 1 << 4; // BUS_FENADDR2 read fence check error
+constexpr uint32_t ERR_F2WRITE  = 1 << 3; // BUS_FENADDR2 write fence check error
+constexpr uint32_t ERR_TIMEOUT  = 1 << 2; // io timeout error
+constexpr uint32_t ERR_OW       = 1 << 0; // double-fault
 
 constexpr uint32_t RESETCAUSE_SOFTWARE = 1 << 2;
 constexpr uint32_t RESETCAUSE_WATCHDOG = 1 << 1;
@@ -216,7 +217,7 @@ constexpr uint8_t MODFW_LSR_READY               = 0x21;
 constexpr uint8_t MODFW_MSG_IDX_FLUSH0          = 0x2;
 constexpr uint8_t MODFW_MSG_IDX_FLUSH1          = 0x1c;
 
-constexpr uint8_t modfw_message[] = "\x{0a}\x{0a}Download Modem Firmware ..\x{0d}\x{0a}Modem Firmware Successfully Loaded";
+constexpr uint8_t modfw_message[] = "\x{0a}\x{0a}Download Modem Firmware ..\x{0d}\x{0a}Modem Firmware Successfully Loaded\x{0d}\x{0a}";
 
 class solo_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
@@ -365,6 +366,7 @@ protected:
 	uint32_t modfw_message_index;
 	bool modfw_will_flush;
 	bool modfw_will_ack;
+	bool do7e_hack;
 private:
 	required_device<mips3_device> m_hostcpu;
 	required_device<ds2401_device> m_serial_id;
