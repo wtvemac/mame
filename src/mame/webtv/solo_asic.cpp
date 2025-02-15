@@ -657,7 +657,7 @@ void solo_asic_device::watchdog_enable(int state)
 
 uint32_t solo_asic_device::reg_0000_r()
 {
-	return 0x03120000;
+	return m_chpid;
 }
 
 uint32_t solo_asic_device::reg_0004_r()
