@@ -218,7 +218,7 @@ constexpr uint8_t MODFW_LSR_READY               = 0x21;
 constexpr uint8_t MODFW_MSG_IDX_FLUSH0          = 0x2;
 constexpr uint8_t MODFW_MSG_IDX_FLUSH1          = 0x1c;
 
-constexpr uint8_t modfw_message[] = "\x{0a}\x{0a}Download Modem Firmware ..\x{0d}\x{0a}Modem Firmware Successfully Loaded\x{0d}\x{0a}";
+constexpr uint8_t modfw_message[] = "\x0a\x0a""Download Modem Firmware ..""\x0d\x0a""Modem Firmware Successfully Loaded""\x0d\x0a";
 
 class solo_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
