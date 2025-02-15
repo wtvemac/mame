@@ -247,6 +247,7 @@ public:
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_ata(T &&tag) { m_ata.set_tag(std::forward<T>(tag)); }
+	void set_chipid(uint32_t chpid) { m_chpid = chpid; }
 
 	void irq_ide_w(int state);
 
@@ -261,6 +262,7 @@ protected:
 	virtual void device_stop() override;
 
 	uint32_t m_chpcntl;
+	uint32_t m_chpid = 0x03120000;
 	uint8_t m_wdenable;
 
 	uint32_t m_fence1_addr;
