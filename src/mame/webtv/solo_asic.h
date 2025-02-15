@@ -220,6 +220,9 @@ constexpr uint8_t MODFW_MSG_IDX_FLUSH1          = 0x1c;
 
 constexpr uint8_t modfw_message[] = "\x0a\x0a""Download Modem Firmware ..""\x0d\x0a""Modem Firmware Successfully Loaded""\x0d\x0a";
 
+constexpr uint32_t PEKOE_BYTE_AVAILABLE         = 0x00000001;
+constexpr uint32_t PEKOE_CAN_SEND_BYTE          = 0x00000020;
+
 class solo_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
 public:
@@ -242,6 +245,7 @@ public:
 	void hardware_modem_map(address_map &map);
 	void ide_map(address_map &map);
 	void hanide_map(address_map &map);
+	void pekoe_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
@@ -725,6 +729,16 @@ private:
 	void reg_ide_400018_w(uint32_t data); // IDE I/O port cs1[6] (device control write)
 	uint32_t reg_ide_40001c_r();          // IDE I/O port cs1[7] (device address read)
 	void reg_ide_40001c_w(uint32_t data); // IDE I/O port cs1[7] (device address write)
+
+	/* pekoe registers */
+
+	uint32_t reg_pekoe_0000_r();          // Pekoe data (read)
+	void reg_pekoe_0000_w(uint32_t data); // Pekoe data (write)
+	void reg_pekoe_0004_w(uint32_t data); // Pekoe ??? (write)
+	void reg_pekoe_0008_w(uint32_t data); // Pekoe ??? (write)
+	void reg_pekoe_000c_w(uint32_t data); // Pekoe configure? (write)
+	void reg_pekoe_0010_w(uint32_t data); // Pekoe ??? (write)
+	uint32_t reg_pekoe_0014_r();          // Pekoe status? (read)
 };
 
 DECLARE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device)
