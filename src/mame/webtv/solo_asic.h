@@ -241,6 +241,7 @@ public:
 
 	void hardware_modem_map(address_map &map);
 	void ide_map(address_map &map);
+	void hanide_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
