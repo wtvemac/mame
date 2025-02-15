@@ -109,7 +109,7 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_0000_r));                                      // BUS_CHIPID
 	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_0004_r), FUNC(solo_asic_device::reg_0004_w)); // BUS_CHIPCNTL
 	map(0x008, 0x00b).r(FUNC(solo_asic_device::reg_0008_r));                                      // BUS_INTSTAT
-	map(0x108, 0x10b).w(FUNC(solo_asic_device::reg_0108_w));                                      // BUS_INTEN_S
+	map(0x108, 0x10b).rw(FUNC(solo_asic_device::reg_0108_r), FUNC(solo_asic_device::reg_0108_w)); // BUS_INTEN_S
 	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_000c_r), FUNC(solo_asic_device::reg_000c_w)); // BUS_ERRSTAT
 	map(0x10c, 0x10f).rw(FUNC(solo_asic_device::reg_010c_r), FUNC(solo_asic_device::reg_010c_w)); // BUS_INTEN_C
 	map(0x110, 0x113).rw(FUNC(solo_asic_device::reg_0110_r), FUNC(solo_asic_device::reg_0110_w)); // BUS_ERRSTAT, BUS_ERRSTAT_C
@@ -132,7 +132,7 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x170, 0x173).rw(FUNC(solo_asic_device::reg_0170_r), FUNC(solo_asic_device::reg_0170_w)); // BUS_AUDINTEN_C
 	map(0x068, 0x06b).r(FUNC(solo_asic_device::reg_0068_r));                                      // BUS_AUDINTSTAT
 	map(0x06c, 0x06f).rw(FUNC(solo_asic_device::reg_006c_r), FUNC(solo_asic_device::reg_006c_w)); // BUS_AUDINTSTAT_S
-	map(0x168, 0x16b).w(FUNC(solo_asic_device::reg_0168_w));                                      // BUS_AUDINTSTAT_C
+	map(0x168, 0x16b).rw(FUNC(solo_asic_device::reg_0168_r), FUNC(solo_asic_device::reg_0168_w)); // BUS_AUDINTSTAT_C
 	map(0x07c, 0x07f).rw(FUNC(solo_asic_device::reg_007c_r), FUNC(solo_asic_device::reg_007c_w)); // BUS_DEVINTEN_S
 	map(0x17c, 0x17f).rw(FUNC(solo_asic_device::reg_017c_r), FUNC(solo_asic_device::reg_017c_w)); // BUS_DEVINTEN_C
 	map(0x074, 0x077).r(FUNC(solo_asic_device::reg_0074_r));                                      // BUS_DEVINTSTAT
@@ -142,7 +142,7 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x188, 0x18b).rw(FUNC(solo_asic_device::reg_0188_r), FUNC(solo_asic_device::reg_0188_w)); // BUS_VIDINTEN_C
 	map(0x080, 0x083).r(FUNC(solo_asic_device::reg_0080_r));                                      // BUS_VIDINTSTAT
 	map(0x084, 0x087).rw(FUNC(solo_asic_device::reg_0084_r), FUNC(solo_asic_device::reg_0084_w)); // BUS_VIDINTSTAT_S
-	map(0x180, 0x183).w(FUNC(solo_asic_device::reg_0180_w));                                      // BUS_VIDINTSTAT_C
+	map(0x180, 0x183).rw(FUNC(solo_asic_device::reg_0180_r), FUNC(solo_asic_device::reg_0180_w)); // BUS_VIDINTSTAT_C
 	map(0x098, 0x09b).rw(FUNC(solo_asic_device::reg_0098_r), FUNC(solo_asic_device::reg_0098_w)); // BUS_RIOINTEN_S
 	map(0x198, 0x19b).rw(FUNC(solo_asic_device::reg_0198_r), FUNC(solo_asic_device::reg_0198_w)); // BUS_RIOINTEN_C
 	map(0x08c, 0x08f).r(FUNC(solo_asic_device::reg_008c_r));                                      // BUS_RIOINTSTAT
@@ -264,9 +264,11 @@ void solo_asic_device::pot_unit_map(address_map &map)
 	map(0x09c, 0x09f).rw(FUNC(solo_asic_device::reg_909c_r), FUNC(solo_asic_device::reg_909c_w)); // POT_INTEN
 	map(0x0a4, 0x0a7).w(FUNC(solo_asic_device::reg_90a4_w));                                      // POT_INTEN_C
 	map(0x0a0, 0x0a3).r(FUNC(solo_asic_device::reg_90a0_r));                                      // POT_INTSTAT
-	map(0x0a8, 0x0ab).w(FUNC(solo_asic_device::reg_90a8_w));                                      // POT_INTSTAT_C
+	map(0x0a8, 0x0ab).rw(FUNC(solo_asic_device::reg_90a8_r), FUNC(solo_asic_device::reg_90a8_w)); // POT_INTSTAT_C
 	map(0x0ac, 0x0af).r(FUNC(solo_asic_device::reg_90ac_r));                                      // POT_CLINE
 }
+
+
 
 void solo_asic_device::suc_unit_map(address_map &map)
 {
@@ -744,6 +746,11 @@ uint32_t solo_asic_device::reg_0008_r()
 	}
 }
 
+uint32_t solo_asic_device::reg_0108_r()
+{
+	return m_bus_intstat;
+}
+
 void solo_asic_device::reg_0108_w(uint32_t data)
 {
 	solo_asic_device::set_bus_irq(data, 0);
@@ -981,6 +988,11 @@ void solo_asic_device::reg_006c_w(uint32_t data)
 	m_busaud_intstat |= data & 0xff;
 }
 
+uint32_t solo_asic_device::reg_0168_r()
+{
+	return m_busaud_intstat;
+}
+
 void solo_asic_device::reg_0168_w(uint32_t data)
 {
 	solo_asic_device::set_audio_irq(data, 0);
@@ -1067,6 +1079,11 @@ uint32_t solo_asic_device::reg_0084_r()
 void solo_asic_device::reg_0084_w(uint32_t data)
 {
 	m_busvid_intstat |= data & 0xff;
+}
+
+uint32_t solo_asic_device::reg_0180_r()
+{
+	return m_busvid_intstat;
 }
 
 void solo_asic_device::reg_0180_w(uint32_t data)
@@ -2020,6 +2037,11 @@ void solo_asic_device::reg_90a4_w(uint32_t data)
 }
 
 uint32_t solo_asic_device::reg_90a0_r()
+{
+	return m_pot_intstat;
+}
+
+uint32_t solo_asic_device::reg_90a8_r()
 {
 	return m_pot_intstat;
 }
