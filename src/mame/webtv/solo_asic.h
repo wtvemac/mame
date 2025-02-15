@@ -431,6 +431,7 @@ private:
 	uint32_t reg_0004_r();          // BUS_CHPCNTL (read)
 	void reg_0004_w(uint32_t data); // BUS_CHPCNTL (write)
 	uint32_t reg_0008_r();          // BUS_INTSTAT (read)
+	uint32_t reg_0108_r();          // BUS_INTSTAT (clear read)
 	void reg_0108_w(uint32_t data); // BUS_INTSTAT (clear)
 	uint32_t reg_000c_r();          // BUS_INTEN (read)
 	void reg_000c_w(uint32_t data); // BUS_INTEN (set)
@@ -472,6 +473,7 @@ private:
 	uint32_t reg_0068_r();          // BUS_AUDINTSTAT (read)
 	uint32_t reg_006c_r();          // BUS_AUDINTSTAT_S (read)
 	void reg_006c_w(uint32_t data); // BUS_AUDINTSTAT_S (write)
+	uint32_t reg_0168_r();          // BUS_AUDINTSTAT_C (read)
 	void reg_0168_w(uint32_t data); // BUS_AUDINTSTAT_C (write)
 	uint32_t reg_007c_r();          // BUS_DEVINTEN_S (read)
 	void reg_007c_w(uint32_t data); // BUS_DEVINTEN_S (write)
@@ -488,6 +490,7 @@ private:
 	uint32_t reg_0080_r();          // BUS_VIDINTSTAT (read)
 	uint32_t reg_0084_r();          // BUS_VIDINTSTAT_S (read)
 	void reg_0084_w(uint32_t data); // BUS_VIDINTSTAT_S (write)
+	uint32_t reg_0180_r(); // BUS_VIDINTSTAT_C (read)
 	void reg_0180_w(uint32_t data); // BUS_VIDINTSTAT_C (write)
 	uint32_t reg_0098_r();          // BUS_RIOINTEN_S (read)
 	void reg_0098_w(uint32_t data); // BUS_RIOINTEN_S (write)
@@ -667,7 +670,8 @@ private:
 	void reg_909c_w(uint32_t data); // POT_INTEN_S (write)
 	void reg_90a4_w(uint32_t data); // POT_INTEN_C (write-only)
 	uint32_t reg_90a0_r();          // POT_INTSTAT (read)
-	void reg_90a8_w(uint32_t data); // POT_INTSTAT_C (write-only)
+	void reg_90a8_w(uint32_t data); // POT_INTSTAT_C (write)
+	uint32_t reg_90a8_r();          // POT_INTSTAT_C (read)
 	uint32_t reg_90ac_r();          // POT_CLINE (read)
 
 	/* sucUnit registers */
