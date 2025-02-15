@@ -306,6 +306,20 @@ void solo_asic_device::ide_map(address_map &map)
 	map(0x40001c, 0x40001f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
 }
 
+void solo_asic_device::hanide_map(address_map &map)
+{
+	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_ide_000000_r), FUNC(solo_asic_device::reg_ide_000000_w)); // IDE I/O port cs0[0] (data)
+	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_ide_000004_r), FUNC(solo_asic_device::reg_ide_000004_w)); // IDE I/O port cs0[1] (error or feature)
+	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_ide_000008_r), FUNC(solo_asic_device::reg_ide_000008_w)); // IDE I/O port cs0[2] (sector count)
+	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_ide_00000c_r), FUNC(solo_asic_device::reg_ide_00000c_w)); // IDE I/O port cs0[3] (sector number)
+	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_ide_000010_r), FUNC(solo_asic_device::reg_ide_000010_w)); // IDE I/O port cs0[4] (cylinder low)
+	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_ide_000014_r), FUNC(solo_asic_device::reg_ide_000014_w)); // IDE I/O port cs0[5] (cylinder high)
+	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_ide_000018_r), FUNC(solo_asic_device::reg_ide_000018_w)); // IDE I/O port cs0[6] (drive/head)
+	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_ide_00001c_r), FUNC(solo_asic_device::reg_ide_00001c_w)); // IDE I/O port cs0[7] (status or command)
+	map(0x038, 0x03b).rw(FUNC(solo_asic_device::reg_ide_400018_r), FUNC(solo_asic_device::reg_ide_400018_w)); // IDE I/O port cs1[6] (altstatus or device control)
+	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
+}
+
 void solo_asic_device::device_add_mconfig(machine_config &config)
 {
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
