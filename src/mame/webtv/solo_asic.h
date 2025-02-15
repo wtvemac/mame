@@ -288,6 +288,7 @@ protected:
 	uint8_t m_busvid_intstat;
 	uint8_t m_busrio_intenable;
 	uint8_t m_busrio_intstat;
+	uint8_t m_bustim_intenable;
 	uint8_t m_bustim_intstat;
 
 	uint8_t m_errenable;
@@ -469,6 +470,7 @@ private:
 	uint32_t reg_0058_r();          // BUS_GPINTSTAT (read)
 	uint32_t reg_0060_r();          // BUS_GPINTSTAT_S (read)
 	void reg_0060_w(uint32_t data); // BUS_GPINTSTAT_S (write)
+	uint32_t reg_0158_r();          // BUS_GPINTSTAT_C (read)
 	void reg_0158_w(uint32_t data); // BUS_GPINTSTAT_C (write)
 	uint32_t reg_0070_r();          // BUS_AUDINTEN_S (read)
 	void reg_0070_w(uint32_t data); // BUS_AUDINTEN_S (write)
@@ -486,6 +488,7 @@ private:
 	uint32_t reg_0074_r();          // BUS_DEVINTSTAT (read)
 	uint32_t reg_0078_r();          // BUS_DEVINTSTAT_S (read)
 	void reg_0078_w(uint32_t data); // BUS_DEVINTSTAT_S (write)
+	uint32_t reg_0174_r();          // BUS_DEVINTSTAT_C (read)
 	void reg_0174_w(uint32_t data); // BUS_DEVINTSTAT_C (write)
 	uint32_t reg_0088_r();          // BUS_VIDINTEN_S (read)
 	void reg_0088_w(uint32_t data); // BUS_VIDINTEN_S (write)
@@ -503,10 +506,16 @@ private:
 	uint32_t reg_008c_r();          // BUS_RIOINTSTAT (read)
 	uint32_t reg_0090_r();          // BUS_RIOINTSTAT_S (read)
 	void reg_0090_w(uint32_t data); // BUS_RIOINTSTAT_S (write)
+	uint32_t reg_018c_r();          // BUS_RIOINTSTAT_C (read)
 	void reg_018c_w(uint32_t data); // BUS_RIOINTSTAT_C (write)
+	uint32_t reg_00a4_r();          // BUS_TIMINTEN_S (read)
+	void reg_00a4_w(uint32_t data); // BUS_TIMINTEN_S (write)
+	uint32_t reg_01a4_r();          // BUS_TIMINTEN_C (read)
+	void reg_01a4_w(uint32_t data); // BUS_TIMINTEN_C (write)
 	uint32_t reg_009c_r();          // BUS_TIMINTSTAT (read)
 	uint32_t reg_00a0_r();          // BUS_TIMINTSTAT_S (read)
 	void reg_00a0_w(uint32_t data); // BUS_TIMINTSTAT_S (write)
+	uint32_t reg_019c_r();          // BUS_TIMINTSTAT_C (read)
 	void reg_019c_w(uint32_t data); // BUS_TIMINTSTAT_C (write)
 	uint32_t reg_00a8_r();          // BUS_RESETCAUSE (read)
 	void reg_00a8_w(uint32_t data); // BUS_RESETCAUSE (write)

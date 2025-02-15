@@ -127,7 +127,7 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x15c, 0x15f).rw(FUNC(solo_asic_device::reg_015c_r), FUNC(solo_asic_device::reg_015c_w)); // BUS_GPINTEN_C
 	map(0x058, 0x05b).r(FUNC(solo_asic_device::reg_0058_r));                                      // BUS_GPINTSTAT
 	map(0x060, 0x063).rw(FUNC(solo_asic_device::reg_0060_r), FUNC(solo_asic_device::reg_0060_w)); // BUS_GPINTSTAT_S
-	map(0x158, 0x15b).w(FUNC(solo_asic_device::reg_0158_w));                                      // BUS_GPINTSTAT_C
+	map(0x158, 0x15b).rw(FUNC(solo_asic_device::reg_0158_r), FUNC(solo_asic_device::reg_0158_w)); // BUS_GPINTSTAT_C
 	map(0x070, 0x073).rw(FUNC(solo_asic_device::reg_0070_r), FUNC(solo_asic_device::reg_0070_w)); // BUS_AUDINTEN_S
 	map(0x170, 0x173).rw(FUNC(solo_asic_device::reg_0170_r), FUNC(solo_asic_device::reg_0170_w)); // BUS_AUDINTEN_C
 	map(0x068, 0x06b).r(FUNC(solo_asic_device::reg_0068_r));                                      // BUS_AUDINTSTAT
@@ -137,7 +137,7 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x17c, 0x17f).rw(FUNC(solo_asic_device::reg_017c_r), FUNC(solo_asic_device::reg_017c_w)); // BUS_DEVINTEN_C
 	map(0x074, 0x077).r(FUNC(solo_asic_device::reg_0074_r));                                      // BUS_DEVINTSTAT
 	map(0x078, 0x07b).rw(FUNC(solo_asic_device::reg_0078_r), FUNC(solo_asic_device::reg_0078_w)); // BUS_DEVINTSTAT_S
-	map(0x174, 0x177).w(FUNC(solo_asic_device::reg_0174_w));                                      // BUS_DEVINTSTAT_C
+	map(0x174, 0x177).rw(FUNC(solo_asic_device::reg_0174_r), FUNC(solo_asic_device::reg_0174_w)); // BUS_DEVINTSTAT_C
 	map(0x088, 0x08b).rw(FUNC(solo_asic_device::reg_0088_r), FUNC(solo_asic_device::reg_0088_w)); // BUS_VIDINTEN_S
 	map(0x188, 0x18b).rw(FUNC(solo_asic_device::reg_0188_r), FUNC(solo_asic_device::reg_0188_w)); // BUS_VIDINTEN_C
 	map(0x080, 0x083).r(FUNC(solo_asic_device::reg_0080_r));                                      // BUS_VIDINTSTAT
@@ -147,10 +147,12 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x198, 0x19b).rw(FUNC(solo_asic_device::reg_0198_r), FUNC(solo_asic_device::reg_0198_w)); // BUS_RIOINTEN_C
 	map(0x08c, 0x08f).r(FUNC(solo_asic_device::reg_008c_r));                                      // BUS_RIOINTSTAT
 	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_0090_r), FUNC(solo_asic_device::reg_0090_w)); // BUS_RIOINTSTAT_S
-	map(0x18c, 0x18f).w(FUNC(solo_asic_device::reg_018c_w));                                      // BUS_RIOINTSTAT_C
+	map(0x18c, 0x18f).rw(FUNC(solo_asic_device::reg_018c_r), FUNC(solo_asic_device::reg_018c_w)); // BUS_RIOINTSTAT_C
+	map(0x0a4, 0x0a7).rw(FUNC(solo_asic_device::reg_00a4_r), FUNC(solo_asic_device::reg_00a4_w)); // BUS_TIMINTEN_S
+	map(0x1a4, 0x1a7).rw(FUNC(solo_asic_device::reg_01a4_r), FUNC(solo_asic_device::reg_01a4_w)); // BUS_TIMINTEN_C
 	map(0x09c, 0x09f).r(FUNC(solo_asic_device::reg_009c_r));                                      // BUS_TIMINTSTAT
-	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_00a0_r), FUNC(solo_asic_device::reg_00a0_w)); // BUS_TIMINTSTAT_S
-	map(0x18c, 0x18f).w(FUNC(solo_asic_device::reg_019c_w));                                      // BUS_TIMINTSTAT_C
+	map(0x0a0, 0x0a3).rw(FUNC(solo_asic_device::reg_00a0_r), FUNC(solo_asic_device::reg_00a0_w)); // BUS_TIMINTSTAT_S
+	map(0x19c, 0x19f).rw(FUNC(solo_asic_device::reg_019c_r), FUNC(solo_asic_device::reg_019c_w)); // BUS_TIMINTSTAT_C
 	map(0x0a8, 0x0ab).rw(FUNC(solo_asic_device::reg_00a8_r), FUNC(solo_asic_device::reg_00a8_w)); // BUS_RESETCAUSE
 	map(0x0ac, 0x0af).w(FUNC(solo_asic_device::reg_00ac_w));                                      // BUS_RESETCAUSE_C
 }
@@ -403,6 +405,7 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_busvid_intstat));
 	save_item(NAME(m_busrio_intenable));
 	save_item(NAME(m_busrio_intstat));
+	save_item(NAME(m_bustim_intenable));
 	save_item(NAME(m_bustim_intstat));
 	save_item(NAME(m_errenable));
 	save_item(NAME(m_chpcntl));
@@ -501,6 +504,7 @@ void solo_asic_device::device_reset()
 	m_busvid_intstat = 0x0;
 	m_busrio_intenable = 0x0;
 	m_busrio_intstat = 0x0;
+	m_bustim_intenable = 0x0;
 	m_bustim_intstat = 0x0;
 
 	m_vid_nstart = 0x0;
@@ -828,14 +832,6 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 		modfw_message_index = 0x0;
 		modfw_will_flush = false;
 		modfw_will_ack = false;
-
-		// Disable the timer interrupt. This is related to a reg_019c_w issue.
-		m_bus_intenable &= (~BUS_INT_VIDEO) & 0xff;
-		m_bus_intstat &= (~BUS_INT_VIDEO) & 0xff;
-		m_bus_intenable &= (~BUS_INT_RIO) & 0xff;
-		m_bus_intstat &= (~BUS_INT_RIO) & 0xff;
-		m_bus_intenable &= (~BUS_INT_TIMER) & 0xff;
-		m_bus_intstat &= (~BUS_INT_TIMER) & 0xff;
 	}
 
 	m_errenable &= (~data) & 0xFF;
@@ -908,12 +904,9 @@ uint32_t solo_asic_device::reg_004c_r()
 
 void solo_asic_device::reg_004c_w(uint32_t data)
 {
-	// Make sure the interrupt is cleared. Fix for a reg_019c_w issue.
 	solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 0);
 
 	m_tcompare = data;
-
-	m_bus_intenable |= BUS_INT_TIMER;
 
 	// There seems to be an issue using the timer compare value. Hardcoding this to around 0.01s which seems to be what the firmware is using.
 	compare_timer->adjust(attotime::from_usec(TCOMPARE_TIMER_USEC));
@@ -953,6 +946,11 @@ uint32_t solo_asic_device::reg_0060_r()
 void solo_asic_device::reg_0060_w(uint32_t data)
 {
 	m_busgpio_intstat |= data & 0xff;
+}
+
+uint32_t solo_asic_device::reg_0158_r()
+{
+	return m_busgpio_intstat;
 }
 
 void solo_asic_device::reg_0158_w(uint32_t data)
@@ -1046,6 +1044,11 @@ uint32_t solo_asic_device::reg_0078_r()
 void solo_asic_device::reg_0078_w(uint32_t data)
 {
 	m_busdev_intstat |= data & 0xff;
+}
+
+uint32_t solo_asic_device::reg_0174_r()
+{
+	return m_busdev_intstat;
 }
 
 void solo_asic_device::reg_0174_w(uint32_t data)
@@ -1173,9 +1176,38 @@ void solo_asic_device::reg_0090_w(uint32_t data)
 	m_busrio_intstat |= data & 0xff;
 }
 
+uint32_t solo_asic_device::reg_018c_r()
+{
+	return m_busrio_intstat;
+}
+
 void solo_asic_device::reg_018c_w(uint32_t data)
 {
 	solo_asic_device::set_rio_irq(data, 0);
+}
+
+uint32_t solo_asic_device::reg_00a4_r()
+{
+	return m_bustim_intenable;
+}
+
+void solo_asic_device::reg_00a4_w(uint32_t data)
+{
+	m_bustim_intenable |= data & 0xff;
+	if (m_bustim_intenable != 0x0)
+	{
+		m_bus_intenable |= BUS_INT_TIMER;
+	}
+}
+
+uint32_t solo_asic_device::reg_01a4_r()
+{
+	return m_bustim_intenable;
+}
+
+void solo_asic_device::reg_01a4_w(uint32_t data)
+{
+	m_bustim_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_009c_r()
@@ -1193,10 +1225,14 @@ void solo_asic_device::reg_00a0_w(uint32_t data)
 	m_bustim_intstat |= data & 0xff;
 }
 
+uint32_t solo_asic_device::reg_019c_r()
+{
+	return m_bustim_intstat;
+}
+
 void solo_asic_device::reg_019c_w(uint32_t data)
 {
-	// Removing due to problems. The interrupt will be cleared when a new compare value is written.
-	//solo_asic_device::set_timer_irq(data, 0);
+	solo_asic_device::set_timer_irq(data, 0);
 }
 
 uint32_t solo_asic_device::reg_00a8_r()
@@ -2647,7 +2683,7 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 
 void solo_asic_device::set_timer_irq(uint8_t mask, int state)
 {
-	if (m_bus_intenable & BUS_INT_TIMER)
+	if (m_bustim_intenable & mask && m_bus_intenable & BUS_INT_TIMER)
 	{
 		if (state)
 		{
