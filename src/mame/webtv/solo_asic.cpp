@@ -322,6 +322,17 @@ void solo_asic_device::hanide_map(address_map &map)
 	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
 }
 
+void solo_asic_device::pekoe_map(address_map &map)
+{
+	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_pekoe_0000_r), FUNC(solo_asic_device::reg_pekoe_0000_w)); // Pekoe data
+	map(0x004, 0x007).w(FUNC(solo_asic_device::reg_pekoe_0004_w));                                            // Pekoe ???
+	map(0x008, 0x00b).w(FUNC(solo_asic_device::reg_pekoe_0008_w));                                            // Pekoe ???
+	map(0x00c, 0x00f).w(FUNC(solo_asic_device::reg_pekoe_000c_w));                                            // Pekoe configure? (baud rate etc..)
+	map(0x010, 0x013).w(FUNC(solo_asic_device::reg_pekoe_0010_w));                                            // Pekoe ???
+	map(0x014, 0x017).r(FUNC(solo_asic_device::reg_pekoe_0014_r));                                            // Pekoe status?
+
+}
+
 void solo_asic_device::device_add_mconfig(machine_config &config)
 {
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
@@ -2339,6 +2350,46 @@ uint32_t solo_asic_device::reg_ide_40001c_r()
 void solo_asic_device::reg_ide_40001c_w(uint32_t data)
 {
 	m_ata->cs1_w(7, data);
+}
+
+uint32_t solo_asic_device::reg_pekoe_0000_r()
+{
+	return 0x00000020;
+}
+
+void solo_asic_device::reg_pekoe_0000_w(uint32_t data)
+{
+	if (data != 0x00)
+	{
+		osd_printf_verbose("%c", (data & 0xff));
+	}
+}
+
+void solo_asic_device::reg_pekoe_0004_w(uint32_t data)
+{
+	//
+}
+
+void solo_asic_device::reg_pekoe_0008_w(uint32_t data)
+{
+	//
+}
+
+void solo_asic_device::reg_pekoe_000c_w(uint32_t data)
+{
+	//
+}
+
+void solo_asic_device::reg_pekoe_0010_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_pekoe_0014_r()
+{
+	uint32_t status = PEKOE_CAN_SEND_BYTE;
+
+	return status;
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::dac_update)
