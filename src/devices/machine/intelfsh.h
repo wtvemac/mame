@@ -228,6 +228,12 @@ public:
 	amd_29lv800b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
+class amd_29lv160b_16bit_device : public intelfsh16_device
+{
+public:
+	amd_29lv160b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+};
+
 class sharp_lh28f016s_device : public intelfsh8_device
 {
 public:
@@ -501,6 +507,7 @@ DECLARE_DEVICE_TYPE(AMD_29LV160DB_16BIT,     amd_29lv160db_16bit_device)
 DECLARE_DEVICE_TYPE(AMD_29LV160DT,           amd_29lv160dt_device)
 DECLARE_DEVICE_TYPE(AMD_29LV200T,            amd_29lv200t_device)
 DECLARE_DEVICE_TYPE(AMD_29LV800B_16BIT,      amd_29lv800b_16bit_device)
+DECLARE_DEVICE_TYPE(AMD_29LV160B_16BIT,      amd_29lv160b_16bit_device)
 DECLARE_DEVICE_TYPE(FUJITSU_29F160TE,        fujitsu_29f160te_device)
 DECLARE_DEVICE_TYPE(FUJITSU_29F160TE_16BIT,  fujitsu_29f160te_16bit_device)
 DECLARE_DEVICE_TYPE(FUJITSU_29F016A,         fujitsu_29f016a_device)
