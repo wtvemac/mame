@@ -98,6 +98,7 @@ DEFINE_DEVICE_TYPE(AMD_29F800T,              amd_29f800t_device,              "a
 DEFINE_DEVICE_TYPE(AMD_29F800B_16BIT,        amd_29f800b_16bit_device,        "amd_29f800b_16bit",        "AMD 29F800B Flash (16-bit)")
 DEFINE_DEVICE_TYPE(AMD_29LV200T,             amd_29lv200t_device,             "amd_29lv200t",             "AMD 29LV200T Flash")
 DEFINE_DEVICE_TYPE(AMD_29LV800B_16BIT,       amd_29lv800b_16bit_device,       "amd_29lv800b_16bit",       "AMD 29LV800B Flash")
+DEFINE_DEVICE_TYPE(AMD_29LV160B_16BIT,       amd_29lv160b_16bit_device,       "amd_29lv160b_16bit",       "AMD 29LV160B Flash")
 DEFINE_DEVICE_TYPE(FUJITSU_29F160TE,         fujitsu_29f160te_device,         "mbm29f160te",              "Fujitsu MBM29F160TE Flash")
 DEFINE_DEVICE_TYPE(FUJITSU_29F160TE_16BIT,   fujitsu_29f160te_16bit_device,   "mbm29f160te_16bit",        "Fujitsu MBM29F160TE Flash (16-bit)")
 DEFINE_DEVICE_TYPE(FUJITSU_29F016A,          fujitsu_29f016a_device,          "mbm29f016a",               "Fujitsu MBM29F016A Flash")
@@ -251,6 +252,9 @@ amd_29lv200t_device::amd_29lv200t_device(const machine_config &mconfig, const ch
 
 amd_29lv800b_16bit_device::amd_29lv800b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh16_device(mconfig, AMD_29LV800B_16BIT, tag, owner, clock, 0x100000, MFG_AMD, 0x22da) { m_top_boot_sector = true; }
+
+amd_29lv160b_16bit_device::amd_29lv160b_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: intelfsh16_device(mconfig, AMD_29LV160B_16BIT, tag, owner, clock, 0x200000, MFG_AMD, 0x22c4) { m_top_boot_sector = true; }
 
 cat28f020_device::cat28f020_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, CAT28F020, tag, owner, clock, 0x40000, MFG_CATALYST, 0xbd) { }
@@ -657,6 +661,7 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 				!(m_maker_id == MFG_FUJITSU && m_device_id == 0x22d6)
 				&& !(m_maker_id == MFG_AMD && m_device_id == 0x2258)
 				&& !(m_maker_id == MFG_AMD && m_device_id == 0x22da)
+				&& !(m_maker_id == MFG_AMD && m_device_id == 0x22c4)
 				&& !(m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1)
 			)
 			{
@@ -1010,6 +1015,7 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 					(m_maker_id == MFG_FUJITSU && m_device_id == 0x22d6)
 					|| (m_maker_id == MFG_AMD && m_device_id == 0x2258)
 					|| (m_maker_id == MFG_AMD && m_device_id == 0x22da)
+					|| (m_maker_id == MFG_AMD && m_device_id == 0x22c4)
 					|| (m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1)
 				)
 				{
