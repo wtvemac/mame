@@ -2108,6 +2108,8 @@ uint32_t solo_asic_device::reg_a000_r()
 	return 0x00000000;
 }
 
+// sucUnit registers
+
 void solo_asic_device::reg_a000_w(uint32_t data)
 {
 	osd_printf_verbose("%c", (data & 0xff));
@@ -2127,6 +2129,8 @@ uint32_t solo_asic_device::reg_aab8_r()
 {
 	return (0x1 << 4);
 }
+
+// Hardware modem registers
 
 uint32_t solo_asic_device::reg_modem_0000_r()
 {
@@ -2178,7 +2182,7 @@ uint32_t solo_asic_device::reg_modem_0000_r()
 	}
 }
 
- void solo_asic_device::reg_modem_0000_w(uint32_t data)
+void solo_asic_device::reg_modem_0000_w(uint32_t data)
  {
 	if(modfw_mode)
 	{
@@ -2313,6 +2317,8 @@ uint32_t solo_asic_device::reg_ide_000008_r()
 	return m_ata->cs0_r(2);
 }
 
+// IDE registers
+
 void solo_asic_device::reg_ide_000008_w(uint32_t data)
 {
 	m_ata->cs0_w(2, data);
@@ -2392,6 +2398,8 @@ uint32_t solo_asic_device::reg_pekoe_0000_r()
 {
 	return 0x00000020;
 }
+
+// Pekoe registers
 
 void solo_asic_device::reg_pekoe_0000_w(uint32_t data)
 {
