@@ -314,7 +314,7 @@ void solo_asic_device::han_map(address_map &map)
 {
 	m_han_enabled = true;
 
-	// Interrrups
+	// Interrups
 	// 0x000, 0x004
 	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_han_0000_r), FUNC(solo_asic_device::reg_han_0000_w)); // HAN_INTSTAT_C
 	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_han_0004_r), FUNC(solo_asic_device::reg_han_0004_w)); // HAN_INTEN_S
