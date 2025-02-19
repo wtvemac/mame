@@ -310,18 +310,39 @@ void solo_asic_device::ide_map(address_map &map)
 	map(0x40001c, 0x40001f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
 }
 
-void solo_asic_device::hanide_map(address_map &map)
+void solo_asic_device::han_map(address_map &map)
 {
-	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_ide_000000_r), FUNC(solo_asic_device::reg_ide_000000_w)); // IDE I/O port cs0[0] (data)
-	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_ide_000004_r), FUNC(solo_asic_device::reg_ide_000004_w)); // IDE I/O port cs0[1] (error or feature)
-	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_ide_000008_r), FUNC(solo_asic_device::reg_ide_000008_w)); // IDE I/O port cs0[2] (sector count)
-	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_ide_00000c_r), FUNC(solo_asic_device::reg_ide_00000c_w)); // IDE I/O port cs0[3] (sector number)
-	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_ide_000010_r), FUNC(solo_asic_device::reg_ide_000010_w)); // IDE I/O port cs0[4] (cylinder low)
-	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_ide_000014_r), FUNC(solo_asic_device::reg_ide_000014_w)); // IDE I/O port cs0[5] (cylinder high)
-	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_ide_000018_r), FUNC(solo_asic_device::reg_ide_000018_w)); // IDE I/O port cs0[6] (drive/head)
-	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_ide_00001c_r), FUNC(solo_asic_device::reg_ide_00001c_w)); // IDE I/O port cs0[7] (status or command)
-	map(0x038, 0x03b).rw(FUNC(solo_asic_device::reg_ide_400018_r), FUNC(solo_asic_device::reg_ide_400018_w)); // IDE I/O port cs1[6] (altstatus or device control)
-	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
+	m_han_enabled = true;
+
+	// Interrrups
+	// 0x000, 0x004
+	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_han_0000_r), FUNC(solo_asic_device::reg_han_0000_w)); // HAN_INTSTAT_C
+	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_han_0004_r), FUNC(solo_asic_device::reg_han_0004_w)); // HAN_INTEN_S
+
+	// Unknown
+	// 0x014,  0x154,  0x158
+	// 0x100 (DMA?), 0x200 (DMA?), 0x2f0 (DMA? DERR, int bit 0xe), 0x300 (DMA?), 0x3f0 (DMA? SERR, int bit 0xf)
+
+	// IDE
+	map(0x100, 0x103).rw(FUNC(solo_asic_device::reg_ide_000000_r), FUNC(solo_asic_device::reg_ide_000000_w)); // IDE I/O port cs0[0] (data)
+	map(0x104, 0x107).rw(FUNC(solo_asic_device::reg_ide_000004_r), FUNC(solo_asic_device::reg_ide_000004_w)); // IDE I/O port cs0[1] (error or feature)
+	map(0x108, 0x10b).rw(FUNC(solo_asic_device::reg_ide_000008_r), FUNC(solo_asic_device::reg_ide_000008_w)); // IDE I/O port cs0[2] (sector count)
+	map(0x10c, 0x10f).rw(FUNC(solo_asic_device::reg_ide_00000c_r), FUNC(solo_asic_device::reg_ide_00000c_w)); // IDE I/O port cs0[3] (sector number)
+	map(0x110, 0x113).rw(FUNC(solo_asic_device::reg_ide_000010_r), FUNC(solo_asic_device::reg_ide_000010_w)); // IDE I/O port cs0[4] (cylinder low)
+	map(0x114, 0x117).rw(FUNC(solo_asic_device::reg_ide_000014_r), FUNC(solo_asic_device::reg_ide_000014_w)); // IDE I/O port cs0[5] (cylinder high)
+	map(0x118, 0x11b).rw(FUNC(solo_asic_device::reg_ide_000018_r), FUNC(solo_asic_device::reg_ide_000018_w)); // IDE I/O port cs0[6] (drive/head)
+	map(0x11c, 0x11f).rw(FUNC(solo_asic_device::reg_ide_00001c_r), FUNC(solo_asic_device::reg_ide_00001c_w)); // IDE I/O port cs0[7] (status or command)
+	map(0x138, 0x13b).rw(FUNC(solo_asic_device::reg_ide_400018_r), FUNC(solo_asic_device::reg_ide_400018_w)); // IDE I/O port cs1[6] (altstatus or device control)
+	map(0x13c, 0x13f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
+
+	// IDE Timing
+	// 0x140, 0x144, 0x148
+
+	// Message pipeline (used in Doly AC-3, state messages etc...)
+	// 0x10, 0x080, 0x084, 0x180
+	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_han_0010_r), FUNC(solo_asic_device::reg_han_0010_w)); // HAN_
+	map(0x080, 0x083).rw(FUNC(solo_asic_device::reg_han_0080_r), FUNC(solo_asic_device::reg_han_0080_w)); // HAN_MSGCNTL?
+	map(0x084, 0x087).rw(FUNC(solo_asic_device::reg_han_0084_r), FUNC(solo_asic_device::reg_han_0084_w)); // HAN_MSGFIFO?
 }
 
 void solo_asic_device::pekoe_map(address_map &map)
@@ -389,6 +410,7 @@ void solo_asic_device::device_start()
 	dac_update_timer = timer_alloc(FUNC(solo_asic_device::dac_update), this);
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
 	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
+	han_message_timer = timer_alloc(FUNC(solo_asic_device::check_han_message_state), this);
 
 	solo_asic_device::device_reset();
 
@@ -460,6 +482,14 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_aud_nsize));
 	save_item(NAME(m_aud_nconfig));
 	save_item(NAME(m_aud_dmacntl));
+	save_item(NAME(m_han_enabled));
+	save_item(NAME(m_han_intenable));
+	save_item(NAME(m_han_intstat));
+	save_item(NAME(m_han_need_in_int));
+	save_item(NAME(m_han_msgbuff_status));
+	save_item(NAME(m_han_msgbuff_index));
+	save_item(NAME(m_han_startup_step));
+	save_item(NAME(m_han_msgbuff));
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
 	save_item(NAME(m_rom_cntl0));
@@ -476,6 +506,11 @@ void solo_asic_device::device_start()
 void solo_asic_device::device_reset()
 {
 	dac_update_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
+
+	if (m_han_enabled)
+	{
+		han_message_timer->adjust(attotime::from_hz(HAN_MSGIRQ_HACK_HZ), 0, attotime::from_hz(HAN_MSGIRQ_HACK_HZ));
+	}
 
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
@@ -556,6 +591,13 @@ void solo_asic_device::device_reset()
 	m_aud_nconfig = 0x0;
 	m_aud_dmacntl = 0x0;
 	m_aud_dma_ongoing = false;
+	
+	m_han_intenable = 0x0;
+	m_han_intstat = 0x0;
+	m_han_need_in_int = false;
+	m_han_msgbuff_status = 0x0;
+	m_han_msgbuff_index = 0x0;
+	m_han_startup_step = HAN_STARTUP_BEGIN;
 
 	m_rom_cntl0 = 0x0;
 	m_rom_cntl1 = 0x0;
@@ -832,6 +874,11 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 		modfw_message_index = 0x0;
 		modfw_will_flush = false;
 		modfw_will_ack = false;
+
+		m_han_need_in_int = false;
+		m_han_msgbuff_status = 0x0;
+		m_han_msgbuff_index = 0x0;
+		m_han_startup_step = HAN_STARTUP_BEGIN;
 	}
 
 	m_errenable &= (~data) & 0xFF;
@@ -2292,114 +2339,114 @@ void solo_asic_device::reg_modem_001c_w(uint32_t data)
 	m_modem_uart->ins8250_w(0x7, data & 0xff);
 }
 
+// IDE registers
+
 uint32_t solo_asic_device::reg_ide_000000_r()
 {
-	return m_ata->cs0_r(0);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(0));
 }
 
 void solo_asic_device::reg_ide_000000_w(uint32_t data)
 {
-	m_ata->cs0_w(0, data);
+	m_ata->cs0_w(0, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_000004_r()
 {
-	return m_ata->cs0_r(1);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(1));
 }
 
 void solo_asic_device::reg_ide_000004_w(uint32_t data)
 {
-	m_ata->cs0_w(1, data);
+	m_ata->cs0_w(1, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_000008_r()
 {
-	return m_ata->cs0_r(2);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(2));
 }
-
-// IDE registers
 
 void solo_asic_device::reg_ide_000008_w(uint32_t data)
 {
-	m_ata->cs0_w(2, data);
+	m_ata->cs0_w(2, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_00000c_r()
 {
-	return m_ata->cs0_r(3);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(3));
 }
 
 void solo_asic_device::reg_ide_00000c_w(uint32_t data)
 {
-	m_ata->cs0_w(3, data);
+	m_ata->cs0_w(3, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_000010_r()
 {
-	return m_ata->cs0_r(4);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(4));
 }
 
 void solo_asic_device::reg_ide_000010_w(uint32_t data)
 {
-	m_ata->cs0_w(4, data);
+	m_ata->cs0_w(4, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_000014_r()
 {
-	return m_ata->cs0_r(5);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(5));
 }
 
 void solo_asic_device::reg_ide_000014_w(uint32_t data)
 {
-	m_ata->cs0_w(5, data);
+	m_ata->cs0_w(5, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_000018_r()
 {
-	return m_ata->cs0_r(6);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(6));
 }
 
 void solo_asic_device::reg_ide_000018_w(uint32_t data)
 {
-	m_ata->cs0_w(6, data);
+	m_ata->cs0_w(6, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_00001c_r()
 {
-	return m_ata->cs0_r(7);
+	return solo_asic_device::arrange_han_data(m_ata->cs0_r(7));
 }
 
 void solo_asic_device::reg_ide_00001c_w(uint32_t data)
 {
-	m_ata->cs0_w(7, data);
+	m_ata->cs0_w(7, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_400018_r()
 {
-	return m_ata->cs1_r(6);
+	return solo_asic_device::arrange_han_data(m_ata->cs1_r(6));
 }
 
 void solo_asic_device::reg_ide_400018_w(uint32_t data)
 {
-	m_ata->cs1_w(6, data);
+	m_ata->cs1_w(6, solo_asic_device::arrange_han_data(data));
 }
 
 uint32_t solo_asic_device::reg_ide_40001c_r()
 {
-	return m_ata->cs1_r(7);
+	return solo_asic_device::arrange_han_data(m_ata->cs1_r(7));
 }
 
 void solo_asic_device::reg_ide_40001c_w(uint32_t data)
 {
-	m_ata->cs1_w(7, data);
+	m_ata->cs1_w(7, solo_asic_device::arrange_han_data(data));
 }
+
+// Pekoe registers
 
 uint32_t solo_asic_device::reg_pekoe_0000_r()
 {
 	return 0x00000020;
 }
-
-// Pekoe registers
 
 void solo_asic_device::reg_pekoe_0000_w(uint32_t data)
 {
@@ -2434,6 +2481,206 @@ uint32_t solo_asic_device::reg_pekoe_0014_r()
 	uint32_t status = PEKOE_CAN_SEND_BYTE;
 
 	return status;
+}
+
+// Han registers
+
+uint32_t solo_asic_device::reg_han_0000_r()
+{
+	return solo_asic_device::arrange_han_data(m_han_intstat);
+}
+
+void solo_asic_device::reg_han_0000_w(uint32_t data)
+{
+	data = solo_asic_device::arrange_han_data(data);
+	
+	solo_asic_device::set_han_irq(data, 0);
+}
+
+uint32_t solo_asic_device::reg_han_0004_r()
+{
+	return solo_asic_device::arrange_han_data(m_han_intenable);
+}
+
+void solo_asic_device::reg_han_0004_w(uint32_t data)
+{
+	data = solo_asic_device::arrange_han_data(data);
+
+	m_han_intenable = data;
+}
+
+uint32_t solo_asic_device::reg_han_0010_r()
+{
+	return solo_asic_device::arrange_han_data(0x00000000);
+}
+
+void solo_asic_device::reg_han_0010_w(uint32_t data)
+{
+	//
+}
+
+uint32_t solo_asic_device::reg_han_0080_r()
+{
+	return solo_asic_device::arrange_han_data(m_han_msgbuff_status);
+}
+
+void solo_asic_device::reg_han_0080_w(uint32_t data)
+{
+	uint32_t cntl = solo_asic_device::arrange_han_data(data);
+
+	m_han_msgbuff_index = 0x0;
+	
+	switch (cntl)
+	{
+		case HAN_MSGCNTL_BUFF_RESET:
+			m_han_msgbuff_index = 0x0;
+			break;
+
+		case HAN_MSGCNTL_DATA_READ:
+		{
+			if (m_han_startup_step == HAN_STARTUP_SEND_RESTART)
+			{
+				m_han_startup_step = HAN_STARTUP_RESTART_OK;
+			}
+			else if(m_han_startup_step == HAN_STARTUP_SEND_RESET)
+			{
+				m_han_startup_step = HAN_STARTUP_DONE;
+			}
+			break;
+		}
+
+		case HAN_MSGCNTL_BUFF_RELEASE:
+			m_han_msgbuff_status &= (~HAN_MSGCNTL_BUFF_OWN);
+			break;
+
+		case HAN_MSGCNTL_BUFF_OWN:
+			m_han_msgbuff_status |= HAN_MSGCNTL_BUFF_OWN;
+			break;
+	}
+}
+
+uint32_t solo_asic_device::reg_han_0084_r()
+{
+	if (m_han_msgbuff_status & HAN_MSGCNTL_DATA_WAITING && m_han_msgbuff_index < (HAN_MSGBUFF_SIZE >> 1))
+	{
+		uint32_t data = solo_asic_device::arrange_han_data(m_han_msgbuff[m_han_msgbuff_index++]);
+
+		if (m_han_msgbuff_index >= (HAN_MSGBUFF_SIZE >> 1))
+		{
+			m_han_msgbuff_status |= HAN_MSGCNTL_DATA_VALID;
+			m_han_msgbuff_status &= (~HAN_MSGCNTL_DATA_WAITING);
+		}
+
+		return data;
+	}
+	else
+	{
+		return 0x00000000;
+	}
+}
+
+void solo_asic_device::reg_han_0084_w(uint32_t data)
+{
+	if (m_han_msgbuff_status & HAN_MSGCNTL_BUFF_OWN && m_han_msgbuff_index < (HAN_MSGBUFF_SIZE >> 1))
+	{
+		m_han_msgbuff[m_han_msgbuff_index++] = solo_asic_device::arrange_han_data(data);
+
+		if (m_han_msgbuff_index >= (HAN_MSGBUFF_SIZE >> 1))
+		{
+			uint8_t han_msgtype = m_han_msgbuff[HAN_MSGTYPE_INDEX] & 0xff;
+
+			if(han_msgtype == han_msgtype_t::IPC_CLASS_MAILBOX)
+			{
+				switch (m_han_msgbuff[HAN_MSGSUBTYPE_INDEX])
+				{
+					case han_mailbox_msgsubtype_t::SRA2EPC_RETURN_FROM_STANDBY:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRC2EPC_RETURN_FROM_STANDBY,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case han_mailbox_msgsubtype_t::SRA2EPC_GO_TO_STANDBY:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRC2EPC_IN_STANDBY,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case han_mailbox_msgsubtype_t::SRA2EPC_GET_SYSTEM_INFO:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_SYSTEM_INFO,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case han_mailbox_msgsubtype_t::WEB2SRC_GET_CAPABILITIES:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::WEB2SRC_GET_CAPABILITIES,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case han_mailbox_msgsubtype_t::SRA2EPC_GET_ALARM_STATUS:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_ALARM_STATUS,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case han_mailbox_msgsubtype_t::SRC2EPC_GET_AC3_SETUP:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRC2EPC_GET_AC3_SETUP,
+							NULL,
+							0x0000
+						);
+						break;
+
+
+					case han_mailbox_msgsubtype_t::EPC2SRC_GET_SUID_LIST:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRC2EPC_SERVICE_LIST_NOT_AVAILABLE,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case han_mailbox_msgsubtype_t::EPC2SRC_GET_SERVICE_LIST:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRC2EPC_SERVICE_LIST_NOT_AVAILABLE,
+							NULL,
+							0x0000
+						);
+						break;
+				}
+			}
+			else if(han_msgtype == han_msgtype_t::IPC_CLASS_DIAG)
+			{
+				send_han_message(
+					han_msgtype_t::IPC_CLASS_DIAG,
+					han_diag_msgsubtype_t::DIAG_ECHO_MB_MSG,
+					NULL,
+					0x0000
+				);
+			}
+
+			m_han_msgbuff_status &= (~HAN_MSGCNTL_BUFF_OWN);
+			m_han_msgbuff_status |= HAN_MSGCNTL_DATA_READ;
+		}
+	}
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::dac_update)
@@ -2515,20 +2762,129 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::timer_irq)
 	solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 1);
 }
 
-// The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
-void solo_asic_device::vblank_irq(int state) 
+TIMER_CALLBACK_MEMBER(solo_asic_device::check_han_message_state)
+{
+	if (m_han_startup_step == HAN_STARTUP_BEGIN)
+	{
+		if (send_han_message(
+				han_msgtype_t::IPC_CLASS_RESTART,
+				0x0000,
+				NULL,
+				0x0000
+			))
+		{
+			m_han_startup_step = HAN_STARTUP_SEND_RESTART;
+		}
+	}
+	else if (m_han_startup_step == HAN_STARTUP_RESTART_OK)
+	{
+		if (send_han_message(
+				han_msgtype_t::IPC_CLASS_MAILBOX,
+				han_mailbox_msgsubtype_t::EPC2SRA_RESET,
+				NULL,
+				0x0000
+			))
+		{
+			m_han_startup_step = HAN_STARTUP_SEND_RESET;
+		}
+	}
+	else if(solo_asic_device::have_queued_han_message())
+	{
+		m_han_msgbuff_index = 0x0;
+		solo_asic_device::set_han_irq(HAN_INT_MSG_IN, 1);
+		m_han_need_in_int = false;
+	}
+	else
+	{
+		solo_asic_device::set_han_irq(HAN_INT_MSG_OUT, 1);
+	}
+}
+
+bool solo_asic_device::have_queued_han_message()
+{
+	return (((m_han_msgbuff_status & HAN_MSGCNTL_DATA_WAITING) != 0x0) && m_han_need_in_int);
+}
+
+bool solo_asic_device::can_send_han_message()
+{
+	return ((m_han_intenable & HAN_INT_MSG_OUT) != 0x0);
+}
+
+bool solo_asic_device::send_han_message(uint16_t msg_type, uint16_t msg_subtype, uint8_t* msg, uint16_t msg_size)
+{
+	if (solo_asic_device::can_send_han_message())
+	{
+		// Bytes 0x000-0x002[uint16]: Message size
+		// Bytes 0x002-0x003[uint8]:  Message sequence
+		// Bytes 0x003-0x004[uint8]:  Message type
+		// Bytes 0x004-0x008[uint16]: Message sub type or id
+		// Bytes 0x008-0x100[blob]:  Message-specific data (params etc...)
+
+		memset(m_han_msgbuff, 0x00, HAN_MSGBUFF_SIZE);
+
+		m_han_msgbuff[HAN_MSGSIZE_INDEX] = HAN_MSGBUFF_SIZE;
+		m_han_msgbuff[HAN_MSGTYPE_INDEX] = msg_type;
+		m_han_msgbuff[HAN_MSGSUBTYPE_INDEX] = msg_subtype;
+
+		if (msg != NULL && msg_size > 0)
+		{
+			memcpy(&m_han_msgbuff[HAN_MSG_START_INDEX], msg, std::min(msg_size, (uint16_t)((HAN_MSGBUFF_SIZE >> 1) - (sizeof(m_han_msgbuff[0]) * 2))));
+		}
+
+		m_han_msgbuff_status = HAN_MSGCNTL_DATA_WAITING;
+		m_han_msgbuff_status &= (~(HAN_MSGCNTL_BUFF_OWN | HAN_MSGCNTL_DATA_READ));
+
+		m_han_msgbuff_index = 0x0;
+
+		m_han_need_in_int = true;
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+uint32_t solo_asic_device::arrange_han_data(uint32_t data)
+{
+	if (m_han_enabled)
+	{
+		// aka std::byteswap, __builtin_bswap32, _byteswap_ulong
+		uint32_t han_data = 0x00000000;
+		han_data |= ((data >> 0x00) & 0xff) << 0x18;
+		han_data |= ((data >> 0x08) & 0xff) << 0x10;
+		han_data |= ((data >> 0x10) & 0xff) << 0x08;
+		han_data |= ((data >> 0x18) & 0xff) << 0x00;
+
+		return han_data;
+	}
+	else
+	{
+		return data;
+	}
+}
+
+void solo_asic_device::vblank_irq(int state)
 {
 	solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_VSYNCO, 1);
 }
 
-void solo_asic_device::irq_modem_w(int state) 
+void solo_asic_device::irq_modem_w(int state)
 {
 	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, state);
 }
 
 void solo_asic_device::irq_ide_w(int state)
 {
-	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
+	if (m_han_enabled)
+	{
+		solo_asic_device::set_han_irq(HAN_INT_IDE, state);
+	}
+	else
+	{
+		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
+	}
 }
 
 void solo_asic_device::irq_keyboard_w(int state)
@@ -2709,6 +3065,25 @@ void solo_asic_device::set_timer_irq(uint8_t mask, int state)
 				m_bus_intstat &= (~BUS_INT_TIMER) & 0xff;
 				m_hostcpu->set_input_line(MIPS3_IRQ5, CLEAR_LINE);
 			}
+		}
+	}
+}
+
+void solo_asic_device::set_han_irq(uint32_t mask, int state)
+{
+	if (m_han_intenable & mask)
+	{
+		if (state)
+		{
+			m_han_intstat |= mask;
+
+			m_hostcpu->set_input_line(MIPS3_IRQ3, ASSERT_LINE);
+		}
+		else
+		{
+			m_han_intstat &= (~mask) & 0xff;
+
+			m_hostcpu->set_input_line(MIPS3_IRQ3, CLEAR_LINE);
 		}
 	}
 }
