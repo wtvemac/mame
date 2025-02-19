@@ -430,7 +430,7 @@ INPUT_PORTS_START(wtvir_kbd)
 	PORT_BIT(0x1000, IP_ACTIVE_HIGH, IPT_UNUSED)                                                                                                                     /* 0x0c UNUSED */
 	PORT_BIT(0x2000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("WTV: Goto")       PORT_CODE(KEYCODE_F7)         PORT_CHAR(UCHAR_MAMEKEY(F7))                           /* 0x2d (not used but F7 is 0x61) */
 	PORT_BIT(0x4000, IP_ACTIVE_HIGH, IPT_UNUSED)                                                                                                                     /* 0x0e UNUSED */
-	PORT_BIT(0x8000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("WTV: Save")       PORT_CODE(KEYCODE_F8)         PORT_CHAR(UCHAR_MAMEKEY(F8))                           /* 0x2f */
+	PORT_BIT(0x8000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("WTV: Send")       PORT_CODE(KEYCODE_F8)         PORT_CHAR(UCHAR_MAMEKEY(F8))                           /* 0x2f */
 
 	PORT_START("wtvir_kbd3")
 	PORT_BIT(0x0001, IP_ACTIVE_HIGH, IPT_UNUSED)                                                                                                                     /* 0x30 UNUSED */
