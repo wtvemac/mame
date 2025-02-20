@@ -537,7 +537,8 @@ public:
 	template <typename T> void set_ata(T &&tag) { m_ata.set_tag(std::forward<T>(tag)); }
 	void set_chipid(uint32_t chpid) { m_chpid = chpid; }
 
-	void irq_ide_w(int state);
+	void irq_ide1_w(int state);
+	void irq_ide2_w(int state);
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
