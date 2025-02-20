@@ -2877,7 +2877,7 @@ void solo_asic_device::irq_modem_w(int state)
 	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, state);
 }
 
-void solo_asic_device::irq_ide_w(int state)
+void solo_asic_device::irq_ide1_w(int state)
 {
 	if (m_han_enabled)
 	{
@@ -2887,6 +2887,11 @@ void solo_asic_device::irq_ide_w(int state)
 	{
 		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
 	}
+}
+
+void solo_asic_device::irq_ide2_w(int state)
+{
+	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE2, state);
 }
 
 void solo_asic_device::irq_keyboard_w(int state)
