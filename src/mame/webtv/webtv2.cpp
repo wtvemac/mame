@@ -224,7 +224,7 @@ void webtv2_state::webtv2_base(machine_config &config)
 	I2C_24C01(config, m_nvram, 0);
 
 	ATA_INTERFACE(config, m_ata).options(ata_devices, "hdd", nullptr, true);
-	m_ata->irq_handler().set(m_soloasic, FUNC(solo_asic_device::irq_ide_w));
+	m_ata->irq_handler().set(m_soloasic, FUNC(solo_asic_device::irq_ide1_w));
 
 	SOLO_ASIC(config, m_soloasic, SYSCLOCK);
 	m_soloasic->set_hostcpu(m_maincpu);
