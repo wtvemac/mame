@@ -2703,6 +2703,96 @@ void solo_asic_device::reg_han_0084_w(uint32_t data)
 							0x0000
 						);
 						break;
+
+					case SRA2EPC_GET_CURRENT_TRANSPONDER:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_CURRENT_TRANSPONDER,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_GET_CURRENT_NETWORK:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_CURRENT_NETWORK,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_CHECK_XPONDER_NUM:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_CHECK_XPONDER_NUM,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_DISH_500_INSTALL:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_DISH_500_INSTALL,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_GET_SIGNAL_STRENGTH:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_SIGNAL_STRENGTH,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_GET_POINTING_INFO:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_POINTING_INFO,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_CHECK_SWITCH:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRC2EPC_SWITCH_VERIFIED,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_GET_SWITCH_INFO:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_SWITCH_INFO,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_GET_SWITCH_TEST_STEP:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_SWITCH_TEST_STEP,
+							NULL,
+							0x0000
+						);
+						break;
+
+					case SRA2EPC_GET_NETWORK_HIDDEN_STATUS:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::SRA2EPC_GET_NETWORK_HIDDEN_STATUS,
+							NULL,
+							0x0000
+						);
+						break;
 				}
 			}
 			else if(han_msgtype == han_msgtype_t::IPC_CLASS_DIAG)
