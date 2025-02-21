@@ -65,6 +65,8 @@ constexpr uint32_t RESETCAUSE_SOFTWARE = 1 << 2;
 constexpr uint32_t RESETCAUSE_WATCHDOG = 1 << 1;
 constexpr uint32_t RESETCAUSE_SWITCH   = 1 << 0;
 
+constexpr uint32_t BOOTMODE_BIG_ENDIAN = 1 << 8;
+
 constexpr uint32_t WATCHDOG_TIMER_USEC = 1000000;
 constexpr uint16_t TCOMPARE_TIMER_USEC = 10000;
 
@@ -560,6 +562,8 @@ protected:
 	uint32_t m_fence2_mask;
 	uint32_t m_tcompare;
 	uint32_t m_resetcause;
+	uint32_t m_bootmode;
+	uint32_t m_use_bootmode;
 
 	uint8_t m_bus_intenable;
 	uint8_t m_bus_intstat;
@@ -823,6 +827,11 @@ private:
 	uint32_t reg_00a8_r();          // BUS_RESETCAUSE (read)
 	void reg_00a8_w(uint32_t data); // BUS_RESETCAUSE (write)
 	void reg_00ac_w(uint32_t data); // BUS_RESETCAUSE_C (write)
+	uint32_t reg_00c8_r();          // BUS_BOOTMODE (read)
+	void reg_00c8_w(uint32_t data); // BUS_BOOTMODE (write)
+	uint32_t reg_00cc_r();          // BUS_USEBOOTMODE (read)
+	void reg_00cc_w(uint32_t data); // BUS_USEBOOTMODE (write)
+
 
 	/* romUnit registers */
 
