@@ -155,6 +155,8 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x19c, 0x19f).rw(FUNC(solo_asic_device::reg_019c_r), FUNC(solo_asic_device::reg_019c_w)); // BUS_TIMINTSTAT_C
 	map(0x0a8, 0x0ab).rw(FUNC(solo_asic_device::reg_00a8_r), FUNC(solo_asic_device::reg_00a8_w)); // BUS_RESETCAUSE
 	map(0x0ac, 0x0af).w(FUNC(solo_asic_device::reg_00ac_w));                                      // BUS_RESETCAUSE_C
+	map(0x0c8, 0x0cb).rw(FUNC(solo_asic_device::reg_00c8_r), FUNC(solo_asic_device::reg_00c8_w)); // BUS_BOOTMODE
+	map(0x0cc, 0x0cf).rw(FUNC(solo_asic_device::reg_00cc_r), FUNC(solo_asic_device::reg_00cc_w)); // BUS_USEBOOTMODE
 }
 
 void solo_asic_device::rom_unit_map(address_map &map)
@@ -407,6 +409,10 @@ void solo_asic_device::device_start()
 	m_connect_led.resolve();
 	m_message_led.resolve();
 
+	m_resetcause = 0x0;
+	m_bootmode = 0x0;
+	m_use_bootmode = 0x0;
+
 	dac_update_timer = timer_alloc(FUNC(solo_asic_device::dac_update), this);
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
 	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
@@ -434,6 +440,8 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_wdenable));
 	save_item(NAME(m_errstat));
 	save_item(NAME(m_resetcause));
+	save_item(NAME(m_bootmode));
+	save_item(NAME(m_use_bootmode));
 
 	save_item(NAME(m_vid_nstart));
 	save_item(NAME(m_vid_nsize));
@@ -499,12 +507,22 @@ void solo_asic_device::device_start()
 	save_item(NAME(dev_id_state));
 	save_item(NAME(dev_id_bit));
 	save_item(NAME(dev_id_bitidx));
-
-	m_resetcause = 0x0;
 }
 
 void solo_asic_device::device_reset()
 {
+	if (m_use_bootmode == 0x1)
+	{
+		if ((m_bootmode & BOOTMODE_BIG_ENDIAN) != 0x0)
+		{
+			m_hostcpu->set_endianness(ENDIANNESS_BIG, m_hostcpu->space(AS_PROGRAM).endianness());
+		}
+		else
+		{
+			m_hostcpu->set_endianness(ENDIANNESS_LITTLE, m_hostcpu->space(AS_PROGRAM).endianness());
+		}
+	}
+
 	dac_update_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
 
 	if (m_han_enabled)
@@ -1304,6 +1322,26 @@ void solo_asic_device::reg_00a8_w(uint32_t data)
 void solo_asic_device::reg_00ac_w(uint32_t data)
 {
 	m_resetcause &= (~data) & 0xff;
+}
+
+uint32_t solo_asic_device::reg_00c8_r()
+{
+	return m_bootmode;
+}
+
+void solo_asic_device::reg_00c8_w(uint32_t data)
+{
+	m_bootmode = data;
+}
+
+uint32_t solo_asic_device::reg_00cc_r()
+{
+	return m_use_bootmode;
+}
+
+void solo_asic_device::reg_00cc_w(uint32_t data)
+{
+	m_use_bootmode = data;
 }
 
 uint32_t solo_asic_device::reg_1000_r()
