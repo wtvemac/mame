@@ -399,36 +399,14 @@ void mips3_device::device_start()
 	memset(m_core, 0, sizeof(internal_mips3_state));
 
 	m_cpu_clock = clock();
-	m_program = &space(AS_PROGRAM);
-	if(m_program->endianness() == ENDIANNESS_LITTLE)
+
+	if (m_bigendian)
 	{
-		if (m_data_bits == 32)
-		{
-			m_program->cache(m_cache32le);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_LITTLE>::cache::read_dword, &m_cache32le);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache32le.read_ptr(address); };
-		}
-		else
-		{
-			m_program->cache(m_cache64le);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_LITTLE>::cache::read_dword, &m_cache64le);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache64le.read_ptr(address); };
-		}
+		set_endianness(ENDIANNESS_BIG, ENDIANNESS_BIG);
 	}
 	else
 	{
-		if (m_data_bits == 32)
-		{
-			m_program->cache(m_cache32be);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_BIG>::cache::read_dword, &m_cache32be);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache32be.read_ptr(address); };
-		}
-		else
-		{
-			m_program->cache(m_cache64be);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_BIG>::cache::read_dword, &m_cache64be);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache64be.read_ptr(address); };
-		}
+		set_endianness(ENDIANNESS_LITTLE, ENDIANNESS_LITTLE);
 	}
 
 	/* allocate a timer for the compare interrupt */
@@ -1166,6 +1144,55 @@ bool mips3_device::memory_translate(int spacenum, int intention, offs_t &address
 		address = (entry & ~MIPS3_MIN_PAGE_MASK) | (address & MIPS3_MIN_PAGE_MASK);
 	}
 	return true;
+}
+
+void mips3_device::set_endianness(endianness_t cpu_endianness, endianness_t mem_endianness)
+{
+
+	this->m_lwl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::lwl_be : &mips3_device::lwl_le);
+	this->m_lwr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::lwr_be : &mips3_device::lwr_le);
+	this->m_swl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::swl_be : &mips3_device::swl_le);
+	this->m_swr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::swr_be : &mips3_device::swr_le);
+	this->m_ldl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::ldl_be : &mips3_device::ldl_le);
+	this->m_ldr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::ldr_be : &mips3_device::ldr_le);
+	this->m_sdl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::sdl_be : &mips3_device::sdl_le);
+	this->m_sdr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::sdr_be : &mips3_device::sdr_le);
+
+	this->m_bigendian = (cpu_endianness == ENDIANNESS_BIG);
+
+	m_program_config = address_space_config("program", mem_endianness, m_data_bits, 32, 0, 32, MIPS3_MIN_PAGE_SHIFT);
+	m_program = &space(AS_PROGRAM);
+
+	if (mem_endianness == ENDIANNESS_LITTLE)
+	{
+		if (m_data_bits == 32)
+		{
+			m_program->cache(m_cache32le);
+			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_LITTLE>::cache::read_dword, &m_cache32le);
+			m_prptr = [this] (offs_t address) -> const void * { return m_cache32le.read_ptr(address); };
+		}
+		else
+		{
+			m_program->cache(m_cache64le);
+			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_LITTLE>::cache::read_dword, &m_cache64le);
+			m_prptr = [this] (offs_t address) -> const void * { return m_cache64le.read_ptr(address); };
+		}
+	}
+	else
+	{
+		if (m_data_bits == 32)
+		{
+			m_program->cache(m_cache32be);
+			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_BIG>::cache::read_dword, &m_cache32be);
+			m_prptr = [this] (offs_t address) -> const void * { return m_cache32be.read_ptr(address); };
+		}
+		else
+		{
+			m_program->cache(m_cache64be);
+			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_BIG>::cache::read_dword, &m_cache64be);
+			m_prptr = [this] (offs_t address) -> const void * { return m_cache64be.read_ptr(address); };
+		}
+	}
 }
 
 bool r4650_device::memory_translate(int spacenum, int intention, offs_t &address, address_space *&target_space)
