@@ -68,7 +68,7 @@ constexpr uint32_t RESETCAUSE_SWITCH   = 1 << 0;
 constexpr uint32_t BOOTMODE_BIG_ENDIAN = 1 << 8;
 
 constexpr uint32_t WATCHDOG_TIMER_USEC = 1000000;
-constexpr uint16_t TCOMPARE_TIMER_USEC = 10000;
+constexpr uint16_t TCOMPARE_TIMER_USEC = 50000;
 
 constexpr uint32_t BUS_INT_VIDEO = 1 << 7; // putUnit, gfxUnit, vidUnit interrupt
 constexpr uint32_t BUS_INT_AUDIO = 1 << 6; // Soft mode, divUnit and audio in/out interrupt
