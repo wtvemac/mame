@@ -850,6 +850,8 @@ void solo_asic_device::reg_0108_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_0050_r()
 {
+	// This will only be set if interrupts are enabled rather than be set reguardless of enable bits.
+	// Possible future implementation is to set this when we want to interrupt then mask based on enable bits for reg_0008_r.
 	return m_bus_intstat;
 }
 
@@ -1004,13 +1006,21 @@ uint32_t solo_asic_device::reg_004c_r()
 
 void solo_asic_device::reg_004c_w(uint32_t data)
 {
-	solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 0);
-
 	m_tcompare = data;
 
-	// There seems to be an issue using the timer compare value. Hardcoding this to around 0.01s which seems to be what the firmware is using.
-	compare_timer->adjust(attotime::from_usec(TCOMPARE_TIMER_USEC));
-	//compare_timer->adjust(m_hostcpu->cycles_to_attotime(((m_tcompare - m_hostcpu->total_cycles()) * 2)));
+	if (m_tcompare != 0x0)
+	{
+		m_bustim_intenable |= BUS_INT_TIM_SYSTIMER;
+		m_bus_intenable |= BUS_INT_TIMER;
+
+		// There seems to be an issue using the timer compare value. Hardcoding this to around 0.05s.
+		compare_timer->adjust(attotime::from_usec(TCOMPARE_TIMER_USEC));
+		//compare_timer->adjust(m_hostcpu->cycles_to_attotime(((m_tcompare - m_hostcpu->total_cycles()) * 2)));
+	}
+	else
+	{
+		solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 0);
+	}
 }
 
 uint32_t solo_asic_device::reg_005c_r()
@@ -1283,7 +1293,18 @@ uint32_t solo_asic_device::reg_018c_r()
 
 void solo_asic_device::reg_018c_w(uint32_t data)
 {
-	solo_asic_device::set_rio_irq(data, 0);
+	if (data == BUS_INT_RIO_DEVICE0) // Modem interrupt clear
+	{
+		// If the modem still wants to interrupt then assert rather than clear.
+		if ((m_modem_uart->ins8250_r(0x2) & 0x1) == 0x1)
+		{
+			solo_asic_device::set_rio_irq(data, 0);
+		}
+	}
+	else
+	{
+		solo_asic_device::set_rio_irq(data, 0);
+	}
 }
 
 uint32_t solo_asic_device::reg_00a4_r()
@@ -1460,8 +1481,6 @@ void solo_asic_device::reg_2018_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_201c_r()
 {
-	solo_asic_device::set_audio_irq(BUS_INT_AUD_AUDDMAOUT, 0);
-
 	return m_aud_dmacntl;
 }
 
@@ -2021,7 +2040,7 @@ void solo_asic_device::reg_6060_w(uint32_t data)
 
 void solo_asic_device::reg_6064_w(uint32_t data)
 {
-	solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, data, 0);
+	m_gfx_intenable &= (~data) & 0xff;
 }
 
 uint32_t solo_asic_device::reg_6068_r()
@@ -2036,7 +2055,7 @@ void solo_asic_device::reg_6068_w(uint32_t data)
 
 void solo_asic_device::reg_606c_w(uint32_t data)
 {
-	m_gfx_intstat &= (~data) & 0xff;
+	solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, data, 0);
 }
 
 uint32_t solo_asic_device::reg_6080_r()
@@ -2922,7 +2941,10 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::timer_irq)
 {
-	solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 1);
+	if (m_tcompare > 0x0)
+	{
+		solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 1);
+	}
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::check_han_message_state)
@@ -3219,10 +3241,9 @@ void solo_asic_device::set_timer_irq(uint8_t mask, int state)
 	{
 		if (state)
 		{
-			m_bus_intstat |= BUS_INT_TIMER;
 			m_bustim_intstat |= mask;
 
-			m_hostcpu->set_input_line(MIPS3_IRQ5, ASSERT_LINE);
+			solo_asic_device::set_bus_irq(BUS_INT_TIMER, state);
 		}
 		else
 		{
@@ -3230,8 +3251,7 @@ void solo_asic_device::set_timer_irq(uint8_t mask, int state)
 
 			if(m_bustim_intstat == 0x00)
 			{
-				m_bus_intstat &= (~BUS_INT_TIMER) & 0xff;
-				m_hostcpu->set_input_line(MIPS3_IRQ5, CLEAR_LINE);
+				solo_asic_device::set_bus_irq(BUS_INT_TIMER, state);
 			}
 		}
 	}
@@ -3261,11 +3281,24 @@ void solo_asic_device::set_bus_irq(uint8_t mask, int state)
 	if (m_bus_intenable & mask)
 	{
 		if (state)
+		{
 			m_bus_intstat |= mask;
+
+			if (m_bus_intstat != 0x0)
+			{
+				m_hostcpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
+			}
+		}
 		else
+		{
 			m_bus_intstat &= (~mask) & 0xff;
-		
-		m_hostcpu->set_input_line(MIPS3_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
+
+			// Once there's no more interrupts in progress then clear the IRQ0 bit.
+			if (m_bus_intstat == 0x0)
+			{
+				m_hostcpu->set_input_line(MIPS3_IRQ0, CLEAR_LINE);
+			}
+		}
 	}
  }
 
