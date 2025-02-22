@@ -815,7 +815,17 @@ uint32_t solo_asic_device::reg_0008_r()
 	{
 		do7e_hack = false;
 
-		return 0x01;
+		uint8_t iir_data = m_modem_uart->ins8250_r(0x2);
+
+		if ((iir_data & 0x1) != 0x0)
+		{
+			// Re-try with an another interrupt if we're not done with interrupt handling.
+			// We can't continue with broken data (do7e_hack)
+			solo_asic_device::irq_modem_w(1);
+		}
+
+		// This register is the IIR modem register in this state.
+		return 0x1; // after we broke out of the loop from reg_0014_r, this stops the modem int train
 	}
 	else
 	{
@@ -885,7 +895,15 @@ void solo_asic_device::reg_0110_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_0014_r()
 {
-	return m_errenable;
+	if (do7e_hack)
+	{
+		// This register is the LSR modem register in this state.
+		return 0x0; // This causes the firmware to break out of the handler loop
+	}
+	else
+	{
+		return m_errenable;
+	}
 }
 
 void solo_asic_device::reg_0014_w(uint32_t data)
