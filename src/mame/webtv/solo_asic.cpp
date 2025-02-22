@@ -108,10 +108,12 @@ void solo_asic_device::bus_unit_map(address_map &map)
 {
 	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_0000_r));                                      // BUS_CHIPID
 	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_0004_r), FUNC(solo_asic_device::reg_0004_w)); // BUS_CHIPCNTL
-	map(0x008, 0x00b).r(FUNC(solo_asic_device::reg_0008_r));                                      // BUS_INTSTAT
-	map(0x108, 0x10b).rw(FUNC(solo_asic_device::reg_0108_r), FUNC(solo_asic_device::reg_0108_w)); // BUS_INTEN_S
-	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_000c_r), FUNC(solo_asic_device::reg_000c_w)); // BUS_ERRSTAT
-	map(0x10c, 0x10f).rw(FUNC(solo_asic_device::reg_010c_r), FUNC(solo_asic_device::reg_010c_w)); // BUS_INTEN_C
+	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_0008_r), FUNC(solo_asic_device::reg_0008_w)); // BUS_INTSTAT, BUS_INTSTAT_S
+	map(0x108, 0x10b).rw(FUNC(solo_asic_device::reg_0108_r), FUNC(solo_asic_device::reg_0108_w)); // BUS_INTSTAT, BUS_INTSTAT_C
+	map(0x050, 0x053).r(FUNC(solo_asic_device::reg_0050_r));                                      // BUS_INTSTATRAW
+	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_000c_r), FUNC(solo_asic_device::reg_000c_w)); // BUS_INTEN
+	map(0x10c, 0x10f).rw(FUNC(solo_asic_device::reg_010c_r), FUNC(solo_asic_device::reg_010c_w)); // BUS_INTEN, BUS_INTEN_C
+	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_0010_r), FUNC(solo_asic_device::reg_0010_w)); // BUS_ERRSTAT, BUS_ERRSTAT_S
 	map(0x110, 0x113).rw(FUNC(solo_asic_device::reg_0110_r), FUNC(solo_asic_device::reg_0110_w)); // BUS_ERRSTAT, BUS_ERRSTAT_C
 	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_0014_r), FUNC(solo_asic_device::reg_0014_w)); // BUS_ERREN_S
 	map(0x114, 0x117).rw(FUNC(solo_asic_device::reg_0114_r), FUNC(solo_asic_device::reg_0114_w)); // BUS_ERREN_C
@@ -821,6 +823,11 @@ uint32_t solo_asic_device::reg_0008_r()
 	}
 }
 
+void solo_asic_device::reg_0008_w(uint32_t data)
+{
+	m_bus_intstat |= data & 0xff;
+}
+
 uint32_t solo_asic_device::reg_0108_r()
 {
 	return m_bus_intstat;
@@ -829,6 +836,11 @@ uint32_t solo_asic_device::reg_0108_r()
 void solo_asic_device::reg_0108_w(uint32_t data)
 {
 	solo_asic_device::set_bus_irq(data, 0);
+}
+
+uint32_t solo_asic_device::reg_0050_r()
+{
+	return m_bus_intstat;
 }
 
 uint32_t solo_asic_device::reg_000c_r()
@@ -856,9 +868,14 @@ uint32_t solo_asic_device::reg_0010_r()
 	return m_errstat;
 }
 
+void solo_asic_device::reg_0010_w(uint32_t data)
+{
+	m_errstat |= data & 0xff;
+}
+
 uint32_t solo_asic_device::reg_0110_r()
 {
-	return 0x00000000;
+	return m_errstat;
 }
 
 void solo_asic_device::reg_0110_w(uint32_t data)
