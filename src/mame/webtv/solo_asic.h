@@ -616,6 +616,9 @@ protected:
 
 	uint32_t m_div_intenable;
 	uint32_t m_div_intstat;
+	uint32_t m_div_dmacntl;
+	uint32_t m_div_nextcfg;
+	uint32_t m_div_currcfg;
 
 	uint8_t m_pot_cntl;
 	uint32_t m_pot_hintline;
@@ -981,6 +984,12 @@ private:
 
 	/* divUnit registers */
 
+	uint32_t reg_8004_r();
+	void reg_8004_w(uint32_t data);
+	uint32_t reg_801c_r();
+	void reg_801c_w(uint32_t data);
+	uint32_t reg_8038_r();
+	void reg_8038_w(uint32_t data);
 
 	/* potUnit registers */
 
