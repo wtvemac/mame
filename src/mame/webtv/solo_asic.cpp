@@ -256,6 +256,9 @@ void solo_asic_device::dve_unit_map(address_map &map)
 
 void solo_asic_device::div_unit_map(address_map &map)
 {
+	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_8004_r), FUNC(solo_asic_device::reg_8004_w)); // DIV_CMACTL
+	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_801c_r), FUNC(solo_asic_device::reg_801c_w)); // DIV_NEXTCFG
+	map(0x038, 0x03b).rw(FUNC(solo_asic_device::reg_8038_r), FUNC(solo_asic_device::reg_8038_w)); // DIV_CURRCFG
 }
 
 void solo_asic_device::pot_unit_map(address_map &map)
@@ -2105,6 +2108,40 @@ uint32_t solo_asic_device::reg_6094_r()
 void solo_asic_device::reg_6094_w(uint32_t data)
 {
 	//
+}
+
+// divUnit registers
+
+uint32_t solo_asic_device::reg_8004_r()
+{
+	return m_div_dmacntl;
+}
+
+void solo_asic_device::reg_8004_w(uint32_t data)
+{
+	m_div_dmacntl = data;
+}
+
+uint32_t solo_asic_device::reg_801c_r()
+{
+	return m_div_nextcfg;
+}
+
+void solo_asic_device::reg_801c_w(uint32_t data)
+{
+	m_div_nextcfg = data;
+	m_div_currcfg = data;
+}
+
+uint32_t solo_asic_device::reg_8038_r()
+{
+	return m_div_currcfg;
+}
+
+void solo_asic_device::reg_8038_w(uint32_t data)
+{
+	m_div_currcfg = data;
+	m_div_nextcfg = data;
 }
 
 // potUnit registers
