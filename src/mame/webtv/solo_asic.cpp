@@ -419,6 +419,7 @@ void solo_asic_device::device_start()
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
 	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
 	han_message_timer = timer_alloc(FUNC(solo_asic_device::check_han_message_state), this);
+	han_reboot_timer = timer_alloc(FUNC(solo_asic_device::han_reboot), this);
 
 	solo_asic_device::device_reset();
 
@@ -529,7 +530,9 @@ void solo_asic_device::device_reset()
 
 	if (m_han_enabled)
 	{
-		han_message_timer->adjust(attotime::from_hz(HAN_MSGIRQ_HACK_HZ), 0, attotime::from_hz(HAN_MSGIRQ_HACK_HZ));
+		m_hostcpu->set_input_line(MIPS3_IRQ3, CLEAR_LINE);
+		han_message_timer->enable(false);
+		han_reboot_timer->adjust(attotime::from_msec(HAN_REBOOT_WAIT_MS));
 	}
 
 	m_memcntl = 0b11;
@@ -930,10 +933,10 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 		modfw_will_flush = false;
 		modfw_will_ack = false;
 
-		m_han_need_in_int = false;
-		m_han_msgbuff_status = 0x0;
-		m_han_msgbuff_index = 0x0;
-		m_han_startup_step = HAN_STARTUP_BEGIN;
+		if (m_han_enabled && m_han_startup_step == HAN_STARTUP_DONE)
+		{
+			han_reboot_timer->adjust(attotime::from_msec(HAN_REBOOT_WAIT_MS));
+		}
 	}
 
 	m_errenable &= (~data) & 0xFF;
@@ -2585,7 +2588,7 @@ uint32_t solo_asic_device::reg_han_0000_r()
 void solo_asic_device::reg_han_0000_w(uint32_t data)
 {
 	data = solo_asic_device::arrange_han_data(data);
-	
+
 	solo_asic_device::set_han_irq(data, 0);
 }
 
@@ -2847,6 +2850,15 @@ void solo_asic_device::reg_han_0084_w(uint32_t data)
 							0x0000
 						);
 						break;
+
+					case WEB2EPC_HARD_RESET:
+						send_han_message(
+							han_msgtype_t::IPC_CLASS_MAILBOX,
+							han_mailbox_msgsubtype_t::WEB2EPC_HARD_RESET,
+							NULL,
+							0x0000
+						);
+						break;
 				}
 			}
 			else if(han_msgtype == han_msgtype_t::IPC_CLASS_DIAG)
@@ -2983,6 +2995,17 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::check_han_message_state)
 	{
 		solo_asic_device::set_han_irq(HAN_INT_MSG_OUT, 1);
 	}
+}
+
+TIMER_CALLBACK_MEMBER(solo_asic_device::han_reboot)
+{
+	m_han_need_in_int = false;
+	m_han_msgbuff_status = 0x0;
+	m_han_msgbuff_index = 0x0;
+	m_han_startup_step = HAN_STARTUP_BEGIN;
+
+	han_message_timer->adjust(attotime::from_hz(HAN_MSGIRQ_HACK_HZ), 0, attotime::from_hz(HAN_MSGIRQ_HACK_HZ));
+	han_message_timer->enable(true);
 }
 
 bool solo_asic_device::have_queued_han_message()
