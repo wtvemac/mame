@@ -473,6 +473,7 @@ enum han_mailbox_msgsubtype_t : uint16_t
 };
 
 constexpr uint32_t HAN_MSGIRQ_HACK_HZ = 60;
+constexpr uint32_t HAN_REBOOT_WAIT_MS = 2000;
 constexpr uint16_t HAN_MSGBUFF_SIZE = 0x100;
 constexpr uint32_t HAN_MSGSIZE_INDEX = 0x0000;
 constexpr uint32_t HAN_MSGTYPE_INDEX = 0x0001;
@@ -709,6 +710,9 @@ private:
 
 	emu_timer *han_message_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(check_han_message_state);
+
+	emu_timer *han_reboot_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(han_reboot);
 
 	bool m_aud_dma_ongoing;
 
