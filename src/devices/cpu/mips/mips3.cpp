@@ -1734,7 +1734,7 @@ inline bool r4640_device::RBYTE(offs_t address, uint32_t *result)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = m_program->read_dword(address);
+		*result = m_program->read_byte(address);
 		return true;
 	}
 
@@ -1744,7 +1744,7 @@ inline bool r4640_device::RBYTE(offs_t address, uint32_t *result)
 		*result = 0;
 		return false;
 	}
-	*result = m_program->read_dword(address + m_core->cpr[0][COP0_R4640_DBase]);
+	*result = m_program->read_byte(address + m_core->cpr[0][COP0_R4640_DBase]);
 	return true;
 }
 
@@ -1770,7 +1770,7 @@ inline bool r4640_device::RWORD(offs_t address, uint32_t *result, bool insn)
 {
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
-		*result = m_program->read_word(address);
+		*result = m_program->read_dword(address);
 		return true;
 	}
 
@@ -1784,7 +1784,7 @@ inline bool r4640_device::RWORD(offs_t address, uint32_t *result, bool insn)
 		*result = 0;
 		return false;
 	}
-	*result = m_program->read_word(address + base);
+	*result = m_program->read_dword(address + base);
 	return true;
 }
 
