@@ -521,11 +521,11 @@ void solo_asic_device::device_reset()
 	{
 		if ((m_bootmode & BOOTMODE_BIG_ENDIAN) != 0x0)
 		{
-			m_hostcpu->set_endianness(ENDIANNESS_BIG, m_hostcpu->space(AS_PROGRAM).endianness());
+			m_hostcpu->set_endianness(ENDIANNESS_BIG);
 		}
 		else
 		{
-			m_hostcpu->set_endianness(ENDIANNESS_LITTLE, m_hostcpu->space(AS_PROGRAM).endianness());
+			m_hostcpu->set_endianness(ENDIANNESS_LITTLE);
 		}
 	}
 
