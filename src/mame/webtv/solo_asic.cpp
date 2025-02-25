@@ -672,19 +672,22 @@ void solo_asic_device::validate_active_area()
 
 
 	uint32_t hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
+	uint32_t vstart_offset = POT_VIDUNIT_VSTART_OFFSET;
 	if (m_pot_cntl & POT_FCNTL_USEGFX)
 	{
 		hstart_offset = POT_GFXUNIT_HSTART_OFFSET;
+		vstart_offset = POT_GFXUNIT_VSTART_OFFSET;
 	}
 	else
 	{
 		hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
+		vstart_offset = POT_VIDUNIT_VSTART_OFFSET;
 	}
 
 	// The active h start can't be smaller than 2
 	m_pot_draw_hstart = std::max(m_pot_hstart - hstart_offset, (uint32_t)0x2);
 	// The active v start can't be smaller than 2
-	m_pot_draw_vstart = std::max(m_pot_vstart, (uint32_t)0x2);
+	m_pot_draw_vstart = std::max(m_pot_vstart - vstart_offset, (uint32_t)0x2);
 
 	// The active h start can't push the active area off the screen.
 	if ((m_pot_draw_hstart + m_pot_draw_hsize) > m_screen->width())
@@ -724,7 +727,7 @@ void solo_asic_device::pixel_buffer_index_update()
 	else
 	{
 		m_vid_draw_nstart += 2 * (m_pot_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_pot_draw_vsize = screen_lines - 1;
+		m_pot_draw_vsize = screen_lines - 2;
 	}
 }
 
