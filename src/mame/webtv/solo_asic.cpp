@@ -2453,7 +2453,11 @@ void solo_asic_device::reg_modem_0014_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_modem_0018_r()
 {
-	return m_modem_uart->ins8250_r(0x6);
+	// The &(~0x80) flips the carrier detect bit.
+	// This is checked after hangup and causes a long wait. So we force it 0.
+	// The wait will eventially timeout but this reduces the time we need to wait after hangup.
+	// Always setting this to 0 doesn't effect anything else.
+	return m_modem_uart->ins8250_r(0x6) & (~0x80);
 }
 
 void solo_asic_device::reg_modem_0018_w(uint32_t data)
