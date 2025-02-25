@@ -157,7 +157,9 @@ constexpr uint32_t POT_DEFAULT_VSIZE   = NTSC_SCREEN_VSIZE;
 // This is always 0x37 or 0x77 on SOLO for some reason (even on hardware)
 // This is needed to correct the HSTART value.
 constexpr uint32_t POT_VIDUNIT_HSTART_OFFSET  = 0x77;
+constexpr uint32_t POT_VIDUNIT_VSTART_OFFSET  = 0x20;
 constexpr uint32_t POT_GFXUNIT_HSTART_OFFSET  = 0x37;
+constexpr uint32_t POT_GFXUNIT_VSTART_OFFSET  = 0x00;
 
 constexpr uint32_t POT_DEFAULT_COLOR   = (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
 
