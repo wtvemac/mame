@@ -400,14 +400,7 @@ void mips3_device::device_start()
 
 	m_cpu_clock = clock();
 
-	if (m_bigendian)
-	{
-		set_endianness(ENDIANNESS_BIG, ENDIANNESS_BIG);
-	}
-	else
-	{
-		set_endianness(ENDIANNESS_LITTLE, ENDIANNESS_LITTLE);
-	}
+	set_endianness(m_bigendian ? ENDIANNESS_BIG : ENDIANNESS_LITTLE);
 
 	/* allocate a timer for the compare interrupt */
 	m_compare_int_timer = timer_alloc(FUNC(mips3_device::compare_int_callback), this);
@@ -1146,24 +1139,24 @@ bool mips3_device::memory_translate(int spacenum, int intention, offs_t &address
 	return true;
 }
 
-void mips3_device::set_endianness(endianness_t cpu_endianness, endianness_t mem_endianness)
+void mips3_device::set_endianness(endianness_t endianness)
 {
 
-	this->m_lwl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::lwl_be : &mips3_device::lwl_le);
-	this->m_lwr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::lwr_be : &mips3_device::lwr_le);
-	this->m_swl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::swl_be : &mips3_device::swl_le);
-	this->m_swr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::swr_be : &mips3_device::swr_le);
-	this->m_ldl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::ldl_be : &mips3_device::ldl_le);
-	this->m_ldr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::ldr_be : &mips3_device::ldr_le);
-	this->m_sdl = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::sdl_be : &mips3_device::sdl_le);
-	this->m_sdr = (cpu_endianness == ENDIANNESS_BIG ? &mips3_device::sdr_be : &mips3_device::sdr_le);
+	this->m_lwl = (endianness == ENDIANNESS_BIG ? &mips3_device::lwl_be : &mips3_device::lwl_le);
+	this->m_lwr = (endianness == ENDIANNESS_BIG ? &mips3_device::lwr_be : &mips3_device::lwr_le);
+	this->m_swl = (endianness == ENDIANNESS_BIG ? &mips3_device::swl_be : &mips3_device::swl_le);
+	this->m_swr = (endianness == ENDIANNESS_BIG ? &mips3_device::swr_be : &mips3_device::swr_le);
+	this->m_ldl = (endianness == ENDIANNESS_BIG ? &mips3_device::ldl_be : &mips3_device::ldl_le);
+	this->m_ldr = (endianness == ENDIANNESS_BIG ? &mips3_device::ldr_be : &mips3_device::ldr_le);
+	this->m_sdl = (endianness == ENDIANNESS_BIG ? &mips3_device::sdl_be : &mips3_device::sdl_le);
+	this->m_sdr = (endianness == ENDIANNESS_BIG ? &mips3_device::sdr_be : &mips3_device::sdr_le);
 
-	this->m_bigendian = (cpu_endianness == ENDIANNESS_BIG);
+	this->m_bigendian = (endianness == ENDIANNESS_BIG);
 
-	m_program_config = address_space_config("program", mem_endianness, m_data_bits, 32, 0, 32, MIPS3_MIN_PAGE_SHIFT);
+	m_program_config = address_space_config("program", endianness, m_data_bits, 32, 0, 32, MIPS3_MIN_PAGE_SHIFT);
 	m_program = &space(AS_PROGRAM);
 
-	if (mem_endianness == ENDIANNESS_LITTLE)
+	if (endianness == ENDIANNESS_LITTLE)
 	{
 		if (m_data_bits == 32)
 		{

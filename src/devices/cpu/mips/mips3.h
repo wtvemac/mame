@@ -314,7 +314,7 @@ public:
 	uint32_t mips3drc_get_options();
 	void mips3drc_add_hotspot(offs_t pc, uint32_t opcode, uint32_t cycles);
 
-	void set_endianness(endianness_t cpu_endianness, endianness_t mem_endianness);
+	void set_endianness(endianness_t endianness);
 
 protected:
 	// device-level overrides
