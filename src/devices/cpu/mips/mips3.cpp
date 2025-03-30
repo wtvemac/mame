@@ -126,6 +126,8 @@ DEFINE_DEVICE_TYPE(TX4925BE,  tx4925be_device,  "tx4925be",  "Toshiba TX4925 (bi
 DEFINE_DEVICE_TYPE(TX4925LE,  tx4925le_device,  "tx4925le",  "Toshiba TX4925 (little)")
 DEFINE_DEVICE_TYPE(R5000BE,   r5000be_device,   "r5000be",   "MIPS R5000 (big)")
 DEFINE_DEVICE_TYPE(R5000LE,   r5000le_device,   "r5000le",   "MIPS R5000 (little)")
+DEFINE_DEVICE_TYPE(RM5230BE,  rm5230be_device,  "rm5230be",  "MIPS RM5230 (big)")
+DEFINE_DEVICE_TYPE(RM5230LE,  rm5230le_device,  "rm5230le",  "MIPS RM5230 (little)")
 DEFINE_DEVICE_TYPE(VR5500BE,  vr5500be_device,  "vr5500be",  "NEC VR5500 (big)")
 DEFINE_DEVICE_TYPE(VR5500LE,  vr5500le_device,  "vr5500le",  "NEC VR5500 (little)")
 DEFINE_DEVICE_TYPE(R5900BE,   r5900be_device,   "r5900be",   "Emotion Engine Core (big)")
@@ -302,7 +304,7 @@ void mips3_device::generate_exception(int exception, int backup)
 			offset = 0;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_R4640))
+	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R4640))
 	{
 		offset = 0x200;
 	}

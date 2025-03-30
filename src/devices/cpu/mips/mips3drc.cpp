@@ -733,7 +733,7 @@ void mips3_device::static_generate_exception(drcuml_block &block, int &label, ui
 		offset = 0x000;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_R4640))
+	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R4640))
 	{
 		offset = 0x200;
 	}
@@ -2534,7 +2534,7 @@ bool mips3_device::generate_idt(drcuml_block &block, compiler_state &compiler, c
 	uint8_t opswitch = op & 0x1f;
 
 	/* only enabled on IDT processors */
-	if (m_flavor != MIPS3_TYPE_R4640 && m_flavor != MIPS3_TYPE_R4650)
+	if (m_flavor != MIPS3_TYPE_R4640 && m_flavor != MIPS3_TYPE_R4650 && m_flavor != MIPS3_TYPE_RM5230)
 		return false;
 
 	switch (opswitch)

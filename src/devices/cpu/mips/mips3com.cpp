@@ -351,6 +351,7 @@ uint32_t mips3_device::compute_prid_register()
 		case MIPS3_TYPE_R5000:
 			return 0x2300;
 
+		case MIPS3_TYPE_RM5230:
 		case MIPS3_TYPE_QED5271:
 			return 0x2800;
 

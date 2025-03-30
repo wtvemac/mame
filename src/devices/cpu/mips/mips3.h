@@ -42,6 +42,8 @@ DECLARE_DEVICE_TYPE(TX4925BE, tx4925be_device)
 DECLARE_DEVICE_TYPE(TX4925LE, tx4925le_device)
 DECLARE_DEVICE_TYPE(R5000BE, r5000be_device)
 DECLARE_DEVICE_TYPE(R5000LE, r5000le_device)
+DECLARE_DEVICE_TYPE(RM5230BE, rm5230be_device)
+DECLARE_DEVICE_TYPE(RM5230LE, rm5230le_device)
 DECLARE_DEVICE_TYPE(VR5500BE, vr5500be_device)
 DECLARE_DEVICE_TYPE(VR5500LE, vr5500le_device)
 DECLARE_DEVICE_TYPE(QED5271BE, qed5271be_device)
@@ -291,6 +293,7 @@ protected:
 		/* MIPS IV variants */
 		MIPS3_TYPE_MIPS_IV,
 		MIPS3_TYPE_R5000,
+		MIPS3_TYPE_RM5230,
 		MIPS3_TYPE_VR5500,
 		MIPS3_TYPE_QED5271,
 		MIPS3_TYPE_R5900,
@@ -870,6 +873,24 @@ public:
 	// construction/destruction
 	r5000le_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 		: mips3_device(mconfig, R5000LE, tag, owner, clock, MIPS3_TYPE_R5000, ENDIANNESS_LITTLE, 32) // FIXME: Should be 64 bits, Galileo blows up though
+	{
+	}
+};
+
+class rm5230be_device : public mips3_device {
+public:
+	// construction/destruction
+	rm5230be_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+		: mips3_device(mconfig, RM5230BE, tag, owner, clock, MIPS3_TYPE_RM5230, ENDIANNESS_BIG, 32)
+	{
+	}
+};
+
+class rm5230le_device : public mips3_device {
+public:
+	// construction/destruction
+	rm5230le_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+		: mips3_device(mconfig, RM5230LE, tag, owner, clock, MIPS3_TYPE_RM5230, ENDIANNESS_LITTLE, 32)
 	{
 	}
 };
