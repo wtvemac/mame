@@ -1311,12 +1311,6 @@ bool r4650_device::memory_translate(int spacenum, int intention, offs_t &address
 	return true;
 }
 
-bool r4640_device::memory_translate(int spacenum, int intention, offs_t &address, address_space *&target_space)
-{
-	target_space = &space(spacenum);
-	return true;
-}
-
 std::unique_ptr<util::disasm_interface> mips3_device::create_disassembler()
 {
 	return std::make_unique<mips3_disassembler>(m_flavor == MIPS3_TYPE_VR5500);
@@ -2600,22 +2594,6 @@ void r4650_device::set_cop0_reg(int idx, uint64_t val)
 		case COP0_R4650_IBound:
 		case COP0_R4650_DBase:
 		case COP0_R4650_DBound:
-			m_core->cpr[0][idx] = val;
-			break;
-		default:
-			mips3_device::set_cop0_reg(idx, val);
-			break;
-	}
-}
-
-void r4640_device::set_cop0_reg(int idx, uint64_t val)
-{
-	switch (idx)
-	{
-		case COP0_R4640_IBase:
-		case COP0_R4640_IBound:
-		case COP0_R4640_DBase:
-		case COP0_R4640_DBound:
 			m_core->cpr[0][idx] = val;
 			break;
 		default:
