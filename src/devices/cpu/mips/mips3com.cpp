@@ -338,8 +338,8 @@ uint32_t mips3_device::compute_prid_register()
 		case MIPS3_TYPE_R4600:
 			return 0x2020;
 
-		case MIPS3_TYPE_R4650:
 		case MIPS3_TYPE_R4640:
+		case MIPS3_TYPE_R4650:
 			return 0x2200;
 
 		case MIPS3_TYPE_R4700:

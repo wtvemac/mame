@@ -446,7 +446,7 @@ bool mips3_frontend::describe_regimm(uint32_t op, opcode_desc &desc)
 bool mips3_frontend::describe_idt(uint32_t op, opcode_desc &desc)
 {
 	// only on the R4640 and R4650
-	if ((m_mips3->m_flavor != mips3_device::MIPS3_TYPE_R4640) && (m_mips3->m_flavor != mips3_device::MIPS3_TYPE_R4650))
+	if (m_mips3->m_flavor != mips3_device::MIPS3_TYPE_R4640 && m_mips3->m_flavor != mips3_device::MIPS3_TYPE_R4650)
 		return false;
 
 	switch (op & 0x1f)
