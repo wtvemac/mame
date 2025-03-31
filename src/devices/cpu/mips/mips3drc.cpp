@@ -770,7 +770,7 @@ void mips3_device::static_generate_exception(drcuml_block &block, uml::code_labe
 		offset = 0x000;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R4640))
+	else if (exception == EXCEPTION_INTERRUPT && (m_core->cpr[0][COP0_Cause] & CAUSE_IV))
 	{
 		offset = 0x200;
 	}
@@ -809,8 +809,8 @@ void mips3_device::static_generate_exception(drcuml_block &block, uml::code_labe
 		UML_RECOVER(block, I1, MAPVAR_CYCLES);                                  // recover i1,CYCLES
 	}
 
-	/* Cause keeps IP only; a nested exception retains the recorded BD and EPC */
-	UML_AND(block, I2, CPR032(COP0_Cause), 0x0000ff00);                         // and     i2,[Cause],0x0000ff00
+	/* Preserve IP and IV; a nested exception retains the recorded BD and EPC */
+	UML_AND(block, I2, CPR032(COP0_Cause), 0x0000ff00 | CAUSE_IV);              // and     i2,[Cause],IP | IV
 	UML_TEST(block, CPR032(COP0_Status), SR_EXL);                               // test    [Status],SR_EXL
 	UML_JMPc(block, COND_NZ, nested);                                           // jnz     <nested>
 	UML_TEST(block, I0, 1);                                                     // test    i0,1
@@ -2956,12 +2956,15 @@ bool mips3_device::generate_set_cop0_reg(drcuml_block &block, compiler_state &co
 	switch (reg)
 	{
 		case COP0_Cause:
-			/* only IP(1:0) is writable, plus IV (the interrupt vector select) on MIPS32 */
-			UML_ROLINS(block, CPR032(COP0_Cause), I0, 0, (m_flavor == MIPS3_TYPE_XBURST) ? 0x00800300 : 0x300); // rolins  [Cause],i0,0,0x300
-			compiler.checksoftints = true;
+		{
+			/* only IP(1:0) is writable, plus IV (the interrupt vector select) on these processors */
+			const bool has_iv = (m_flavor == MIPS3_TYPE_XBURST || m_flavor == MIPS3_TYPE_R4650 || m_flavor == MIPS3_TYPE_R4640 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R5900);
+			UML_ROLINS(block, CPR032(COP0_Cause), I0, 0, 0x300 | (has_iv ? CAUSE_IV : 0));
+			compiler.checkints = true;
 			if (!in_delay_slot)
 				generate_update_cycles(block, compiler, desc->pc + 4, true);
 			return true;
+		}
 
 		case COP0_Status:
 			generate_update_cycles(block, compiler, desc->pc, !in_delay_slot);  // <subtract cycles>

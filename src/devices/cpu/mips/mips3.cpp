@@ -323,15 +323,15 @@ void mips3_device::generate_exception(int exception, int backup)
 			offset = 0;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R4640 || (m_flavor == MIPS3_TYPE_XBURST && (CAUSE & 0x00800000))))
+	else if (exception == EXCEPTION_INTERRUPT && (CAUSE & CAUSE_IV)) // use dedicated interrupt vector
 	{
 		/* the R5900 always uses the separate interrupt vector; MIPS32 only when Cause.IV is set */
 		offset = 0x200;
 	}
 
-	/* Cause keeps IP only; a nested exception retains the recorded BD */
+	/* Preserve interrupt pending bits and the interrupt vector selection. */
 	const uint32_t prev_cause = CAUSE;
-	CAUSE = (CAUSE & 0x0000ff00) | (exception << 2);
+	CAUSE = (CAUSE & (0x0000ff00 | CAUSE_IV)) | (exception << 2);
 
 	/* set the appropriate bits for coprocessor exceptions */
 	if(exception == EXCEPTION_BADCOP)
@@ -1189,6 +1189,10 @@ void mips3_device::device_reset()
 	/* initialize the state */
 	m_core->pc = 0xbfc00000;
 	m_core->cpr[0][COP0_Status] = SR_BEV | SR_ERL;
+	if (m_flavor == MIPS3_TYPE_R4640 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R5900)
+	{
+		m_core->cpr[0][COP0_Cause] = CAUSE_IV;
+	}
 	m_core->cpr[0][COP0_Wired] = 0;
 	m_core->cpr[0][COP0_Compare] = 0xffffffff;
 	m_core->cpr[0][COP0_Count] = 0;
@@ -2610,8 +2614,9 @@ void mips3_device::set_cop0_reg(int idx, uint64_t val)
 	{
 		case COP0_Cause:
 		{
-			/* only IP(1:0) is writable, plus IV (the interrupt vector select) on MIPS32 */
-			const uint32_t wmask = (m_flavor == MIPS3_TYPE_XBURST) ? 0x00800300 : 0x300;
+			/* These processors also expose the interrupt vector select bit. */
+			const bool has_iv = (m_flavor == MIPS3_TYPE_XBURST || m_flavor == MIPS3_TYPE_R4650 || m_flavor == MIPS3_TYPE_R4640 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R5900);
+			const uint32_t wmask = 0x300 | (has_iv ? CAUSE_IV : 0);
 			CAUSE = (CAUSE & ~uint64_t(wmask)) | (val & wmask);
 			if ((CAUSE & SR & 0x300) && (SR & SR_IE) && !(SR & (SR_EXL | SR_ERL)))
 			{
