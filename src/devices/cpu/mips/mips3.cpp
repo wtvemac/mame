@@ -5428,6 +5428,11 @@ void mips3_device::execute_run()
 			continue;
 		}
 
+		if (m_flavor == MIPS3_TYPE_RM5230 && (m_core->pc & 3) != 0)
+		{
+			generate_tlb_exception(EXCEPTION_ADDRLOAD, m_core->pc);
+		}
+
 		/* adjust for next PC */
 		if (m_nextpc != ~0)
 		{

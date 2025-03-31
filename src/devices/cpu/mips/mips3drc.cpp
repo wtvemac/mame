@@ -1397,6 +1397,12 @@ void mips3_device::generate_sequence_instruction(drcuml_block &block, compiler_s
 		return;
 	}
 
+	/* if we hit a compiler page fault, it's just like a TLB mismatch */
+	if (desc->flags & OPFLAG_WILL_CAUSE_EXCEPTION && m_flavor == mips3_device::MIPS3_TYPE_RM5230 && (desc->pc & 3) != 0)
+	{
+		UML_EXH(block, *m_exception[EXCEPTION_ADDRLOAD], desc->pc);         // exh     addrerr,desc->pc
+	}
+
 	/* validate our TLB entry at this PC; if we fail, we need to handle it */
 	if ((desc->flags & OPFLAG_VALIDATE_TLB) && (desc->pc < 0x80000000 || desc->pc >= 0xc0000000))
 	{

@@ -38,8 +38,19 @@ bool mips3_frontend::describe(opcode_desc &desc, const opcode_desc *prev)
 {
 	uint32_t op, opswitch;
 
+	if (m_mips3->m_flavor == mips3_device::MIPS3_TYPE_RM5230)
+	{
+		if ((desc.physpc & 3) != 0)
+		{
+			desc.flags |= OPFLAG_WILL_CAUSE_EXCEPTION;
+			return true;
+		}
+	}
+	else
+	{
+		assert((desc.physpc & 3) == 0);
+	}
 	// compute the physical PC
-	assert((desc.physpc & 3) == 0);
 	address_space *tspace;
 	if (!m_mips3->memory_translate(AS_PROGRAM, device_memory_interface::TR_FETCH, desc.physpc, tspace))
 	{
@@ -49,8 +60,19 @@ bool mips3_frontend::describe(opcode_desc &desc, const opcode_desc *prev)
 		return true;
 	}
 
+	if (m_mips3->m_flavor == mips3_device::MIPS3_TYPE_RM5230)
+	{
+		if ((desc.physpc & 3) != 0)
+		{
+			desc.flags |= OPFLAG_WILL_CAUSE_EXCEPTION;
+			return true;
+		}
+	}
+	else
+	{
+		assert((desc.physpc & 3) == 0);
+	}
 	// fetch the opcode
-	assert((desc.physpc & 3) == 0);
 	op = desc.opptr.l[0] = m_mips3->m_pr32(desc.physpc);
 
 	// all instructions are 4 bytes and default to a single cycle each
