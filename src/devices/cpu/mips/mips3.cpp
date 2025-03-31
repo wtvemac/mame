@@ -304,7 +304,7 @@ void mips3_device::generate_exception(int exception, int backup)
 			offset = 0;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && (m_flavor == MIPS3_TYPE_R5900 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R4640))
+	else if (exception == EXCEPTION_INTERRUPT && (CAUSE & CAUSE_IV)) // use dedicated interrupt vector
 	{
 		offset = 0x200;
 	}
@@ -1076,6 +1076,10 @@ void mips3_device::device_reset()
 	/* initialize the state */
 	m_core->pc = 0xbfc00000;
 	m_core->cpr[0][COP0_Status] = SR_BEV | SR_ERL;
+	if (m_flavor == MIPS3_TYPE_R4640 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R5900)
+	{
+		m_core->cpr[0][COP0_Cause] = CAUSE_IV;
+	}
 	m_core->cpr[0][COP0_Wired] = 0;
 	m_core->cpr[0][COP0_Compare] = 0xffffffff;
 	m_core->cpr[0][COP0_Count] = 0;

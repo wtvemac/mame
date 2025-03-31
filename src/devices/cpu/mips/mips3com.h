@@ -145,6 +145,9 @@
 #define SR_COP2                 0x40000000
 #define SR_COP3                 0x80000000
 
+/* Cause register bits */
+#define CAUSE_IV                0x00800000  /* R5900/R4650/R4640/RM5230 dedicated interrupt vector @ 0x200 */
+
 /* exception types */
 #define EXCEPTION_INTERRUPT     0
 #define EXCEPTION_TLBMOD        1
