@@ -1403,7 +1403,7 @@ void mips3_device::generate_sequence_instruction(drcuml_block &block, compiler_s
 		const vtlb_entry *tlbtable = vtlb_table();
 
 		/* if we currently have a valid TLB read entry, we just verify */
-		if (tlbtable[desc->pc >> 12] & FETCH_ALLOWED)
+		if (tlbtable[desc->pc >> MIPS3_MIN_PAGE_SHIFT] & FETCH_ALLOWED)
 		{
 			if (PRINTF_MMU)
 			{
@@ -1412,8 +1412,8 @@ void mips3_device::generate_sequence_instruction(drcuml_block &block, compiler_s
 				UML_MOV(block, mem(&m_core->arg0), desc->pc);          // mov     [arg0],desc->pc
 				UML_CALLC(block, cfunc_printf_debug, this);                        // callc   printf_debug
 			}
-			UML_LOAD(block, I0, &tlbtable[desc->pc >> 12], 0, SIZE_DWORD, SCALE_x4);        // load i0,tlbtable[desc->pc >> 12],0,dword
-			UML_CMP(block, I0, tlbtable[desc->pc >> 12]);                   // cmp     i0,*tlbentry
+			UML_LOAD(block, I0, &tlbtable[desc->pc >> MIPS3_MIN_PAGE_SHIFT], 0, SIZE_DWORD, SCALE_x4);        // load i0,tlbtable[desc->pc >> MIPS3_MIN_PAGE_SHIFT],0,dword
+			UML_CMP(block, I0, tlbtable[desc->pc >> MIPS3_MIN_PAGE_SHIFT]);                   // cmp     i0,*tlbentry
 			UML_EXHc(block, COND_NE, *m_tlb_mismatch, 0);            // exh     tlb_mismatch,0,NE
 		}
 

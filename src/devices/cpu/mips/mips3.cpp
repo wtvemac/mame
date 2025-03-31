@@ -1218,7 +1218,7 @@ std::unique_ptr<util::disasm_interface> r5900_device::create_disassembler()
 
 inline bool mips3_device::RBYTE(offs_t address, uint32_t *result)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		const uint32_t tlbaddress = (tlbval & ~0xfff) | (address & 0xfff);
@@ -1251,7 +1251,7 @@ inline bool mips3_device::RBYTE(offs_t address, uint32_t *result)
 
 inline bool mips3_device::RHALF(offs_t address, uint32_t *result)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		const uint32_t tlbaddress = (tlbval & ~0xfff) | (address & 0xfff);
@@ -1284,7 +1284,7 @@ inline bool mips3_device::RHALF(offs_t address, uint32_t *result)
 
 inline bool mips3_device::RWORD(offs_t address, uint32_t *result, bool insn)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		const uint32_t tlbaddress = (tlbval & ~0xfff) | (address & 0xfff);
@@ -1317,7 +1317,7 @@ inline bool mips3_device::RWORD(offs_t address, uint32_t *result, bool insn)
 
 inline bool mips3_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_t mem_mask)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		*result = m_program->read_dword((tlbval & ~0xfff) | (address & 0xfff), mem_mask);
@@ -1340,7 +1340,7 @@ inline bool mips3_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_
 
 inline bool mips3_device::RDOUBLE(offs_t address, uint64_t *result)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		*result = m_program->read_qword((tlbval & ~0xfff) | (address & 0xfff));
@@ -1363,7 +1363,7 @@ inline bool mips3_device::RDOUBLE(offs_t address, uint64_t *result)
 
 inline bool mips3_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint64_t mem_mask)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		*result = m_program->read_qword((tlbval & ~0xfff) | (address & 0xfff), mem_mask);
@@ -1386,7 +1386,7 @@ inline bool mips3_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint6
 
 inline void mips3_device::WBYTE(offs_t address, uint8_t data)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		const uint32_t tlbaddress = (tlbval & ~0xfff) | (address & 0xfff);
@@ -1420,7 +1420,7 @@ inline void mips3_device::WBYTE(offs_t address, uint8_t data)
 
 inline void mips3_device::WHALF(offs_t address, uint16_t data)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		const uint32_t tlbaddress = (tlbval & ~0xfff) | (address & 0xfff);
@@ -1454,7 +1454,7 @@ inline void mips3_device::WHALF(offs_t address, uint16_t data)
 
 inline void mips3_device::WWORD(offs_t address, uint32_t data)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		const uint32_t tlbaddress = (tlbval & ~0xfff) | (address & 0xfff);
@@ -1488,7 +1488,7 @@ inline void mips3_device::WWORD(offs_t address, uint32_t data)
 
 inline void mips3_device::WWORD_MASKED(offs_t address, uint32_t data, uint32_t mem_mask)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		m_program->write_dword((tlbval & ~0xfff) | (address & 0xfff), data, mem_mask);
@@ -1512,7 +1512,7 @@ inline void mips3_device::WWORD_MASKED(offs_t address, uint32_t data, uint32_t m
 
 inline void mips3_device::WDOUBLE(offs_t address, uint64_t data)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		m_program->write_qword((tlbval & ~0xfff) | (address & 0xfff), data);
@@ -1536,7 +1536,7 @@ inline void mips3_device::WDOUBLE(offs_t address, uint64_t data)
 
 inline void mips3_device::WDOUBLE_MASKED(offs_t address, uint64_t data, uint64_t mem_mask)
 {
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		m_program->write_qword((tlbval & ~0xfff)  | (address & 0xfff), data, mem_mask);
@@ -1775,7 +1775,7 @@ inline void r5900le_device::WQUAD(offs_t address, uint64_t data_hi, uint64_t dat
 		return;
 	}
 
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		m_program->write_qword((tlbval & ~0xfff) | (address & 0xfff), data_lo);
@@ -1807,7 +1807,7 @@ inline void r5900be_device::WQUAD(offs_t address, uint64_t data_hi, uint64_t dat
 		return;
 	}
 
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & WRITE_ALLOWED)
 	{
 		m_program->write_qword((tlbval & ~0xfff) | (address & 0xfff), data_hi);
@@ -1899,7 +1899,7 @@ inline bool r5900le_device::RQUAD(offs_t address, uint64_t *result_hi, uint64_t 
 		return true;
 	}
 
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		*result_lo = m_program->read_qword((tlbval & ~0xfff) | (address & 0xfff));
@@ -1931,7 +1931,7 @@ inline bool r5900be_device::RQUAD(offs_t address, uint64_t *result_hi, uint64_t 
 		return true;
 	}
 
-	const uint32_t tlbval = vtlb_table()[address >> 12];
+	const uint32_t tlbval = vtlb_table()[address >> MIPS3_MIN_PAGE_SHIFT];
 	if (tlbval & READ_ALLOWED)
 	{
 		*result_hi = m_program->read_qword((tlbval & ~0xfff) | (address & 0xfff));
