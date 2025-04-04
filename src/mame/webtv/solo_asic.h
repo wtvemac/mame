@@ -83,12 +83,12 @@ constexpr uint32_t BUS_INT_AUD_DIVUNIT   = 1 << 4; // divUnit audio
 constexpr uint32_t BUS_INT_AUD_AUDDMAIN  = 1 << 3; // Audio in
 constexpr uint32_t BUS_INT_AUD_AUDDMAOUT = 1 << 2; // Audio out
 
-constexpr uint32_t BUS_INT_DEV_GPIO      = 1 << 6;
-constexpr uint32_t BUS_INT_DEV_UART      = 1 << 5;
-constexpr uint32_t BUS_INT_DEV_SMARTCARD = 1 << 4;
-constexpr uint32_t BUS_INT_DEV_PARPORT   = 1 << 3;
+constexpr uint32_t BUS_INT_DEV_GPIO      = 1 << 7;
+constexpr uint32_t BUS_INT_DEV_UART      = 1 << 6;
+constexpr uint32_t BUS_INT_DEV_SMARTCARD = 1 << 5;
+constexpr uint32_t BUS_INT_DEV_PARPORT   = 1 << 4;
+constexpr uint32_t BUS_INT_DEV_IROUT     = 1 << 3;
 constexpr uint32_t BUS_INT_DEV_IRIN      = 1 << 2;
-constexpr uint32_t BUS_INT_DEV_IROUT     = 1 << 2;
 
 constexpr uint32_t BUS_INT_VID_DIVUNIT = 1 << 5;
 constexpr uint32_t BUS_INT_VID_GFXUNIT = 1 << 4;
