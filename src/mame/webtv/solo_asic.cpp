@@ -643,10 +643,7 @@ void solo_asic_device::device_reset()
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
-	modfw_mode = true;
-	modfw_message_index = 0x0;
-	modfw_will_flush = false;
-	modfw_will_ack = false;
+	solo_asic_device::modfw_hack_begin();
 
 	solo_asic_device::validate_active_area();
 	solo_asic_device::watchdog_enable(m_wdenable);
@@ -741,6 +738,15 @@ void solo_asic_device::watchdog_enable(int state)
 		m_watchdog->set_time(attotime::zero);
 
 	m_watchdog->watchdog_enable(m_wdenable);
+}
+
+void solo_asic_device::modfw_hack_begin()
+{
+	modfw_mode = true;
+	modfw_message_index = 0x0;
+	modfw_will_flush = false;
+	modfw_will_ack = false;
+	modfw_enable_index = 0x0;
 }
 
 uint32_t solo_asic_device::reg_0000_r()
@@ -934,10 +940,7 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 	if(data == ERR_LOWWRITE || data == 0xffff)
 	{
 		// Turn back on the modem downloader hack.
-		modfw_mode = true;
-		modfw_message_index = 0x0;
-		modfw_will_flush = false;
-		modfw_will_ack = false;
+		solo_asic_device::modfw_hack_begin();
 
 		if (m_han_enabled && m_han_startup_step == HAN_STARTUP_DONE)
 		{
@@ -2365,13 +2368,32 @@ uint32_t solo_asic_device::reg_modem_0000_r()
 }
 
 void solo_asic_device::reg_modem_0000_w(uint32_t data)
- {
+{
 	if(modfw_mode)
 	{
 		modfw_will_ack = true;
 	}
 	else
 	{
+		if (data == modfw_enable_string[modfw_enable_index])
+		{
+			modfw_enable_index++;
+
+			if ((modfw_enable_index + 1) >= sizeof(modfw_enable_string))
+			{
+				solo_asic_device::modfw_hack_begin();
+				modfw_will_ack = true;
+			}
+		}
+		else if (data == modfw_enable_string[0x0])
+		{
+			modfw_enable_index = 0x1;
+		}
+		else
+		{
+			modfw_enable_index = 0x0;
+		}
+
 		if (modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 		{
 			m_modem_uart->ins8250_w(0x0, data & 0xff);
@@ -2383,7 +2405,7 @@ void solo_asic_device::reg_modem_0000_w(uint32_t data)
 			modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
 		}
 	}
- }
+}
 
 uint32_t solo_asic_device::reg_modem_0004_r()
 {
