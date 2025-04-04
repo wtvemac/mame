@@ -508,6 +508,7 @@ constexpr uint8_t MODFW_MSG_IDX_FLUSH0          = 0x2;
 constexpr uint8_t MODFW_MSG_IDX_FLUSH1          = 0x1c;
 
 constexpr uint8_t modfw_message[] = "\x0a\x0a""Download Modem Firmware ..""\x0d\x0a""Modem Firmware Successfully Loaded""\x0d\x0a";
+constexpr uint8_t modfw_enable_string[] = "AT**\x0d";
 
 constexpr uint32_t PEKOE_BYTE_AVAILABLE         = 0x00000001;
 constexpr uint32_t PEKOE_CAN_SEND_BYTE          = 0x00000020;
@@ -679,6 +680,7 @@ protected:
 	uint32_t modfw_message_index;
 	bool modfw_will_flush;
 	bool modfw_will_ack;
+	uint32_t modfw_enable_index;
 	bool do7e_hack;
 private:
 	required_device<mips3_device> m_hostcpu;
@@ -742,6 +744,7 @@ private:
 	void validate_active_area();
 	void watchdog_enable(int state);
 	void pixel_buffer_index_update();
+	void modfw_hack_begin();
 
 	uint32_t gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	uint32_t vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
