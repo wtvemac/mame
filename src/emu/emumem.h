@@ -2052,11 +2052,14 @@ public:
 	// construction/destruction
 	address_space_config();
 	address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, s8 addrshift = 0, address_map_constructor internal = address_map_constructor());
+	address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, endianness_t starting_endianness, s8 addrshift = 0, address_map_constructor internal = address_map_constructor());
 	address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, s8 addrshift, u8 logwidth, u8 pageshift, address_map_constructor internal = address_map_constructor());
+	address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, s8 addrshift, u8 logwidth, u8 pageshift, endianness_t starting_endianness, address_map_constructor internal = address_map_constructor());
 
 	// getters
 	const char *name() const { return m_name; }
 	endianness_t endianness() const { return m_endianness; }
+	endianness_t starting_endianness() const { return m_starting_endianness; }
 	int data_width() const { return m_data_width; }
 	int addr_width() const { return m_addr_width; }
 	int addr_shift() const { return m_addr_shift; }
@@ -2078,6 +2081,7 @@ public:
 	// state (TODO: privatize)
 	const char *        m_name;
 	endianness_t        m_endianness;
+	endianness_t        m_starting_endianness;
 	u8                  m_data_width;
 	u8                  m_addr_width;
 	s8                  m_addr_shift;
@@ -2099,6 +2103,7 @@ public:
 	int logaddr_width() const { return m_config.logaddr_width(); }
 	int alignment() const { return m_config.alignment(); }
 	endianness_t endianness() const { return m_config.endianness(); }
+	endianness_t starting_endianness() const { return m_config.starting_endianness(); }
 	int addr_shift() const { return m_config.addr_shift(); }
 	bool is_octal() const { return m_config.is_octal(); }
 

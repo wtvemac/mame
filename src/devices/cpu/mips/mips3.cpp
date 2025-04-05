@@ -145,7 +145,8 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 	, m_core(nullptr)
 	, m_dcache(nullptr)
 	, m_icache(nullptr)
-	, m_program_config("program", endianness, data_bits, 32, 0, 32, MIPS3_MIN_PAGE_SHIFT)
+	, m_program_config_be("program", ENDIANNESS_BIG, data_bits, 32, 0, 32, MIPS3_MIN_PAGE_SHIFT, endianness)
+	, m_program_config_le("program", ENDIANNESS_LITTLE, data_bits, 32, 0, 32, MIPS3_MIN_PAGE_SHIFT, endianness)
 	, m_flavor(flavor)
 	, m_ppc(0)
 	, m_nextpc(0)
@@ -154,14 +155,6 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 	, m_op(0)
 	, m_interrupt_cycles(0)
 	, m_badcop_value(0)
-	, m_lwl(endianness == ENDIANNESS_BIG ? &mips3_device::lwl_be : &mips3_device::lwl_le)
-	, m_lwr(endianness == ENDIANNESS_BIG ? &mips3_device::lwr_be : &mips3_device::lwr_le)
-	, m_swl(endianness == ENDIANNESS_BIG ? &mips3_device::swl_be : &mips3_device::swl_le)
-	, m_swr(endianness == ENDIANNESS_BIG ? &mips3_device::swr_be : &mips3_device::swr_le)
-	, m_ldl(endianness == ENDIANNESS_BIG ? &mips3_device::ldl_be : &mips3_device::ldl_le)
-	, m_ldr(endianness == ENDIANNESS_BIG ? &mips3_device::ldr_be : &mips3_device::ldr_le)
-	, m_sdl(endianness == ENDIANNESS_BIG ? &mips3_device::sdl_be : &mips3_device::sdl_le)
-	, m_sdr(endianness == ENDIANNESS_BIG ? &mips3_device::sdr_be : &mips3_device::sdr_le)
 	, m_data_bits(data_bits)
 	, c_system_clock(0)
 	, m_pfnmask(flavor == MIPS3_TYPE_VR4300 ? 0x000fffff : 0x00ffffff)
@@ -187,6 +180,8 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 	, m_hotspot_select(0)
 {
 	memset(m_fpmode, 0, sizeof(m_fpmode));
+
+	m_selected_program_config = (m_bigendian ? m_program_config_be : m_program_config_le);
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -222,7 +217,7 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 device_memory_interface::space_config_vector mips3_device::memory_space_config() const
 {
 	return space_config_vector {
-		std::make_pair(AS_PROGRAM, &m_program_config)
+		std::make_pair(AS_PROGRAM, &m_selected_program_config)
 	};
 }
 
@@ -1147,49 +1142,53 @@ bool mips3_device::memory_translate(int spacenum, int intention, offs_t &address
 
 void mips3_device::set_endianness(endianness_t endianness)
 {
-
-	this->m_lwl = (endianness == ENDIANNESS_BIG ? &mips3_device::lwl_be : &mips3_device::lwl_le);
-	this->m_lwr = (endianness == ENDIANNESS_BIG ? &mips3_device::lwr_be : &mips3_device::lwr_le);
-	this->m_swl = (endianness == ENDIANNESS_BIG ? &mips3_device::swl_be : &mips3_device::swl_le);
-	this->m_swr = (endianness == ENDIANNESS_BIG ? &mips3_device::swr_be : &mips3_device::swr_le);
-	this->m_ldl = (endianness == ENDIANNESS_BIG ? &mips3_device::ldl_be : &mips3_device::ldl_le);
-	this->m_ldr = (endianness == ENDIANNESS_BIG ? &mips3_device::ldr_be : &mips3_device::ldr_le);
-	this->m_sdl = (endianness == ENDIANNESS_BIG ? &mips3_device::sdl_be : &mips3_device::sdl_le);
-	this->m_sdr = (endianness == ENDIANNESS_BIG ? &mips3_device::sdr_be : &mips3_device::sdr_le);
-
 	this->m_bigendian = (endianness == ENDIANNESS_BIG);
 
-	m_program_config = address_space_config("program", endianness, m_data_bits, 32, 0, 32, MIPS3_MIN_PAGE_SHIFT);
-	m_program = &space(AS_PROGRAM);
+	this->m_lwl = (this->m_bigendian ? &mips3_device::lwl_be : &mips3_device::lwl_le);
+	this->m_lwr = (this->m_bigendian ? &mips3_device::lwr_be : &mips3_device::lwr_le);
+	this->m_swl = (this->m_bigendian ? &mips3_device::swl_be : &mips3_device::swl_le);
+	this->m_swr = (this->m_bigendian ? &mips3_device::swr_be : &mips3_device::swr_le);
+	this->m_ldl = (this->m_bigendian ? &mips3_device::ldl_be : &mips3_device::ldl_le);
+	this->m_ldr = (this->m_bigendian ? &mips3_device::ldr_be : &mips3_device::ldr_le);
+	this->m_sdl = (this->m_bigendian ? &mips3_device::sdl_be : &mips3_device::sdl_le);
+	this->m_sdr = (this->m_bigendian ? &mips3_device::sdr_be : &mips3_device::sdr_le);
 
-	if (endianness == ENDIANNESS_LITTLE)
+	this->m_selected_program_config = (this->m_bigendian ? m_program_config_be : m_program_config_le);
+
+	this->m_program = &space(AS_PROGRAM);
+
+	this->m_byte_xor = (this->m_data_bits == 64) ? (this->m_bigendian ? BYTE8_XOR_BE(0) : BYTE8_XOR_LE(0)) : (this->m_bigendian ? BYTE4_XOR_BE(0) : BYTE4_XOR_LE(0));
+	this->m_word_xor = (this->m_data_bits == 64) ? (this->m_bigendian ? WORD2_XOR_BE(0) : WORD2_XOR_LE(0)) : (this->m_bigendian ? WORD_XOR_BE(0) : WORD_XOR_LE(0));
+	this->m_dword_xor = (this->m_data_bits == 64) ? (this->m_bigendian ? DWORD_XOR_BE(0) : DWORD_XOR_LE(0)) : 0;
+
+	if (this->m_bigendian)
 	{
-		if (m_data_bits == 32)
+		if (this->m_data_bits == 32)
 		{
-			m_program->cache(m_cache32le);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_LITTLE>::cache::read_dword, &m_cache32le);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache32le.read_ptr(address); };
+			this->m_program->cache(this->m_cache32be);
+			this->m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_BIG>::cache::read_dword, &this->m_cache32be);
+			this->m_prptr = [this] (offs_t address) -> const void * { return this->m_cache32be.read_ptr(address); };
 		}
 		else
 		{
-			m_program->cache(m_cache64le);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_LITTLE>::cache::read_dword, &m_cache64le);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache64le.read_ptr(address); };
+			this->m_program->cache(this->m_cache64be);
+			this->m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_BIG>::cache::read_dword, &this->m_cache64be);
+			this->m_prptr = [this] (offs_t address) -> const void * { return this->m_cache64be.read_ptr(address); };
 		}
 	}
 	else
 	{
-		if (m_data_bits == 32)
+		if (this->m_data_bits == 32)
 		{
-			m_program->cache(m_cache32be);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_BIG>::cache::read_dword, &m_cache32be);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache32be.read_ptr(address); };
+			this->m_program->cache(this->m_cache32le);
+			this->m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 2, 0, ENDIANNESS_LITTLE>::cache::read_dword, &this->m_cache32le);
+			this->m_prptr = [this] (offs_t address) -> const void * { return this->m_cache32le.read_ptr(address); };
 		}
 		else
 		{
-			m_program->cache(m_cache64be);
-			m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_BIG>::cache::read_dword, &m_cache64be);
-			m_prptr = [this] (offs_t address) -> const void * { return m_cache64be.read_ptr(address); };
+			this->m_program->cache(this->m_cache64le);
+			this->m_pr32 = delegate<u32 (offs_t)>(&memory_access<32, 3, 0, ENDIANNESS_LITTLE>::cache::read_dword, &this->m_cache64le);
+			this->m_prptr = [this] (offs_t address) -> const void * { return this->m_cache64le.read_ptr(address); };
 		}
 	}
 }

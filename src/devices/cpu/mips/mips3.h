@@ -407,7 +407,9 @@ protected:
 	uint8_t *m_dcache;
 	uint8_t *m_icache;
 
-	address_space_config m_program_config;
+	address_space_config const m_program_config_be;
+	address_space_config const m_program_config_le;
+	address_space_config m_selected_program_config;
 	memory_access<32, 2, 0, ENDIANNESS_LITTLE>::cache m_cache32le;
 	memory_access<32, 3, 0, ENDIANNESS_LITTLE>::cache m_cache64le;
 	memory_access<32, 2, 0, ENDIANNESS_BIG>::cache m_cache32be;

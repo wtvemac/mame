@@ -180,7 +180,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 	address_space *space = m_space ? m_space : m_back->get_underlying_space();
 	int shift = space->addr_shift();
 	int alignment = m_intf.opcode_alignment();
-	endianness_t endian = space->endianness();
+	endianness_t endian = space->starting_endianness();
 	bool is_octal = space->is_octal();
 
 	m_pc_mask = space->logaddrmask();
