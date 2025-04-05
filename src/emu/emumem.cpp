@@ -458,15 +458,31 @@ address_space_config::address_space_config()
 
 /*!
  @param name
- @param endian CPU endianness
+ @param endian current CPU endianness
  @param datawidth CPU parallelism bits
  @param addrwidth address bits
  @param addrshift
+ @param starting_endian starting CPU endianness
  @param internal
  */
 address_space_config::address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, s8 addrshift, address_map_constructor internal)
 	: m_name(name),
 		m_endianness(endian),
+		m_starting_endianness(endian),
+		m_data_width(datawidth),
+		m_addr_width(addrwidth),
+		m_addr_shift(addrshift),
+		m_logaddr_width(addrwidth),
+		m_page_shift(0),
+		m_is_octal(false),
+		m_internal_map(internal)
+{
+}
+
+address_space_config::address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, endianness_t starting_endian, s8 addrshift, address_map_constructor internal)
+	: m_name(name),
+		m_endianness(endian),
+		m_starting_endianness(starting_endian),
 		m_data_width(datawidth),
 		m_addr_width(addrwidth),
 		m_addr_shift(addrshift),
@@ -480,6 +496,7 @@ address_space_config::address_space_config(const char *name, endianness_t endian
 address_space_config::address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, s8 addrshift, u8 logwidth, u8 pageshift, address_map_constructor internal)
 	: m_name(name),
 		m_endianness(endian),
+		m_starting_endianness(endian),
 		m_data_width(datawidth),
 		m_addr_width(addrwidth),
 		m_addr_shift(addrshift),
@@ -490,6 +507,19 @@ address_space_config::address_space_config(const char *name, endianness_t endian
 {
 }
 
+address_space_config::address_space_config(const char *name, endianness_t endian, u8 datawidth, u8 addrwidth, s8 addrshift, u8 logwidth, u8 pageshift, endianness_t starting_endian, address_map_constructor internal)
+	: m_name(name),
+		m_endianness(endian),
+		m_starting_endianness(starting_endian),
+		m_data_width(datawidth),
+		m_addr_width(addrwidth),
+		m_addr_shift(addrshift),
+		m_logaddr_width(logwidth),
+		m_page_shift(pageshift),
+		m_is_octal(false),
+		m_internal_map(internal)
+{
+}
 
 void address_space_installer::check_optimize_all(const char *function, int width, offs_t addrstart, offs_t addrend, offs_t addrmask, offs_t addrmirror, offs_t addrselect, u64 unitmask, int cswidth, offs_t &nstart, offs_t &nend, offs_t &nmask, offs_t &nmirror, u64 &nunitmask, int &ncswidth)
 {
