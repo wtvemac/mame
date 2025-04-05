@@ -182,7 +182,7 @@ void debug_disasm_buffer::debug_data_buffer::setup_methods()
 	const address_space_config *config = m_dev->logical_space_config(m_spacenum);
 	int shift = config->addr_shift();
 	int alignment = m_intf.opcode_alignment();
-	endianness_t endian = config->endianness();
+	endianness_t endian = config->starting_endianness();
 	bool is_octal = config->is_octal();
 
 	m_pc_mask = config->logaddrmask();
