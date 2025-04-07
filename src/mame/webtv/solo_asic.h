@@ -83,6 +83,8 @@ constexpr uint32_t BUS_INT_AUD_DIVUNIT   = 1 << 4; // divUnit audio
 constexpr uint32_t BUS_INT_AUD_AUDDMAIN  = 1 << 3; // Audio in
 constexpr uint32_t BUS_INT_AUD_AUDDMAOUT = 1 << 2; // Audio out
 
+constexpr uint32_t BUS_INT_DEV_UNKNOWN   = 1 << 9; // Unknown but UltimateTV builds check this.
+constexpr uint32_t BUS_INT_DEV_DMA       = 1 << 8; // Seems to be used for disk IO on the UltimateTV
 constexpr uint32_t BUS_INT_DEV_GPIO      = 1 << 7;
 constexpr uint32_t BUS_INT_DEV_UART      = 1 << 6;
 constexpr uint32_t BUS_INT_DEV_SMARTCARD = 1 << 5;
