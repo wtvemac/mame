@@ -571,20 +571,20 @@ protected:
 	uint32_t m_bootmode;
 	uint32_t m_use_bootmode;
 
-	uint8_t m_bus_intenable;
-	uint8_t m_bus_intstat;
-	uint8_t m_busgpio_intenable;
-	uint8_t m_busgpio_intstat;
-	uint8_t m_busaud_intenable;
-	uint8_t m_busaud_intstat;
-	uint8_t m_busdev_intenable;
-	uint8_t m_busdev_intstat;
-	uint8_t m_busvid_intenable;
-	uint8_t m_busvid_intstat;
-	uint8_t m_busrio_intenable;
-	uint8_t m_busrio_intstat;
-	uint8_t m_bustim_intenable;
-	uint8_t m_bustim_intstat;
+	uint32_t m_bus_intenable;
+	uint32_t m_bus_intstat;
+	uint32_t m_busgpio_intenable;
+	uint32_t m_busgpio_intstat;
+	uint32_t m_busaud_intenable;
+	uint32_t m_busaud_intstat;
+	uint32_t m_busdev_intenable;
+	uint32_t m_busdev_intstat;
+	uint32_t m_busvid_intenable;
+	uint32_t m_busvid_intstat;
+	uint32_t m_busrio_intenable;
+	uint32_t m_busrio_intstat;
+	uint32_t m_bustim_intenable;
+	uint32_t m_bustim_intstat;
 
 	uint8_t m_errenable;
 	uint8_t m_errstat;
@@ -735,13 +735,13 @@ private:
 	void vblank_irq(int state);
 	void irq_modem_w(int state);
 	void irq_keyboard_w(int state);
-	void set_audio_irq(uint8_t mask, int state);
-	void set_dev_irq(uint8_t mask, int state);
-	void set_rio_irq(uint8_t mask, int state);
-	void set_video_irq(uint8_t mask, uint8_t sub_mask, int state);
-	void set_timer_irq(uint8_t mask, int state);
+	void set_audio_irq(uint32_t mask, int state);
+	void set_dev_irq(uint32_t mask, int state);
+	void set_rio_irq(uint32_t mask, int state);
+	void set_video_irq(uint32_t mask, uint32_t sub_mask, int state);
+	void set_timer_irq(uint32_t mask, int state);
 	void set_han_irq(uint32_t mask, int state);
-	void set_bus_irq(uint8_t mask, int state);
+	void set_bus_irq(uint32_t mask, int state);
 
 	void validate_active_area();
 	void watchdog_enable(int state);
