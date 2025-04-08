@@ -887,6 +887,7 @@ uint32_t solo_asic_device::reg_010c_r()
 
 void solo_asic_device::reg_010c_w(uint32_t data)
 {
+	solo_asic_device::reg_0108_w(data);
 	m_bus_intenable &= (~data) & 0xff;
 }
 
@@ -1101,6 +1102,7 @@ uint32_t solo_asic_device::reg_0170_r()
 
 void solo_asic_device::reg_0170_w(uint32_t data)
 {
+	solo_asic_device::reg_0168_w(data);
 	m_busaud_intenable &= (~data) & 0xff;
 }
 
@@ -1150,6 +1152,7 @@ uint32_t solo_asic_device::reg_017c_r()
 
 void solo_asic_device::reg_017c_w(uint32_t data)
 {
+	solo_asic_device::reg_0174_w(data);
 	m_busdev_intenable &= (~data) & 0xff;
 }
 
@@ -1199,6 +1202,7 @@ uint32_t solo_asic_device::reg_0188_r()
 
 void solo_asic_device::reg_0188_w(uint32_t data)
 {
+	solo_asic_device::reg_0180_w(data);
 	m_busvid_intenable &= (~data) & 0xff;
 }
 
@@ -1279,6 +1283,7 @@ void solo_asic_device::reg_0198_w(uint32_t data)
 {
 	if (data != BUS_INT_RIO_DEVICE0) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
 	{
+		solo_asic_device::reg_018c_w(data);
 		m_busrio_intenable &= (~data) & 0xff;
 	}
 }
@@ -1340,6 +1345,7 @@ uint32_t solo_asic_device::reg_01a4_r()
 
 void solo_asic_device::reg_01a4_w(uint32_t data)
 {
+	solo_asic_device::reg_019c_w(data);
 	m_bustim_intenable &= (~data) & 0xff;
 }
 
@@ -1600,6 +1606,7 @@ void solo_asic_device::reg_303c_w(uint32_t data)
 
 void solo_asic_device::reg_313c_w(uint32_t data)
 {
+	solo_asic_device::reg_3138_w(data);
 	m_vid_intenable &= (~data) & 0xff;
 }
 
@@ -2052,6 +2059,7 @@ void solo_asic_device::reg_6060_w(uint32_t data)
 
 void solo_asic_device::reg_6064_w(uint32_t data)
 {
+	solo_asic_device::reg_606c_w(data);
 	m_gfx_intenable &= (~data) & 0xff;
 }
 
@@ -2265,6 +2273,7 @@ void solo_asic_device::reg_909c_w(uint32_t data)
 
 void solo_asic_device::reg_90a4_w(uint32_t data)
 {
+	solo_asic_device::reg_90a8_w(data);
 	m_pot_intenable &= (~data) & 0xff;
 }
 
