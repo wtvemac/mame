@@ -291,6 +291,11 @@ void solo_asic_device::mod_unit_map(address_map &map)
 {
 }
 
+void solo_asic_device::dma_unit_map(address_map &map)
+{
+	map(0x040, 0x043).rw(FUNC(solo_asic_device::reg_c040_r), FUNC(solo_asic_device::reg_c040_w));
+}
+
 void solo_asic_device::hardware_modem_map(address_map &map)
 {
 	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_modem_0000_r), FUNC(solo_asic_device::reg_modem_0000_w)); // Modem I/O port base   (RBR/THR/DLL)
@@ -506,6 +511,7 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_han_msgbuff));
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
+	save_item(NAME(dmaunit_unknown1));
 	save_item(NAME(m_rom_cntl0));
 	save_item(NAME(m_rom_cntl1));
 	save_item(NAME(m_ledstate));
@@ -640,6 +646,8 @@ void solo_asic_device::device_reset()
 
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
+
+	dmaunit_unknown1 = 0x0;
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
@@ -2323,6 +2331,19 @@ uint32_t solo_asic_device::reg_aab8_r()
 {
 	return (0x1 << 4);
 }
+
+// dmaUnit
+
+uint32_t solo_asic_device::reg_c040_r()
+{
+	return dmaunit_unknown1 & 0x4;
+}
+
+void solo_asic_device::reg_c040_w(uint32_t data)
+{
+	dmaunit_unknown1 = data;
+}
+
 
 // Hardware modem registers
 
