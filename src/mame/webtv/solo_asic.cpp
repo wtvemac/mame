@@ -850,7 +850,7 @@ uint32_t solo_asic_device::reg_0008_r()
 
 void solo_asic_device::reg_0008_w(uint32_t data)
 {
-	m_bus_intstat |= data & 0xff;
+	m_bus_intstat |= data;
 }
 
 uint32_t solo_asic_device::reg_0108_r()
@@ -877,7 +877,7 @@ uint32_t solo_asic_device::reg_000c_r()
 
 void solo_asic_device::reg_000c_w(uint32_t data)
 {
-	m_bus_intenable |= data & 0xff;
+	m_bus_intenable |= data;
 }
 
 uint32_t solo_asic_device::reg_010c_r()
@@ -888,7 +888,7 @@ uint32_t solo_asic_device::reg_010c_r()
 void solo_asic_device::reg_010c_w(uint32_t data)
 {
 	solo_asic_device::reg_0108_w(data);
-	m_bus_intenable &= (~data) & 0xff;
+	m_bus_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_0010_r()
@@ -1043,7 +1043,7 @@ uint32_t solo_asic_device::reg_005c_r()
 
 void solo_asic_device::reg_005c_w(uint32_t data)
 {
-	m_busgpio_intenable |= data & 0xff;
+	m_busgpio_intenable |= data;
 }
 
 uint32_t solo_asic_device::reg_015c_r()
@@ -1053,7 +1053,7 @@ uint32_t solo_asic_device::reg_015c_r()
 
 void solo_asic_device::reg_015c_w(uint32_t data)
 {
-	m_busgpio_intenable &= (~data) & 0xff;
+	m_busgpio_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_0058_r()
@@ -1068,7 +1068,7 @@ uint32_t solo_asic_device::reg_0060_r()
 
 void solo_asic_device::reg_0060_w(uint32_t data)
 {
-	m_busgpio_intstat |= data & 0xff;
+	m_busgpio_intstat |= data;
 }
 
 uint32_t solo_asic_device::reg_0158_r()
@@ -1078,7 +1078,7 @@ uint32_t solo_asic_device::reg_0158_r()
 
 void solo_asic_device::reg_0158_w(uint32_t data)
 {
-	m_busgpio_intstat &= (~data) & 0xff;
+	m_busgpio_intstat &= (~data);
 }
 
 uint32_t solo_asic_device::reg_0070_r()
@@ -1088,7 +1088,7 @@ uint32_t solo_asic_device::reg_0070_r()
 
 void solo_asic_device::reg_0070_w(uint32_t data)
 {
-	m_busaud_intenable |= data & 0xff;
+	m_busaud_intenable |= data;
 	if (m_busaud_intenable != 0x0)
 	{
 		m_bus_intenable |= BUS_INT_AUDIO;
@@ -1103,7 +1103,7 @@ uint32_t solo_asic_device::reg_0170_r()
 void solo_asic_device::reg_0170_w(uint32_t data)
 {
 	solo_asic_device::reg_0168_w(data);
-	m_busaud_intenable &= (~data) & 0xff;
+	m_busaud_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_0068_r()
@@ -1118,7 +1118,7 @@ uint32_t solo_asic_device::reg_006c_r()
 
 void solo_asic_device::reg_006c_w(uint32_t data)
 {
-	m_busaud_intstat |= data & 0xff;
+	m_busaud_intstat |= data;
 }
 
 uint32_t solo_asic_device::reg_0168_r()
@@ -1138,7 +1138,7 @@ uint32_t solo_asic_device::reg_007c_r()
 
 void solo_asic_device::reg_007c_w(uint32_t data)
 {
-	m_busdev_intenable |= data & 0xff;
+	m_busdev_intenable |= data;
 	if (m_busdev_intenable != 0x0)
 	{
 		m_bus_intenable |= BUS_INT_DEV;
@@ -1153,7 +1153,7 @@ uint32_t solo_asic_device::reg_017c_r()
 void solo_asic_device::reg_017c_w(uint32_t data)
 {
 	solo_asic_device::reg_0174_w(data);
-	m_busdev_intenable &= (~data) & 0xff;
+	m_busdev_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_0074_r()
@@ -1168,7 +1168,7 @@ uint32_t solo_asic_device::reg_0078_r()
 
 void solo_asic_device::reg_0078_w(uint32_t data)
 {
-	m_busdev_intstat |= data & 0xff;
+	m_busdev_intstat |= data;
 }
 
 uint32_t solo_asic_device::reg_0174_r()
@@ -1188,7 +1188,7 @@ uint32_t solo_asic_device::reg_0088_r()
 
 void solo_asic_device::reg_0088_w(uint32_t data)
 {
-	m_busvid_intenable |= data & 0xff;
+	m_busvid_intenable |= data;
 	if (m_busvid_intenable != 0x0)
 	{
 		m_bus_intenable |= BUS_INT_VIDEO;
@@ -1203,7 +1203,7 @@ uint32_t solo_asic_device::reg_0188_r()
 void solo_asic_device::reg_0188_w(uint32_t data)
 {
 	solo_asic_device::reg_0180_w(data);
-	m_busvid_intenable &= (~data) & 0xff;
+	m_busvid_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_0080_r()
@@ -1218,7 +1218,7 @@ uint32_t solo_asic_device::reg_0084_r()
 
 void solo_asic_device::reg_0084_w(uint32_t data)
 {
-	m_busvid_intstat |= data & 0xff;
+	m_busvid_intstat |= data;
 }
 
 uint32_t solo_asic_device::reg_0180_r()
@@ -1251,7 +1251,7 @@ void solo_asic_device::reg_0180_w(uint32_t data)
 
 	if (check_intstat == 0x0)
 	{
-		m_busvid_intstat &= (~data) & 0xff;
+		m_busvid_intstat &= (~data);
 
 		if(m_busvid_intstat == 0x0)
 		{
@@ -1267,7 +1267,7 @@ uint32_t solo_asic_device::reg_0098_r()
 
 void solo_asic_device::reg_0098_w(uint32_t data)
 {
-	m_busrio_intenable |= data & 0xff;
+	m_busrio_intenable |= data;
 	if (m_busrio_intenable != 0x0)
 	{
 		m_bus_intenable |= BUS_INT_RIO;
@@ -1284,7 +1284,7 @@ void solo_asic_device::reg_0198_w(uint32_t data)
 	if (data != BUS_INT_RIO_DEVICE0) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
 	{
 		solo_asic_device::reg_018c_w(data);
-		m_busrio_intenable &= (~data) & 0xff;
+		m_busrio_intenable &= (~data);
 	}
 }
 
@@ -1300,7 +1300,7 @@ uint32_t solo_asic_device::reg_0090_r()
 
 void solo_asic_device::reg_0090_w(uint32_t data)
 {
-	m_busrio_intstat |= data & 0xff;
+	m_busrio_intstat |= data;
 }
 
 uint32_t solo_asic_device::reg_018c_r()
@@ -1331,7 +1331,7 @@ uint32_t solo_asic_device::reg_00a4_r()
 
 void solo_asic_device::reg_00a4_w(uint32_t data)
 {
-	m_bustim_intenable |= data & 0xff;
+	m_bustim_intenable |= data;
 	if (m_bustim_intenable != 0x0)
 	{
 		m_bus_intenable |= BUS_INT_TIMER;
@@ -1346,7 +1346,7 @@ uint32_t solo_asic_device::reg_01a4_r()
 void solo_asic_device::reg_01a4_w(uint32_t data)
 {
 	solo_asic_device::reg_019c_w(data);
-	m_bustim_intenable &= (~data) & 0xff;
+	m_bustim_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_009c_r()
@@ -1361,7 +1361,7 @@ uint32_t solo_asic_device::reg_00a0_r()
 
 void solo_asic_device::reg_00a0_w(uint32_t data)
 {
-	m_bustim_intstat |= data & 0xff;
+	m_bustim_intstat |= data;
 }
 
 uint32_t solo_asic_device::reg_019c_r()
@@ -1596,7 +1596,7 @@ uint32_t solo_asic_device::reg_303c_r()
 
 void solo_asic_device::reg_303c_w(uint32_t data)
 {
-	m_vid_intenable |= (data & 0xff);
+	m_vid_intenable |= data;
 	if (m_vid_intenable != 0x0)
 	{
 		m_busvid_intenable |= BUS_INT_VID_VIDUNIT;
@@ -1607,7 +1607,7 @@ void solo_asic_device::reg_303c_w(uint32_t data)
 void solo_asic_device::reg_313c_w(uint32_t data)
 {
 	solo_asic_device::reg_3138_w(data);
-	m_vid_intenable &= (~data) & 0xff;
+	m_vid_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_3040_r()
@@ -2049,7 +2049,7 @@ uint32_t solo_asic_device::reg_6060_r()
 
 void solo_asic_device::reg_6060_w(uint32_t data)
 {
-	m_gfx_intenable |= (data & 0xff);
+	m_gfx_intenable |= data;
 	if (m_gfx_intenable != 0x0)
 	{
 		m_busvid_intenable |= BUS_INT_VID_GFXUNIT;
@@ -2060,7 +2060,7 @@ void solo_asic_device::reg_6060_w(uint32_t data)
 void solo_asic_device::reg_6064_w(uint32_t data)
 {
 	solo_asic_device::reg_606c_w(data);
-	m_gfx_intenable &= (~data) & 0xff;
+	m_gfx_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_6068_r()
@@ -2070,7 +2070,7 @@ uint32_t solo_asic_device::reg_6068_r()
 
 void solo_asic_device::reg_6068_w(uint32_t data)
 {
-	m_gfx_intstat |= (data & 0xff);
+	m_gfx_intstat |= data;
 }
 
 void solo_asic_device::reg_606c_w(uint32_t data)
@@ -2263,7 +2263,7 @@ uint32_t solo_asic_device::reg_909c_r()
 
 void solo_asic_device::reg_909c_w(uint32_t data)
 {
-	m_pot_intenable |= (data & 0xff);
+	m_pot_intenable |= data;
 	if (m_pot_intenable != 0x0)
 	{
 		m_busvid_intenable |= BUS_INT_VID_POTUNIT;
@@ -2274,7 +2274,7 @@ void solo_asic_device::reg_909c_w(uint32_t data)
 void solo_asic_device::reg_90a4_w(uint32_t data)
 {
 	solo_asic_device::reg_90a8_w(data);
-	m_pot_intenable &= (~data) & 0xff;
+	m_pot_intenable &= (~data);
 }
 
 uint32_t solo_asic_device::reg_90a0_r()
@@ -3180,7 +3180,7 @@ void solo_asic_device::irq_keyboard_w(int state)
 	solo_asic_device::set_dev_irq(BUS_INT_DEV_IRIN, state);
 }
 
-void solo_asic_device::set_audio_irq(uint8_t mask, int state)
+void solo_asic_device::set_audio_irq(uint32_t mask, int state)
 {
 	if (m_busaud_intenable & mask)
 	{
@@ -3192,7 +3192,7 @@ void solo_asic_device::set_audio_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_busaud_intstat &= (~mask) & 0xff;
+			m_busaud_intstat &= (~mask);
 
 			if(m_busaud_intstat == 0x00)
 			{
@@ -3202,7 +3202,7 @@ void solo_asic_device::set_audio_irq(uint8_t mask, int state)
 	}
 }
 
-void solo_asic_device::set_dev_irq(uint8_t mask, int state)
+void solo_asic_device::set_dev_irq(uint32_t mask, int state)
 {
 	if (m_busdev_intenable & mask)
 	{
@@ -3214,7 +3214,7 @@ void solo_asic_device::set_dev_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_busdev_intstat &= (~mask) & 0xff;
+			m_busdev_intstat &= (~mask);
 
 			if(m_busdev_intstat == 0x00)
 			{
@@ -3224,7 +3224,7 @@ void solo_asic_device::set_dev_irq(uint8_t mask, int state)
 	}
 }
 
-void solo_asic_device::set_rio_irq(uint8_t mask, int state)
+void solo_asic_device::set_rio_irq(uint32_t mask, int state)
 {
 	if (m_busrio_intenable & mask)
 	{
@@ -3236,7 +3236,7 @@ void solo_asic_device::set_rio_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_busrio_intstat &= (~mask) & 0xff;
+			m_busrio_intstat &= (~mask);
 
 			if(m_busrio_intstat == 0x00)
 			{
@@ -3246,7 +3246,7 @@ void solo_asic_device::set_rio_irq(uint8_t mask, int state)
 	}
 }
 
-void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
+void solo_asic_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int state)
 {
 	if (m_busvid_intenable & mask)
 	{
@@ -3260,7 +3260,7 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 					if (state)
 						m_div_intstat |= sub_mask;
 					else
-						m_div_intstat &= (~sub_mask) & 0xff;
+						m_div_intstat &= (~sub_mask);
 				}
 				else
 				{
@@ -3275,7 +3275,7 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 					if (state)
 						m_gfx_intstat |= sub_mask;
 					else
-						m_gfx_intstat &= (~sub_mask) & 0xff;
+						m_gfx_intstat &= (~sub_mask);
 				}
 				else
 				{
@@ -3290,7 +3290,7 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 					if (state)
 						m_pot_intstat |= sub_mask;
 					else
-						m_pot_intstat &= (~sub_mask) & 0xff;
+						m_pot_intstat &= (~sub_mask);
 				}
 				else
 				{
@@ -3305,7 +3305,7 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 					if (state)
 						m_vid_intstat |= sub_mask;
 					else
-						m_vid_intstat &= (~sub_mask) & 0xff;
+						m_vid_intstat &= (~sub_mask);
 				}
 				else
 				{
@@ -3323,7 +3323,7 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 		}
 		else if(sub_intstat == 0x0)
 		{
-			m_busvid_intstat &= (~mask) & 0xff;
+			m_busvid_intstat &= (~mask);
 
 			if(m_busvid_intstat == 0x0)
 			{
@@ -3333,7 +3333,7 @@ void solo_asic_device::set_video_irq(uint8_t mask, uint8_t sub_mask, int state)
 	}
 }
 
-void solo_asic_device::set_timer_irq(uint8_t mask, int state)
+void solo_asic_device::set_timer_irq(uint32_t mask, int state)
 {
 	if (m_bustim_intenable & mask && m_bus_intenable & BUS_INT_TIMER)
 	{
@@ -3345,7 +3345,7 @@ void solo_asic_device::set_timer_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_bustim_intstat &= (~mask) & 0xff;
+			m_bustim_intstat &= (~mask);
 
 			if(m_bustim_intstat == 0x00)
 			{
@@ -3367,14 +3367,14 @@ void solo_asic_device::set_han_irq(uint32_t mask, int state)
 		}
 		else
 		{
-			m_han_intstat &= (~mask) & 0xff;
+			m_han_intstat &= (~mask);
 
 			m_hostcpu->set_input_line(MIPS3_IRQ3, CLEAR_LINE);
 		}
 	}
 }
 
-void solo_asic_device::set_bus_irq(uint8_t mask, int state)
+void solo_asic_device::set_bus_irq(uint32_t mask, int state)
 {
 	if (m_bus_intenable & mask)
 	{
@@ -3389,7 +3389,7 @@ void solo_asic_device::set_bus_irq(uint8_t mask, int state)
 		}
 		else
 		{
-			m_bus_intstat &= (~mask) & 0xff;
+			m_bus_intstat &= (~mask);
 
 			// Once there's no more interrupts in progress then clear the IRQ0 bit.
 			if (m_bus_intstat == 0x0)
