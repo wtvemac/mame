@@ -533,6 +533,7 @@ public:
 	void pot_unit_map(address_map &map);
 	void suc_unit_map(address_map &map);
 	void mod_unit_map(address_map &map);
+	void dma_unit_map(address_map &map);
 
 	void hardware_modem_map(address_map &map);
 	void ide_map(address_map &map);
@@ -674,6 +675,8 @@ protected:
 
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;
+
+	uint32_t dmaunit_unknown1;
 
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
@@ -1031,6 +1034,11 @@ private:
 	uint32_t reg_aab8_r();          // SUCSC0_GPIOVAL (read)
 
 	/* modUnit registers */
+
+	/* dmaUnit registers */
+
+	uint32_t reg_c040_r();
+	void reg_c040_w(uint32_t data);
 
 	/* Hardware modem registers */
 
