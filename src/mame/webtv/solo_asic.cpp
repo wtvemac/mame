@@ -293,7 +293,12 @@ void solo_asic_device::mod_unit_map(address_map &map)
 
 void solo_asic_device::dma_unit_map(address_map &map)
 {
+	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_c020_r), FUNC(solo_asic_device::reg_c020_w));
+	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_c024_r), FUNC(solo_asic_device::reg_c024_w));
+	map(0x028, 0x02b).rw(FUNC(solo_asic_device::reg_c028_r), FUNC(solo_asic_device::reg_c028_w));
+	map(0x02c, 0x02f).rw(FUNC(solo_asic_device::reg_c02c_r), FUNC(solo_asic_device::reg_c02c_w));
 	map(0x040, 0x043).rw(FUNC(solo_asic_device::reg_c040_r), FUNC(solo_asic_device::reg_c040_w));
+	map(0x100, 0x103).rw(FUNC(solo_asic_device::reg_c100_r), FUNC(solo_asic_device::reg_c100_w));
 }
 
 void solo_asic_device::hardware_modem_map(address_map &map)
@@ -511,7 +516,15 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_han_msgbuff));
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
-	save_item(NAME(dmaunit_unknown1));
+	save_item(NAME(m_utvdma_src));
+	save_item(NAME(m_utvdma_dst));
+	save_item(NAME(m_utvdma_size));
+	save_item(NAME(m_utvdma_mode));
+	save_item(NAME(m_utvdma_cntl));
+	save_item(NAME(m_utvdma_locked));
+	save_item(NAME(m_utvdma_started));
+	save_item(NAME(m_utvdma_ccnt));
+	save_item(NAME(m_ide1_dmarq_state));
 	save_item(NAME(m_rom_cntl0));
 	save_item(NAME(m_rom_cntl1));
 	save_item(NAME(m_ledstate));
@@ -647,7 +660,15 @@ void solo_asic_device::device_reset()
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
 
-	dmaunit_unknown1 = 0x0;
+	m_utvdma_src = 0x0;
+	m_utvdma_dst = 0x0;
+	m_utvdma_size = 0x0;
+	m_utvdma_mode = 0x0;
+	m_utvdma_cntl = 0x0;
+	m_utvdma_locked = 0x0;
+	m_utvdma_started = 0x0;
+	m_utvdma_ccnt = 0x0;
+	m_ide1_dmarq_state = 0x0;
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
@@ -2332,18 +2353,135 @@ uint32_t solo_asic_device::reg_aab8_r()
 	return (0x1 << 4);
 }
 
-// dmaUnit
+// UTV dmaUnit
+
+uint32_t solo_asic_device::reg_c020_r()
+{
+	return m_utvdma_src;
+}
+
+void solo_asic_device::reg_c020_w(uint32_t data)
+{
+	if (m_utvdma_locked)
+	{
+		m_utvdma_src = data;
+	}
+}
+
+uint32_t solo_asic_device::reg_c024_r()
+{
+	return m_utvdma_dst;
+}
+
+void solo_asic_device::reg_c024_w(uint32_t data)
+{
+	if (m_utvdma_locked)
+	{
+		m_utvdma_dst = data;
+	}
+}
+
+uint32_t solo_asic_device::reg_c028_r()
+{
+	return m_utvdma_size;
+}
+
+void solo_asic_device::reg_c028_w(uint32_t data)
+{
+	if (m_utvdma_locked)
+	{
+		m_utvdma_size = data;
+	}
+}
+
+uint32_t solo_asic_device::reg_c02c_r()
+{
+	return m_utvdma_mode;
+}
+
+void solo_asic_device::reg_c02c_w(uint32_t data)
+{
+	if (m_utvdma_locked)
+	{
+		m_utvdma_mode = data;
+	}
+}
 
 uint32_t solo_asic_device::reg_c040_r()
 {
-	return dmaunit_unknown1 & 0x4;
+	return m_utvdma_cntl;
 }
 
 void solo_asic_device::reg_c040_w(uint32_t data)
 {
-	dmaunit_unknown1 = data;
+	if (m_utvdma_locked)
+	{
+		bool switched_to_ready = ((data ^ m_utvdma_cntl) & UTV_DMACNTL_READY);
+
+		m_utvdma_cntl = data;
+
+		if (switched_to_ready && !m_utvdma_started)
+		{
+			solo_asic_device::utvdma_start();
+		}
+	}
 }
 
+uint32_t solo_asic_device::reg_c100_r()
+{
+	return m_utvdma_locked;
+}
+
+void solo_asic_device::reg_c100_w(uint32_t data)
+{
+	m_utvdma_locked = data;
+}
+
+void solo_asic_device::utvdma_start()
+{
+	if (m_utvdma_locked && m_utvdma_cntl & UTV_DMACNTL_READY)
+	{
+		m_utvdma_csrc = m_utvdma_src;
+		m_utvdma_cdst = m_utvdma_dst;
+		m_utvdma_csize = m_utvdma_size;
+		m_utvdma_cmode = m_utvdma_mode;
+		if (m_utvdma_cmode & UTV_DMAMODE_READ)
+		{
+			m_utvdma_ccnt = m_utvdma_cdst;
+		}
+		else
+		{
+			m_utvdma_ccnt = m_utvdma_csrc;
+		}
+		
+		m_utvdma_started = 0x1;
+	}
+}
+
+void solo_asic_device::utvdma_next()
+{
+	if (m_utvdma_src != m_utvdma_csrc || m_utvdma_dst != m_utvdma_cdst || m_utvdma_csize != m_utvdma_size || m_utvdma_cmode != m_utvdma_mode)
+	{
+		solo_asic_device::utvdma_start();
+	}
+	else
+	{
+		m_utvdma_csize = 0x0;
+	}
+}
+
+void solo_asic_device::utvdma_stop()
+{
+	m_utvdma_locked = 0x0;
+	m_utvdma_started = 0x0;
+	m_utvdma_csrc = 0x0;
+	m_utvdma_cdst = 0x0;
+	m_utvdma_csize = 0x0;
+	m_utvdma_cmode = 0x0;
+	m_utvdma_cntl = 0x0;
+
+	solo_asic_device::set_dev_irq(BUS_INT_DEV_DMA, ASSERT_LINE);
+}
 
 // Hardware modem registers
 
@@ -3191,9 +3329,115 @@ void solo_asic_device::irq_ide1_w(int state)
 	}
 }
 
+void solo_asic_device::dmarq_ide1_w(int state)
+{
+	if (m_ide1_dmarq_state != state && m_utvdma_locked && m_utvdma_cntl & UTV_DMACNTL_READY)
+	{
+		m_ide1_dmarq_state = state;
+
+		if (m_ide1_dmarq_state)
+		{
+			solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, ASSERT_LINE);
+
+			m_ata->write_dmack(ASSERT_LINE);
+
+			while (m_ide1_dmarq_state)
+			{
+				if (m_utvdma_cmode & UTV_DMAMODE_READ)
+				{
+					solo_asic_device::dmarq_dmaread(&m_ide1_dmarq_state, m_utvdma_csrc, m_utvdma_cdst, (m_utvdma_csize * sizeof(uint16_t)));
+				}
+				else
+				{
+					solo_asic_device::dmarq_dmawrite(&m_ide1_dmarq_state, m_utvdma_cdst, m_utvdma_csrc, (m_utvdma_csize * sizeof(uint16_t)));
+				}
+			}
+
+			if (m_utvdma_csize == 0x0)
+			{
+				solo_asic_device::utvdma_stop();
+			}
+
+			m_ata->write_dmack(CLEAR_LINE);
+		}
+	}
+}
+
 void solo_asic_device::irq_ide2_w(int state)
 {
 	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE2, state);
+}
+
+void solo_asic_device::dmarq_dmaread(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size)
+{
+	if (buf_size > 0)
+	{
+		address_space &space = m_hostcpu->space(AS_PROGRAM);
+
+		while (*dmarq_state)
+		{
+			uint32_t cur_size = (m_utvdma_ccnt - buf_start);
+
+			if (cur_size < buf_size)
+			{
+				space.write_word(m_utvdma_ccnt, m_ata->read_dma());
+
+				m_utvdma_ccnt += 2;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		if ((m_utvdma_ccnt - buf_start) >= buf_size)
+		{
+			solo_asic_device::utvdma_next();
+		}
+	}
+	else
+	{
+		while (*dmarq_state)
+		{
+			m_ata->read_dma();
+		}
+	}
+}
+
+void solo_asic_device::dmarq_dmawrite(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size)
+{
+	if (buf_size > 0)
+	{
+		address_space &space = m_hostcpu->space(AS_PROGRAM);
+
+		while (*dmarq_state)
+		{
+			uint32_t cur_size = (m_utvdma_ccnt - buf_start);
+
+			if (cur_size < buf_size)
+			{
+				m_ata->write_dma(space.read_word(m_utvdma_ccnt));
+
+				m_utvdma_ccnt += 2;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		if ((m_utvdma_ccnt - buf_start) >= buf_size)
+		{
+			solo_asic_device::utvdma_next();
+		}
+	}
+	else
+	{
+		while (*dmarq_state)
+		{
+			m_ata->write_dma(0x00);
+		}
+	}
 }
 
 void solo_asic_device::irq_keyboard_w(int state)
