@@ -50,6 +50,11 @@ bool mips3_frontend::describe(opcode_desc &desc, const opcode_desc *prev)
 	{
 		assert((desc.physpc & 3) == 0);
 	}
+
+	// all instructions are 4 bytes and default to a single cycle each
+	desc.length = 4;
+	desc.cycles = 1;
+
 	// compute the physical PC
 	address_space *tspace;
 	if (!m_mips3->memory_translate(AS_PROGRAM, device_memory_interface::TR_FETCH, desc.physpc, tspace))
@@ -74,10 +79,6 @@ bool mips3_frontend::describe(opcode_desc &desc, const opcode_desc *prev)
 	}
 	// fetch the opcode
 	op = desc.opptr.l[0] = m_mips3->m_pr32(desc.physpc);
-
-	// all instructions are 4 bytes and default to a single cycle each
-	desc.length = 4;
-	desc.cycles = 1;
 
 	// parse the instruction
 	opswitch = op >> 26;
