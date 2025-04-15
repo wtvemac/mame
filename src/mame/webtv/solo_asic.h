@@ -216,6 +216,9 @@ constexpr uint8_t HAN_STARTUP_RESTART_OK      = 2;
 constexpr uint8_t HAN_STARTUP_SEND_RESET      = 3;
 constexpr uint8_t HAN_STARTUP_DONE            = 4;
 
+constexpr uint32_t UTV_DMAMODE_READ    = 1 << 0;
+constexpr uint32_t UTV_DMACNTL_READY   = 1 << 2;
+
 enum han_msgtype_t : uint16_t
 {
 	IPC_CLASS_TUNER   = 0x0000,
@@ -547,8 +550,11 @@ public:
 	void set_chipid(uint32_t chpid) { m_chpid = chpid; }
 
 	void irq_ide1_w(int state);
+	void dmarq_ide1_w(int state);
 	void irq_ide2_w(int state);
-
+	void dmarq_dmaread(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size);
+	void dmarq_dmawrite(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size);
+	
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 protected:
@@ -676,7 +682,20 @@ protected:
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;
 
-	uint32_t dmaunit_unknown1;
+	// The names for these are guesses from reading the dissasembly.
+	uint32_t m_utvdma_src;       // Solo register 0x0400c020
+	uint32_t m_utvdma_dst;       // Solo register 0x0400c024
+	uint32_t m_utvdma_size;      // Solo register 0x0400c028
+	uint32_t m_utvdma_mode;      // Solo register 0x0400c02c
+	uint32_t m_utvdma_cntl;      // Solo register 0x0400c040
+	uint32_t m_utvdma_locked;    // Solo register 0x0400c100
+	uint32_t m_utvdma_csrc;
+	uint32_t m_utvdma_cdst;
+	uint32_t m_utvdma_csize;
+	uint32_t m_utvdma_cmode;
+	uint32_t m_utvdma_started;
+	uint32_t m_utvdma_ccnt;
+	uint32_t m_ide1_dmarq_state;
 
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
@@ -1035,10 +1054,23 @@ private:
 
 	/* modUnit registers */
 
-	/* dmaUnit registers */
+	/* UTV dmaUnit registers */
 
+	uint32_t reg_c020_r();
+	void reg_c020_w(uint32_t data);
+	uint32_t reg_c024_r();
+	void reg_c024_w(uint32_t data);
+	uint32_t reg_c028_r();
+	void reg_c028_w(uint32_t data);
+	uint32_t reg_c02c_r();
+	void reg_c02c_w(uint32_t data);
 	uint32_t reg_c040_r();
 	void reg_c040_w(uint32_t data);
+	uint32_t reg_c100_r();
+	void reg_c100_w(uint32_t data);
+	void utvdma_start();
+	void utvdma_next();
+	void utvdma_stop();
 
 	/* Hardware modem registers */
 
