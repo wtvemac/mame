@@ -1278,7 +1278,7 @@ void solo_asic_device::reg_0180_w(uint32_t data)
 			break;
 	}
 
-	if (check_intstat == 0x0)
+	if (check_intstat != 0x0)
 	{
 		m_busvid_intstat &= (~data);
 
