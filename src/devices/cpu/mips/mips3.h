@@ -318,6 +318,7 @@ public:
 	void mips3drc_add_hotspot(offs_t pc, uint32_t opcode, uint32_t cycles);
 
 	void set_endianness(endianness_t endianness);
+	endianness_t get_endianness();
 
 protected:
 	// device-level overrides

@@ -1140,6 +1140,11 @@ bool mips3_device::memory_translate(int spacenum, int intention, offs_t &address
 	return true;
 }
 
+endianness_t mips3_device::get_endianness()
+{
+	return (this->m_bigendian) ? ENDIANNESS_BIG : ENDIANNESS_LITTLE;
+}
+
 void mips3_device::set_endianness(endianness_t endianness)
 {
 	this->m_bigendian = (endianness == ENDIANNESS_BIG);
