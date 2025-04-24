@@ -1278,7 +1278,13 @@ void solo_asic_device::reg_0180_w(uint32_t data)
 			break;
 	}
 
-	if (check_intstat != 0x0)
+	// Windows CE builds (little endian)
+	if (m_hostcpu->get_endianness() == ENDIANNESS_LITTLE)
+	{
+		solo_asic_device::set_video_irq(data, check_intstat, 0);
+	}
+	// WebTV OS builds (big endian)
+	else if (check_intstat == 0x0)
 	{
 		m_busvid_intstat &= (~data);
 
