@@ -770,6 +770,13 @@ void solo_asic_device::watchdog_enable(int state)
 	m_watchdog->watchdog_enable(m_wdenable);
 }
 
+bool solo_asic_device::is_webtvos()
+{
+	// The WebTV OS always run in big endian mode while Windows CE runs in little endian.
+	// This allows us to easily get around quirks specific to the OS.
+	return (m_hostcpu->get_endianness() == ENDIANNESS_BIG);
+}
+
 void solo_asic_device::modfw_hack_begin()
 {
 	modfw_mode = true;
@@ -785,7 +792,7 @@ void solo_asic_device::modfw_hack_end()
 {
 	modfw_mode = false;
 
-	if (m_hostcpu->get_endianness() == ENDIANNESS_LITTLE)
+	if (!solo_asic_device::is_webtvos())
 	{
 		// DLAB enabled, 8 data bits
 		m_modem_uart->ins8250_w(0x3, 0x83);
@@ -1301,12 +1308,12 @@ void solo_asic_device::reg_0180_w(uint32_t data)
 			break;
 	}
 
-	// Windows CE builds (little endian)
-	if (m_hostcpu->get_endianness() == ENDIANNESS_LITTLE)
+	// Windows CE builds
+	if (!solo_asic_device::is_webtvos())
 	{
 		solo_asic_device::set_video_irq(data, check_intstat, 0);
 	}
-	// WebTV OS builds (big endian)
+	// WebTV OS builds
 	else if (check_intstat == 0x0)
 	{
 		m_busvid_intstat &= (~data);
@@ -1339,13 +1346,13 @@ uint32_t solo_asic_device::reg_0198_r()
 
 void solo_asic_device::reg_0198_w(uint32_t data)
 {
-	// Windows CE builds (little endian)
-	if (m_hostcpu->get_endianness() == ENDIANNESS_LITTLE)
+	// Windows CE builds
+	if (!solo_asic_device::is_webtvos())
 	{
 		solo_asic_device::set_rio_irq(data, 0);
 		m_busrio_intenable &= (~data);
 	}
-	// WebTV OS builds (big endian) the modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
+	// WebTV OS builds the modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
 	else if ((data & BUS_INT_RIO_DEVICE0) == 0x00)
 	{
 		solo_asic_device::reg_018c_w(data);
@@ -1378,7 +1385,7 @@ void solo_asic_device::reg_018c_w(uint32_t data)
 	solo_asic_device::set_rio_irq(data, 0);
 
 	// Re-assert RIO interrupt if the modem UART device still hasn't cleared the interrupt pending state.
-	if ((m_hostcpu->get_endianness() == ENDIANNESS_BIG && m_modem_uart->intrpt_r()) || solo_asic_device::get_wince_intrpt_r())
+	if ((solo_asic_device::is_webtvos() && m_modem_uart->intrpt_r()) || solo_asic_device::get_wince_intrpt_r())
 	{
 		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, 1);
 	}
@@ -2556,7 +2563,7 @@ uint32_t solo_asic_device::reg_modem_0000_r()
 		// This happens after it does a PPP signal call when it recieves a 0x7e byte. This causes everything to be messed up and crash.
 		// So then prepare the reg_0008_r register ("Modem IIR") to return a no interrupt pending ID after we pre-emptidly detect the 0x7e byte.
 		// No idea why this doesn't happen on real hardware but this is a workaround for MAME.
-		if (m_hostcpu->get_endianness() == ENDIANNESS_BIG && data == 0x7e)
+		if (solo_asic_device::is_webtvos() && data == 0x7e)
 		{
 			do7e_hack = true;
 		}
@@ -2576,7 +2583,7 @@ void solo_asic_device::reg_modem_0000_w(uint32_t data)
 		modem_should_threint = false;
 
 		// Send directly to the UART device if in DLAB mode. For a WebTV OS, we also send direct if the UART receive buffer and modem buffer is emtpy.
-		if ((m_modem_uart->ins8250_r(0x3) & 0x80) || (m_hostcpu->get_endianness() == ENDIANNESS_BIG && modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE)))
+		if ((m_modem_uart->ins8250_r(0x3) & 0x80) || (solo_asic_device::is_webtvos() && modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE)))
 		{
 			m_modem_uart->ins8250_w(0x0, data & 0xff);
 		}
@@ -2640,7 +2647,7 @@ void solo_asic_device::reg_modem_0004_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_modem_0008_r()
 {
-	if (m_hostcpu->get_endianness() == ENDIANNESS_BIG)
+	if (solo_asic_device::is_webtvos())
 	{
 		return m_modem_uart->ins8250_r(0x2);
 	}
@@ -2698,7 +2705,7 @@ uint32_t solo_asic_device::reg_modem_0014_r()
 		uint32_t data = m_modem_uart->ins8250_r(0x5);
 
 		// The transmitter holding register empty or THRE is handled by our modem buffer on Windows CE.
-		if (m_hostcpu->get_endianness() != ENDIANNESS_BIG)
+		if (!solo_asic_device::is_webtvos())
 		{
 			if (modem_txbuff_size == 0x0)
 			{
@@ -2723,7 +2730,7 @@ uint32_t solo_asic_device::reg_modem_0018_r()
 {
 	uint32_t data = m_modem_uart->ins8250_r(0x6);
 
-	if (m_hostcpu->get_endianness() == ENDIANNESS_BIG)
+	if (solo_asic_device::is_webtvos())
 	{
 		// The &(~0x80) flips the carrier detect bit.
 		// This is checked after hangup and causes a long wait. So we force it 0.
@@ -3312,7 +3319,7 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 		{
 			modem_txbuff_index = 0x0;
 			modem_txbuff_size = 0x0;
-			if (m_hostcpu->get_endianness() != ENDIANNESS_BIG)
+			if (!solo_asic_device::is_webtvos())
 			{
 				// Allows us to tell Windows CE that the modem buffer is empty.
 				modem_should_threint = true;
@@ -3454,7 +3461,7 @@ void solo_asic_device::vblank_irq(int state)
 void solo_asic_device::irq_modem_w(int state)
 {
 	// Assert if WebTV OS or Windows CE with a non-THRE interrupt
-	if (m_hostcpu->get_endianness() == ENDIANNESS_BIG || solo_asic_device::get_wince_intrpt_r())
+	if (solo_asic_device::is_webtvos() || solo_asic_device::get_wince_intrpt_r())
 	{
 		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, state);
 	}

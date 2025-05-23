@@ -771,6 +771,7 @@ private:
 	void validate_active_area();
 	void watchdog_enable(int state);
 	void pixel_buffer_index_update();
+	bool is_webtvos();
 	void modfw_hack_begin();
 	void modfw_hack_end();
 	void mod_reset();
