@@ -510,10 +510,11 @@ constexpr uint8_t MODFW_NULL_RESULT             = 0x00000000;
 constexpr uint8_t MODFW_RBR_ACK                 = 0x2e;
 constexpr uint8_t MODFW_LSR_READY               = 0x21;
 constexpr uint8_t MODFW_MSG_IDX_FLUSH0          = 0x2;
-constexpr uint8_t MODFW_MSG_IDX_FLUSH1          = 0x1c;
+constexpr uint8_t MODFW_MSG_IDX_FLUSH1          = 0x1d;
 
-constexpr uint8_t modfw_message[] = "\x0a\x0a""Download Modem Firmware ..""\x0d\x0a""Modem Firmware Successfully Loaded""\x0d\x0a";
+constexpr uint8_t modfw_message[] = "\x0a\x0a.""Download Modem Firmware ................""\x0d\x0a""Modem Firmware Successfully Loaded""\x0d\x0a";
 constexpr uint8_t modfw_enable_string[] = "AT**\x0d";
+constexpr uint8_t modfw_reset_string[] = "ATZ\x0d";
 
 constexpr uint32_t PEKOE_BYTE_AVAILABLE         = 0x00000001;
 constexpr uint32_t PEKOE_CAN_SEND_BYTE          = 0x00000020;
@@ -700,11 +701,13 @@ protected:
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
 	uint32_t modem_txbuff_index;
+	bool modem_should_threint;
 	bool modfw_mode;
 	uint32_t modfw_message_index;
 	bool modfw_will_flush;
 	bool modfw_will_ack;
 	uint32_t modfw_enable_index;
+	uint32_t modfw_reset_index;
 	bool do7e_hack;
 private:
 	required_device<mips3_device> m_hostcpu;
@@ -769,6 +772,8 @@ private:
 	void watchdog_enable(int state);
 	void pixel_buffer_index_update();
 	void modfw_hack_begin();
+	void modfw_hack_end();
+	void mod_reset();
 
 	uint32_t gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	uint32_t vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -1090,6 +1095,9 @@ private:
 	void reg_modem_0018_w(uint32_t data); // Modem I/O port base+6 (MSR write)
 	uint32_t reg_modem_001c_r();          // Modem I/O port base+7 (SCR read)
 	void reg_modem_001c_w(uint32_t data); // Modem I/O port base+7 (SCR write)
+	uint8_t get_modem_iir();
+	uint8_t get_wince_modem_iir(bool clear_threint);
+	int get_wince_intrpt_r();
 
 	/* IDE registers */
 
