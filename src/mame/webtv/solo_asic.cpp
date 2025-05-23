@@ -672,6 +672,7 @@ void solo_asic_device::device_reset()
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
+	modem_should_threint = false;
 	solo_asic_device::modfw_hack_begin();
 
 	solo_asic_device::validate_active_area();
@@ -772,10 +773,32 @@ void solo_asic_device::watchdog_enable(int state)
 void solo_asic_device::modfw_hack_begin()
 {
 	modfw_mode = true;
+
 	modfw_message_index = 0x0;
 	modfw_will_flush = false;
 	modfw_will_ack = false;
 	modfw_enable_index = 0x0;
+	modfw_reset_index = 0x0;
+}
+
+void solo_asic_device::modfw_hack_end()
+{
+	modfw_mode = false;
+
+	if (m_hostcpu->get_endianness() == ENDIANNESS_LITTLE)
+	{
+		// DLAB enabled, 8 data bits
+		m_modem_uart->ins8250_w(0x3, 0x83);
+		// Set 115200 baud (through DLAB DLL)
+		m_modem_uart->ins8250_w(0x0, 0x01);
+		// DLAB disabled, 8 data bits
+		m_modem_uart->ins8250_w(0x3, 0x03);
+	}
+}
+
+void solo_asic_device::mod_reset()
+{
+	modfw_reset_index = 0x0;
 }
 
 uint32_t solo_asic_device::reg_0000_r()
@@ -1316,7 +1339,14 @@ uint32_t solo_asic_device::reg_0198_r()
 
 void solo_asic_device::reg_0198_w(uint32_t data)
 {
-	if (data != BUS_INT_RIO_DEVICE0) // The modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
+	// Windows CE builds (little endian)
+	if (m_hostcpu->get_endianness() == ENDIANNESS_LITTLE)
+	{
+		solo_asic_device::set_rio_irq(data, 0);
+		m_busrio_intenable &= (~data);
+	}
+	// WebTV OS builds (big endian) the modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
+	else if ((data & BUS_INT_RIO_DEVICE0) == 0x00)
 	{
 		solo_asic_device::reg_018c_w(data);
 		m_busrio_intenable &= (~data);
@@ -1345,17 +1375,12 @@ uint32_t solo_asic_device::reg_018c_r()
 
 void solo_asic_device::reg_018c_w(uint32_t data)
 {
-	if (data == BUS_INT_RIO_DEVICE0) // Modem interrupt clear
+	solo_asic_device::set_rio_irq(data, 0);
+
+	// Re-assert RIO interrupt if the modem UART device still hasn't cleared the interrupt pending state.
+	if ((m_hostcpu->get_endianness() == ENDIANNESS_BIG && m_modem_uart->intrpt_r()) || solo_asic_device::get_wince_intrpt_r())
 	{
-		// If the modem still wants to interrupt then assert rather than clear.
-		if ((m_modem_uart->ins8250_r(0x2) & 0x1) == 0x1)
-		{
-			solo_asic_device::set_rio_irq(data, 0);
-		}
-	}
-	else
-	{
-		solo_asic_device::set_rio_irq(data, 0);
+		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, 1);
 	}
 }
 
@@ -2490,7 +2515,6 @@ void solo_asic_device::utvdma_stop()
 }
 
 // Hardware modem registers
-
 uint32_t solo_asic_device::reg_modem_0000_r()
 {
 	if(modfw_mode)
@@ -2513,7 +2537,7 @@ uint32_t solo_asic_device::reg_modem_0000_r()
 				}
 				else if((modfw_message_index + 1) >= sizeof(modfw_message))
 				{
-					modfw_mode = false;
+					solo_asic_device::modfw_hack_end();
 				}
 
 				return message_chr;
@@ -2532,7 +2556,7 @@ uint32_t solo_asic_device::reg_modem_0000_r()
 		// This happens after it does a PPP signal call when it recieves a 0x7e byte. This causes everything to be messed up and crash.
 		// So then prepare the reg_0008_r register ("Modem IIR") to return a no interrupt pending ID after we pre-emptidly detect the 0x7e byte.
 		// No idea why this doesn't happen on real hardware but this is a workaround for MAME.
-		if (data == 0x7e)
+		if (m_hostcpu->get_endianness() == ENDIANNESS_BIG && data == 0x7e)
 		{
 			do7e_hack = true;
 		}
@@ -2549,36 +2573,56 @@ void solo_asic_device::reg_modem_0000_w(uint32_t data)
 	}
 	else
 	{
-		if (data == modfw_enable_string[modfw_enable_index])
-		{
-			modfw_enable_index++;
+		modem_should_threint = false;
 
-			if ((modfw_enable_index + 1) >= sizeof(modfw_enable_string))
-			{
-				solo_asic_device::modfw_hack_begin();
-				modfw_will_ack = true;
-			}
-		}
-		else if (data == modfw_enable_string[0x0])
-		{
-			modfw_enable_index = 0x1;
-		}
-		else
-		{
-			modfw_enable_index = 0x0;
-		}
-
-		if (modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+		// Send directly to the UART device if in DLAB mode. For a WebTV OS, we also send direct if the UART receive buffer and modem buffer is emtpy.
+		if ((m_modem_uart->ins8250_r(0x3) & 0x80) || (m_hostcpu->get_endianness() == ENDIANNESS_BIG && modem_txbuff_size == 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE)))
 		{
 			m_modem_uart->ins8250_w(0x0, data & 0xff);
 		}
 		else
 		{
 			modem_txbuff[modem_txbuff_size++ & (MBUFF_MAX_SIZE - 1)] = data & 0xff;
-
 			modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
 		}
 	}
+
+	if (data == modfw_enable_string[modfw_enable_index])
+	{
+		modfw_enable_index++;
+
+		if ((modfw_enable_index + 1) >= sizeof(modfw_enable_string))
+		{
+			solo_asic_device::modfw_hack_begin();
+			modfw_will_ack = true;
+		}
+	}
+	else if (data == modfw_enable_string[0x0])
+	{
+		modfw_enable_index = 0x1;
+	}
+	else
+	{
+		modfw_enable_index = 0x0;
+	}
+
+	if (data == modfw_reset_string[modfw_reset_index])
+	{
+		modfw_reset_index++;
+
+		if ((modfw_reset_index + 1) >= sizeof(modfw_reset_string))
+		{
+			solo_asic_device::mod_reset();
+		}
+	}
+	else if (data == modfw_reset_string[0x0])
+	{
+		modfw_reset_index = 0x1;
+	}
+	else
+	{
+		modfw_reset_index = 0x0;
+	}	
 }
 
 uint32_t solo_asic_device::reg_modem_0004_r()
@@ -2588,12 +2632,22 @@ uint32_t solo_asic_device::reg_modem_0004_r()
 
 void solo_asic_device::reg_modem_0004_w(uint32_t data)
 {
+	// If IER/DLM is written to then the downloader phase has finished, break out of the modem downloader hack.
+	solo_asic_device::modfw_hack_end();
+
 	m_modem_uart->ins8250_w(0x1, data & 0xff);
 }
 
 uint32_t solo_asic_device::reg_modem_0008_r()
 {
-	return m_modem_uart->ins8250_r(0x2);
+	if (m_hostcpu->get_endianness() == ENDIANNESS_BIG)
+	{
+		return m_modem_uart->ins8250_r(0x2);
+	}
+	else
+	{
+		return solo_asic_device::get_wince_modem_iir(true);
+	}
 }
 
 void solo_asic_device::reg_modem_0008_w(uint32_t data)
@@ -2608,8 +2662,8 @@ uint32_t solo_asic_device::reg_modem_000c_r()
 
 void solo_asic_device::reg_modem_000c_w(uint32_t data)
 {
-	// If this register is written to then the downloader phase has finished. Make sure to turn the modemfw hack off.
-	modfw_mode = false;
+	// If LCR is written to then the downloader phase has finished, break out of the modem downloader hack.
+	solo_asic_device::modfw_hack_end();
 
 	m_modem_uart->ins8250_w(0x3, data & 0xff);
 }
@@ -2641,7 +2695,22 @@ uint32_t solo_asic_device::reg_modem_0014_r()
 	}
 	else
 	{
-		return m_modem_uart->ins8250_r(0x5);
+		uint32_t data = m_modem_uart->ins8250_r(0x5);
+
+		// The transmitter holding register empty or THRE is handled by our modem buffer on Windows CE.
+		if (m_hostcpu->get_endianness() != ENDIANNESS_BIG)
+		{
+			if (modem_txbuff_size == 0x0)
+			{
+				data |= (0x20); // set THR is empty
+			}
+			else
+			{
+				data &= (~0x20); // remove THR is empty
+			}
+		}
+
+		return data;
 	}
 }
 
@@ -2652,11 +2721,18 @@ void solo_asic_device::reg_modem_0014_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_modem_0018_r()
 {
-	// The &(~0x80) flips the carrier detect bit.
-	// This is checked after hangup and causes a long wait. So we force it 0.
-	// The wait will eventially timeout but this reduces the time we need to wait after hangup.
-	// Always setting this to 0 doesn't effect anything else.
-	return m_modem_uart->ins8250_r(0x6) & (~0x80);
+	uint32_t data = m_modem_uart->ins8250_r(0x6);
+
+	if (m_hostcpu->get_endianness() == ENDIANNESS_BIG)
+	{
+		// The &(~0x80) flips the carrier detect bit.
+		// This is checked after hangup and causes a long wait. So we force it 0.
+		// The wait will eventially timeout but this reduces the time we need to wait after hangup.
+		// Always setting this to 0 doesn't effect anything else.
+		data &= (~0x80);
+	}
+
+	return data;
 }
 
 void solo_asic_device::reg_modem_0018_w(uint32_t data)
@@ -2672,6 +2748,53 @@ uint32_t solo_asic_device::reg_modem_001c_r()
 void solo_asic_device::reg_modem_001c_w(uint32_t data)
 {
 	m_modem_uart->ins8250_w(0x7, data & 0xff);
+}
+
+uint8_t solo_asic_device::get_modem_iir()
+{
+	// Disables the UART device from clearing the THRE int
+	auto sed = machine().disable_side_effects();
+
+	return m_modem_uart->ins8250_r(0x2);
+}
+
+uint8_t solo_asic_device::get_wince_modem_iir(bool clear_threint)
+{
+	// The 0x2 (transmitter holding register empty or THRE) interrupt is handled by our modem buffer.
+	// So erase the UART THRE interrupt bit and insert our own if needed.
+
+	// Windows CE is more sensitive to this interrupt so we're being more specific when the buffer is empty.
+
+	uint8_t data = solo_asic_device::get_modem_iir();
+
+	if ((data & 0xe) == 0x2)
+	{
+		data &= (~0x2);
+		data |= 0x1;
+	}
+
+	if (modem_should_threint)
+	{
+		// Transmit interrupts will take priority over receieve interrupts
+		// So remove any receieve interrupt.
+		data &= (~0x4);
+
+		data |= 0x2;
+		data &= (~0x1);
+
+		if (clear_threint)
+		{
+			// The UART device spec says to clear the THRE interrupt when the IIR is read.
+			modem_should_threint = false;
+		}
+	}
+
+	return data;
+}
+
+int solo_asic_device::get_wince_intrpt_r()
+{
+	return  !BIT(solo_asic_device::get_wince_modem_iir(false), 0);
 }
 
 // IDE registers
@@ -3176,7 +3299,12 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::dac_update)
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 {
-	if (modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
+	if (modem_should_threint && m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE)
+	{
+		// Assert to tell Windows CE we're ready for more data
+		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, 1);
+	}
+	else if (modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
 		m_modem_uart->ins8250_w(0x0, modem_txbuff[modem_txbuff_index++ & (MBUFF_MAX_SIZE - 1)]);
 
@@ -3184,10 +3312,15 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 		{
 			modem_txbuff_index = 0x0;
 			modem_txbuff_size = 0x0;
+			if (m_hostcpu->get_endianness() != ENDIANNESS_BIG)
+			{
+				// Allows us to tell Windows CE that the modem buffer is empty.
+				modem_should_threint = true;
+			}
 		}
 	}
 
-	if (modem_txbuff_size > 0)
+	if (modem_txbuff_size > 0 || modem_should_threint)
 		modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
 }
 
@@ -3320,7 +3453,11 @@ void solo_asic_device::vblank_irq(int state)
 
 void solo_asic_device::irq_modem_w(int state)
 {
-	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, state);
+	// Assert if WebTV OS or Windows CE with a non-THRE interrupt
+	if (m_hostcpu->get_endianness() == ENDIANNESS_BIG || solo_asic_device::get_wince_intrpt_r())
+	{
+		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, state);
+	}
 }
 
 void solo_asic_device::irq_ide1_w(int state)
