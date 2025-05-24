@@ -37,7 +37,7 @@ void wtvir_device_base::device_reset()
 {
 	m_input_timer->adjust(attotime::from_msec(5), 0, attotime::from_hz(60));
 
-	m_irin_statcntl ^= 0x2; // set resit bit back to 0
+	m_irin_statcntl &= (~0x2); // set reset bit back to 0
 }
 
 void wtvir_device_base::enable(int state)
