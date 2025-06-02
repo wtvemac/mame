@@ -331,7 +331,7 @@ void wtvir_sejin_device::polling()
 		for (uint8_t port_idx = 0x0; port_idx < (wtvir_sejin_device::SEJIN_SCANCODE_COUNT >> 4); port_idx++)
 		{
 			uint32_t prev_state = m_port_state[port_idx];
-			uint32_t curr_state = readport(port_idx);
+			uint32_t curr_state = wtvir_sejin_device::readport(port_idx);
 
 			uint32_t state_diff = prev_state ^ curr_state;
 
