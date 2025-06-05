@@ -104,13 +104,13 @@ public:
 
 	// Set block device image regions for arcade systems
 	void add_region(std::string name, bool is_default = false);
-	bool has_preset_images() const;
+	virtual bool has_preset_images() const;
 	bool has_preset_images_selection() const;
 	std::vector<std::string> preset_images_list() const;
 	int current_preset_image_id() const;
 	void switch_preset_image(int id);
 	chd_file *current_preset_image_chd() const;
-	void check_preset_images();
+	virtual void check_preset_images();
 
 	const image_device_format *device_get_indexed_creatable_format(int index) const noexcept { return (index < m_formatlist.size()) ? m_formatlist.at(index).get() : nullptr;  }
 	const image_device_format *device_get_named_creatable_format(std::string_view format_name) const noexcept;

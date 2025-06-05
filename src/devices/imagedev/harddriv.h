@@ -64,6 +64,9 @@ public:
 	template <typename... T> void set_device_unload(T &&... args) { m_device_image_unload.set(std::forward<T>(args)...); }
 	void set_interface(const char *interface) { m_interface = interface; }
 
+	virtual void check_preset_images() override;
+	virtual bool has_preset_images() const override;
+
 	// device_image_interface implementation
 	virtual std::pair<std::error_condition, std::string> call_load() override;
 	virtual std::pair<std::error_condition, std::string> call_create(int create_format, util::option_resolution *create_args) override;
