@@ -1197,6 +1197,11 @@ void output_rom(std::ostream &out, machine_config &config, driver_list const *dr
 			// add optional flag
 			if (ROM_ISOPTIONAL(rom))
 				out << " optional=\"yes\"";
+			
+			// EMAC: This tells the MAME launcher that this is a special version of MAME
+			// that will override the preset image from the command line (by default it will force the preset image)
+			if (is_disk)
+				out << " modifiable=\"yes\"";
 
 			out << "/>\n";
 		}
