@@ -119,6 +119,26 @@ void harddisk_image_device::device_stop()
 	m_hard_disk_handle.reset();
 }
 
+// EMAC: added so we can select a disk image from the MAME launcher without disturbing the preset image
+void harddisk_image_device::check_preset_images()
+{
+	std::string image_path = device().machine().options().image_option(instance_name()).value();
+
+	if (image_path == "")
+		device_image_interface::check_preset_images();
+}
+
+// EMAC: added so we can select a disk image from the MAME launcher without disturbing the preset image
+bool harddisk_image_device::has_preset_images() const
+{
+	std::string image_path = device().machine().options().image_option(instance_name()).value();
+
+	if (image_path == "")
+		return device_image_interface::has_preset_images();
+	else
+		return false;
+}
+
 std::pair<std::error_condition, std::string> harddisk_image_device::call_load()
 {
 	std::error_condition our_result = internal_load_hd();
