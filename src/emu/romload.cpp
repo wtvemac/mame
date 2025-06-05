@@ -1206,6 +1206,8 @@ void rom_load_manager::process_disk_entries(
 				continue;
 			}
 
+			// EMAC: ignore any disk verification. Allows disk tinkering without getting cock blocked by MAME complaining about the disk.
+			/*
 			// get the header and verify the SHA1 digest
 			util::hash_collection acthashes;
 			acthashes.add_sha1(chd->orig_chd().sha1());
@@ -1222,6 +1224,7 @@ void rom_load_manager::process_disk_entries(
 				m_errorstring.append(string_format("%s CHD NEEDS REDUMP\n", filename));
 				m_knownbad++;
 			}
+			*/
 
 			// if not read-only, open or create the diff file
 			if (!DISK_ISREADONLY(romp))
