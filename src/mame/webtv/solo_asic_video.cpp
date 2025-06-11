@@ -944,9 +944,6 @@ void solo_asic_video_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int
 	}
 }
 
-
-bool gfx_dbg = false;
-
 inline void solo_asic_video_device::draw444(uint32_t in0, uint32_t in1, uint32_t **out)
 {
 	int32_t y0 = (((in0 >> 0x18) + Y_BLACK)   & 0xff) - Y_BLACK;
