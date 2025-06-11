@@ -268,21 +268,15 @@ typedef struct // 384 bits / 48 bytes
 	}
 	void advance_x()
 	{
-		float _dux = dux();
-		float _dvx = dvx();
-
-		u += _dux;
-		v += _dvx;
+		u += dux();
+		v += dvx();
 	}
 	void advance_y()
 	{
 		y_offset++;
 
-		float _durow_adjust = durow_adjust();
-		float _dvrow_adjust = dvrow_adjust();
-
-		u = ustart() + (y_offset * _durow_adjust);
-		v = vstart() + (y_offset * _dvrow_adjust);
+		u = ustart() + (y_offset * durow_adjust());
+		v = vstart() + (y_offset * dvrow_adjust());
 	}
 } gfx_cel_t;
 
