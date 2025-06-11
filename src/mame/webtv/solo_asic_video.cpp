@@ -1033,8 +1033,6 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 		for (int x = x_start; x < x_end; x += 2)
 		{
-			uint32_t texdata_index = cel.texdata_index();
-
 			// TODO: need to implement alpha blending. It gets used in things like the TV<->Web animation and the PIP window
 
 			switch (cel.texdata_type())
@@ -1049,7 +1047,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 				case TEXDATA_TYPE_DIR_422A:
 				case TEXDATA_TYPE_DIR_422:
 				{
-					uint32_t colors = m_hostram[texdata_index >> 0x2];
+					uint32_t colors = m_hostram[cel.texdata_index() >> 0x2];
 					cel.advance_x();
 					cel.advance_x();
 
@@ -1062,9 +1060,9 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 				case TEXDATA_TYPE_VQ8_444:
 				{
-					uint8_t color_idx0 = m_hostram[texdata_index >> 0x2] >> (((~texdata_index) & 0x3) << 0x3);
+					uint8_t color_idx0 = m_hostram[cel.texdata_index() >> 0x2] >> (((~cel.texdata_index()) & 0x3) << 0x3);
 					cel.advance_x();
-					uint8_t color_idx1 = m_hostram[texdata_index >> 0x2] >> (((~texdata_index) & 0x3) << 0x3);
+					uint8_t color_idx1 = m_hostram[cel.texdata_index() >> 0x2] >> (((~cel.texdata_index()) & 0x3) << 0x3);
 					cel.advance_x();
 
 					
@@ -1081,7 +1079,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 		
 				case TEXDATA_TYPE_VQ4_444:
 				{
-					uint8_t colors_idx = m_hostram[texdata_index >> 0x2] >> (((~texdata_index) & 0x3) << 0x3);
+					uint8_t colors_idx = m_hostram[cel.texdata_index() >> 0x2] >> (((~cel.texdata_index()) & 0x3) << 0x3);
 					cel.advance_x();
 					
 					uint32_t color0 = m_hostram[codebook_base + ((colors_idx >> 0x4) & 0xf)];
@@ -1097,9 +1095,9 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 		
 				case TEXDATA_TYPE_DIR_444:
 				{
-					uint32_t color0 = m_hostram[texdata_index >> 0x2];
+					uint32_t color0 = m_hostram[cel.texdata_index() >> 0x2];
 					cel.advance_x();
-					uint32_t color1 = m_hostram[texdata_index >> 0x2];
+					uint32_t color1 = m_hostram[cel.texdata_index() >> 0x2];
 					cel.advance_x();
 
 					solo_asic_video_device::draw444(
