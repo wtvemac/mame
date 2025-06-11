@@ -705,7 +705,7 @@ uint32_t solo_asic_video_device::reg_801c_r()
 void solo_asic_video_device::reg_801c_w(uint32_t data)
 {
 	m_div_nextcfg = data;
-	m_div_currcfg = data;
+	m_div_currcfg = 0;
 }
 
 uint32_t solo_asic_video_device::reg_8038_r()
@@ -716,7 +716,6 @@ uint32_t solo_asic_video_device::reg_8038_r()
 void solo_asic_video_device::reg_8038_w(uint32_t data)
 {
 	m_div_currcfg = data;
-	m_div_nextcfg = data;
 }
 
 // potUnit registers
@@ -1197,6 +1196,7 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
+	m_div_currcfg = m_div_nextcfg;
 
 	for (int y = 0; y < screen_height; y++)
 	{
@@ -1254,6 +1254,7 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
 	m_vid_ccnt = m_vid_draw_nstart;
+	m_div_currcfg = m_div_nextcfg;
 
 	for (int y = 0; y < screen_height; y++)
 	{
