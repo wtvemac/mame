@@ -946,29 +946,35 @@ void solo_asic_video_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int
 
 inline void solo_asic_video_device::draw444(uint32_t in0, uint32_t in1, uint32_t **out)
 {
-	int32_t y0 = (((in0 >> 0x18) + Y_BLACK)   & 0xff) - Y_BLACK;
-	int32_t Cb = (((in0 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
-	int32_t y1 = (((in1 >> 0x18) + Y_BLACK)   & 0xff) - Y_BLACK;
-	int32_t Cr = (((in1 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
+	int32_t y0  = (((in0 >> 0x18) + Y_BLACK  ) & 0xff);
+	int32_t Cr0 = (((in0 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
+	int32_t Cb0 = (((in0 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
 
 	y0 = (((y0 << 0x08) + UV_OFFSET) / Y_RANGE);
-	y1 = (((y1 << 0x08) + UV_OFFSET) / Y_RANGE);
-
-	int32_t r = ((0x166 * Cr) + UV_OFFSET) >> 0x08;
-	int32_t b = ((0x1C7 * Cb) + UV_OFFSET) >> 0x08;
-	int32_t g = ((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08;
+	int32_t r0 = ((0x166 * Cr0) + UV_OFFSET) >> 0x08;
+	int32_t b0 = ((0x1C7 * Cb0) + UV_OFFSET) >> 0x08;
+	int32_t g0 = ((0x32 * b0) + (0x83 * r0) + UV_OFFSET) >> 0x08;
 
 	*(*out) = (
-		  std::clamp(y0 + r, 0x00, 0xff) << 0x10
-		| std::clamp(y0 - g, 0x00, 0xff) << 0x08
-		| std::clamp(y0 + b, 0x00, 0xff)
+		  std::clamp(y0 + r0, 0x00, 0xff) << 0x10
+		| std::clamp(y0 - g0, 0x00, 0xff) << 0x08
+		| std::clamp(y0 + b0, 0x00, 0xff)
 	);
 	(*out)++;
 
+	int32_t y1  = (((in1 >> 0x18) + Y_BLACK  ) & 0xff);
+	int32_t Cr1 = (((in1 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
+	int32_t Cb1 = (((in1 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
+
+	y1 = (((y1 << 0x08) + UV_OFFSET) / Y_RANGE);
+	int32_t r1 = ((0x166 * Cr1) + UV_OFFSET) >> 0x08;
+	int32_t b1 = ((0x1C7 * Cb1) + UV_OFFSET) >> 0x08;
+	int32_t g1 = ((0x32 * b1) + (0x83 * r1) + UV_OFFSET) >> 0x08;
+
 	*(*out) = (
-		  std::clamp(y1 + r, 0x00, 0xff) << 0x10
-		| std::clamp(y1 - g, 0x00, 0xff) << 0x08
-		| std::clamp(y1 + b, 0x00, 0xff)
+		  std::clamp(y1 + r1, 0x00, 0xff) << 0x10
+		| std::clamp(y1 - g1, 0x00, 0xff) << 0x08
+		| std::clamp(y1 + b1, 0x00, 0xff)
 	);
 	(*out)++;
 }
