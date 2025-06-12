@@ -12,6 +12,7 @@
 #define XSIGNED1010(intval, fracval) ((double)SIGNED10(intval) + ((double)fracval / (double)(0x1 << 0xa)))
 #define SIGNED1010(val)              XSIGNED1010(((int8_t)(val >> 0xa)), ((uint8_t)(val & 0x03ff)))
 #define ITRUNC(val)                  (int32_t)((val > 0) ? std::ceil(val) : std::floor(val))
+#define MASKED_ITRUNC(val, mask)     (int32_t)((int8_t)(ITRUNC(val) & mask))
 
 constexpr uint16_t Y_BLACK         = 0x10;
 constexpr uint16_t Y_WHITE         = 0xeb;
@@ -233,25 +234,25 @@ typedef struct // 384 bits / 48 bytes
 		switch (texdata_type())
 		{
 			case TEXDATA_TYPE_VQ8_422:
-				return (uint32_t)((int32_t)(texdata_base() << 0x02) + (((ITRUNC(v) / 0x02) * (int32_t)rowbytes()) + (ITRUNC(u) / 0x02)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) / 0x02) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_422O:
 			case TEXDATA_TYPE_DIR_422A:
 			case TEXDATA_TYPE_DIR_422:
-				return (uint32_t)((int32_t)(texdata_base() << 0x02) + (((ITRUNC(v) * 0x01) * (int32_t)rowbytes()) + (ITRUNC(u) * 0x02)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) * 0x02)));
 				break;
 
 			case TEXDATA_TYPE_VQ8_444:
-				return (uint32_t)((int32_t)(texdata_base() << 0x02) + (((ITRUNC(v) * 0x01) * (int32_t)rowbytes()) + (ITRUNC(u) * 0x01)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) * 0x01)));
 				break;
 
 			case TEXDATA_TYPE_VQ4_444:
-				return (uint32_t)((int32_t)(texdata_base() << 0x02) + (((ITRUNC(v) * 0x01) * (int32_t)rowbytes()) + (ITRUNC(u) / 0x02)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_444:
-				return (uint32_t)((int32_t)(texdata_base() << 0x02) + (((ITRUNC(v) * 0x01) * (int32_t)rowbytes()) + (ITRUNC(u) * 0x04)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) * 0x04)));
 				break;
 
 			default:
