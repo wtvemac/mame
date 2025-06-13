@@ -10,7 +10,7 @@
 #define SIGNED88(val)                XSIGNED88(((int8_t)(val >> 0x8)), ((uint8_t)(val & 0x00ff)))
 #define SIGNED10(val)                (int16_t)((val & 0x01ff) | (0 - (val & 0x0200)))
 #define XSIGNED1010(intval, fracval) ((double)SIGNED10(intval) + ((double)fracval / (double)(0x1 << 0xa)))
-#define SIGNED1010(val)              XSIGNED1010(((int8_t)(val >> 0xa)), ((uint8_t)(val & 0x03ff)))
+#define SIGNED1010(val)              XSIGNED1010(((int16_t)(val >> 0xa)), ((uint16_t)(val & 0x03ff)))
 #define ITRUNC(val)                  (int32_t)((val > 0) ? std::ceil(val) : std::floor(val))
 #define MASKED_ITRUNC(val, mask)     (int32_t)((int8_t)(ITRUNC(val) & mask))
 
