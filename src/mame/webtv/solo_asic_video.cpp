@@ -34,13 +34,26 @@ void solo_asic_video_device::device_start()
 	save_item(NAME(m_vid_intenable));
 	save_item(NAME(m_vid_intstat));
 	save_item(NAME(m_gfx_cntl));
+	save_item(NAME(m_gfx_oot_ycount));
 	save_item(NAME(m_gfx_ymap_base));
 	save_item(NAME(m_gfx_ymap_base_master));
 	save_item(NAME(m_gfx_cels_base));
 	save_item(NAME(m_gfx_cels_base_master));
+	save_item(NAME(m_gfx_initcolor));
+	save_item(NAME(m_gfx_ycounter_init));
+	save_item(NAME(m_gfx_pausecycles));
+	save_item(NAME(m_gfx_oot_cels_base));
+	save_item(NAME(m_gfx_oot_ymap_base));
+	save_item(NAME(m_gfx_oot_cels_offset));
+	save_item(NAME(m_gfx_oot_ymap_count));
+	save_item(NAME(m_gfx_termcycle_count));
+	save_item(NAME(m_gfx_hcounter_init));
+	save_item(NAME(m_gfx_blanklines));
 	save_item(NAME(m_gfx_activelines));
 	save_item(NAME(m_gfx_wbdstart));
 	save_item(NAME(m_gfx_wbdlsize));
+	save_item(NAME(m_gfx_wbstride));
+	save_item(NAME(m_gfx_wbdconfig));
 	save_item(NAME(m_gfx_intenable));
 	save_item(NAME(m_gfx_intstat));
 
@@ -82,13 +95,26 @@ void solo_asic_video_device::device_reset()
 	m_vid_intenable = 0x0;
 	m_vid_intstat = 0x0;
 	m_gfx_cntl = 0x0;
+	m_gfx_oot_ycount = 0x0;
 	m_gfx_ymap_base = 0x80000000;
 	m_gfx_ymap_base_master = 0x80000000;
 	m_gfx_cels_base = 0x80000000;
 	m_gfx_cels_base_master = 0x80000000;
+	m_gfx_initcolor = 0x0;
+	m_gfx_ycounter_init = 0x0;
+	m_gfx_pausecycles = 0x0;
+	m_gfx_oot_cels_base = 0x80000000;
+	m_gfx_oot_ymap_base = 0x80000000;
+	m_gfx_oot_cels_offset = 0x0;
+	m_gfx_oot_ymap_count = 0x0;
+	m_gfx_termcycle_count = 0x0;
+	m_gfx_hcounter_init = 0x0;
+	m_gfx_blanklines = 0x0;
 	m_gfx_activelines = 0x0;
 	m_gfx_wbdstart = 0x80000000;
 	m_gfx_wbdlsize = 0x0;
+	m_gfx_wbstride = 0x0;
+	m_gfx_wbdconfig = 0x0;
 	m_gfx_intenable = 0x0;
 	m_gfx_intstat = 0x0;
 
@@ -445,12 +471,12 @@ void solo_asic_video_device::reg_6004_w(uint32_t data)
 
 uint32_t solo_asic_video_device::reg_6010_r()
 {
-	return 0x00000000;
+	return m_gfx_oot_ycount;
 }
 
 void solo_asic_video_device::reg_6010_w(uint32_t data)
 {
-	//
+	m_gfx_oot_ycount = data;
 }
 
 uint32_t solo_asic_video_device::reg_6014_r()
@@ -495,102 +521,102 @@ void solo_asic_video_device::reg_6020_w(uint32_t data)
 
 uint32_t solo_asic_video_device::reg_6024_r()
 {
-	return 0x00000000;
+	return m_gfx_initcolor;
 }
 
 void solo_asic_video_device::reg_6024_w(uint32_t data)
 {
-	//
+	m_gfx_initcolor = data;
 }
 
 uint32_t solo_asic_video_device::reg_6028_r()
 {
-	return 0x00000000;
+	return m_gfx_ycounter_init;
 }
 
 void solo_asic_video_device::reg_6028_w(uint32_t data)
 {
-	//
+	m_gfx_ycounter_init = data;
 }
 
 uint32_t solo_asic_video_device::reg_602c_r()
 {
-	return 0x00000000;
+	return m_gfx_pausecycles;
 }
 
 void solo_asic_video_device::reg_602c_w(uint32_t data)
 {
-	//
+	m_gfx_pausecycles = data;
 }
 
 uint32_t solo_asic_video_device::reg_6030_r()
 {
-	return 0x00000000;
+	return m_gfx_oot_cels_base;
 }
 
 void solo_asic_video_device::reg_6030_w(uint32_t data)
 {
-	//
+	m_gfx_oot_cels_base = data;
 }
 
 uint32_t solo_asic_video_device::reg_6034_r()
 {
-	return 0x00000000;
+	return m_gfx_oot_ymap_base;
 }
 
 void solo_asic_video_device::reg_6034_w(uint32_t data)
 {
-	//
+	m_gfx_oot_ymap_base = data;
 }
 
 uint32_t solo_asic_video_device::reg_6038_r()
 {
-	return 0x00000000;
+	return m_gfx_oot_cels_offset;
 }
 
 void solo_asic_video_device::reg_6038_w(uint32_t data)
 {
-	//
+	m_gfx_oot_cels_offset = data;
 }
 
 uint32_t solo_asic_video_device::reg_603c_r()
 {
-	return 0x00000000;
+	return m_gfx_oot_ymap_count;
 }
 
 void solo_asic_video_device::reg_603c_w(uint32_t data)
 {
-	//
+	m_gfx_oot_ymap_count = data;
 }
 
 uint32_t solo_asic_video_device::reg_6040_r()
 {
-	return 0x00000000;
+	return m_gfx_termcycle_count;
 }
 
 void solo_asic_video_device::reg_6040_w(uint32_t data)
 {
-	//
+	m_gfx_termcycle_count = data;
 }
 
 uint32_t solo_asic_video_device::reg_6044_r()
 {
-	return 0x00000000;
+	return m_gfx_hcounter_init;
 }
 
 void solo_asic_video_device::reg_6044_w(uint32_t data)
 {
-	//
+	m_gfx_hcounter_init = data;
 }
 
 uint32_t solo_asic_video_device::reg_6048_r()
 {
-	return 0x00000000;
+	return m_gfx_blanklines;
 }
 
 void solo_asic_video_device::reg_6048_w(uint32_t data)
 {
-	//
+	m_gfx_blanklines = data;
 }
 
 uint32_t solo_asic_video_device::reg_604c_r()
@@ -657,32 +683,35 @@ void solo_asic_video_device::reg_6084_w(uint32_t data)
 {
 	m_gfx_wbdlsize = data;
 }
+
 uint32_t solo_asic_video_device::reg_608c_r()
 {
-	return 0x00000000;
+	return m_gfx_wbstride;
 }
 
 void solo_asic_video_device::reg_608c_w(uint32_t data)
 {
-	//
+	m_gfx_wbstride = data;
 }
+
 uint32_t solo_asic_video_device::reg_6090_r()
 {
-	return 0x00000000;
+	return m_gfx_wbdconfig;
 }
 
 void solo_asic_video_device::reg_6090_w(uint32_t data)
 {
-	//
+	m_gfx_wbdconfig = data;
 }
+
 uint32_t solo_asic_video_device::reg_6094_r()
 {
-	return 0x00000000;
+	return m_gfx_wbdstart;
 }
 
 void solo_asic_video_device::reg_6094_w(uint32_t data)
 {
-	//
+	m_gfx_wbdstart = data;
 }
 
 // divUnit registers
