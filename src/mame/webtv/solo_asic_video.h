@@ -212,11 +212,11 @@ typedef struct // 384 bits / 48 bytes
 	// reserved                                                                                                  2 bits
 	uint16_t             xleftstart_frac()       const {          return ((data[0x7] >> 0x14) & 0x0003ff); } // 10 bits
 	uint32_t             dx_left_raw()           const {          return ((data[0x7] >> 0x00) & 0x0fffff); } // 20 bits
-	int32_t              dx_left()               const {          return SIGNED1010(dx_left_raw());        } // 20 bits
+	double               dx_left()               const {          return SIGNED1010(dx_left_raw());        } // 20 bits
 	// reserved                                                                                                  2 bits
 	uint16_t             xrightstart_frac()      const {          return ((data[0x8] >> 0x14) & 0x0003ff); } // 10 bits
 	uint32_t             dx_right_raw()          const {          return ((data[0x8] >> 0x00) & 0x0fffff); } // 20 bits
-	int32_t              dx_right()              const {          return SIGNED1010(dx_right_raw());       } // 20 bits
+	double               dx_right()              const {          return SIGNED1010(dx_right_raw());       } // 20 bits
 	// reserved                                                                                                 16 bits
 	uint32_t             dvx_raw()               const {          return ((data[0x9] >> 0x00) & 0x00ffff); } // 16 bits
 	float                dvx()                   const {          return SIGNED88(dvx_raw());              } // 16 bits
