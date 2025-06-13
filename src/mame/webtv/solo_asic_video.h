@@ -328,13 +328,26 @@ protected:
 	uint32_t m_busvid_intstat;
 
 	uint32_t m_gfx_cntl;
-	uint32_t m_gfx_activelines;
+	uint32_t m_gfx_oot_ycount;
 	uint32_t m_gfx_ymap_base;
 	uint32_t m_gfx_ymap_base_master;
 	uint32_t m_gfx_cels_base;
 	uint32_t m_gfx_cels_base_master;
+	uint32_t m_gfx_initcolor;
+	uint32_t m_gfx_ycounter_init;
+	uint32_t m_gfx_pausecycles;
+	uint32_t m_gfx_oot_cels_base;
+	uint32_t m_gfx_oot_ymap_base;
+	uint32_t m_gfx_oot_cels_offset;
+	uint32_t m_gfx_oot_ymap_count;
+	uint32_t m_gfx_termcycle_count;
+	uint32_t m_gfx_hcounter_init;
+	uint32_t m_gfx_blanklines;
+	uint32_t m_gfx_activelines;
 	uint32_t m_gfx_wbdstart;
 	uint32_t m_gfx_wbdlsize;
+	uint32_t m_gfx_wbstride;
+	uint32_t m_gfx_wbdconfig;
 	uint32_t m_gfx_intenable;
 	uint32_t m_gfx_intstat;
 	
