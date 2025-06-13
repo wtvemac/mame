@@ -1145,7 +1145,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 		double x_right  = cel.xrightstart() + (double)(cel.y_offset * cel.dx_right());
 
 		uint32_t x_start = m_pot_draw_hstart + (std::max((uint32_t)0,      ((m_pot_draw_hsize / 2) + ITRUNC(x_left ))) & (~0x01));
-		uint32_t x_end   = m_pot_draw_hstart + (std::min(m_pot_draw_hsize, ((m_pot_draw_hsize / 2) + ITRUNC(x_right))) & (~0x01));
+		uint32_t x_end   = m_pot_draw_hstart + ((std::min(m_pot_draw_hsize, ((m_pot_draw_hsize / 2) + ITRUNC(x_right))) + 0x01) & (~0x01));
 
 		uint32_t *line = (&bitmap.pix(y)) + x_start;
 
