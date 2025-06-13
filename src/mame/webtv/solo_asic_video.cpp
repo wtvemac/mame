@@ -944,67 +944,160 @@ void solo_asic_video_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int
 	}
 }
 
-inline void solo_asic_video_device::draw444(uint32_t in0, uint32_t in1, uint32_t **out)
+inline void solo_asic_video_device::draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out)
 {
-	int32_t y0  = (((in0 >> 0x18) + Y_BLACK  ) & 0xff);
-	int32_t Cr0 = (((in0 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
-	int32_t Cb0 = (((in0 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
+	gfx_alpha_type_t alpha_type;
 
-	y0 = (((y0 << 0x08) + UV_OFFSET) / Y_RANGE);
-	int32_t r0 = ((0x166 * Cr0) + UV_OFFSET) >> 0x08;
-	int32_t b0 = ((0x1C7 * Cb0) + UV_OFFSET) >> 0x08;
-	int32_t g0 = ((0x32 * b0) + (0x83 * r0) + UV_OFFSET) >> 0x08;
+	if (cel != NULL)
+	{
+		alpha_type = cel->alpha_type();
 
-	*(*out) = (
-		  std::clamp(y0 + r0, 0x00, 0xff) << 0x10
-		| std::clamp(y0 - g0, 0x00, 0xff) << 0x08
-		| std::clamp(y0 + b0, 0x00, 0xff)
-	);
+		if (a == ALPHA_OPAQUE)
+		{
+			a = cel->global_alpha();
+		}
+		else if (cel->global_alpha() != ALPHA_OPAQUE)
+		{
+			a = std::clamp(a * cel->global_alpha(), 0x00, 0xff);
+		}
+	}
+	else
+	{
+		alpha_type = gfx_alpha_type_t::ALPHA_TYPE_BG_TRANSPARENT;
+	}
+
+	if (a != ALPHA_TRANSPARENT)
+	{
+		if (a != ALPHA_OPAQUE)
+		{
+			int32_t fg_alpha = a;
+			int32_t bg_alpha = (~a) & ALPHA_MASK;
+
+			switch (alpha_type)
+			{
+				case ALPHA_TYPE_BLEND:
+				{
+					int32_t r_bg = ((*(*out) >> 0x10) & 0xff);
+					int32_t g_bg = ((*(*out) >> 0x08) & 0xff);
+					int32_t b_bg = ((*(*out) >> 0x00) & 0xff);
+
+					r = ((fg_alpha * r) + (bg_alpha * r_bg)) / ALPHA_MASK;
+					g = ((fg_alpha * g) + (bg_alpha * g_bg)) / ALPHA_MASK;
+					b = ((fg_alpha * b) + (bg_alpha * b_bg)) / ALPHA_MASK;
+					break;
+				}
+
+				case ALPHA_TYPE_BG_OPAQUE:
+				{
+					int32_t r_bg = ((*(*out) >> 0x10) & 0xff);
+					int32_t g_bg = ((*(*out) >> 0x08) & 0xff);
+					int32_t b_bg = ((*(*out) >> 0x00) & 0xff);
+
+					r = ((fg_alpha * r) + (fg_alpha * r_bg)) / ALPHA_MASK;
+					g = ((fg_alpha * g) + (fg_alpha * g_bg)) / ALPHA_MASK;
+					b = ((fg_alpha * b) + (fg_alpha * b_bg)) / ALPHA_MASK;
+					break;
+				}
+
+				case ALPHA_TYPE_BG_TRANSPARENT:
+				{
+					r = (fg_alpha * r) / ALPHA_MASK;
+					g = (fg_alpha * g) / ALPHA_MASK;
+					b = (fg_alpha * b) / ALPHA_MASK;
+					break;
+				}
+
+				case ALPHA_TYPE_BRIGHTEN:
+				{
+					if (cel != NULL)
+					{
+						int32_t y  = cel->y_blend_color();
+						int32_t Cr = ((cel->cr_blend_color() + UV_OFFSET) & 0xff) - UV_OFFSET;
+						int32_t Cb = ((cel->cb_blend_color() + UV_OFFSET) & 0xff) - UV_OFFSET;
+					
+						y = ((((y + Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
+						int32_t r_bg = y + (((0x166 * Cr) + UV_OFFSET) >> 0x08);
+						int32_t b_bg = y - (((0x1C7 * Cb) + UV_OFFSET) >> 0x08);
+						int32_t g_bg = y + (((0x32 * b_bg) + (0x83 * r_bg) + UV_OFFSET) >> 0x08);
+					
+						r = ((fg_alpha * r) + (bg_alpha * r_bg)) / ALPHA_MASK;
+						g = ((fg_alpha * g) + (bg_alpha * g_bg)) / ALPHA_MASK;
+						b = ((fg_alpha * b) + (bg_alpha * b_bg)) / ALPHA_MASK;
+					}
+					break;
+				}
+				
+				default:
+				{
+					break;
+				}
+			}
+		}
+
+		*(*out) = (
+			std::clamp(r, 0x00, 0xff) << 0x10
+			| std::clamp(g, 0x00, 0xff) << 0x08
+			| std::clamp(b, 0x00, 0xff) << 0x00
+		);
+	}
+}
+
+inline void solo_asic_video_device::draw444(gfx_cel_t *cel, uint32_t in0, uint32_t in1, uint32_t **out)
+{
+	int32_t a0  = (  in0 >> 0x08) & 0xff;
+	int32_t y0  = (  in0 >> 0x18) & 0xff;
+	if (a0 != ALPHA_TRANSPARENT && y0 != Y_TRANSPARENT)
+	{
+		int32_t Cr0 = (((in0 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
+		int32_t Cb0 = (((in0 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
+		y0 = ((((y0 + Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
+		int32_t r0 = (((0x166 * Cr0) + UV_OFFSET) >> 0x08);
+		int32_t b0 = (((0x1C7 * Cb0) + UV_OFFSET) >> 0x08);
+		int32_t g0 = (((0x32 * b0) + (0x83 * r0) + UV_OFFSET) >> 0x08);
+		solo_asic_video_device::draw_pixel(cel, a0, (y0 + r0), (y0 - g0), (y0 + b0), out);
+	}
 	(*out)++;
 
-	int32_t y1  = (((in1 >> 0x18) + Y_BLACK  ) & 0xff);
-	int32_t Cr1 = (((in1 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
-	int32_t Cb1 = (((in1 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
-
-	y1 = (((y1 << 0x08) + UV_OFFSET) / Y_RANGE);
-	int32_t r1 = ((0x166 * Cr1) + UV_OFFSET) >> 0x08;
-	int32_t b1 = ((0x1C7 * Cb1) + UV_OFFSET) >> 0x08;
-	int32_t g1 = ((0x32 * b1) + (0x83 * r1) + UV_OFFSET) >> 0x08;
-
-	*(*out) = (
-		  std::clamp(y1 + r1, 0x00, 0xff) << 0x10
-		| std::clamp(y1 - g1, 0x00, 0xff) << 0x08
-		| std::clamp(y1 + b1, 0x00, 0xff)
-	);
+	int32_t a1  = (  in1 >> 0x08) & 0xff;
+	int32_t y1  = (  in1 >> 0x18) & 0xff;
+	if (a1 != ALPHA_TRANSPARENT && y1 != Y_TRANSPARENT)
+	{
+		int32_t Cr1 = (((in1 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
+		int32_t Cb1 = (((in1 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
+		y1 = ((((y1 + Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
+		int32_t r1 = (((0x166 * Cr1) + UV_OFFSET) >> 0x08);
+		int32_t b1 = (((0x1C7 * Cb1) + UV_OFFSET) >> 0x08);
+		int32_t g1 = (((0x32 * b1) + (0x83 * r1) + UV_OFFSET) >> 0x08);
+		solo_asic_video_device::draw_pixel(cel, a1, (y1 + r1), (y1 - g1), (y1 + b1), out);
+	}
 	(*out)++;
 }
 
-inline void solo_asic_video_device::draw422(uint32_t in, uint32_t **out)
+inline void solo_asic_video_device::draw422(gfx_cel_t *cel, uint32_t in, uint32_t **out)
 {
-	int32_t y0 = ((in >> 0x18) & 0xff) - Y_BLACK;
 	int32_t Cb = ((in >> 0x10) & 0xff) - UV_OFFSET;
-	int32_t y1 = ((in >> 0x08) & 0xff) - Y_BLACK;
 	int32_t Cr = ((in >> 0x00) & 0xff) - UV_OFFSET;
-
-	y0 = (((y0 << 0x08) + UV_OFFSET) / Y_RANGE);
-	y1 = (((y1 << 0x08) + UV_OFFSET) / Y_RANGE);
 
 	int32_t r = ((0x166 * Cr) + UV_OFFSET) >> 0x08;
 	int32_t b = ((0x1C7 * Cb) + UV_OFFSET) >> 0x08;
 	int32_t g = ((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08;
 
-	*(*out) = (
-		  std::clamp(y0 + r, 0x00, 0xff) << 0x10
-		| std::clamp(y0 - g, 0x00, 0xff) << 0x08
-		| std::clamp(y0 + b, 0x00, 0xff)
-	);
+	int32_t y0 = (in >> 0x18) & 0xff;
+	if (y0 != Y_TRANSPARENT)
+	{
+		uint8_t a0 = 0xff;
+		y0 = ((((y0 - Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
+		solo_asic_video_device::draw_pixel(cel, a0, (y0 + r), (y0 - g), (y0 + b), out);
+	}
 	(*out)++;
 
-	*(*out) = (
-		  std::clamp(y1 + r, 0x00, 0xff) << 0x10
-		| std::clamp(y1 - g, 0x00, 0xff) << 0x08
-		| std::clamp(y1 + b, 0x00, 0xff)
-	);
+	int32_t y1 = (in >> 0x08) & 0xff;
+	if (y1 != Y_TRANSPARENT)
+	{
+		uint8_t a1 = 0xff;
+		y1 = ((((y1 - Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
+		solo_asic_video_device::draw_pixel(cel, a1, (y1 + r), (y1 - g), (y1 + b), out);
+	}
 	(*out)++;
 }
 
@@ -1016,10 +1109,6 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 	uint32_t y_bottom = std::min((m_pot_draw_vstart + m_pot_draw_vsize), y_top + (ymap.line_cnt() - cel.bottom_offset()));
 
 	cel.texdata_start();
-
-	// If the global alpha is 0 then it's transparent and doesn't need to be drawn.
-	if (cel.global_alpha() == 0x00)
-		return;
 
 	for (int y = y_top; y < y_bottom; y++)
 	{
@@ -1033,8 +1122,6 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 		for (int x = x_start; x < x_end; x += 2)
 		{
-			// TODO: need to implement alpha blending. It gets used in things like the TV<->Web animation and the PIP window
-
 			switch (cel.texdata_type())
 			{
 				case TEXDATA_TYPE_VQ8_422:
@@ -1052,6 +1139,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 					cel.advance_x();
 
 					solo_asic_video_device::draw422(
+						&cel,
 						colors,
 						&line
 					);
@@ -1070,6 +1158,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 					uint32_t color1 = m_hostram[codebook_base + color_idx1];
 
 					solo_asic_video_device::draw444(
+						&cel,
 						color0,
 						color1,
 						&line
@@ -1086,6 +1175,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 					uint32_t color1 = m_hostram[codebook_base + ((colors_idx >> 0x0) & 0xf)];
 
 					solo_asic_video_device::draw444(
+						&cel,
 						color0,
 						color1,
 						&line
@@ -1101,6 +1191,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 					cel.advance_x();
 
 					solo_asic_video_device::draw444(
+						&cel,
 						color0,
 						color1,
 						&line
@@ -1228,7 +1319,7 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 			else
 			{
 				pixel = m_pot_draw_blank_color;
-				solo_asic_video_device::draw422(pixel, &line);
+				solo_asic_video_device::draw422(NULL, pixel, &line);
 			}
 
 		}
@@ -1289,7 +1380,7 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 				pixel = m_pot_draw_blank_color;
 			}
 
-			solo_asic_video_device::draw422(pixel, &line);
+			solo_asic_video_device::draw422(NULL, pixel, &line);
 		}
 	}
 
