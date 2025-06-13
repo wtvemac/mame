@@ -105,6 +105,11 @@ constexpr uint32_t BUS_INT_VID_GFXUNIT = 1 << 4;
 constexpr uint32_t BUS_INT_VID_POTUNIT = 1 << 3;
 constexpr uint32_t BUS_INT_VID_VIDUNIT = 1 << 2;
 
+constexpr int32_t Y_TRANSPARENT     = 0xff;
+constexpr int32_t ALPHA_MASK        = 0xff;
+constexpr uint8_t ALPHA_TRANSPARENT = 0x00;
+constexpr uint8_t ALPHA_OPAQUE      = 0xff;
+
 constexpr uint8_t gfx_celrecord_size[] = {
 	0x08, // CELRECORD_SIZE_MICRO_CEL;  64 bits /  8 bytes
 	0x10, // CELRECORD_SIZE_MINI_CEL;  128 bits / 16 bytes
@@ -128,10 +133,10 @@ enum gfx_loaddata_type_t : uint8_t
 };
 enum gfx_alpha_type_t : uint8_t
 {
-	ALPHA_TYPE_BLEND              = 0x00,
-	ALPHA_TYPE_FORCE_OPAQUE       = 0x01,
-	ALPHA_TYPE_FORCE_TRANSPARENT  = 0x02,
-	ALPHA_TYPE_BRIGHTEN           = 0x03
+	ALPHA_TYPE_BLEND          = 0x00,
+	ALPHA_TYPE_BG_OPAQUE      = 0x01,
+	ALPHA_TYPE_BG_TRANSPARENT = 0x02,
+	ALPHA_TYPE_BRIGHTEN       = 0x03
 };
 enum gfx_texdata_type_t : uint8_t
 {
@@ -191,7 +196,7 @@ typedef struct // 384 bits / 48 bytes
 	uint16_t             xrightstart_int()       const {          return ((data[0x2] >> 0x00) & 0x0003ff); } // 10 bits
 	int16_t              xrightstart_sint()      const {          return SIGNED10(xrightstart_int());      } // 10 bits
 	double               xrightstart() const  { return XSIGNED1010(xrightstart_int(), xrightstart_frac()); } // 10 bits
-	int8_t               global_alpha()          const {          return ((data[0x3] >> 0x18) & 0x0000ff); } //  8 bits
+	uint8_t              global_alpha()          const {          return ((data[0x3] >> 0x18) & 0x0000ff); } //  8 bits
 	uint32_t             codebook_base()         const {          return ((data[0x3] >> 0x00) & 0xffffff); } // 24 bits
 	/// mini cell end ///
 	uint32_t             ustart_raw()            const {          return ((data[0x4] >> 0x10) & 0x00ffff); } // 16 bits
@@ -380,8 +385,9 @@ private:
 	void vblank_irq(int state);
 	void set_video_irq(uint32_t mask, uint32_t sub_mask, int state);
 
-	inline void draw444(uint32_t in0, uint32_t in1, uint32_t **out);
-	inline void draw422(uint32_t in, uint32_t **out);
+	inline void draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out);
+	inline void draw444(gfx_cel_t *cel, uint32_t in0, uint32_t in1, uint32_t **out);
+	inline void draw422(gfx_cel_t *cel, uint32_t in, uint32_t **out);
 
 	inline void gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	inline void gfxunit_draw_cels(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
