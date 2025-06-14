@@ -136,7 +136,7 @@ enum gfx_loaddata_type_t : uint8_t
 	LOADDATA_TYPE_CELS_BASE        = 0x02,
 	LOADDATA_TYPE_INIT_COLOR       = 0x04,
 	LOADDATA_TYPE_YMAP_BASE_MASTER = 0x05,
-	LOADDATA_TYPE_CALS_BASE_MASTER = 0x06
+	LOADDATA_TYPE_CELS_BASE_MASTER = 0x06
 };
 enum gfx_alpha_type_t : uint8_t
 {
@@ -422,6 +422,7 @@ private:
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
 
 	inline void gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	inline void gfxunit_exec_cel_loaddata(gfx_cel_t *cel);
 	inline void gfxunit_draw_cels(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	uint32_t gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
