@@ -117,10 +117,17 @@ constexpr int32_t ALPHA_MASK        = 0xff;
 constexpr uint8_t ALPHA_TRANSPARENT = 0x00;
 constexpr uint8_t ALPHA_OPAQUE      = 0xff;
 
-constexpr uint8_t gfx_celrecord_size[] = {
-	0x08, // CELRECORD_SIZE_MICRO_CEL;  64 bits /  8 bytes
-	0x10, // CELRECORD_SIZE_MINI_CEL;  128 bits / 16 bytes
-	0x30  // CELRECORD_SIZE_FULL_CEL;  384 bits / 48 bytes
+enum gfx_celrecord_size_t : uint8_t
+{
+	CELRECORD_SIZE_MICRO_CEL = 0x08, // 64 bits /  8 bytes
+	CELRECORD_SIZE_MINI_CEL  = 0x10, // 128 bits / 16 bytes
+	CELRECORD_SIZE_FULL_CEL  = 0x30  // 384 bits / 48 bytes
+};
+
+constexpr gfx_celrecord_size_t gfx_celrecord_size[] = {
+	CELRECORD_SIZE_MICRO_CEL,
+	CELRECORD_SIZE_MINI_CEL,
+	CELRECORD_SIZE_FULL_CEL
 };
 
 enum gfx_texdata_src_t : uint8_t
@@ -166,7 +173,7 @@ typedef struct // 32 bits / 4 bytes
 	uint16_t             line_cnt()   const {                       return ((data[0x0] >> 0x17) & 0x0001ff); } //  9 bits
 	int16_t              line_top()   const {                       return SIGNED10(data[0x0] >> 0x0d);      } // 10 bits
 	bool                 disabled()   const {                       return ((data[0x0] >> 0x0c) & 0x000001); } //  1 bit
-	uint8_t              cel_size()   const {     return gfx_celrecord_size[(data[0x0] >> 0x0a) & 0x000003]; } //  2 bits
+	gfx_celrecord_size_t cel_size()   const {     return gfx_celrecord_size[(data[0x0] >> 0x0a) & 0x000003]; } //  2 bits
 	uint16_t             celblk_ptr() const {                       return ((data[0x0] >> 0x00) & 0x0003ff); } // 10 bits
 } gfx_ymap_t;
 
@@ -240,6 +247,11 @@ typedef struct // 384 bits / 48 bytes
 	float y_offset;
 	float u;
 	float v;
+
+	void dux_to_dvrow_adjust()
+	{
+		data[6] = (data[6] & 0xffff0000) | (((data[2] >> 0x10) & 0xff) << 0x4);
+	}
 
 	uint32_t texdata_index()
 	{
