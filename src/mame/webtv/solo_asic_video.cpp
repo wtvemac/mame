@@ -1142,38 +1142,38 @@ inline void solo_asic_video_device::draw422(gfx_cel_t *cel, int8_t offset, uint3
 	(*out)++;
 }
 
-inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t *cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	uint32_t codebook_base = cel.codebook_base();
+	uint32_t codebook_base = cel->codebook_base();
 
-	cel.texdata_start();
+	cel->texdata_start();
 
-	int32_t y_top    = (int32_t)m_pot_draw_vstart + (((int32_t)m_pot_draw_vsize / 2) + ymap.line_top()) + cel.top_offset();
-	int32_t y_bottom = std::min((int32_t)(m_pot_draw_vstart + m_pot_draw_vsize), y_top + (ymap.line_cnt() - cel.bottom_offset()));
+	int32_t y_top    = (int32_t)m_pot_draw_vstart + (((int32_t)m_pot_draw_vsize / 2) + ymap->line_top()) + cel->top_offset();
+	int32_t y_bottom = std::min((int32_t)(m_pot_draw_vstart + m_pot_draw_vsize), y_top + (ymap->line_cnt() - cel->bottom_offset()));
 
 	if (y_top < (int32_t)m_pot_draw_vstart)
 	{
-		cel.advance_y_by((int32_t)m_pot_draw_vstart - y_top);
+		cel->advance_y_by((int32_t)m_pot_draw_vstart - y_top);
 		y_top = (int32_t)m_pot_draw_vstart;
 	}
 
 	// Hack to force YDKJ to not draw the last line (the line is broken)
-	if(ymap.line_cnt() == 210 && ymap.line_top() >= 2 && ymap.line_top() <= 4)
+	if(ymap->line_cnt() == 210 && ymap->line_top() >= 2 && ymap->line_top() <= 4)
 	{
 		y_bottom -= 1;
 	}
 
 	for (int32_t y = y_top; y < y_bottom; y++)
 	{
-		double x_left   = cel.xleftstart()  + (cel.y_offset * cel.dx_left());
-		double x_right  = cel.xrightstart() + (cel.y_offset * cel.dx_right());
+		double x_left   = cel->xleftstart()  + (cel->y_offset * cel->dx_left());
+		double x_right  = cel->xrightstart() + (cel->y_offset * cel->dx_right());
 
 		int32_t x_start = (int32_t)m_pot_draw_hstart + (                                    ((int32_t)m_pot_draw_hsize / 2) + INTR_TRUNC(x_left ) );
 		int32_t x_end   = (int32_t)m_pot_draw_hstart + (std::min((int32_t)m_pot_draw_hsize, ((int32_t)m_pot_draw_hsize / 2) + INTR_TRUNC(x_right)));
 
 		if (x_start < (int32_t)m_pot_draw_hstart)
 		{
-			cel.advance_x_by((int32_t)m_pot_draw_hstart - x_start);
+			cel->advance_x_by((int32_t)m_pot_draw_hstart - x_start);
 			x_start = (int32_t)m_pot_draw_hstart;
 		}
 
@@ -1184,7 +1184,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 			// There's an odd number or pizels per line. This handles the case where the last iteration only draws one pixel.
 			bool one_pixel_only = ((x + 1) == x_end);
 
-			switch (cel.texdata_type())
+			switch (cel->texdata_type())
 			{
 				case TEXDATA_TYPE_VQ8_422:
 				{
@@ -1196,12 +1196,12 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 				case TEXDATA_TYPE_DIR_422A:
 				case TEXDATA_TYPE_DIR_422:
 				{
-					uint32_t colors = m_hostram[cel.texdata_index() >> 0x2];
-					cel.advance_x();
-					cel.advance_x();
+					uint32_t colors = m_hostram[cel->texdata_index() >> 0x2];
+					cel->advance_x();
+					cel->advance_x();
 
 					solo_asic_video_device::draw422(
-						&cel,
+						cel,
 						(one_pixel_only) ? -1 : 0,
 						colors,
 						&line
@@ -1211,17 +1211,17 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 				case TEXDATA_TYPE_VQ8_444:
 				{
-					uint8_t color_idx0 = m_hostram[cel.texdata_index() >> 0x2] >> (((~cel.texdata_index()) & 0x3) << 0x3);
-					cel.advance_x();
-					uint8_t color_idx1 = m_hostram[cel.texdata_index() >> 0x2] >> (((~cel.texdata_index()) & 0x3) << 0x3);
-					cel.advance_x();
+					uint8_t color_idx0 = m_hostram[cel->texdata_index() >> 0x2] >> (((~cel->texdata_index()) & 0x3) << 0x3);
+					cel->advance_x();
+					uint8_t color_idx1 = m_hostram[cel->texdata_index() >> 0x2] >> (((~cel->texdata_index()) & 0x3) << 0x3);
+					cel->advance_x();
 
 					
 					uint32_t color0 = m_hostram[codebook_base + color_idx0];
 					uint32_t color1 = m_hostram[codebook_base + color_idx1];
 
 					solo_asic_video_device::draw444(
-						&cel,
+						cel,
 						(one_pixel_only) ? -1 : 0,
 						color0,
 						color1,
@@ -1232,14 +1232,14 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 		
 				case TEXDATA_TYPE_VQ4_444:
 				{
-					uint8_t colors_idx = m_hostram[cel.texdata_index() >> 0x2] >> (((~cel.texdata_index()) & 0x3) << 0x3);
-					cel.advance_x();
+					uint8_t colors_idx = m_hostram[cel->texdata_index() >> 0x2] >> (((~cel->texdata_index()) & 0x3) << 0x3);
+					cel->advance_x();
 					
 					uint32_t color0 = m_hostram[codebook_base + ((colors_idx >> 0x4) & 0xf)];
 					uint32_t color1 = m_hostram[codebook_base + ((colors_idx >> 0x0) & 0xf)];
 
 					solo_asic_video_device::draw444(
-						&cel,
+						cel,
 						(one_pixel_only) ? -1 : 0,
 						color0,
 						color1,
@@ -1250,24 +1250,18 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 		
 				case TEXDATA_TYPE_DIR_444:
 				{
-					uint32_t color0 = m_hostram[cel.texdata_index() >> 0x2];
-					cel.advance_x();
-					uint32_t color1 = m_hostram[cel.texdata_index() >> 0x2];
-					cel.advance_x();
+					uint32_t color0 = m_hostram[cel->texdata_index() >> 0x2];
+					cel->advance_x();
+					uint32_t color1 = m_hostram[cel->texdata_index() >> 0x2];
+					cel->advance_x();
 
 					solo_asic_video_device::draw444(
-						&cel,
+						cel,
 						(one_pixel_only) ? -1 : 0,
 						color0,
 						color1,
 						&line
 					);
-					break;
-				}
-		
-				case TEXDATA_TYPE_LOADDATA:
-				{
-					//
 					break;
 				}
 		
@@ -1279,7 +1273,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 			}
 		}
 
-		cel.advance_y();
+		cel->advance_y();
 	}
 }
 
@@ -1370,7 +1364,7 @@ inline void solo_asic_video_device::gfxunit_draw_cels(screen_device &screen, bit
 				if (cel.texdata_type() == gfx_texdata_type_t::TEXDATA_TYPE_LOADDATA)
 					solo_asic_video_device::gfxunit_exec_cel_loaddata(&cel);
 				else
-					solo_asic_video_device::gfxunit_draw_cel(ymap, cel, screen, bitmap, cliprect);
+					solo_asic_video_device::gfxunit_draw_cel(&ymap, &cel, screen, bitmap, cliprect);
 
 				if (cel.islast())
 					break;
