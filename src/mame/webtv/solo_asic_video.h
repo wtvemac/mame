@@ -421,7 +421,7 @@ private:
 	inline void draw444(gfx_cel_t *cel, int8_t offset, uint32_t in0, uint32_t in1, uint32_t **out);
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
 
-	inline void gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	inline void gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t *cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	inline void gfxunit_exec_cel_loaddata(gfx_cel_t *cel);
 	inline void gfxunit_draw_cels(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
