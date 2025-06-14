@@ -6,13 +6,22 @@
 
 #pragma once
 
+// Convert a 16-bit signed number with 8 bits of signed integer and 8 bits of fraction to a float.
+// XSIGNED88 is used in the case where the integer and fraction are separated.
 #define XSIGNED88(intval, fracval)   ((float)intval + ((float)fracval / (float)(0x1 << 0x8)))
 #define SIGNED88(val)                XSIGNED88(((int8_t)(val >> 0x8)), ((uint8_t)(val & 0x00ff)))
+// Convert a 10-bit signed integer to a 16-bit signed integer.
 #define SIGNED10(val)                (int16_t)((val & 0x01ff) | (0 - (val & 0x0200)))
+// Convert a 20-bit signed number with 10 bits of signed integer and 10 bits of fraction to a double.
+// XSIGNED1010 is used in the case where the integer and fraction are separated.
 #define XSIGNED1010(intval, fracval) ((double)SIGNED10(intval) + ((double)fracval / (double)(0x1 << 0xa)))
 #define SIGNED1010(val)              XSIGNED1010(((int16_t)(val >> 0xa)), ((uint16_t)(val & 0x03ff)))
-#define ITRUNC(val)                  (int32_t)((val > 0) ? std::ceil(val) : std::floor(val))
-#define MASKED_ITRUNC(val, mask)     (int32_t)((int8_t)(ITRUNC(val) & mask))
+// Convert a double or float to an integer by moving forward to the nearest whole number.
+#define INTF_TRUNC(val)                  (int32_t)((val > 0) ? std::ceil(val) : std::floor(val))
+#define MASKED_INTF_TRUNC(val, mask)     (int32_t)((int8_t)(INTF_TRUNC(val) & mask))
+// Convert a double or float to an integer by moving back to the nearest whole number.
+#define INTR_TRUNC(val)                  (int32_t)((val > 0) ? std::floor(val) : std::ceil(val))
+#define MASKED_INTR_TRUNC(val, mask)     (int32_t)((int8_t)(INTR_TRUNC(val) & mask))
 
 constexpr uint16_t Y_BLACK         = 0x10;
 constexpr uint16_t Y_WHITE         = 0xeb;
@@ -67,10 +76,8 @@ constexpr uint32_t POT_DEFAULT_VBSTART = NTSC_SCREEN_VBSTART;
 constexpr uint32_t POT_DEFAULT_VSIZE   = NTSC_SCREEN_VSIZE;
 // This is always 0x77 on for some reason (even on hardware)
 // This is needed to correct the HSTART value.
-constexpr uint32_t POT_VIDUNIT_HSTART_OFFSET  = 0x77;
-constexpr uint32_t POT_VIDUNIT_VSTART_OFFSET  = 0x23;
-constexpr uint32_t POT_GFXUNIT_HSTART_OFFSET  = 0x00;
-constexpr uint32_t POT_GFXUNIT_VSTART_OFFSET  = 0x23;
+constexpr uint32_t POT_HSTART_OFFSET  = 0x77;
+constexpr uint32_t POT_VSTART_OFFSET  = 0x23;
 
 constexpr uint32_t POT_DEFAULT_COLOR   = (UV_OFFSET << 0x10) | (Y_BLACK << 0x08) | UV_OFFSET;
 
@@ -239,25 +246,25 @@ typedef struct // 384 bits / 48 bytes
 		switch (texdata_type())
 		{
 			case TEXDATA_TYPE_VQ8_422:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) / 0x02) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) / 0x02)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) / 0x02) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_422O:
 			case TEXDATA_TYPE_DIR_422A:
 			case TEXDATA_TYPE_DIR_422:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) * 0x02)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x02)));
 				break;
 
 			case TEXDATA_TYPE_VQ8_444:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) * 0x01)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x01)));
 				break;
 
 			case TEXDATA_TYPE_VQ4_444:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) / 0x02)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_444:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_ITRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_ITRUNC(u, umask()) * 0x04)));
+				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x04)));
 				break;
 
 			default:
@@ -277,12 +284,24 @@ typedef struct // 384 bits / 48 bytes
 		u += dux();
 		v += dvx();
 	}
+	void advance_x_by(uint8_t amount)
+	{
+		u += dux() * amount;
+		v += dvx() * amount;
+	}
 	void advance_y()
 	{
 		y_offset++;
 
 		u = ustart() + (y_offset * durow_adjust());
 		v = vstart() + (y_offset * dvrow_adjust());
+	}
+	void advance_y_by(uint8_t amount)
+	{
+		y_offset += amount;
+
+		u = ustart() + (y_offset * durow_adjust() * amount);
+		v = vstart() + (y_offset * dvrow_adjust() * amount);
 	}
 } gfx_cel_t;
 
@@ -399,8 +418,8 @@ private:
 	void set_video_irq(uint32_t mask, uint32_t sub_mask, int state);
 
 	inline void draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out);
-	inline void draw444(gfx_cel_t *cel, uint32_t in0, uint32_t in1, uint32_t **out);
-	inline void draw422(gfx_cel_t *cel, uint32_t in, uint32_t **out);
+	inline void draw444(gfx_cel_t *cel, int8_t offset, uint32_t in0, uint32_t in1, uint32_t **out);
+	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
 
 	inline void gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	inline void gfxunit_draw_cels(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
