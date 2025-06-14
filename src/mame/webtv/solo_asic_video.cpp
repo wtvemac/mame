@@ -124,7 +124,7 @@ void solo_asic_video_device::device_reset()
 	m_pot_vstart = POT_DEFAULT_VSTART;
 	m_pot_vsize = POT_DEFAULT_VSIZE;
 	m_pot_blank_color = POT_DEFAULT_COLOR;
-	m_pot_hstart = POT_VIDUNIT_HSTART_OFFSET + POT_DEFAULT_HSTART;
+	m_pot_hstart = POT_HSTART_OFFSET + POT_DEFAULT_HSTART;
 	m_pot_hsize = POT_DEFAULT_HSIZE;
 	m_pot_cntl = 0x0;
 	m_pot_hintline = 0x0;
@@ -132,7 +132,7 @@ void solo_asic_video_device::device_reset()
 	m_pot_intstat = 0x0;
 
 	m_vid_draw_nstart = 0x0;
-	m_pot_draw_hstart = POT_VIDUNIT_HSTART_OFFSET;
+	m_pot_draw_hstart = POT_HSTART_OFFSET;
 	m_pot_draw_hsize = m_pot_hsize;
 	m_pot_draw_vstart = m_pot_vstart;
 	m_pot_draw_vsize = m_pot_vsize;
@@ -319,37 +319,34 @@ void solo_asic_video_device::validate_active_area()
 
 	m_vid_draw_nstart = m_vid_nstart;
 
-	uint32_t hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
-	uint32_t vstart_offset = POT_VIDUNIT_VSTART_OFFSET;
+	uint32_t hstart_offset = POT_HSTART_OFFSET;
+	uint32_t vstart_offset = POT_VSTART_OFFSET;
 	if (m_pot_cntl & POT_FCNTL_USEGFX)
 	{
-		hstart_offset = POT_GFXUNIT_HSTART_OFFSET;
-		vstart_offset = POT_GFXUNIT_VSTART_OFFSET;
+		m_pot_draw_hsize = std::min(m_pot_draw_hsize, 2 * m_gfx_hcounter_init);
+		m_pot_draw_vsize = std::min(m_pot_draw_vsize, (2 * m_gfx_activelines) - m_gfx_blanklines - 2);
 	}
 	else
 	{
-		hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
-		vstart_offset = POT_VIDUNIT_VSTART_OFFSET;
-
 		m_vid_draw_nstart += 2 * (m_pot_draw_hsize * BYTES_PER_PIXEL);
 		m_pot_draw_vsize = m_pot_draw_vsize - 2;
 	}
 
 	// The active h start can't be smaller than 2
-	m_pot_draw_hstart = std::max(m_pot_hstart - hstart_offset, (uint32_t)0x2);
+	m_pot_draw_hstart = std::max((int32_t)m_pot_hstart - (int32_t)hstart_offset, (int32_t)0x2);
 	// The active v start can't be smaller than 2
-	m_pot_draw_vstart = std::max(m_pot_vstart - vstart_offset, (uint32_t)0x2);
+	m_pot_draw_vstart = std::max((int32_t)m_pot_vstart - (int32_t)vstart_offset, (int32_t)0x2);
 
 	// The active h start can't push the active area off the screen.
 	if ((m_pot_draw_hstart + m_pot_draw_hsize) > m_screen->width())
 		m_pot_draw_hstart = (m_screen->width() - m_pot_draw_hsize); // to screen edge
-	else if (m_pot_draw_hstart < 0)
+	else if ((int32_t)m_pot_draw_hstart < 0)
 		m_pot_draw_hstart = 0;
 
 	// The active v start can't push the active area off the screen.
 	if ((m_pot_draw_vstart + m_pot_draw_vsize) > m_screen->height())
 		m_pot_draw_vstart = (m_screen->height() - m_pot_draw_vsize); // to screen edge
-	else if (m_pot_draw_vstart < 0)
+	else if ((int32_t)m_pot_draw_vstart < 0)
 		m_pot_draw_vstart = 0;
 }
 
@@ -616,7 +613,12 @@ uint32_t solo_asic_video_device::reg_6048_r()
 
 void solo_asic_video_device::reg_6048_w(uint32_t data)
 {
+	bool has_changed = (m_gfx_blanklines != data);
+
 	m_gfx_blanklines = data;
+
+	if (has_changed)
+		solo_asic_video_device::validate_active_area();
 }
 
 uint32_t solo_asic_video_device::reg_604c_r()
@@ -626,7 +628,12 @@ uint32_t solo_asic_video_device::reg_604c_r()
 
 void solo_asic_video_device::reg_604c_w(uint32_t data)
 {
+	bool has_changed = (m_gfx_activelines != data);
+
 	m_gfx_activelines = data;
+
+	if (has_changed)
+		solo_asic_video_device::validate_active_area();
 }
 
 uint32_t solo_asic_video_device::reg_6060_r()
@@ -828,7 +835,12 @@ uint32_t solo_asic_video_device::reg_9094_r()
 
 void solo_asic_video_device::reg_9094_w(uint32_t data)
 {
+	bool has_changed = ((m_pot_cntl ^ data) & POT_FCNTL_USEGFX && data & POT_FCNTL_USEGFX);
+
 	m_pot_cntl = data;
+
+	if (has_changed)
+		solo_asic_video_device::validate_active_area();
 }
 
 uint32_t solo_asic_video_device::reg_9098_r()
@@ -1071,11 +1083,11 @@ inline void solo_asic_video_device::draw_pixel(gfx_cel_t *cel, uint8_t a, int32_
 	}
 }
 
-inline void solo_asic_video_device::draw444(gfx_cel_t *cel, uint32_t in0, uint32_t in1, uint32_t **out)
+inline void solo_asic_video_device::draw444(gfx_cel_t *cel, int8_t offset, uint32_t in0, uint32_t in1, uint32_t **out)
 {
 	int32_t a0  = (  in0 >> 0x08) & 0xff;
 	int32_t y0  = (  in0 >> 0x18) & 0xff;
-	if (a0 != ALPHA_TRANSPARENT && y0 != Y_TRANSPARENT)
+	if (a0 != ALPHA_TRANSPARENT && y0 != Y_TRANSPARENT && offset != 1)
 	{
 		int32_t Cr0 = (((in0 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
 		int32_t Cb0 = (((in0 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
@@ -1089,7 +1101,7 @@ inline void solo_asic_video_device::draw444(gfx_cel_t *cel, uint32_t in0, uint32
 
 	int32_t a1  = (  in1 >> 0x08) & 0xff;
 	int32_t y1  = (  in1 >> 0x18) & 0xff;
-	if (a1 != ALPHA_TRANSPARENT && y1 != Y_TRANSPARENT)
+	if (a1 != ALPHA_TRANSPARENT && y1 != Y_TRANSPARENT && offset != -1)
 	{
 		int32_t Cr1 = (((in1 >> 0x00) + UV_OFFSET) & 0xff) - UV_OFFSET;
 		int32_t Cb1 = (((in1 >> 0x10) + UV_OFFSET) & 0xff) - UV_OFFSET;
@@ -1102,7 +1114,7 @@ inline void solo_asic_video_device::draw444(gfx_cel_t *cel, uint32_t in0, uint32
 	(*out)++;
 }
 
-inline void solo_asic_video_device::draw422(gfx_cel_t *cel, uint32_t in, uint32_t **out)
+inline void solo_asic_video_device::draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out)
 {
 	int32_t Cb = ((in >> 0x10) & 0xff) - UV_OFFSET;
 	int32_t Cr = ((in >> 0x00) & 0xff) - UV_OFFSET;
@@ -1112,7 +1124,7 @@ inline void solo_asic_video_device::draw422(gfx_cel_t *cel, uint32_t in, uint32_
 	int32_t g = ((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08;
 
 	int32_t y0 = (in >> 0x18) & 0xff;
-	if (y0 != Y_TRANSPARENT)
+	if (y0 != Y_TRANSPARENT && offset != 1)
 	{
 		uint8_t a0 = 0xff;
 		y0 = ((((y0 - Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
@@ -1121,7 +1133,7 @@ inline void solo_asic_video_device::draw422(gfx_cel_t *cel, uint32_t in, uint32_
 	(*out)++;
 
 	int32_t y1 = (in >> 0x08) & 0xff;
-	if (y1 != Y_TRANSPARENT)
+	if (y1 != Y_TRANSPARENT && offset != -1)
 	{
 		uint8_t a1 = 0xff;
 		y1 = ((((y1 - Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
@@ -1134,23 +1146,44 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 {
 	uint32_t codebook_base = cel.codebook_base();
 
-	uint32_t y_top    = m_pot_draw_vstart + std::max((uint32_t)0, (((m_pot_draw_vsize / 2) + ymap.line_top()) + cel.top_offset()));
-	uint32_t y_bottom = std::min((m_pot_draw_vstart + m_pot_draw_vsize), y_top + (ymap.line_cnt() - cel.bottom_offset()));
-
 	cel.texdata_start();
 
-	for (int y = y_top; y < y_bottom; y++)
-	{
-		double x_left   = cel.xleftstart()  + (double)(cel.y_offset * cel.dx_left());
-		double x_right  = cel.xrightstart() + (double)(cel.y_offset * cel.dx_right());
+	int32_t y_top    = (int32_t)m_pot_draw_vstart + (((int32_t)m_pot_draw_vsize / 2) + ymap.line_top()) + cel.top_offset();
+	int32_t y_bottom = std::min((int32_t)(m_pot_draw_vstart + m_pot_draw_vsize), y_top + (ymap.line_cnt() - cel.bottom_offset()));
 
-		uint32_t x_start = m_pot_draw_hstart + (std::max((uint32_t)0,      ((m_pot_draw_hsize / 2) + ITRUNC(x_left ))) & (~0x01));
-		uint32_t x_end   = m_pot_draw_hstart + ((std::min(m_pot_draw_hsize, ((m_pot_draw_hsize / 2) + ITRUNC(x_right))) + 0x01) & (~0x01));
+	if (y_top < (int32_t)m_pot_draw_vstart)
+	{
+		cel.advance_y_by((int32_t)m_pot_draw_vstart - y_top);
+		y_top = (int32_t)m_pot_draw_vstart;
+	}
+
+	// Hack to force YDKJ to not draw the last line (the line is broken)
+	if(ymap.line_cnt() == 210 && ymap.line_top() >= 2 && ymap.line_top() <= 4)
+	{
+		y_bottom -= 1;
+	}
+
+	for (int32_t y = y_top; y < y_bottom; y++)
+	{
+		double x_left   = cel.xleftstart()  + (cel.y_offset * cel.dx_left());
+		double x_right  = cel.xrightstart() + (cel.y_offset * cel.dx_right());
+
+		int32_t x_start = (int32_t)m_pot_draw_hstart + (                                    ((int32_t)m_pot_draw_hsize / 2) + INTR_TRUNC(x_left ) );
+		int32_t x_end   = (int32_t)m_pot_draw_hstart + (std::min((int32_t)m_pot_draw_hsize, ((int32_t)m_pot_draw_hsize / 2) + INTR_TRUNC(x_right)));
+
+		if (x_start < (int32_t)m_pot_draw_hstart)
+		{
+			cel.advance_x_by((int32_t)m_pot_draw_hstart - x_start);
+			x_start = (int32_t)m_pot_draw_hstart;
+		}
 
 		uint32_t *line = (&bitmap.pix(y)) + x_start;
 
-		for (int x = x_start; x < x_end; x += 2)
+		for (int32_t x = x_start; x < x_end; x += 2)
 		{
+			// There's an odd number or pizels per line. This handles the case where the last iteration only draws one pixel.
+			bool one_pixel_only = ((x + 1) == x_end);
+
 			switch (cel.texdata_type())
 			{
 				case TEXDATA_TYPE_VQ8_422:
@@ -1169,6 +1202,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 					solo_asic_video_device::draw422(
 						&cel,
+						(one_pixel_only) ? -1 : 0,
 						colors,
 						&line
 					);
@@ -1188,6 +1222,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 					solo_asic_video_device::draw444(
 						&cel,
+						(one_pixel_only) ? -1 : 0,
 						color0,
 						color1,
 						&line
@@ -1205,6 +1240,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 					solo_asic_video_device::draw444(
 						&cel,
+						(one_pixel_only) ? -1 : 0,
 						color0,
 						color1,
 						&line
@@ -1221,6 +1257,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 
 					solo_asic_video_device::draw444(
 						&cel,
+						(one_pixel_only) ? -1 : 0,
 						color0,
 						color1,
 						&line
@@ -1348,7 +1385,7 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 			else
 			{
 				pixel = m_pot_draw_blank_color;
-				solo_asic_video_device::draw422(NULL, pixel, &line);
+				solo_asic_video_device::draw422(NULL, 0, pixel, &line);
 			}
 
 		}
@@ -1409,7 +1446,7 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 				pixel = m_pot_draw_blank_color;
 			}
 
-			solo_asic_video_device::draw422(NULL, pixel, &line);
+			solo_asic_video_device::draw422(NULL, 0, pixel, &line);
 		}
 	}
 
