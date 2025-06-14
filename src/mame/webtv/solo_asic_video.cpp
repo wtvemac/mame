@@ -1283,13 +1283,50 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t ymap, gfx_cel_t 
 	}
 }
 
+inline void solo_asic_video_device::gfxunit_exec_cel_loaddata(gfx_cel_t *cel)
+{
+	switch (cel->loaddata_type())
+	{
+		case LOADDATA_TYPE_CODEBOOK:
+			// Internal codebook not implemented.
+			break;
+
+		case LOADDATA_TYPE_INIT_COLOR:
+			// Init color not used.
+			m_gfx_initcolor = cel->texdata_base();
+			break;
+
+		case gfx_loaddata_type_t::LOADDATA_TYPE_YMAP_BASE:
+			m_gfx_ymap_base = (cel->texdata_base() << 2) & (~0xfc000003);
+			break;
+
+		case gfx_loaddata_type_t::LOADDATA_TYPE_YMAP_BASE_MASTER:
+			m_gfx_ymap_base = m_gfx_ymap_base_master;
+			break;
+
+		case gfx_loaddata_type_t::LOADDATA_TYPE_CELS_BASE:
+			m_gfx_cels_base = (cel->texdata_base() << 2) & (~0xfc000003);
+			break;
+
+		case gfx_loaddata_type_t::LOADDATA_TYPE_CELS_BASE_MASTER:
+			m_gfx_cels_base = m_gfx_cels_base_master;
+			break;
+
+		default:
+			break;
+	}
+}
+
 inline void solo_asic_video_device::gfxunit_draw_cels(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+	m_gfx_ymap_base = m_gfx_ymap_base_master;
+	m_gfx_cels_base = m_gfx_cels_base_master;
+
 	uint32_t ymccnt = 0;
 	for (uint8_t ymidx = 0; ymidx < GFX_MAX_YMAPS; ymidx++)
 	{
 		gfx_ymap_t ymap;
-		memcpy(ymap.data, &m_hostram[(m_gfx_ymap_base_master + ymccnt) >> 0x2], sizeof(ymap.data));
+		memcpy(ymap.data, &m_hostram[(m_gfx_ymap_base + ymccnt) >> 0x2], sizeof(ymap.data));
 		ymccnt += sizeof(ymap.data);
 
 		ymap.index = ymidx;
@@ -1321,7 +1358,7 @@ inline void solo_asic_video_device::gfxunit_draw_cels(screen_device &screen, bit
 				}
 			};
 
-			uint32_t cel_ptr = (m_gfx_cels_base_master >> 0x2) + (ymap.celblk_ptr() << 0x1);
+			uint32_t cel_ptr = (m_gfx_cels_base >> 0x2) + (ymap.celblk_ptr() << 0x1);
 			int32_t cel_size = ymap.cel_size();
 
 			for (uint8_t clidx = 0; clidx < GFX_MAX_CELS; clidx++)
@@ -1330,16 +1367,15 @@ inline void solo_asic_video_device::gfxunit_draw_cels(screen_device &screen, bit
 
 				memcpy(cel.data, &m_hostram[cel_ptr], cel_size);
 
-				solo_asic_video_device::gfxunit_draw_cel(ymap, cel, screen, bitmap, cliprect);
+				if (cel.texdata_type() == gfx_texdata_type_t::TEXDATA_TYPE_LOADDATA)
+					solo_asic_video_device::gfxunit_exec_cel_loaddata(&cel);
+				else
+					solo_asic_video_device::gfxunit_draw_cel(ymap, cel, screen, bitmap, cliprect);
 
 				if (cel.islast())
-				{
 					break;
-				}
 				else
-				{
 					cel_ptr += (cel_size >> 0x2);
-				}
 			}
 		}
 	}
