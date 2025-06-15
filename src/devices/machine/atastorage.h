@@ -83,6 +83,7 @@ private:
 	uint16_t          m_sectors_until_int;
 	uint32_t          m_sectors_remaining;
 
+	uint16_t          m_security_status;
 	uint8_t           m_master_password_enable;
 	uint8_t           m_user_password_enable;
 	const uint8_t *   m_master_password;
