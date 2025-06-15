@@ -80,6 +80,7 @@ private:
 	uint16_t          m_block_count;
 	uint16_t          m_sectors_until_int;
 
+	uint16_t          m_security_status;
 	uint8_t           m_master_password_enable;
 	uint8_t           m_user_password_enable;
 	const uint8_t *   m_master_password;

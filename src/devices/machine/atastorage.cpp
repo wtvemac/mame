@@ -166,7 +166,7 @@ void ata_mass_storage_device_base::ide_build_identify_device()
 	m_identify_buffer[103] = 0x00;
 	m_identify_buffer[104] = 0x00;                     /* 104-126: reserved */
 	m_identify_buffer[127] = 0x00;                     /* 127: removable media status notification */
-	m_identify_buffer[128] = 0x01;                     /* 128: security status */
+	m_identify_buffer[128] = m_security_status;        /* 128: security status */
 	m_identify_buffer[129] = 0x00;                     /* 129-159: vendor specific */
 	m_identify_buffer[160] = 0x00;                     /* 160: CFA power mode 1 */
 	m_identify_buffer[161] = 0x00;                     /* 161-175: reserved for CompactFlash */
@@ -202,6 +202,8 @@ void ata_mass_storage_device_base::ide_build_identify_device()
 void ata_mass_storage_device_base::device_start()
 {
 	ata_hle_device_base::device_start();
+
+	m_security_status = 0x103;
 
 	save_item(NAME(m_can_identify_device));
 	save_item(NAME(m_num_cylinders));
