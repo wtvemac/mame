@@ -160,16 +160,16 @@ void solo_asic_video_device::device_add_mconfig(machine_config &config)
 
 void solo_asic_video_device::vid_unit_map(address_map &map)
 {
-	map(0x000, 0x003).r(FUNC(solo_asic_video_device::reg_3000_r));                                      // VID_CSTART
-	map(0x004, 0x007).r(FUNC(solo_asic_video_device::reg_3004_r));                                      // VID_CSIZE
-	map(0x008, 0x00b).r(FUNC(solo_asic_video_device::reg_3008_r));                                      // VID_CCNT
+	map(0x000, 0x003).r(FUNC(solo_asic_video_device::reg_3000_r));                                            // VID_CSTART
+	map(0x004, 0x007).r(FUNC(solo_asic_video_device::reg_3004_r));                                            // VID_CSIZE
+	map(0x008, 0x00b).r(FUNC(solo_asic_video_device::reg_3008_r));                                            // VID_CCNT
 	map(0x00c, 0x00f).rw(FUNC(solo_asic_video_device::reg_300c_r), FUNC(solo_asic_video_device::reg_300c_w)); // VID_NSTART
 	map(0x010, 0x013).rw(FUNC(solo_asic_video_device::reg_3010_r), FUNC(solo_asic_video_device::reg_3010_w)); // VID_NSIZE
 	map(0x014, 0x017).rw(FUNC(solo_asic_video_device::reg_3014_r), FUNC(solo_asic_video_device::reg_3014_w)); // VID_DMACNTL
-	map(0x038, 0x03b).r(FUNC(solo_asic_video_device::reg_3038_r));                                      // VID_INTSTAT
-	map(0x138, 0x13b).w(FUNC(solo_asic_video_device::reg_3138_w));                                      // VID_INTSTAT_C
+	map(0x038, 0x03b).r(FUNC(solo_asic_video_device::reg_3038_r));                                            // VID_INTSTAT
+	map(0x138, 0x13b).w(FUNC(solo_asic_video_device::reg_3138_w));                                            // VID_INTSTAT_C
 	map(0x03c, 0x03f).rw(FUNC(solo_asic_video_device::reg_303c_r), FUNC(solo_asic_video_device::reg_303c_w)); // VID_INTEN
-	map(0x13c, 0x13f).w(FUNC(solo_asic_video_device::reg_313c_w));                                      // VID_INTEN_C
+	map(0x13c, 0x13f).w(FUNC(solo_asic_video_device::reg_313c_w));                                            // VID_INTEN_C
 	map(0x040, 0x043).rw(FUNC(solo_asic_video_device::reg_3040_r), FUNC(solo_asic_video_device::reg_3040_w)); // VID_VDATA
 }
 
@@ -193,9 +193,9 @@ void solo_asic_video_device::gfx_unit_map(address_map &map)
 	map(0x048, 0x04b).rw(FUNC(solo_asic_video_device::reg_6048_r), FUNC(solo_asic_video_device::reg_6048_w)); // GFX_BLANKLINES
 	map(0x04c, 0x04f).rw(FUNC(solo_asic_video_device::reg_604c_r), FUNC(solo_asic_video_device::reg_604c_w)); // GFX_ACTIVELINES
 	map(0x060, 0x063).rw(FUNC(solo_asic_video_device::reg_6060_r), FUNC(solo_asic_video_device::reg_6060_w)); // GFX_INTEN
-	map(0x064, 0x067).w(FUNC(solo_asic_video_device::reg_6064_w));                                      // GFX_INTEN_C
+	map(0x064, 0x067).w(FUNC(solo_asic_video_device::reg_6064_w));                                            // GFX_INTEN_C
 	map(0x068, 0x06b).rw(FUNC(solo_asic_video_device::reg_6068_r), FUNC(solo_asic_video_device::reg_6068_w)); // GFX_INTSTAT
-	map(0x06c, 0x06f).w(FUNC(solo_asic_video_device::reg_606c_w));                                      // GFX_INTSTAT_C
+	map(0x06c, 0x06f).w(FUNC(solo_asic_video_device::reg_606c_w));                                            // GFX_INTSTAT_C
 	map(0x080, 0x083).rw(FUNC(solo_asic_video_device::reg_6080_r), FUNC(solo_asic_video_device::reg_6080_w)); // GFX_WBDSTART
 	map(0x084, 0x087).rw(FUNC(solo_asic_video_device::reg_6084_r), FUNC(solo_asic_video_device::reg_6084_w)); // GFX_WBDLSIZE
 	map(0x08c, 0x08f).rw(FUNC(solo_asic_video_device::reg_608c_r), FUNC(solo_asic_video_device::reg_608c_w)); // GFX_WBSTRIDE
