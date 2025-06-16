@@ -865,7 +865,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 	if (NATIVE_BYTES >= TARGET_BYTES)
 	{
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// read lower bits from lower address
 			TargetType result = 0;
@@ -910,7 +910,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 		TargetType result = 0;
 
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 				// read lowest bits from first address
 			NativeType curmask = mask << offsbits;
@@ -998,7 +998,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 	if (NATIVE_BYTES >= TARGET_BYTES)
 	{
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// write lower bits to lower address
 			NativeType curmask = (NativeType)mask << offsbits;
@@ -1035,7 +1035,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 		constexpr u32 MAX_SPLITS_MINUS_ONE = TARGET_BYTES / NATIVE_BYTES - 1;
 
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// write lowest bits to first address
 			NativeType curmask = mask << offsbits;
@@ -1125,7 +1125,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 	if (NATIVE_BYTES >= TARGET_BYTES)
 	{
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// read lower bits from lower address
 			u16 flags = 0;
@@ -1173,7 +1173,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 		TargetType result = 0;
 
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 				// read lowest bits from first address
 			NativeType curmask = mask << offsbits;
@@ -1261,7 +1261,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 	if (NATIVE_BYTES >= TARGET_BYTES)
 	{
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// write lower bits to lower address
 			u16 flags = 0;
@@ -1303,7 +1303,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 		u16 flags = 0;
 
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// write lowest bits to first address
 			NativeType curmask = mask << offsbits;
@@ -1392,7 +1392,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 	if (NATIVE_BYTES >= TARGET_BYTES)
 	{
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// read flags from lower address
 			u16 flags = 0;
@@ -1437,7 +1437,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 		u16 flags = 0;
 
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// read flags from first address
 			NativeType curmask = mask << offsbits;
@@ -1525,7 +1525,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 	if (NATIVE_BYTES >= TARGET_BYTES)
 	{
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// lookup flags from lower address
 			u16 flags = 0;
@@ -1568,7 +1568,7 @@ template<int Width, int AddrShift, endianness_t Endian, int TargetWidth, bool Al
 		u16 flags = 0;
 
 		// little-endian case
-		if (Endian == ENDIANNESS_LITTLE)
+		if (Endian == ENDIANNESS_LITTLE || TARGET_BYTES == 8)
 		{
 			// lookup flags from first address
 			NativeType curmask = mask << offsbits;
