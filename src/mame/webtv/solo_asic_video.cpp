@@ -231,6 +231,11 @@ void solo_asic_video_device::pot_unit_map(address_map &map)
 	map(0x0ac, 0x0af).r(FUNC(solo_asic_video_device::reg_90ac_r));                                            // POT_CLINE
 }
 
+void solo_asic_video_device::mpeg_unit_map(address_map &map)
+{
+	map(0x000, 0x003).r(FUNC(solo_asic_video_device::reg_d000_r));                                            // Unknown Solo2 register. MPEG revision?
+}
+
 void solo_asic_video_device::enable_ntsc()
 {
 	m_use_pal = false;
@@ -896,6 +901,13 @@ void solo_asic_video_device::reg_90a8_w(uint32_t data)
 uint32_t solo_asic_video_device::reg_90ac_r()
 {
 	return m_screen->vpos();
+}
+
+// mpegUnit registers
+
+uint32_t solo_asic_video_device::reg_d000_r()
+{
+	return 0x00020000;
 }
 
 void solo_asic_video_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int state)

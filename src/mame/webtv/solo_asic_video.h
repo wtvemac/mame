@@ -328,6 +328,7 @@ public:
 	void dve_unit_map(address_map &map);
 	void div_unit_map(address_map &map);
 	void pot_unit_map(address_map &map);
+	void mpeg_unit_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_hostram(T &&tag) { m_hostram.set_tag(std::forward<T>(tag)); }
@@ -550,6 +551,10 @@ private:
 	void reg_90a8_w(uint32_t data); // POT_INTSTAT_C (write)
 	uint32_t reg_90a8_r();          // POT_INTSTAT_C (read)
 	uint32_t reg_90ac_r();          // POT_CLINE (read)
+
+	/* mpegUnit registers */
+
+	uint32_t reg_d000_r();          // Unknown Solo2 register. MPEG revision? (read)
 
 };
 
