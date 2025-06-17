@@ -49,8 +49,11 @@ u8 l64734_tuner_device::read_data(u16 offset)
 {
 	switch (offset)
 	{
-		case 0x0003:
+		case 0x0003: // Appears to be an ID
 			return m_chip_id;
+
+		case 0x0004: // Appears to be the gain register (how much signal we receieve)
+			return 0x32; // reports 100%
 
 		default:
 			return 0xff;
