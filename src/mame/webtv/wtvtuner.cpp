@@ -5,7 +5,7 @@ wtvtuner_device_base::wtvtuner_device_base(const machine_config &mconfig, device
 	device_t(mconfig, type, tag, owner, clock),
 	i2c_hle_interface(mconfig, *this, iic_address >> 1)
 {
-	write_sda.bind().set(tag, FUNC(wtvtuner_device_base::sdar_w));
+	write_sda.bind().set(tag, FUNC(wtvtuner_device_base::iic_sda_w));
 }
 
 void wtvtuner_device_base::device_start()
@@ -15,17 +15,17 @@ void wtvtuner_device_base::device_start()
 
 void wtvtuner_device_base::device_reset()
 {
-	m_sdar = 0x1;
+	m_iic_sda = 0x1;
 }
 
-void wtvtuner_device_base::sdar_w(int state)
+void wtvtuner_device_base::iic_sda_w(int state)
 {
-	m_sdar = state;
+	m_iic_sda = state & 0x1;
 }
 
 int wtvtuner_device_base::sda_read()
 {
-	return m_sdar & 0x1;
+	return m_iic_sda & 0x1;
 }
 
 DEFINE_DEVICE_TYPE(L64734, l64734_tuner_device, "l64734_tuner_device", "L64734 Satellite Tuner")
