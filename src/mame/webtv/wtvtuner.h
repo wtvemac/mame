@@ -22,9 +22,9 @@ protected:
 
 private:
 
-	int m_sdar;
+	int m_iic_sda;
 
-	void sdar_w(int state);
+	void iic_sda_w(int state);
 
 };
 
