@@ -382,6 +382,9 @@ protected:
 	uint32_t m_gfx_wbdconfig;
 	uint32_t m_gfx_intenable;
 	uint32_t m_gfx_intstat;
+
+	uint32_t m_dve_unknown1;
+	uint32_t m_dve_unknown2;
 	
 	uint32_t m_vid_nstart;
 	uint32_t m_vid_nsize;
@@ -518,6 +521,11 @@ private:
 	void reg_3040_w(uint32_t data); // VID_VDATA (write)
 
 	/* dveUnit registers */
+
+	uint32_t reg_7024_r();
+	void reg_7024_w(uint32_t data);
+	uint32_t reg_7028_r();
+	void reg_7028_w(uint32_t data);
 
 	/* divUnit registers */
 
