@@ -73,6 +73,12 @@ protected:
 	uint32_t m_aud_nconfig;
 	uint32_t m_aud_dmacntl;
 
+	uint32_t m_div_audcntl;
+	uint32_t m_div_cstart;
+	uint32_t m_div_csize;
+	uint32_t m_div_nstart;
+	uint32_t m_div_nsize;
+
 private:
 
 	required_device<mips3_device> m_hostcpu;
@@ -106,6 +112,19 @@ private:
 	void reg_2018_w(uint32_t data); // AUD_ONCONFIG (write)
 	uint32_t reg_201c_r();          // AUD_ODMACNTL (read)
 	void reg_201c_w(uint32_t data); // AUD_ODMACNTL (write)
+
+	/* divUnit registers */
+
+	uint32_t reg_8040_r();          // DIV_AUDCNTL (read)
+	void reg_8040_w(uint32_t data); // DIV_AUDCNTL (write)
+	uint32_t reg_8044_r();          // DIV_NEXTAUDADDR (read)
+	void reg_8044_w(uint32_t data); // DIV_NEXTAUDADDR (write)
+	uint32_t reg_8048_r();          // DIV_NEXTAUDLEN (read)
+	void reg_8048_w(uint32_t data); // DIV_NEXTAUDLEN (write)
+	uint32_t reg_804c_r();          // DIV_CURAUDADDR (read)
+	void reg_804c_w(uint32_t data); // DIV_CURAUDADDR (write)
+	uint32_t reg_8050_r();          // DIV_CURAUDLEN (read)
+	void reg_8050_w(uint32_t data); // DIV_CURAUDLEN (write)
 
 };
 
