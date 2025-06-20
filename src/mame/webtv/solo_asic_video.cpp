@@ -57,6 +57,9 @@ void solo_asic_video_device::device_start()
 	save_item(NAME(m_gfx_intenable));
 	save_item(NAME(m_gfx_intstat));
 
+	save_item(NAME(m_dve_unknown1));
+	save_item(NAME(m_dve_unknown2));
+
 	save_item(NAME(m_div_intenable));
 	save_item(NAME(m_div_intstat));
 
@@ -117,6 +120,9 @@ void solo_asic_video_device::device_reset()
 	m_gfx_wbdconfig = 0x0;
 	m_gfx_intenable = 0x0;
 	m_gfx_intstat = 0x0;
+
+	m_dve_unknown1 = 0x0;
+	m_dve_unknown2 = 0x0;
 
 	m_div_intenable = 0x0;
 	m_div_intstat = 0x0;
@@ -205,7 +211,8 @@ void solo_asic_video_device::gfx_unit_map(address_map &map)
 
 void solo_asic_video_device::dve_unit_map(address_map &map)
 {
-	//
+	map(0x024, 0x027).rw(FUNC(solo_asic_video_device::reg_7024_r), FUNC(solo_asic_video_device::reg_7024_w)); // Unknown1
+	map(0x028, 0x02b).rw(FUNC(solo_asic_video_device::reg_7028_r), FUNC(solo_asic_video_device::reg_7028_w)); // Unknown2
 }
 
 void solo_asic_video_device::div_unit_map(address_map &map)
@@ -724,6 +731,28 @@ uint32_t solo_asic_video_device::reg_6094_r()
 void solo_asic_video_device::reg_6094_w(uint32_t data)
 {
 	m_gfx_wbdstart = data;
+}
+
+// dveUnit registers
+
+uint32_t solo_asic_video_device::reg_7024_r()
+{
+	return m_dve_unknown1;
+}
+
+void solo_asic_video_device::reg_7024_w(uint32_t data)
+{
+	m_dve_unknown1 = data;
+}
+
+uint32_t solo_asic_video_device::reg_7028_r()
+{
+	return m_dve_unknown2;
+}
+
+void solo_asic_video_device::reg_7028_w(uint32_t data)
+{
+	m_dve_unknown2 = data;
 }
 
 // divUnit registers
