@@ -8,6 +8,7 @@
 
 #pragma once
 
+constexpr uint32_t BUS_INT_AUD_SPDIFOUT  = 1 << 7; // UltimateTV's S/PDIF out
 constexpr uint32_t BUS_INT_AUD_SMODEMIN  = 1 << 6; // Soft modem DMA in
 constexpr uint32_t BUS_INT_AUD_SMODEMOUT = 1 << 5; // Soft modem DMA out
 constexpr uint32_t BUS_INT_AUD_DIVUNIT   = 1 << 4; // divUnit audio
