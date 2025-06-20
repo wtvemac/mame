@@ -32,6 +32,12 @@ void solo_asic_audio_device::device_start()
 	save_item(NAME(m_aud_nsize));
 	save_item(NAME(m_aud_nconfig));
 	save_item(NAME(m_aud_dmacntl));
+
+	save_item(NAME(m_div_audcntl));
+	save_item(NAME(m_div_cstart));
+	save_item(NAME(m_div_csize));
+	save_item(NAME(m_div_nstart));
+	save_item(NAME(m_div_nsize));
 }
 
 void solo_asic_audio_device::device_reset()
@@ -51,6 +57,12 @@ void solo_asic_audio_device::device_reset()
 	m_aud_nconfig = 0x0;
 	m_aud_dmacntl = 0x0;
 	m_aud_dma_ongoing = false;
+
+	m_div_audcntl = 0x0;
+	m_div_cstart = 0x0;
+	m_div_csize = 0x0;
+	m_div_nstart = 0x0;
+	m_div_nsize = 0x0;
 }
 
 void solo_asic_audio_device::device_stop()
@@ -81,7 +93,11 @@ void solo_asic_audio_device::aud_unit_map(address_map &map)
 
 void solo_asic_audio_device::div_unit_map(address_map &map)
 {
-	//
+	map(0x040, 0x043).rw(FUNC(solo_asic_audio_device::reg_8040_r), FUNC(solo_asic_audio_device::reg_8040_w)); // DIV_AUDCNTL
+	map(0x044, 0x047).rw(FUNC(solo_asic_audio_device::reg_8044_r), FUNC(solo_asic_audio_device::reg_8044_w)); // DIV_NEXTAUDADDR
+	map(0x048, 0x04b).rw(FUNC(solo_asic_audio_device::reg_8048_r), FUNC(solo_asic_audio_device::reg_8048_w)); // DIV_NEXTAUDLEN
+	map(0x04c, 0x04f).rw(FUNC(solo_asic_audio_device::reg_804c_r), FUNC(solo_asic_audio_device::reg_804c_w)); // DIV_CURAUDADDR
+	map(0x050, 0x053).rw(FUNC(solo_asic_audio_device::reg_8050_r), FUNC(solo_asic_audio_device::reg_8050_w)); // DIV_CURAUDLEN
 }
 
 uint32_t solo_asic_audio_device::busaud_intenable_get()
@@ -122,6 +138,8 @@ void solo_asic_audio_device::set_aout_clock(uint32_t clock)
 {
 	dac_update_timer->adjust(attotime::from_hz(clock), 0, attotime::from_hz(clock));
 }
+
+// audUnit
 
 uint32_t solo_asic_audio_device::reg_2000_r()
 {
@@ -195,6 +213,58 @@ void solo_asic_audio_device::reg_201c_w(uint32_t data)
 	}
 
 	m_aud_dmacntl = data;
+}
+
+// divUnit
+
+uint32_t solo_asic_audio_device::reg_8040_r()
+{
+	return m_div_audcntl;
+}
+
+void solo_asic_audio_device::reg_8040_w(uint32_t data)
+{
+	m_div_audcntl = data;
+}
+
+uint32_t solo_asic_audio_device::reg_8044_r()
+{
+	return m_div_cstart;
+}
+
+void solo_asic_audio_device::reg_8044_w(uint32_t data)
+{
+	m_div_cstart = data;
+}
+
+uint32_t solo_asic_audio_device::reg_8048_r()
+{
+	return m_div_csize;
+}
+
+void solo_asic_audio_device::reg_8048_w(uint32_t data)
+{
+	m_div_csize = data;
+}
+
+uint32_t solo_asic_audio_device::reg_804c_r()
+{
+	return m_div_nstart;
+}
+
+void solo_asic_audio_device::reg_804c_w(uint32_t data)
+{
+	m_div_nstart = data & (~0xfc000003);
+}
+
+uint32_t solo_asic_audio_device::reg_8050_r()
+{
+	return m_div_nsize;
+}
+
+void solo_asic_audio_device::reg_8050_w(uint32_t data)
+{
+	m_div_nsize = data;
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_audio_device::dac_update)
