@@ -17,22 +17,22 @@ solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, co
 
 void solo_asic_audio_device::device_start()
 {
-	dac_update_timer = timer_alloc(FUNC(solo_asic_audio_device::dac_update), this);
+	play_aout_timer = timer_alloc(FUNC(solo_asic_audio_device::play_aout_samples), this);
 
 	solo_asic_audio_device::device_reset();
 
 	save_item(NAME(m_busaud_intenable));
 	save_item(NAME(m_busaud_intstat));
 
-	save_item(NAME(m_aud_cstart));
-	save_item(NAME(m_aud_csize));
-	save_item(NAME(m_aud_cconfig));
-	save_item(NAME(m_aud_ccnt));
-	save_item(NAME(m_aud_cvalid));
-	save_item(NAME(m_aud_nstart));
-	save_item(NAME(m_aud_nsize));
-	save_item(NAME(m_aud_nconfig));
-	save_item(NAME(m_aud_dmacntl));
+	save_item(NAME(m_aud_ocstart));
+	save_item(NAME(m_aud_ocsize));
+	save_item(NAME(m_aud_occonfig));
+	save_item(NAME(m_aud_occnt));
+	save_item(NAME(m_aud_ocvalid));
+	save_item(NAME(m_aud_onstart));
+	save_item(NAME(m_aud_onsize));
+	save_item(NAME(m_aud_onconfig));
+	save_item(NAME(m_aud_odmacntl));
 
 	save_item(NAME(m_div_audcntl));
 	save_item(NAME(m_div_cstart));
@@ -53,21 +53,21 @@ void solo_asic_audio_device::device_start()
 
 void solo_asic_audio_device::device_reset()
 {
-	dac_update_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
+	play_aout_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
 
 	m_busaud_intenable = 0x0;
 	m_busaud_intstat = 0x0;
 
-	m_aud_cstart = 0x0;
-	m_aud_csize = 0x0;
-	m_aud_cend = 0x0;
-	m_aud_cconfig = 0x0;
-	m_aud_ccnt = 0x0;
-	m_aud_cvalid = false;
-	m_aud_nstart = 0x80000000;
-	m_aud_nsize = 0x0;
-	m_aud_nconfig = 0x0;
-	m_aud_dmacntl = 0x0;
+	m_aud_ocstart = 0x0;
+	m_aud_ocsize = 0x0;
+	m_aud_ocend = 0x0;
+	m_aud_occonfig = 0x0;
+	m_aud_occnt = 0x0;
+	m_aud_ocvalid = false;
+	m_aud_onstart = 0x80000000;
+	m_aud_onsize = 0x0;
+	m_aud_onconfig = 0x0;
+	m_aud_odmacntl = 0x0;
 
 	m_div_audcntl = 0x0;
 	m_div_cstart = 0x0;
@@ -177,69 +177,69 @@ void solo_asic_audio_device::busaud_intstat_clear(uint32_t data)
 
 void solo_asic_audio_device::set_aout_clock(uint32_t clock)
 {
-	dac_update_timer->adjust(attotime::from_hz(clock), 0, attotime::from_hz(clock));
+	play_aout_timer->adjust(attotime::from_hz(clock), 0, attotime::from_hz(clock));
 }
 
 // audUnit
 
 uint32_t solo_asic_audio_device::reg_2000_r()
 {
-	return m_aud_cstart;
+	return m_aud_ocstart;
 }
 
 uint32_t solo_asic_audio_device::reg_2004_r()
 {
-	return m_aud_csize;
+	return m_aud_ocsize;
 }
 
 uint32_t solo_asic_audio_device::reg_2008_r()
 {
-	return m_aud_cconfig;
+	return m_aud_occonfig;
 }
 
 uint32_t solo_asic_audio_device::reg_200c_r()
 {
-	return m_aud_ccnt;
+	return m_aud_occnt;
 }
 
 uint32_t solo_asic_audio_device::reg_2010_r()
 {
-	return m_aud_nstart;
+	return m_aud_onstart;
 }
 
 void solo_asic_audio_device::reg_2010_w(uint32_t data)
 {
-	m_aud_nstart = data & (~0xfc000003);
+	m_aud_onstart = data & (~0xfc000003);
 }
 
 uint32_t solo_asic_audio_device::reg_2014_r()
 {
-	return m_aud_nsize;
+	return m_aud_onsize;
 }
 
 void solo_asic_audio_device::reg_2014_w(uint32_t data)
 {
-	m_aud_nsize = data;
+	m_aud_onsize = data;
 }
 
 uint32_t solo_asic_audio_device::reg_2018_r()
 {
-	return m_aud_nconfig;
+	return m_aud_onconfig;
 }
 
 void solo_asic_audio_device::reg_2018_w(uint32_t data)
 {
-	m_aud_nconfig = data;
+	m_aud_onconfig = data;
 }
 
 uint32_t solo_asic_audio_device::reg_201c_r()
 {
-	return m_aud_dmacntl;
+	return m_aud_odmacntl;
 }
 
 void solo_asic_audio_device::reg_201c_w(uint32_t data)
 {
-	if ((m_aud_dmacntl ^ data) & AUD_DMACNTL_DMAEN)
+	if ((m_aud_odmacntl ^ data) & AUD_DMACNTL_DMAEN)
 	{
 		if (data & AUD_DMACNTL_DMAEN)
 		{
@@ -253,7 +253,7 @@ void solo_asic_audio_device::reg_201c_w(uint32_t data)
 		}
 	}
 
-	m_aud_dmacntl = data;
+	m_aud_odmacntl = data;
 }
 
 // divUnit
@@ -400,28 +400,28 @@ void solo_asic_audio_device::reg_e044_w(uint32_t data)
 	m_spdif_unknown044 = data;
 }
 
-TIMER_CALLBACK_MEMBER(solo_asic_audio_device::dac_update)
+TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_aout_samples)
 {
-	if (m_aud_dmacntl & AUD_DMACNTL_DMAEN)
+	if (m_aud_odmacntl & AUD_DMACNTL_DMAEN)
 	{
 		// No current buffer ready to play. Check if there's anything lined up for us.
-		if (!m_aud_cvalid && (m_aud_dmacntl & AUD_DMACNTL_NV) && m_aud_nstart != 0x80000000)
+		if (!m_aud_ocvalid && (m_aud_odmacntl & AUD_DMACNTL_NV) && m_aud_onstart != 0x80000000)
 		{
-			m_aud_cstart = m_aud_nstart;
-			m_aud_csize = m_aud_nsize;
-			m_aud_cconfig = m_aud_nconfig;
+			m_aud_ocstart = m_aud_onstart;
+			m_aud_ocsize = m_aud_onsize;
+			m_aud_occonfig = m_aud_onconfig;
 
-			m_aud_ccnt = m_aud_cstart;
-			m_aud_cend = (m_aud_cstart + m_aud_csize);
+			m_aud_occnt = m_aud_ocstart;
+			m_aud_ocend = (m_aud_ocstart + m_aud_ocsize);
 
 			// Next buffer loaded, so we will now play the it
-			m_aud_cvalid = true;
+			m_aud_ocvalid = true;
 
 			// If next buffer isn't flagged as continous then invalidate the next values.
 			// The OS will reload it with valid values.
-			if ((m_aud_dmacntl & AUD_DMACNTL_NVF) == 0x0)
+			if ((m_aud_odmacntl & AUD_DMACNTL_NVF) == 0x0)
 			{
-				m_aud_dmacntl &= (~AUD_DMACNTL_NV);
+				m_aud_odmacntl &= (~AUD_DMACNTL_NV);
 			}
 
 			// Ask OS to load new next values. We will play it after the current buffer finished playing.
@@ -429,40 +429,40 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::dac_update)
 		}
 
 		// If the current buffer is valid (ready), then play it.
-		if (m_aud_cvalid)
+		if (m_aud_ocvalid)
 		{
-			switch(m_aud_cconfig)
+			switch(m_aud_occonfig)
 			{
 				case AUD_CONFIG_16BIT_STEREO:
 				default:
-					m_dac[0]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x10) & 0xffff);
-					m_dac[1]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x00) & 0xffff);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x00) & 0xffff);
 					break;
 
 				case AUD_CONFIG_16BIT_MONO:
-					m_dac[0]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x10) & 0xffff);
-					m_dac[1]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x10) & 0xffff);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
 					break;
 
 				// For 8-bit we're assuming left-aligned samples
 
 				case AUD_CONFIG_8BIT_STEREO:
-					m_dac[0]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x18) & 0x00ff);
-					m_dac[1]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x08) & 0x00ff);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x08) & 0x00ff);
 					break;
 
 				case AUD_CONFIG_8BIT_MONO:
-					m_dac[0]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x18) & 0x00ff);
-					m_dac[1]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x18) & 0x00ff);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
 					break;
 			}
 
-			m_aud_ccnt += 4;
+			m_aud_occnt += 4;
 
-			if (m_aud_ccnt >= m_aud_cend)
+			if (m_aud_occnt >= m_aud_ocend)
 			{
 				// Invalidate current buffer and load next (valid) buffer.
-				m_aud_cvalid = false;
+				m_aud_ocvalid = false;
 			}
 		}
 	}
