@@ -66,16 +66,16 @@ protected:
 	uint32_t m_busaud_intenable;
 	uint32_t m_busaud_intstat;
 
-	uint32_t m_aud_cstart;
-	uint32_t m_aud_csize;
-	uint32_t m_aud_cend;
-	uint32_t m_aud_cconfig;
-	uint32_t m_aud_ccnt;
-	bool m_aud_cvalid;
-	uint32_t m_aud_nstart;
-	uint32_t m_aud_nsize;
-	uint32_t m_aud_nconfig;
-	uint32_t m_aud_dmacntl;
+	uint32_t m_aud_ocstart;
+	uint32_t m_aud_ocsize;
+	uint32_t m_aud_ocend;
+	uint32_t m_aud_occonfig;
+	uint32_t m_aud_occnt;
+	bool m_aud_ocvalid;
+	uint32_t m_aud_onstart;
+	uint32_t m_aud_onsize;
+	uint32_t m_aud_onconfig;
+	uint32_t m_aud_odmacntl;
 
 	uint32_t m_div_audcntl;
 	uint32_t m_div_cstart;
@@ -105,8 +105,8 @@ private:
 	devcb_write_line m_int_enable_cb;
 	devcb_write_line m_int_irq_cb;
 
-	emu_timer *dac_update_timer = nullptr;
-	TIMER_CALLBACK_MEMBER(dac_update);
+	emu_timer *play_aout_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(play_aout_samples);
 
 	void set_audio_irq(uint32_t mask, int state);
 
