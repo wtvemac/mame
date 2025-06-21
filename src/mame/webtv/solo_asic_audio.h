@@ -36,6 +36,7 @@ public:
 
 	void aud_unit_map(address_map &map);
 	void div_unit_map(address_map &map);
+	void spdif_unit_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_hostram(T &&tag) { m_hostram.set_tag(std::forward<T>(tag)); }
@@ -79,6 +80,16 @@ protected:
 	uint32_t m_div_csize;
 	uint32_t m_div_nstart;
 	uint32_t m_div_nsize;
+
+	uint32_t m_spdif_unknown000;
+	uint32_t m_spdif_unknown00c;
+	uint32_t m_spdif_unknown010;
+	uint32_t m_spdif_unknown014;
+	uint32_t m_spdif_unknown018;
+	uint32_t m_spdif_unknown01c;
+	uint32_t m_spdif_unknown020;
+	uint32_t m_spdif_unknown040;
+	uint32_t m_spdif_unknown044;
 
 private:
 
@@ -126,6 +137,27 @@ private:
 	void reg_804c_w(uint32_t data); // DIV_CURAUDADDR (write)
 	uint32_t reg_8050_r();          // DIV_CURAUDLEN (read)
 	void reg_8050_w(uint32_t data); // DIV_CURAUDLEN (write)
+
+	/* spdifUnit registers */
+
+	uint32_t reg_e000_r();          // SPDIF_? (read)
+	void reg_e000_w(uint32_t data); // SPDIF_? (write)
+	uint32_t reg_e00c_r();          // SPDIF_? (read)
+	void reg_e00c_w(uint32_t data); // SPDIF_? (write)
+	uint32_t reg_e010_r();          // SPDIF_? appears to be an ONSTART (read)
+	void reg_e010_w(uint32_t data); // SPDIF_? appears to be an ONSTART (write)
+	uint32_t reg_e014_r();          // SPDIF_? appears to be an ONSIZE (read)
+	void reg_e014_w(uint32_t data); // SPDIF_? appears to be an ONSIZE (write)
+	uint32_t reg_e018_r();          // SPDIF_? ONCONFIG? (read)
+	void reg_e018_w(uint32_t data); // SPDIF_? ONCONFIG? (write)
+	uint32_t reg_e01c_r();          // SPDIF_? appears to be an ODMACNTL (read)
+	void reg_e01c_w(uint32_t data); // SPDIF_? appears to be an ODMACNTL (write)
+	uint32_t reg_e020_r();          // SPDIF_? (read)
+	void reg_e020_w(uint32_t data); // SPDIF_? (write)
+	uint32_t reg_e040_r();          // SPDIF_? (read)
+	void reg_e040_w(uint32_t data); // SPDIF_? (write)
+	uint32_t reg_e044_r();          // SPDIF_? (read)
+	void reg_e044_w(uint32_t data); // SPDIF_? (write)
 
 };
 

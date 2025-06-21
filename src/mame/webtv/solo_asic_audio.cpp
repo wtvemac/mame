@@ -38,6 +38,16 @@ void solo_asic_audio_device::device_start()
 	save_item(NAME(m_div_csize));
 	save_item(NAME(m_div_nstart));
 	save_item(NAME(m_div_nsize));
+
+	save_item(NAME(m_spdif_unknown000));
+	save_item(NAME(m_spdif_unknown00c));
+	save_item(NAME(m_spdif_unknown010));
+	save_item(NAME(m_spdif_unknown014));
+	save_item(NAME(m_spdif_unknown018));
+	save_item(NAME(m_spdif_unknown01c));
+	save_item(NAME(m_spdif_unknown020));
+	save_item(NAME(m_spdif_unknown040));
+	save_item(NAME(m_spdif_unknown044));
 }
 
 void solo_asic_audio_device::device_reset()
@@ -63,6 +73,16 @@ void solo_asic_audio_device::device_reset()
 	m_div_csize = 0x0;
 	m_div_nstart = 0x0;
 	m_div_nsize = 0x0;
+
+	m_spdif_unknown000 = 0x0;
+	m_spdif_unknown00c = 0x0;
+	m_spdif_unknown010 = 0x0;
+	m_spdif_unknown014 = 0x0;
+	m_spdif_unknown018 = 0x0;
+	m_spdif_unknown01c = 0x0;
+	m_spdif_unknown020 = 0x0;
+	m_spdif_unknown040 = 0x0;
+	m_spdif_unknown044 = 0x0;
 }
 
 void solo_asic_audio_device::device_stop()
@@ -98,6 +118,19 @@ void solo_asic_audio_device::div_unit_map(address_map &map)
 	map(0x048, 0x04b).rw(FUNC(solo_asic_audio_device::reg_8048_r), FUNC(solo_asic_audio_device::reg_8048_w)); // DIV_NEXTAUDLEN
 	map(0x04c, 0x04f).rw(FUNC(solo_asic_audio_device::reg_804c_r), FUNC(solo_asic_audio_device::reg_804c_w)); // DIV_CURAUDADDR
 	map(0x050, 0x053).rw(FUNC(solo_asic_audio_device::reg_8050_r), FUNC(solo_asic_audio_device::reg_8050_w)); // DIV_CURAUDLEN
+}
+
+void solo_asic_audio_device::spdif_unit_map(address_map &map)
+{
+	map(0x000, 0x003).rw(FUNC(solo_asic_audio_device::reg_e000_r), FUNC(solo_asic_audio_device::reg_e000_w)); // SPDIF_?
+	map(0x00c, 0x00f).rw(FUNC(solo_asic_audio_device::reg_e00c_r), FUNC(solo_asic_audio_device::reg_e00c_w)); // SPDIF_?
+	map(0x010, 0x013).rw(FUNC(solo_asic_audio_device::reg_e010_r), FUNC(solo_asic_audio_device::reg_e010_w)); // SPDIF_? appears to be an ONSTART
+	map(0x014, 0x017).rw(FUNC(solo_asic_audio_device::reg_e014_r), FUNC(solo_asic_audio_device::reg_e014_w)); // SPDIF_? appears to be an ONSIZE
+	map(0x018, 0x01b).rw(FUNC(solo_asic_audio_device::reg_e018_r), FUNC(solo_asic_audio_device::reg_e018_w)); // SPDIF_? ONCONFIG?
+	map(0x01c, 0x01f).rw(FUNC(solo_asic_audio_device::reg_e01c_r), FUNC(solo_asic_audio_device::reg_e01c_w)); // SPDIF_? appears to be an ODMACNTL
+	map(0x020, 0x023).rw(FUNC(solo_asic_audio_device::reg_e020_r), FUNC(solo_asic_audio_device::reg_e020_w)); // SPDIF_?
+	map(0x040, 0x043).rw(FUNC(solo_asic_audio_device::reg_e040_r), FUNC(solo_asic_audio_device::reg_e040_w)); // SPDIF_?
+	map(0x044, 0x047).rw(FUNC(solo_asic_audio_device::reg_e044_r), FUNC(solo_asic_audio_device::reg_e044_w)); // SPDIF_?
 }
 
 uint32_t solo_asic_audio_device::busaud_intenable_get()
@@ -265,6 +298,98 @@ uint32_t solo_asic_audio_device::reg_8050_r()
 void solo_asic_audio_device::reg_8050_w(uint32_t data)
 {
 	m_div_nsize = data;
+}
+
+// spdifUnit
+
+uint32_t solo_asic_audio_device::reg_e000_r()
+{
+	return m_spdif_unknown000;
+}
+
+void solo_asic_audio_device::reg_e000_w(uint32_t data)
+{
+	m_spdif_unknown000 = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e00c_r()
+{
+	return m_spdif_unknown00c;
+}
+
+void solo_asic_audio_device::reg_e00c_w(uint32_t data)
+{
+	m_spdif_unknown00c = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e010_r()
+{
+	return m_spdif_unknown010;
+}
+
+void solo_asic_audio_device::reg_e010_w(uint32_t data)
+{
+	m_spdif_unknown010 = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e014_r()
+{
+	return m_spdif_unknown014;
+}
+
+void solo_asic_audio_device::reg_e014_w(uint32_t data)
+{
+	m_spdif_unknown014 = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e018_r()
+{
+	return m_spdif_unknown018;
+}
+
+void solo_asic_audio_device::reg_e018_w(uint32_t data)
+{
+	m_spdif_unknown018 = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e01c_r()
+{
+	return m_spdif_unknown01c;
+}
+
+void solo_asic_audio_device::reg_e01c_w(uint32_t data)
+{
+	m_spdif_unknown01c = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e020_r()
+{
+	return m_spdif_unknown020;
+}
+
+void solo_asic_audio_device::reg_e020_w(uint32_t data)
+{
+	m_spdif_unknown020 = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e040_r()
+{
+	return m_spdif_unknown040;
+}
+
+void solo_asic_audio_device::reg_e040_w(uint32_t data)
+{
+	m_spdif_unknown040 = data;
+}
+
+uint32_t solo_asic_audio_device::reg_e044_r()
+{
+	return m_spdif_unknown044;
+}
+
+void solo_asic_audio_device::reg_e044_w(uint32_t data)
+{
+	m_spdif_unknown044 = data;
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_audio_device::dac_update)
