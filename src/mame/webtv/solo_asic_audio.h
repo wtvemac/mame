@@ -34,6 +34,7 @@ public:
 
 	solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
+	void map(address_map &map);
 	void aud_unit_map(address_map &map);
 	void div_unit_map(address_map &map);
 	void spdif_unit_map(address_map &map);
