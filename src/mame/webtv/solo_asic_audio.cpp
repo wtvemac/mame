@@ -28,6 +28,7 @@ void solo_asic_audio_device::device_start()
 	save_item(NAME(m_aud_csize));
 	save_item(NAME(m_aud_cconfig));
 	save_item(NAME(m_aud_ccnt));
+	save_item(NAME(m_aud_cvalid));
 	save_item(NAME(m_aud_nstart));
 	save_item(NAME(m_aud_nsize));
 	save_item(NAME(m_aud_nconfig));
@@ -62,11 +63,11 @@ void solo_asic_audio_device::device_reset()
 	m_aud_cend = 0x0;
 	m_aud_cconfig = 0x0;
 	m_aud_ccnt = 0x0;
+	m_aud_cvalid = false;
 	m_aud_nstart = 0x80000000;
 	m_aud_nsize = 0x0;
 	m_aud_nconfig = 0x0;
 	m_aud_dmacntl = 0x0;
-	m_aud_dma_ongoing = false;
 
 	m_div_audcntl = 0x0;
 	m_div_cstart = 0x0;
@@ -403,9 +404,33 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::dac_update)
 {
 	if (m_aud_dmacntl & AUD_DMACNTL_DMAEN)
 	{
-		if (m_aud_dma_ongoing && m_aud_ccnt != 0x80000000)
+		// No current buffer ready to play. Check if there's anything lined up for us.
+		if (!m_aud_cvalid && (m_aud_dmacntl & AUD_DMACNTL_NV) && m_aud_nstart != 0x80000000)
 		{
-			// For 8-bit we're assuming left-aligned samples
+			m_aud_cstart = m_aud_nstart;
+			m_aud_csize = m_aud_nsize;
+			m_aud_cconfig = m_aud_nconfig;
+
+			m_aud_ccnt = m_aud_cstart;
+			m_aud_cend = (m_aud_cstart + m_aud_csize);
+
+			// Next buffer loaded, so we will now play the it
+			m_aud_cvalid = true;
+
+			// If next buffer isn't flagged as continous then invalidate the next values.
+			// The OS will reload it with valid values.
+			if ((m_aud_dmacntl & AUD_DMACNTL_NVF) == 0x0)
+			{
+				m_aud_dmacntl &= (~AUD_DMACNTL_NV);
+			}
+
+			// Ask OS to load new next values. We will play it after the current buffer finished playing.
+			solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_AUDDMAOUT, ASSERT_LINE);
+		}
+
+		// If the current buffer is valid (ready), then play it.
+		if (m_aud_cvalid)
+		{
 			switch(m_aud_cconfig)
 			{
 				case AUD_CONFIG_16BIT_STEREO:
@@ -418,6 +443,8 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::dac_update)
 					m_dac[0]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x10) & 0xffff);
 					m_dac[1]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x10) & 0xffff);
 					break;
+
+				// For 8-bit we're assuming left-aligned samples
 
 				case AUD_CONFIG_8BIT_STEREO:
 					m_dac[0]->write((m_hostram[m_aud_ccnt >> 0x02] >> 0x18) & 0x00ff);
@@ -434,24 +461,9 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::dac_update)
 
 			if (m_aud_ccnt >= m_aud_cend)
 			{
-				solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_AUDDMAOUT, ASSERT_LINE);
-				m_aud_dma_ongoing = false; // nothing more to DMA
+				// Invalidate current buffer and load next (valid) buffer.
+				m_aud_cvalid = false;
 			}
-		}
-		else
-		{
-			m_aud_dma_ongoing = false;
-		}
-		if (!m_aud_dma_ongoing)
-		{
-			// wait for next DMA values to be marked as valid
-			m_aud_dma_ongoing = m_aud_dmacntl & (AUD_DMACNTL_NV | AUD_DMACNTL_NVF);
-			if (!m_aud_dma_ongoing) return; // values aren't marked as valid; don't prepare for next DMA
-			m_aud_cstart = m_aud_nstart;
-			m_aud_csize = m_aud_nsize;
-			m_aud_cend = (m_aud_cstart + m_aud_csize);
-			m_aud_cconfig = m_aud_nconfig;
-			m_aud_ccnt = m_aud_cstart;
 		}
 	}
 }
