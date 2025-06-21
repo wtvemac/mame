@@ -99,6 +99,13 @@ void solo_asic_audio_device::device_add_mconfig(machine_config &config)
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
 }
 
+void solo_asic_audio_device::map(address_map &map)
+{
+	map(0x2000, 0x2fff).m(FUNC(solo_asic_audio_device::aud_unit_map));
+	map(0x8000, 0x8fff).m(FUNC(solo_asic_audio_device::div_unit_map));
+	map(0xe000, 0xefff).m(FUNC(solo_asic_audio_device::spdif_unit_map));
+}
+
 void solo_asic_audio_device::aud_unit_map(address_map &map)
 {
 	map(0x000, 0x003).r(FUNC(solo_asic_audio_device::reg_2000_r));                                            // AUD_OCSTART
