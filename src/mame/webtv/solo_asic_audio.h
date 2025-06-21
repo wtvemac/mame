@@ -71,6 +71,7 @@ protected:
 	uint32_t m_aud_cend;
 	uint32_t m_aud_cconfig;
 	uint32_t m_aud_ccnt;
+	bool m_aud_cvalid;
 	uint32_t m_aud_nstart;
 	uint32_t m_aud_nsize;
 	uint32_t m_aud_nconfig;
@@ -106,8 +107,6 @@ private:
 
 	emu_timer *dac_update_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(dac_update);
-
-	bool m_aud_dma_ongoing;
 
 	void set_audio_irq(uint32_t mask, int state);
 
