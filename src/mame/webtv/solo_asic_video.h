@@ -323,6 +323,7 @@ public:
 	// construction/destruction
 	solo_asic_video_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
+	void map(address_map &map);
 	void vid_unit_map(address_map &map);
 	void gfx_unit_map(address_map &map);
 	void dve_unit_map(address_map &map);

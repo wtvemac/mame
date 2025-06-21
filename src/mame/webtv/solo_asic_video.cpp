@@ -164,6 +164,16 @@ void solo_asic_video_device::device_add_mconfig(machine_config &config)
 		m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_HTOTAL, 0, NTSC_SCREEN_HBSTART, NTSC_SCREEN_VTOTAL, 0, NTSC_SCREEN_VBSTART);
 }
 
+void solo_asic_video_device::map(address_map &map)
+{
+	map(0x3000, 0x3fff).m(FUNC(solo_asic_video_device::vid_unit_map));
+	map(0x6000, 0x6fff).m(FUNC(solo_asic_video_device::gfx_unit_map));
+	map(0x7000, 0x7fff).m(FUNC(solo_asic_video_device::dve_unit_map));
+	map(0x8000, 0x8fff).m(FUNC(solo_asic_video_device::div_unit_map));
+	map(0x9000, 0x9fff).m(FUNC(solo_asic_video_device::pot_unit_map));
+	map(0xd000, 0xdfff).m(FUNC(solo_asic_video_device::mpeg_unit_map));
+}
+
 void solo_asic_video_device::vid_unit_map(address_map &map)
 {
 	map(0x000, 0x003).r(FUNC(solo_asic_video_device::reg_3000_r));                                            // VID_CSTART
