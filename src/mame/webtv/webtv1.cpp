@@ -91,8 +91,6 @@ private:
 	
 	void bank0_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank0_flash_r(offs_t offset);
-	uint8_t ram_flasher_r(offs_t offset);
-	void ram_flasher_w(offs_t offset, uint8_t data);
 	uint32_t status_r(offs_t offset);
 	void status_w(offs_t offset, uint32_t data);
 };
@@ -154,23 +152,6 @@ uint32_t webtv1_state::bank0_flash_r(offs_t offset)
 	return (upper_value << 16) | (lower_value);
 }
 
-// WebTV's firmware writes the flashing code to the lower 256 bytes of RAM
-// The flash ID instructions are written first, then the flash erase instructions then the flash program instructions.
-// Since everything is written to the same place, the drc cache becomes out of sync and just re-executes the ID instructions.
-// This allows us to capture when new code is written and then clear the drc cache.
-uint8_t webtv1_state::ram_flasher_r(offs_t offset)
-{
-	return ram_flasher[offset & (RAM_FLASHER_SIZE - 1)];
-}
-void webtv1_state::ram_flasher_w(offs_t offset, uint8_t data)
-{
-	if (offset == 0)
-		// New code is being written, clear drc cache.
-		m_maincpu->code_flush_cache();
-
-	ram_flasher[offset & (RAM_FLASHER_SIZE - 1)] = data;
-}
-
 // The flash programing code for the MX chips incorrectly bleeds over into the next memory region to read the status.
 // This will return the correct status so it can continue.
 uint32_t webtv1_state::status_r(offs_t offset)
@@ -226,10 +207,6 @@ void webtv1_state::webtv1_ram_map(address_map &map, uint32_t ram_size)
 		map(0x00000000, (ram_size - 1)).ram().mirror(MAX_RAM_SIZE - ram_size).share("ram");
 	else
 		map(0x00000000, (ram_size - 1)).ram().share("ram");
-
-	// The RAM flash code gets mirrored across the entire RAM region.
-	for (uint32_t ram_flasher_base = 0x00000000; ram_flasher_base < MAX_RAM_SIZE; ram_flasher_base += ram_size)
-		map(ram_flasher_base, ram_flasher_base + (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv1_state::ram_flasher_r), FUNC(webtv1_state::ram_flasher_w));
 }
 
 void webtv1_state::webtv1_dev_map(address_map &map)
