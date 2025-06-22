@@ -2016,13 +2016,13 @@ bool mips3_device::generate_opcode(drcuml_block &block, compiler_state &compiler
 				generate_update_cycles(block, compiler, desc->pc + 4, true);
 			return true;
 
+		case 0x2f:  /* CACHE - MIPS II */
+			return generate_cache(block, compiler, desc);
 
 		/* ----- effective no-ops ----- */
 
-		case 0x2f:  /* CACHE - MIPS II */
 		case 0x33:  /* PREF - MIPS IV */
 			return true;
-
 
 		/* ----- coprocessor instructions ----- */
 
@@ -2578,6 +2578,24 @@ bool mips3_device::generate_idt(drcuml_block &block, compiler_state &compiler, c
 	return false;
 }
 
+/*-------------------------------------------------
+    generate_cache - compile opcodes in the
+    'CACHE' group
+-------------------------------------------------*/
+
+bool mips3_device::generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc)
+{
+	uint32_t op = desc->opptr.l[0];
+
+	// This doesn't cover everything but fixes an instruction cache issue with the WebTV driver
+
+	if (CACHE_TYPE == 0) // Primary Instruction
+	{
+		m_drc_cache_dirty = true;
+	}
+
+	return true;
+}
 
 /*-------------------------------------------------
     generate_set_cop0_reg - generate code to

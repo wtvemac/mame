@@ -546,7 +546,6 @@ public:
 	void mips3com_tlbwi();
 	void mips3com_tlbwr();
 	void mips3com_tlbp();
-	void code_flush_cache();
 private:
 	uint32_t compute_config_register();
 	uint32_t compute_prid_register();
@@ -611,6 +610,7 @@ private:
 	void sdr_le(uint32_t op);
 	void load_fast_iregs(drcuml_block &block);
 	void save_fast_iregs(drcuml_block &block);
+	void code_flush_cache();
 	void code_compile_block(uint8_t mode, offs_t pc);
 public:
 	void func_get_cycles();
@@ -647,6 +647,7 @@ private:
 	bool generate_special(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
 	bool generate_regimm(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
 	bool generate_idt(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
+	bool generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
 
 	bool generate_set_cop0_reg(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc, uint8_t reg);
 	bool generate_get_cop0_reg(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc, uint8_t reg);
