@@ -28,6 +28,37 @@ int wtvtuner_device_base::sda_read()
 	return m_iic_sda & 0x1;
 }
 
+DEFINE_DEVICE_TYPE(TUNER, generic_tuner_device, "generic_tuner_device", "TV Tuner")
+
+generic_tuner_device::generic_tuner_device(const machine_config &mconfig, const char *tag, device_t *owner, u16 iic_address, uint32_t clock) :
+	wtvtuner_device_base(mconfig, L64734, tag, owner, clock, iic_address)
+{
+}
+
+void generic_tuner_device::device_start()
+{
+	//
+}
+
+void generic_tuner_device::device_reset()
+{
+	//
+}
+
+u8 generic_tuner_device::read_data(u16 offset)
+{
+	switch (offset)
+	{
+		default:
+			return 0x00;
+	}
+}
+
+void generic_tuner_device::write_data(u16 offset, u8 data)
+{
+	//
+}
+
 DEFINE_DEVICE_TYPE(L64734, l64734_tuner_device, "l64734_tuner_device", "L64734 Satellite Tuner")
 
 l64734_tuner_device::l64734_tuner_device(const machine_config &mconfig, const char *tag, device_t *owner, u16 iic_address, uint32_t clock) :
