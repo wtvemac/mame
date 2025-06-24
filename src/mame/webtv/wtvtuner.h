@@ -28,6 +28,27 @@ private:
 
 };
 
+class generic_tuner_device : public wtvtuner_device_base
+{
+
+public:
+
+	generic_tuner_device(const machine_config &mconfig, const char *tag, device_t *owner, u16 iic_address, uint32_t clock = 0);
+
+protected:
+
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+
+	virtual u8 read_data(u16 offset) override;
+	virtual void write_data(u16 offset, u8 data) override;
+
+private:
+
+};
+
+DECLARE_DEVICE_TYPE(TUNER, generic_tuner_device)
+
 class l64734_tuner_device : public wtvtuner_device_base
 {
 
