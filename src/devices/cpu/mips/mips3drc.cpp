@@ -230,6 +230,11 @@ void mips3_device::mips3drc_add_hotspot(offs_t pc, uint32_t opcode, uint32_t cyc
     regenerate static code
 -------------------------------------------------*/
 
+void mips3_device::mark_cache_dirty()
+{
+	m_drc_cache_dirty = true;
+}
+
 void mips3_device::code_flush_cache()
 {
 	int mode;
@@ -449,6 +454,12 @@ static void cfunc_mips3com_tlbp(void *param)
 {
 	((mips3_device *)param)->mips3com_tlbp();
 }
+
+static void cfunc_mips3com_flush_cache_hack(void *param)
+{
+	((mips3_device *)param)->mark_cache_dirty();
+}
+
 
 /*-------------------------------------------------
     cfunc_get_cycles - compute the total number
@@ -2589,9 +2600,12 @@ bool mips3_device::generate_cache(drcuml_block &block, compiler_state &compiler,
 
 	// This doesn't cover everything but fixes an instruction cache issue with the WebTV driver
 
-	if (CACHE_TYPE == 0) // Primary Instruction
+	if (m_flavor == MIPS3_TYPE_R4640 && CACHE_TYPE == 0 && (CACHE_OP == 0 || CACHE_OP == 4)) // Primary Instruction Index Invalidate
 	{
-		m_drc_cache_dirty = true;
+		if (desc->pc!= 0x806abc1c && desc->pc != 0x806abacc && desc->pc != 0x80ebc5c8 && desc->pc != 0x80ebc470) // Don't clear cache in WebTV's DOOM builds. Causes too much lag.
+		{
+			UML_CALLC(block, cfunc_mips3com_flush_cache_hack, this);
+		}
 	}
 
 	return true;
