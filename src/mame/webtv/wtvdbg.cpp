@@ -27,30 +27,32 @@ wtvdbg_device_base::wtvdbg_device_base(const machine_config &mconfig, device_typ
 
 void wtvdbg_device_base::device_start()
 {
-	m_serial_rx_bit_idx = 0x0;
-	m_serial_rx_buff_size = 0x0;
-	m_serial_rx_buff_index = 0x0;
-
 	save_item(NAME(m_serial_rx_bit_idx));
 	save_item(NAME(m_serial_rx_buff_size));
 	save_item(NAME(m_serial_rx_buff_index));
-	
-	m_serial_tx_bit_idx = 0x0;
-	m_serial_tx_cur_byte = 0x0;
-	m_serial_tx_buff_size = 0x0;
-	m_serial_tx_buff_index = 0x0;
-
 	save_item(NAME(m_serial_tx_bit_idx));
 	save_item(NAME(m_serial_tx_cur_byte));
 	save_item(NAME(m_serial_tx_buff_size));
 	save_item(NAME(m_serial_tx_buff_index));
+	save_item(NAME(m_tx_bitbang_bitmask));
+	save_item(NAME(m_tx_bitbang_tx_data));
 	
 	m_serial_tx_timer = timer_alloc(FUNC(wtvdbg_device_base::serial_tx_tick), this);
 }
 
 void wtvdbg_device_base::device_reset()
 {
-	//
+	m_serial_rx_bit_idx = 0x0;
+	m_serial_rx_buff_size = 0x0;
+	m_serial_rx_buff_index = 0x0;
+
+	m_serial_tx_bit_idx = 0x0;
+	m_serial_tx_cur_byte = 0x0;
+	m_serial_tx_buff_size = 0x0;
+	m_serial_tx_buff_index = 0x0;
+
+	m_tx_bitbang_bitmask = 0x0;
+	m_tx_bitbang_tx_data = 0x0;
 }
 
 uint16_t wtvdbg_device_base::serial_tx_buffcnt_r()
@@ -77,7 +79,6 @@ void wtvdbg_device_base::serial_tx_byte_w(uint8_t data)
 
 void wtvdbg_device_base::serial_tx_bitbang_w(uint32_t data)
 {
-
 	m_tx_bitbang_bitmask = (m_tx_bitbang_bitmask << 1) | 1;
 	m_tx_bitbang_tx_data = (m_tx_bitbang_tx_data << 1) | (data == 0);
 
