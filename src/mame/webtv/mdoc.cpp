@@ -265,6 +265,7 @@ uint32_t mdoc_chip_base::read32(offs_t offset)
 {
 	uint32_t data = 0x00000000;
 
+	// Convert to map()?
 	switch (offset)
 	{
 		case mdoc_reg_t::MDOC_REG_CHIPID:
@@ -489,6 +490,7 @@ uint8_t mdoc_chip_base::get_data_area()
 
 void mdoc_chip_base::write32(offs_t offset, uint32_t data)
 {
+	// Convert to map()?
 	switch (offset)
 	{
 		case mdoc_reg_t::MDOC_REG_ALIAS_RESOLUTION:
@@ -817,6 +819,7 @@ uint32_t mdoc_collection::read32(offs_t offset)
 {
 	uint32_t data = 0x00000000;
 
+	// Convert to map()?
 	switch (offset)
 	{
 		case mdoc_reg_t::MDOC_REG_FLOOR_SELECT:
@@ -844,6 +847,7 @@ uint32_t mdoc_collection::read32(offs_t offset)
 
 void mdoc_collection::write32(offs_t offset, uint32_t data)
 {
+	// Convert to map()?
 	switch (offset)
 	{
 		case mdoc_reg_t::MDOC_REG_FLOOR_SELECT:
