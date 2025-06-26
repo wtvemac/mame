@@ -93,7 +93,7 @@ private:
 	static constexpr uint32_t MODE_BAUD_CONFIGURE = 0x00000080;
 
 	static constexpr uint32_t STATUS_RX_BYTE_AVAILABLE = 0x00000001;
-	static constexpr uint32_t STATUS_TX_CAN_SEND_BYTE  = 0x00000020;
+	static constexpr uint32_t STATUS_TX_CAN_SEND_BYTE  = 0x00000060;
 
 	uint32_t m_mode;
 
