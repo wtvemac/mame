@@ -1412,12 +1412,6 @@ inline void solo_asic_video_device::gfxunit_draw_cels(screen_device &screen, bit
 
 				memcpy(cel.data, &m_hostram[cel_ptr], cel_size);
 				
-				// Mini cel records share the dux and dvrow_adjust values.
-				if(ymap.cel_size() == CELRECORD_SIZE_MINI_CEL)
-				{
-					cel.dux_to_dvrow_adjust();
-				}
-
 				if (cel.texdata_type() == gfx_texdata_type_t::TEXDATA_TYPE_LOADDATA)
 					solo_asic_video_device::gfxunit_exec_cel_loaddata(&cel);
 				else
