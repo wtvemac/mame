@@ -1044,14 +1044,8 @@ inline void solo_asic_video_device::draw_pixel(gfx_cel_t *cel, uint8_t a, int32_
 	{
 		alpha_type = cel->alpha_type();
 
-		if (a == ALPHA_OPAQUE)
-		{
+		if (a == ALPHA_OPAQUE || cel->global_alpha() != ALPHA_OPAQUE)
 			a = cel->global_alpha();
-		}
-		else if (cel->global_alpha() != ALPHA_OPAQUE)
-		{
-			a = std::clamp(a * cel->global_alpha(), 0x00, 0xff);
-		}
 	}
 	else
 	{
