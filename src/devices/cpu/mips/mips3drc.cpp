@@ -223,6 +223,11 @@ void mips3_device::mips3drc_add_hotspot(offs_t pc, uint32_t opcode, uint32_t cyc
     regenerate static code
 -------------------------------------------------*/
 
+void mips3_device::mark_cache_dirty()
+{
+	m_drc_cache_dirty = true;
+}
+
 void mips3_device::code_flush_cache()
 {
 	/* empty the transient cache contents */
@@ -484,6 +489,12 @@ static void cfunc_mips3com_tlbp(void *param)
 {
 	((mips3_device *)param)->mips3com_tlbp();
 }
+
+static void cfunc_mips3com_flush_cache_hack(void *param)
+{
+	((mips3_device *)param)->mark_cache_dirty();
+}
+
 
 /*-------------------------------------------------
     cfunc_get_cycles - compute the total number
