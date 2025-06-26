@@ -255,34 +255,41 @@ typedef struct // 384 bits / 48 bytes
 
 	uint32_t texdata_index()
 	{
+		int32_t base = -1;
+
 		switch (texdata_type())
 		{
 			case TEXDATA_TYPE_VQ8_422:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) / 0x02) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
+				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) / 0x02) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_422O:
 			case TEXDATA_TYPE_DIR_422A:
 			case TEXDATA_TYPE_DIR_422:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x02)));
+				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x02)));
 				break;
 
 			case TEXDATA_TYPE_VQ8_444:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x01)));
+				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x01)));
 				break;
 
 			case TEXDATA_TYPE_VQ4_444:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
+				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_444:
-				return ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x04)));
+				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x04)));
 				break;
 
 			default:
-				return (texdata_base() << 0x02);
+				//
 				break;
 		}
+
+		if (base < 0)
+			return (texdata_base() << 0x02);
+		else
+			return (uint32_t)base;
 	}
 	void texdata_start()
 	{
