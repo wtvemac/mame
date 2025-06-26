@@ -543,6 +543,8 @@ private:
 	void reg_801c_w(uint32_t data);
 	uint32_t reg_8038_r();
 	void reg_8038_w(uint32_t data);
+	uint32_t reg_8060_r();
+	void reg_8060_w(uint32_t data);
 
 	/* potUnit registers */
 

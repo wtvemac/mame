@@ -230,6 +230,7 @@ void solo_asic_video_device::div_unit_map(address_map &map)
 	map(0x004, 0x007).rw(FUNC(solo_asic_video_device::reg_8004_r), FUNC(solo_asic_video_device::reg_8004_w)); // DIV_CMACTL
 	map(0x01c, 0x01f).rw(FUNC(solo_asic_video_device::reg_801c_r), FUNC(solo_asic_video_device::reg_801c_w)); // DIV_NEXTCFG
 	map(0x038, 0x03b).rw(FUNC(solo_asic_video_device::reg_8038_r), FUNC(solo_asic_video_device::reg_8038_w)); // DIV_CURRCFG
+	map(0x060, 0x063).rw(FUNC(solo_asic_video_device::reg_8060_r), FUNC(solo_asic_video_device::reg_8060_w)); // DIV_SYNCPHASE
 }
 
 void solo_asic_video_device::pot_unit_map(address_map &map)
@@ -796,6 +797,16 @@ uint32_t solo_asic_video_device::reg_8038_r()
 void solo_asic_video_device::reg_8038_w(uint32_t data)
 {
 	m_div_currcfg = data;
+}
+
+uint32_t solo_asic_video_device::reg_8060_r()
+{
+	return 0x00000000;
+}
+
+void solo_asic_video_device::reg_8060_w(uint32_t data)
+{
+	//
 }
 
 // potUnit registers
