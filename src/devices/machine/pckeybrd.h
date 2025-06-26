@@ -34,6 +34,8 @@ public:
 		MF2
 	};
 
+	int queue_chars(const char32_t *text, size_t text_len);
+
 protected:
 	pc_keyboard_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
@@ -57,7 +59,6 @@ private:
 	virtual void standard_scancode_insert(int our_code, int pressed);
 	virtual void extended_scancode_insert(int code, int pressed) { }
 	int queue_size();
-	int queue_chars(const char32_t *text, size_t text_len);
 	bool accept_char(char32_t ch);
 	bool charqueue_empty();
 
