@@ -97,7 +97,7 @@ private:
 
 	uint32_t m_mode;
 
-	/* {ekoe registers */
+	/* Pekoe registers */
 
 	uint32_t reg_0000_r();          // Pekoe data (read)
 	void reg_0000_w(uint32_t data); // Pekoe data (write)
