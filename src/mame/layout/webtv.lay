@@ -52,7 +52,7 @@
 		-->
 		<collection name="Status LEDs" visible="yes">
 			<group ref="status_leds">
-				<bounds x="0" y="~scr0height~" width="95" height="22" />
+				<bounds x="0" y="~scr0height~" width="105" height="22" />
 			</group>
 		</collection>
 	</view>
