@@ -55,7 +55,8 @@ void wtvir_device_base::enable(int state)
 uint32_t wtvir_device_base::data_r(offs_t offset)
 {
 	uint32_t result = 0x00000000;
-
+	
+	// Convert to map()?
 	switch (offset)
 	{
 		case DEV_IROLD:
