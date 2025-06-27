@@ -888,7 +888,7 @@ void webtv2_state::webtv2_newclsc(machine_config& config)
 {
 	build_webtv_device(
 		config,
-		MIPS_RM5231_BE,
+		MIPS_RM5230_BE,
 		CPU_150MHZ,
 		MEM_8MB,
 		MEM_2MB,
