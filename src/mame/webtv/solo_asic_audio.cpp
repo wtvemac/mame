@@ -99,10 +99,10 @@ void solo_asic_audio_device::device_stop()
 void solo_asic_audio_device::device_add_mconfig(machine_config &config)
 {
 	SPEAKER(config, m_lspeaker).front_left();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.9);
 
 	SPEAKER(config, m_rspeaker).front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.9);
 }
 
 void solo_asic_audio_device::map(address_map &map)
