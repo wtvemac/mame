@@ -1,3 +1,8 @@
+// license: BSD-3-Clause
+// copyright-holders: wtvemac
+
+// Description here
+
 #include "emu.h"
 #include "wtvdbg.h"
 #include "bus/rs232/null_modem.h"

@@ -1,3 +1,7 @@
+// license:BSD-3-Clause
+// copyright-holders: FairPlay137, wtvemac
+
+// Description here
 
 #ifndef MAME_MACHINE_SOLO_ASIC_VIDEO
 #define MAME_MACHINE_SOLO_ASIC_VIDEO
