@@ -1,3 +1,8 @@
+// license: BSD-3-Clause
+// copyright-holders: FairPlay137, wtvemac
+
+// Description here
+
 #include "emu.h"
 #include "solo_asic_audio.h"
 

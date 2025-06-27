@@ -1,4 +1,9 @@
 
+// license: BSD-3-Clause
+// copyright-holders: wtvemac
+
+// Description here
+
 #include "emu.h"
 #include "wtvir.h"
 #include "natkeyboard.h"

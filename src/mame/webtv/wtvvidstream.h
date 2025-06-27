@@ -1,3 +1,7 @@
+// license: BSD-3-Clause
+// copyright-holders: wtvemac
+
+// Description here
 
 #ifndef MAME_MACHINE_WTVSTREAM_H
 #define MAME_MACHINE_WTVSTREAM_H
