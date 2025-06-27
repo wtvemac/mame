@@ -1,19 +1,7 @@
-// license:BSD-3-Clause
-// copyright-holders:FairPlay137,wtvemac
+// license: BSD-3-Clause
+// copyright-holders: FairPlay137, wtvemac
 
-/***********************************************************************************************
-
-    spot_asic.cpp
-
-    WebTV Networks Inc. SPOT ASIC
-
-    This ASIC controls most of the I/O on the 1st generation WebTV hardware. It is also referred
-    to as FIDO on the actual chip that implements the SPOT logic.
-
-    This implementation is based off of both the archived technical specifications, as well as
-    the various reverse-engineering efforts of the WebTV community.
-
-************************************************************************************************/
+// Description here
 
 #ifndef MAME_MACHINE_SPOT_ASIC_H
 #define MAME_MACHINE_SPOT_ASIC_H
@@ -23,6 +11,7 @@
 #include "diserial.h"
 #include "bus/rs232/rs232.h"
 #include "cpu/mips/mips3.h"
+#include "wtvdbg.h"
 #include "machine/8042kbdc.h"
 #include "machine/at_keybc.h"
 #include "machine/ds2401.h"
@@ -41,26 +30,13 @@ constexpr uint32_t SYSCONFIG_VIDCLKSRC  = 1 << 16; // use external video encoder
 constexpr uint32_t SYSCONFIG_CPUBUFF    = 1 << 13; // 0=50% output buffer strength, 1=83% output buffer strength
 constexpr uint32_t SYSCONFIG_NTSC       = 1 << 11; // use NTSC mode
 
-constexpr uint32_t EMUCONFIG_PBUFF0          = 0;      // Render the screen using data exactly at nstart. Only seen in the prealpha bootrom.
-constexpr uint32_t EMUCONFIG_PBUFF1          = 1 << 0; // Render the screen using data one buffer length beyond nstart. Seems to be what they settled on.
-constexpr uint32_t EMUCONFIG_BANGSERIAL      = 3 << 2;
-constexpr uint32_t EMUCONFIG_BANGSERIAL_V1   = 1 << 2;
-constexpr uint32_t EMUCONFIG_BANGSERIAL_V2   = 1 << 3;
-constexpr uint32_t EMUCONFIG_BANGSERIAL_AUTO = 3 << 2;
-
 constexpr uint32_t CHPCNTL_WDENAB_MASK     =  3 << 30;
 constexpr uint32_t CHPCNTL_WDENAB_SEQ0     =  0 << 30;
 constexpr uint32_t CHPCNTL_WDENAB_SEQ1     =  1 << 30;
 constexpr uint32_t CHPCNTL_WDENAB_SEQ2     =  2 << 30;
 constexpr uint32_t CHPCNTL_WDENAB_SEQ3     =  3 << 30;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_MASK  =  15 << 26;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_EXTC  =  0 << 26;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV1  =  1 << 26;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV2  =  2 << 26;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV3  =  3 << 26;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV4  =  4 << 26;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV5  =  5 << 26;
-constexpr uint32_t CHPCNTL_AUDCLKDIV_DIV6  =  6 << 26;
+constexpr uint32_t CHPCNTL_AUDCLKDIV_SHIFT = 26;
+constexpr uint32_t CHPCNTL_AUDCLKDIV_MASK  = 0x0f << CHPCNTL_AUDCLKDIV_SHIFT;
 
 constexpr uint32_t ERR_F1READ  = 1 << 6; // BUS_FENADDR1 read fence check error
 constexpr uint32_t ERR_F1WRITE = 1 << 5; // BUS_FENADDR1 write fence check error
@@ -112,6 +88,7 @@ constexpr uint32_t VID_DEFAULT_VSIZE   = NTSC_SCREEN_VSIZE;
 // This is always 0x77 on SPOT for some reason (even on hardware)
 // This is needed to correct the HSTART value.
 constexpr uint32_t VID_HSTART_OFFSET  = 0x77;
+constexpr uint32_t VID_VSTART_OFFSET  = 0x00;
 
 constexpr uint16_t VID_Y_BLACK         = 0x10;
 constexpr uint16_t VID_Y_WHITE         = 0xeb;
@@ -173,10 +150,12 @@ constexpr uint8_t SSID_STATE_READROM_BIT        = 0x7;
 
 class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
 {
-public:
-	// construction/destruction
-	spot_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+public:
+
+	spot_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t chip_id = 0, uint32_t sys_config = 0);
+
+	void map(address_map &map);
 	void bus_unit_map(address_map &map);
 	void rom_unit_map(address_map &map);
 	void aud_unit_map(address_map &map);
@@ -184,19 +163,25 @@ public:
 	void dev_unit_map(address_map &map);
 	void mem_unit_map(address_map &map);
 
-	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_serial_id(T &&tag) { m_serial_id.set_tag(std::forward<T>(tag)); }
-	template <typename T> void set_nvram(T &&tag) { m_nvram.set_tag(std::forward<T>(tag)); }
 
-	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	auto sda_r_callback() { return m_iic_sda_in_cb.bind(); }
+	auto sda_w_callback() { return m_iic_sda_out_cb.bind(); }
+
+	uint8_t sda_r();
+	void sda_w(uint8_t state);
+	uint8_t scl_r();
+	void scl_w(uint8_t state);
 
 protected:
-	// device-level overrides
+
 	virtual void device_add_mconfig(machine_config &config) override;
-	virtual void device_resolve_objects() override;
 	virtual void device_start() override;
 	virtual void device_reset() override;
 	virtual void device_stop() override;
+
+	uint32_t m_chip_id = 0x01010000;
+	uint32_t m_sys_config = 0x00000000;
 
 	uint32_t m_chpcntl;
 	uint8_t m_wdenable;
@@ -221,7 +206,9 @@ protected:
 	uint32_t m_memcmd;
 	uint32_t m_memtiming;
 
-	uint8_t m_nvcntl;
+	uint8_t m_iiccntl;
+	uint8_t m_iic_sda;
+	uint8_t m_iic_scl;
 
 	uint32_t m_ledstate;
 
@@ -253,15 +240,16 @@ protected:
 	uint32_t m_vid_draw_blank_color;
 
 	uint8_t m_aud_clkdiv;
-	uint32_t m_aud_cstart;
-	uint32_t m_aud_csize;
-	uint32_t m_aud_cend;
-	uint32_t m_aud_cconfig;
-	uint32_t m_aud_ccnt;
-	uint32_t m_aud_nstart;
-	uint32_t m_aud_nsize;
-	uint32_t m_aud_nconfig;
-	uint32_t m_aud_dmacntl;
+	uint32_t m_aud_ocstart;
+	uint32_t m_aud_ocsize;
+	uint32_t m_aud_ocend;
+	uint32_t m_aud_occonfig;
+	uint32_t m_aud_occnt;
+	bool m_aud_ocvalid;
+	uint32_t m_aud_onstart;
+	uint32_t m_aud_onsize;
+	uint32_t m_aud_onconfig;
+	uint32_t m_aud_odmacntl;
 
 	uint32_t m_rom_cntl0;
 	uint32_t m_rom_cntl1;
@@ -271,17 +259,17 @@ protected:
 	uint8_t dev_id_bit;
 	uint8_t dev_id_bitidx;
 
-	uint16_t m_smrtcrd_serial_bitmask = 0x0;
-	uint16_t m_smrtcrd_serial_rxdata = 0x0;
-
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
 	uint32_t modem_txbuff_index;
+
 private:
+
 	required_device<mips3_device> m_hostcpu;
+	required_shared_ptr<uint32_t> m_hostram;
 	required_device<ds2401_device> m_serial_id;
-	required_device<i2cmem_device> m_nvram;
 	required_device<kbdc8042_device> m_kbdc;
+	required_device<at_keyboard_device> m_kbd;
 	required_device<screen_device> m_screen;
 
 	required_device_array<dac_word_interface, 2> m_dac;
@@ -290,32 +278,28 @@ private:
 
 	required_device<ns16550_device> m_modem_uart;
 
+	required_device<wtvdbg_rs232_device> m_debug_uart;
 	required_device<watchdog_timer_device> m_watchdog;
-
-	required_ioport m_sys_config;
-	required_ioport m_emu_config;
 
 	output_finder<> m_power_led;
 	output_finder<> m_connect_led;
 	output_finder<> m_message_led;
 
-	emu_timer *dac_update_timer = nullptr;
-	TIMER_CALLBACK_MEMBER(dac_update);
+	devcb_read8 m_iic_sda_in_cb;
+	devcb_write8 m_iic_sda_out_cb;
+
+	emu_timer *play_aout_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(play_aout_samples);
 
 	emu_timer *modem_buffer_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
 
+	void irq_uart_w(int state);
 	void vblank_irq(int state);
 	void irq_keyboard_w(int state);
 	void irq_smartcard_w(int state);
 	void irq_audio_w(int state);
 	void irq_modem_w(int state);
-
-	uint32_t m_compare_armed;
-
-	bool m_aud_dma_ongoing;
-
-	int m_serial_id_tx;
 
 	void set_bus_irq(uint8_t mask, int state);
 	void set_vid_irq(uint8_t mask, int state);
@@ -323,7 +307,8 @@ private:
 	void validate_active_area();
 	void spot_update_cycle_counting();
 	void watchdog_enable(int state);
-	void pixel_buffer_index_update();
+
+	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	/* busUnit registers */
 
@@ -474,6 +459,7 @@ private:
 	void reg_500c_w(uint32_t data); // MEM_CMD (write-only)
 	uint32_t reg_5010_r();          // MEM_TIMING (read)
 	void reg_5010_w(uint32_t data); // MEM_TIMING (write)
+
 };
 
 DECLARE_DEVICE_TYPE(SPOT_ASIC, spot_asic_device)
