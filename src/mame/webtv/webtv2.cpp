@@ -673,41 +673,6 @@ ROM_END
 ////////////////////////////////////////////
 ////////////////////////////////////////////
 
-// This isn't a know box. It's a pretend box using experimental parameters.
-
-void webtv2_state::webtv2_dev(machine_config& config)
-{
-	build_webtv_device(
-		config,
-		MIPS_R4640_BE,
-		CPU_250MHZ,
-		MEM_32MB,
-		MEM_2MB,
-		0x03120000,
-		0x003f8700,
-		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::FLASHDISK | webtv2_state::FUD | webtv2_state::HWMODEM | webtv2_state::SWMODEM | webtv2_state::NTSCM_CBL_TUNER | webtv2_state::BT827_MEDIA_IN | webtv2_state::PEKOE
-	);
-}
-
-ROM_START(wtv2dev)
-
-	ROM_REGION(0x8, "serial_id", 0)
-	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
-
-	ROM_REGION32_BE(0x800000, "bank1", 0)
-	ROM_SYSTEM_BIOS(0, "dbugrom", "Debug LC2 BootROM (2.0, build 2046)")
-	ROMX_LOAD("dbugrom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(0))
-	ROM_SYSTEM_BIOS(1, "joebrom", "Joe Britt's Dev BootROM (12/19/1997)")
-	ROMX_LOAD("joebrom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(1))
-	ROM_SYSTEM_BIOS(2, "bootrom", "LC2 BootROM (2.0, build 2046)")
-	ROMX_LOAD("bootrom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(2))
-
-ROM_END
-
-////////////////////////////////////////////
-////////////////////////////////////////////
-////////////////////////////////////////////
-
 void webtv2_state::webtv2_jpp(machine_config& config)
 {
 	build_webtv_device(
@@ -1071,7 +1036,6 @@ ROM_END
 //   YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT CLASS         INIT       COMPANY    FULLNAME                                                                                 FLAGS
 CONS(1997, wtv2lc2,       0,      0, webtv2_lc2,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Plus | Sony INT-W200 / Philips MAT972 / Mitsubishi WB-2000 / Samsung SIS-100", MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2lc2
-CONS(1997, wtv2dev,       0,      0, webtv2_dev,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Plus | Development Box",                                                       MACHINE_UNOFFICIAL)
 CONS(1997, wtv2jpp,       0,      0, webtv2_jpp,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Japan Plus | Sony INT-WJ300 / Panasonic TU-WE100",                             MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2jpp
 CONS(1997, wtv2jpc,       0,      0, webtv2_jpc,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Japan Classic | Sony INT-WJ200 / Fujitsu F993000",                             MACHINE_UNOFFICIAL)
