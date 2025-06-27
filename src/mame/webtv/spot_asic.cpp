@@ -166,10 +166,10 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 		m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_HTOTAL, 0, PAL_SCREEN_HBSTART, PAL_SCREEN_VTOTAL, 0, PAL_SCREEN_VBSTART);
 
 	SPEAKER(config, m_lspeaker).front_left();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.9);
 
 	SPEAKER(config, m_rspeaker).front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
+	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.9);
 
 	NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
 	m_modem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
