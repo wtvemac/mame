@@ -819,6 +819,13 @@ mdoc_collection::mdoc_collection(
 
 uint32_t mdoc_collection::read32(offs_t offset)
 {
+	if (offset < 0x200)
+		offset += 0x000;
+	else if (offset < 0x400)
+		offset += 0x600;
+	else if (offset < 0x800)
+		offset += 0xc00;
+
 	uint32_t data = 0x00000000;
 
 	// Convert to map()?
@@ -841,14 +848,20 @@ uint32_t mdoc_collection::read32(offs_t offset)
 				data = target_chip->read32(offset);
 			}
 			break;
-}
-	
+	}
 
 	return data;
 }
 
 void mdoc_collection::write32(offs_t offset, uint32_t data)
 {
+	if (offset < 0x200)
+		offset += 0x000;
+	else if (offset < 0x400)
+		offset += 0x600;
+	else if (offset < 0x800)
+		offset += 0xc00;
+
 	// Convert to map()?
 	switch (offset)
 	{
