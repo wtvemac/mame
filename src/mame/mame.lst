@@ -48740,15 +48740,24 @@ jupiter2
 jupiter3
 
 @source:webtv/webtv1.cpp
-wtv1bfe                         //
-wtv1dev                         //
-wtv1pal                         //
-wtv1sony                        //
-wtv1phil                        //
+wtv1bfe
+wtv1bf0
+wtv1pal
+wtv1dev
+wtv1dv2
 
 @source:webtv/webtv2.cpp
-wtv2sony                        //
-wtv2phil                        //
+wtv2lc2
+wtv2dev
+wtv2jpp
+wtv2jpc
+wtv2drb
+wtv2wld
+wtv2npl
+wtv2ncl
+wtv2esr
+wtv2utv
+wtv2uvd
 
 @source:westinghouse/testconsole.cpp
 whousetc

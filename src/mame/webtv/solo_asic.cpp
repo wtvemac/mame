@@ -1,60 +1,13 @@
-// license:BSD-3-Clause
-// copyright-holders:FairPlay137,wtvemac
+// license: BSD-3-Clause
+// copyright-holders: FairPlay137, wtvemac
 
-/***********************************************************************************************
-
-    solo_asic.cpp
-
-    WebTV Networks Inc. SOLO1 ASIC
-
-    This ASIC controls most of the I/O on the 2nd generation WebTV hardware.
-
-    This implementation is based off of both the archived technical specifications, as well as
-    the various reverse-engineering efforts of the WebTV community.
-
-    The technical specifications that this implementation is based on can be found here:
-    http://wiki.webtv.zone/misc/SOLO1/SOLO1_ASIC_Spec.pdf
-
-    The SOLO ASIC is split into multiple "units", of which this implementation currently only
-    emulates the busUnit, the memUnit, and the devUnit.
-
-    The rioUnit (0xA4001xxx) provides a shared interface to the ROM, asynchronous devices (including
-    the modem, the IDE hard drive, and the IDE CD-ROM), and synchronous devices which plug into the
-    WebTV Port connector (which did not see much use other than for the FIDO/FCS printer interface).
-
-    The audUnit (0xA4002xxx) handles audio DMA.
-
-    The vidUnit (0xA4003xxx) handles video DMA.
-
-    The devUnit (0xA4004xxx) handles GPIO, IR input, IR blaster output, front panel LEDs, and the
-    parallel port.
-
-    The memUnit (0xA4005xxx) handles memory timing and other memory-related operations. These
-    registers are only emulated for completeness; they do not currently have an effect on the
-    emulation.
-
-    The gfxUnit (0xA4006xxx) is responsible for accelerated graphics.
-
-    The dveUnit (0xA4007xxx) is responsible for digital video encoding.
-
-    The divUnit (0xA4008xxx) is responsible for video input decoding.
-
-    The potUnit (0xA4009xxx) handles low-level video output.
-
-    The sucUnit (0xA400Axxx) handles serial I/O for both the RS232 port and the SmartCard reader.
-
-    The modUnit (0xA400Bxxx) handles softmodem I/O. It's basically a stripped down audUnit.
-
-****************************************************************************************************/
-
-// EMAC: this probably should be split out into separate files, this one is bloated and will continue to grow as we implement new SOLO features.
+// Description here
 
 #include "emu.h"
 
 #include "machine/input_merger.h"
 #include "render.h"
 #include "solo_asic.h"
-#include "screen.h"
 #include "main.h"
 #include "machine.h"
 #include "config.h"
@@ -71,38 +24,52 @@
 
 DEFINE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device, "solo_asic", "WebTV SOLO ASIC")
 
-solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config)
 	: device_t(mconfig, SOLO_ASIC, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
-	device_video_interface(mconfig, *this),
-	m_hostcpu(*this, finder_base::DUMMY_TAG),
+	m_hostcpu(*owner, "maincpu"),
+	m_hostram(*owner, "mainram"),
+	m_video(*this, "videox"),
+	m_audio(*this, "audiox"),
 	m_serial_id(*this, finder_base::DUMMY_TAG),
-	m_nvram(*this, finder_base::DUMMY_TAG),
 	m_irkbdc(*this, "irkbdc"),
-	m_screen(*this, "screen"),
-	m_dac(*this, "dac%u", 0),
-	m_lspeaker(*this, "lspeaker"),
-	m_rspeaker(*this, "rspeaker"),
     m_modem_uart(*this, "modem_uart"),
+	m_debug_uart(*this, "debug"),
 	m_watchdog(*this, "watchdog"),
-    m_sys_config(*owner, "sys_config"),
-    m_emu_config(*owner, "emu_config"),
     m_power_led(*this, "power_led"),
     m_connect_led(*this, "connect_led"),
     m_message_led(*this, "message_led"),
-    m_ata(*this, finder_base::DUMMY_TAG)
+    m_ata(*this, finder_base::DUMMY_TAG),
+	m_reset_hack_cb(*this),
+	m_iic_sda_in_cb(*this, 0),
+	m_iic_sda_out_cb(*this)
 {
+	m_chip_id = chip_id;
+	m_sys_config = sys_config;
 }
 
-static DEVICE_INPUT_DEFAULTS_START( wtv_modem )
-	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_115200 )
-	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_115200 )
-	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
-	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
-	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
+static DEVICE_INPUT_DEFAULTS_START(wtv_modem)
+	DEVICE_INPUT_DEFAULTS("RS232_RXBAUD", 0xff, RS232_BAUD_115200)
+	DEVICE_INPUT_DEFAULTS("RS232_TXBAUD", 0xff, RS232_BAUD_115200)
+	DEVICE_INPUT_DEFAULTS("RS232_DATABITS", 0xff, RS232_DATABITS_8)
+	DEVICE_INPUT_DEFAULTS("RS232_PARITY", 0xff, RS232_PARITY_NONE)
+	DEVICE_INPUT_DEFAULTS("RS232_STOPBITS", 0xff, RS232_STOPBITS_1)
 DEVICE_INPUT_DEFAULTS_END
 
-DECLARE_INPUT_CHANGED_MEMBER(pbuff_index_changed);
+void solo_asic_device::map(address_map &map)
+{
+	map(0x0000, 0x0fff).m(FUNC(solo_asic_device::bus_unit_map));
+	map(0x1000, 0x1fff).m(FUNC(solo_asic_device::rom_unit_map));
+	map(0x4000, 0x4fff).m(FUNC(solo_asic_device::dev_unit_map));
+	map(0x5000, 0x5fff).m(FUNC(solo_asic_device::mem_unit_map));
+	map(0xa000, 0xafff).m(FUNC(solo_asic_device::suc_unit_map));
+	map(0xb000, 0xbfff).m(FUNC(solo_asic_device::mod_unit_map));
+	map(0xc000, 0xcfff).m(FUNC(solo_asic_device::dma_unit_map));
+
+	map(0x0000, 0xffff).m(m_audio, FUNC(solo_asic_audio_device::map));
+
+	map(0x0000, 0xffff).m(m_video, FUNC(solo_asic_video_device::map));
+}
 
 void solo_asic_device::bus_unit_map(address_map &map)
 {
@@ -118,6 +85,7 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_0014_r), FUNC(solo_asic_device::reg_0014_w)); // BUS_ERREN_S
 	map(0x114, 0x117).rw(FUNC(solo_asic_device::reg_0114_r), FUNC(solo_asic_device::reg_0114_w)); // BUS_ERREN_C
 	map(0x018, 0x01b).r(FUNC(solo_asic_device::reg_0018_r));                                      // BUS_ERRADDR
+	map(0x030, 0x033).rw(FUNC(solo_asic_device::reg_0030_r), FUNC(solo_asic_device::reg_0030_w)); // BUS_WDVALUE
 	map(0x118, 0x11b).w(FUNC(solo_asic_device::reg_0118_w));                                      // BUS_WDREG_C
 	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_001c_r), FUNC(solo_asic_device::reg_001c_w)); // BUS_FENADDR1
 	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_0020_r), FUNC(solo_asic_device::reg_0020_w)); // BUS_FENMASK1
@@ -130,6 +98,7 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x058, 0x05b).r(FUNC(solo_asic_device::reg_0058_r));                                      // BUS_GPINTSTAT
 	map(0x060, 0x063).rw(FUNC(solo_asic_device::reg_0060_r), FUNC(solo_asic_device::reg_0060_w)); // BUS_GPINTSTAT_S
 	map(0x158, 0x15b).rw(FUNC(solo_asic_device::reg_0158_r), FUNC(solo_asic_device::reg_0158_w)); // BUS_GPINTSTAT_C
+	map(0x064, 0x067).rw(FUNC(solo_asic_device::reg_0064_r), FUNC(solo_asic_device::reg_0064_w)); // BUS_GPINTPOL
 	map(0x070, 0x073).rw(FUNC(solo_asic_device::reg_0070_r), FUNC(solo_asic_device::reg_0070_w)); // BUS_AUDINTEN_S
 	map(0x170, 0x173).rw(FUNC(solo_asic_device::reg_0170_r), FUNC(solo_asic_device::reg_0170_w)); // BUS_AUDINTEN_C
 	map(0x068, 0x06b).r(FUNC(solo_asic_device::reg_0068_r));                                      // BUS_AUDINTSTAT
@@ -157,6 +126,10 @@ void solo_asic_device::bus_unit_map(address_map &map)
 	map(0x19c, 0x19f).rw(FUNC(solo_asic_device::reg_019c_r), FUNC(solo_asic_device::reg_019c_w)); // BUS_TIMINTSTAT_C
 	map(0x0a8, 0x0ab).rw(FUNC(solo_asic_device::reg_00a8_r), FUNC(solo_asic_device::reg_00a8_w)); // BUS_RESETCAUSE
 	map(0x0ac, 0x0af).w(FUNC(solo_asic_device::reg_00ac_w));                                      // BUS_RESETCAUSE_C
+	map(0x0b0, 0x0b3).rw(FUNC(solo_asic_device::reg_00b0_r), FUNC(solo_asic_device::reg_00b0_w)); // BUS_J1FENLADDR
+	map(0x0b4, 0x0b7).rw(FUNC(solo_asic_device::reg_00b4_r), FUNC(solo_asic_device::reg_00b4_w)); // BUS_J1FENHADDR
+	map(0x0b8, 0x0bb).rw(FUNC(solo_asic_device::reg_00b8_r), FUNC(solo_asic_device::reg_00b8_w)); // BUS_J2FENLADDR
+	map(0x0bc, 0x0bf).rw(FUNC(solo_asic_device::reg_00bc_r), FUNC(solo_asic_device::reg_00bc_w)); // BUS_J2FENHADDR
 	map(0x0c8, 0x0cb).rw(FUNC(solo_asic_device::reg_00c8_r), FUNC(solo_asic_device::reg_00c8_w)); // BUS_BOOTMODE
 	map(0x0cc, 0x0cf).rw(FUNC(solo_asic_device::reg_00cc_r), FUNC(solo_asic_device::reg_00cc_w)); // BUS_USEBOOTMODE
 }
@@ -168,42 +141,17 @@ void solo_asic_device::rom_unit_map(address_map &map)
 	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_1008_r), FUNC(solo_asic_device::reg_1008_w)); // ROM_CNTL1
 }
 
-void solo_asic_device::aud_unit_map(address_map &map)
-{
-	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_2000_r));                                      // AUD_CSTART
-	map(0x004, 0x007).r(FUNC(solo_asic_device::reg_2004_r));                                      // AUD_CSIZE
-	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_2008_r), FUNC(solo_asic_device::reg_2008_w)); // AUD_CCONFIG
-	map(0x00c, 0x00f).r(FUNC(solo_asic_device::reg_200c_r));                                      // AUD_CCNT
-	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_2010_r), FUNC(solo_asic_device::reg_2010_w)); // AUD_NSTART
-	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_2014_r), FUNC(solo_asic_device::reg_2014_w)); // AUD_NSIZE
-	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_2018_r), FUNC(solo_asic_device::reg_2018_w)); // AUD_NCONFIG
-	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_201c_r), FUNC(solo_asic_device::reg_201c_w)); // AUD_DMACNTL
-}
-
-void solo_asic_device::vid_unit_map(address_map &map)
-{
-	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_3000_r));                                      // VID_CSTART
-	map(0x004, 0x007).r(FUNC(solo_asic_device::reg_3004_r));                                      // VID_CSIZE
-	map(0x008, 0x00b).r(FUNC(solo_asic_device::reg_3008_r));                                      // VID_CCNT
-	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_300c_r), FUNC(solo_asic_device::reg_300c_w)); // VID_NSTART
-	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_3010_r), FUNC(solo_asic_device::reg_3010_w)); // VID_NSIZE
-	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_3014_r), FUNC(solo_asic_device::reg_3014_w)); // VID_DMACNTL
-	map(0x038, 0x03b).r(FUNC(solo_asic_device::reg_3038_r));                                      // VID_INTSTAT
-	map(0x138, 0x13b).w(FUNC(solo_asic_device::reg_3138_w));                                      // VID_INTSTAT_C
-	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_303c_r), FUNC(solo_asic_device::reg_303c_w)); // VID_INTEN
-	map(0x13c, 0x13f).w(FUNC(solo_asic_device::reg_313c_w));                                      // VID_INTEN_C
-	map(0x040, 0x043).rw(FUNC(solo_asic_device::reg_3040_r), FUNC(solo_asic_device::reg_3040_w)); // VID_VDATA
-}
-
 void solo_asic_device::dev_unit_map(address_map &map)
 {
 	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_4000_r));                                      // DEV_IROLD
 	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_4004_r), FUNC(solo_asic_device::reg_4004_w)); // DEV_LED
 	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_4008_r), FUNC(solo_asic_device::reg_4008_w)); // DEV_IDCNTL
 	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_400c_r), FUNC(solo_asic_device::reg_400c_w)); // DEV_NVCNTL
-	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_4010_r), FUNC(solo_asic_device::reg_4010_w)); // DEV_SCCNTL
-	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_4014_r), FUNC(solo_asic_device::reg_4014_w)); // DEV_EXTTIME
-	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_4018_r), FUNC(solo_asic_device::reg_4018_w)); // DEV_
+	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_4010_r), FUNC(solo_asic_device::reg_4010_w)); // DEV_GPIOIN
+	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_4014_r), FUNC(solo_asic_device::reg_4014_w)); // DEV_GPIOOUT
+	map(0x114, 0x117).rw(FUNC(solo_asic_device::reg_4114_r), FUNC(solo_asic_device::reg_4114_w)); // DEV_GPIOOUT_C
+	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_4018_r), FUNC(solo_asic_device::reg_4018_w)); // DEV_GPIOEN
+	map(0x118, 0x11b).rw(FUNC(solo_asic_device::reg_4118_r), FUNC(solo_asic_device::reg_4118_w)); // DEV_GPIOEN_C
 	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_4020_r), FUNC(solo_asic_device::reg_4020_w)); // DEV_IRIN_SAMPLE
 	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_4024_r), FUNC(solo_asic_device::reg_4024_w)); // DEV_IRIN_REJECT_INT
 	map(0x028, 0x02b).r(FUNC(solo_asic_device::reg_4028_r));                                      // DEV_IRIN_TRANS_DATA
@@ -219,72 +167,15 @@ void solo_asic_device::mem_unit_map(address_map &map)
 	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_5010_r), FUNC(solo_asic_device::reg_5010_w)); // MEM_TIMING
 }
 
-void solo_asic_device::gfx_unit_map(address_map &map)
-{
-	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_6004_r), FUNC(solo_asic_device::reg_6004_w)); // GFX_CONTROL
-	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_6010_r), FUNC(solo_asic_device::reg_6010_w)); // GFX_OOTYCOUNT
-	map(0x014, 0x017).rw(FUNC(solo_asic_device::reg_6014_r), FUNC(solo_asic_device::reg_6014_w)); // GFX_CELSBASE
-	map(0x018, 0x01b).rw(FUNC(solo_asic_device::reg_6018_r), FUNC(solo_asic_device::reg_6018_w)); // GFX_YMAPBASE
-	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_601c_r), FUNC(solo_asic_device::reg_601c_w)); // GFX_CELSBASEMASTER
-	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_6020_r), FUNC(solo_asic_device::reg_6020_w)); // GFX_YMAPBASEMASTER
-	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_6024_r), FUNC(solo_asic_device::reg_6024_w)); // GFX_INITCOLOR
-	map(0x028, 0x02b).rw(FUNC(solo_asic_device::reg_6028_r), FUNC(solo_asic_device::reg_6028_w)); // GFX_YCOUNTERINlT
-	map(0x02c, 0x02f).rw(FUNC(solo_asic_device::reg_602c_r), FUNC(solo_asic_device::reg_602c_w)); // GFX_PAUSECYCLES
-	map(0x030, 0x033).rw(FUNC(solo_asic_device::reg_6030_r), FUNC(solo_asic_device::reg_6030_w)); // GFX_OOTCELSBASE
-	map(0x034, 0x037).rw(FUNC(solo_asic_device::reg_6034_r), FUNC(solo_asic_device::reg_6034_w)); // GFX_OOTYMAPBASE
-	map(0x038, 0x03b).rw(FUNC(solo_asic_device::reg_6038_r), FUNC(solo_asic_device::reg_6038_w)); // GFX_OOTCELSOFFSET
-	map(0x03c, 0x03f).rw(FUNC(solo_asic_device::reg_603c_r), FUNC(solo_asic_device::reg_603c_w)); // GFX_OOTYMAPCOUNT
-	map(0x040, 0x043).rw(FUNC(solo_asic_device::reg_6040_r), FUNC(solo_asic_device::reg_6040_w)); // GFX_TERMCYCLECOUNT
-	map(0x044, 0x047).rw(FUNC(solo_asic_device::reg_6044_r), FUNC(solo_asic_device::reg_6044_w)); // GFX_HCOUNTERINIT
-	map(0x048, 0x04b).rw(FUNC(solo_asic_device::reg_6048_r), FUNC(solo_asic_device::reg_6048_w)); // GFX_BLANKLINES
-	map(0x04c, 0x04f).rw(FUNC(solo_asic_device::reg_604c_r), FUNC(solo_asic_device::reg_604c_w)); // GFX_ACTIVELINES
-	map(0x060, 0x063).rw(FUNC(solo_asic_device::reg_6060_r), FUNC(solo_asic_device::reg_6060_w)); // GFX_INTEN
-	map(0x064, 0x067).w(FUNC(solo_asic_device::reg_6064_w));                                      // GFX_INTEN_C
-	map(0x068, 0x06b).rw(FUNC(solo_asic_device::reg_6068_r), FUNC(solo_asic_device::reg_6068_w)); // GFX_INTSTAT
-	map(0x06c, 0x06f).w(FUNC(solo_asic_device::reg_606c_w));                                      // GFX_INTSTAT_C
-	map(0x080, 0x083).rw(FUNC(solo_asic_device::reg_6080_r), FUNC(solo_asic_device::reg_6080_w)); // GFX_WBDSTART
-	map(0x084, 0x087).rw(FUNC(solo_asic_device::reg_6084_r), FUNC(solo_asic_device::reg_6084_w)); // GFX_WBDLSIZE
-	map(0x08c, 0x08f).rw(FUNC(solo_asic_device::reg_608c_r), FUNC(solo_asic_device::reg_608c_w)); // GFX_WBSTRIDE
-	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_6090_r), FUNC(solo_asic_device::reg_6090_w)); // GFX_WBDCONFIG
-	map(0x094, 0x097).rw(FUNC(solo_asic_device::reg_6094_r), FUNC(solo_asic_device::reg_6094_w)); // GFX_WBDSTART
-}
-
-void solo_asic_device::dve_unit_map(address_map &map)
-{
-	//
-}
-
-void solo_asic_device::div_unit_map(address_map &map)
-{
-	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_8004_r), FUNC(solo_asic_device::reg_8004_w)); // DIV_CMACTL
-	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_801c_r), FUNC(solo_asic_device::reg_801c_w)); // DIV_NEXTCFG
-	map(0x038, 0x03b).rw(FUNC(solo_asic_device::reg_8038_r), FUNC(solo_asic_device::reg_8038_w)); // DIV_CURRCFG
-}
-
-void solo_asic_device::pot_unit_map(address_map &map)
-{
-	map(0x080, 0x083).rw(FUNC(solo_asic_device::reg_9080_r), FUNC(solo_asic_device::reg_9080_w)); // POT_VSTART
-	map(0x084, 0x087).rw(FUNC(solo_asic_device::reg_9084_r), FUNC(solo_asic_device::reg_9084_w)); // POT_VSIZE
-	map(0x088, 0x08b).rw(FUNC(solo_asic_device::reg_9088_r), FUNC(solo_asic_device::reg_9088_w)); // POT_BLNKCOL
-	map(0x08c, 0x08f).rw(FUNC(solo_asic_device::reg_908c_r), FUNC(solo_asic_device::reg_908c_w)); // POT_HSTART
-	map(0x090, 0x093).rw(FUNC(solo_asic_device::reg_9090_r), FUNC(solo_asic_device::reg_9090_w)); // POT_HSIZE
-	map(0x094, 0x097).rw(FUNC(solo_asic_device::reg_9094_r), FUNC(solo_asic_device::reg_9094_w)); // POT_CNTL
-	map(0x098, 0x09b).rw(FUNC(solo_asic_device::reg_9098_r), FUNC(solo_asic_device::reg_9098_w)); // POT_HINTLINE
-	map(0x09c, 0x09f).rw(FUNC(solo_asic_device::reg_909c_r), FUNC(solo_asic_device::reg_909c_w)); // POT_INTEN
-	map(0x0a4, 0x0a7).w(FUNC(solo_asic_device::reg_90a4_w));                                      // POT_INTEN_C
-	map(0x0a0, 0x0a3).r(FUNC(solo_asic_device::reg_90a0_r));                                      // POT_INTSTAT
-	map(0x0a8, 0x0ab).rw(FUNC(solo_asic_device::reg_90a8_r), FUNC(solo_asic_device::reg_90a8_w)); // POT_INTSTAT_C
-	map(0x0ac, 0x0af).r(FUNC(solo_asic_device::reg_90ac_r));                                      // POT_CLINE
-}
-
-
-
 void solo_asic_device::suc_unit_map(address_map &map)
 {
-	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_a000_r), FUNC(solo_asic_device::reg_a000_w)); // SUCGPU_TFFHR
-	map(0x00c, 0x00f).r(FUNC(solo_asic_device::reg_a00c_r));                                      // SUCGPU_TFFCNT
-	map(0x010, 0x013).r(FUNC(solo_asic_device::reg_a010_r));                                      // SUCGPU_TFFMAX
-	map(0xab8, 0xabb).r(FUNC(solo_asic_device::reg_aab8_r));                                      // SUCSC0_GPIOVAL
+	map(0x000, 0x003).w(FUNC(solo_asic_device::reg_a000_w)); // SUCGPU_TFFHR
+	map(0x00c, 0x00f).r(FUNC(solo_asic_device::reg_a00c_r)); // SUCGPU_TFFCNT
+	map(0x010, 0x013).r(FUNC(solo_asic_device::reg_a010_r)); // SUCGPU_TFFMAX
+	map(0x040, 0x043).r(FUNC(solo_asic_device::reg_a040_r)); // SUCGPU_RFFHR
+	map(0x04c, 0x04f).r(FUNC(solo_asic_device::reg_a04c_r)); // SUCGPU_RFFCNT
+	map(0x050, 0x053).r(FUNC(solo_asic_device::reg_a050_r)); // SUCGPU_RFFMAX
+	map(0xab8, 0xabb).r(FUNC(solo_asic_device::reg_aab8_r)); // SUCSC0_GPIOVAL
 }
 
 void solo_asic_device::mod_unit_map(address_map &map)
@@ -327,63 +218,26 @@ void solo_asic_device::ide_map(address_map &map)
 	map(0x40001c, 0x40001f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
 }
 
-void solo_asic_device::han_map(address_map &map)
-{
-	m_han_enabled = true;
-
-	// Interrups
-	// 0x000, 0x004
-	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_han_0000_r), FUNC(solo_asic_device::reg_han_0000_w)); // HAN_INTSTAT_C
-	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_han_0004_r), FUNC(solo_asic_device::reg_han_0004_w)); // HAN_INTEN_S
-
-	// Unknown
-	// 0x014,  0x154,  0x158
-	// 0x100 (DMA?), 0x200 (DMA?), 0x2f0 (DMA? DERR, int bit 0xe), 0x300 (DMA?), 0x3f0 (DMA? SERR, int bit 0xf)
-
-	// IDE
-	map(0x100, 0x103).rw(FUNC(solo_asic_device::reg_ide_000000_r), FUNC(solo_asic_device::reg_ide_000000_w)); // IDE I/O port cs0[0] (data)
-	map(0x104, 0x107).rw(FUNC(solo_asic_device::reg_ide_000004_r), FUNC(solo_asic_device::reg_ide_000004_w)); // IDE I/O port cs0[1] (error or feature)
-	map(0x108, 0x10b).rw(FUNC(solo_asic_device::reg_ide_000008_r), FUNC(solo_asic_device::reg_ide_000008_w)); // IDE I/O port cs0[2] (sector count)
-	map(0x10c, 0x10f).rw(FUNC(solo_asic_device::reg_ide_00000c_r), FUNC(solo_asic_device::reg_ide_00000c_w)); // IDE I/O port cs0[3] (sector number)
-	map(0x110, 0x113).rw(FUNC(solo_asic_device::reg_ide_000010_r), FUNC(solo_asic_device::reg_ide_000010_w)); // IDE I/O port cs0[4] (cylinder low)
-	map(0x114, 0x117).rw(FUNC(solo_asic_device::reg_ide_000014_r), FUNC(solo_asic_device::reg_ide_000014_w)); // IDE I/O port cs0[5] (cylinder high)
-	map(0x118, 0x11b).rw(FUNC(solo_asic_device::reg_ide_000018_r), FUNC(solo_asic_device::reg_ide_000018_w)); // IDE I/O port cs0[6] (drive/head)
-	map(0x11c, 0x11f).rw(FUNC(solo_asic_device::reg_ide_00001c_r), FUNC(solo_asic_device::reg_ide_00001c_w)); // IDE I/O port cs0[7] (status or command)
-	map(0x138, 0x13b).rw(FUNC(solo_asic_device::reg_ide_400018_r), FUNC(solo_asic_device::reg_ide_400018_w)); // IDE I/O port cs1[6] (altstatus or device control)
-	map(0x13c, 0x13f).rw(FUNC(solo_asic_device::reg_ide_40001c_r), FUNC(solo_asic_device::reg_ide_40001c_w)); // IDE I/O port cs1[7] (device address)
-
-	// IDE Timing
-	// 0x140, 0x144, 0x148
-
-	// Message pipeline (used in Doly AC-3, state messages etc...)
-	// 0x10, 0x080, 0x084, 0x180
-	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_han_0010_r), FUNC(solo_asic_device::reg_han_0010_w)); // HAN_
-	map(0x080, 0x083).rw(FUNC(solo_asic_device::reg_han_0080_r), FUNC(solo_asic_device::reg_han_0080_w)); // HAN_MSGCNTL?
-	map(0x084, 0x087).rw(FUNC(solo_asic_device::reg_han_0084_r), FUNC(solo_asic_device::reg_han_0084_w)); // HAN_MSGFIFO?
-}
-
-void solo_asic_device::pekoe_map(address_map &map)
-{
-	map(0x000, 0x003).rw(FUNC(solo_asic_device::reg_pekoe_0000_r), FUNC(solo_asic_device::reg_pekoe_0000_w)); // Pekoe data
-	map(0x004, 0x007).w(FUNC(solo_asic_device::reg_pekoe_0004_w));                                            // Pekoe ???
-	map(0x008, 0x00b).w(FUNC(solo_asic_device::reg_pekoe_0008_w));                                            // Pekoe ???
-	map(0x00c, 0x00f).w(FUNC(solo_asic_device::reg_pekoe_000c_w));                                            // Pekoe configure? (baud rate etc..)
-	map(0x010, 0x013).w(FUNC(solo_asic_device::reg_pekoe_0010_w));                                            // Pekoe ???
-	map(0x014, 0x017).r(FUNC(solo_asic_device::reg_pekoe_0014_r));                                            // Pekoe status?
-
-}
-
 void solo_asic_device::device_add_mconfig(machine_config &config)
 {
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-	m_screen->set_screen_update(FUNC(solo_asic_device::screen_update));
-	m_screen->screen_vblank().set(FUNC(solo_asic_device::vblank_irq));
-	m_screen->set_raw(POT_DEFAULT_XTAL, POT_DEFAULT_HTOTAL, 0, POT_DEFAULT_HBSTART, POT_DEFAULT_VTOTAL, 0, POT_DEFAULT_VBSTART);
+	SOLO_ASIC_VIDEO(config, m_video);
+	m_video->int_enable_callback().set(FUNC(solo_asic_device::int_enable_vid_w));
+	m_video->int_irq_callback().set(FUNC(solo_asic_device::irq_vid_w));
+	m_video->set_hostcpu(m_hostcpu);
+	m_video->set_hostram(m_hostram);
+	if (m_sys_config & SYSCONFIG_PAL)
+		m_video->enable_pal();
+	else
+		m_video->enable_ntsc();
 
-	SPEAKER(config, m_lspeaker).front_left();
-	SPEAKER(config, m_rspeaker).front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.0);
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
+	SOLO_ASIC_AUDIO(config, m_audio);
+	m_audio->int_enable_callback().set(FUNC(solo_asic_device::int_enable_aud_w));
+	m_audio->int_irq_callback().set(FUNC(solo_asic_device::irq_aud_w));
+	m_audio->set_hostcpu(m_hostcpu);
+	m_audio->set_hostram(m_hostram);
+
+	SEJIN_KBD(config, m_irkbdc);
+	m_irkbdc->sample_fifo_trigger_callback().set(FUNC(solo_asic_device::irq_keyboard_w));
 
 	NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
 	m_modem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
@@ -399,23 +253,11 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 	rs232.ri_handler().set(m_modem_uart, FUNC(ns16450_device::ri_w));
 	rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
 
-	SEJIN_KBD(config, m_irkbdc);
-	m_irkbdc->sample_fifo_trigger_callback().set(FUNC(solo_asic_device::irq_keyboard_w));
+	WTV_RS232DBG(config, m_debug_uart);
+	m_debug_uart->serial_rx_handler().set(FUNC(solo_asic_device::irq_uart_w));
 
 	WATCHDOG_TIMER(config, m_watchdog);
 	solo_asic_device::watchdog_enable(0);
-}
-
-void solo_asic_device::device_resolve_objects()
-{
-	// This grabs the configuration before it's usually done so we can read the PAL or NTSC bit to configure the screen.
-	machine().manager().before_load_settings(machine());
-	machine().configuration().load_settings();
-
-	if (m_sys_config->read() & SYSCONFIG_PAL)
-		m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_HTOTAL, 0, PAL_SCREEN_HBSTART, PAL_SCREEN_VTOTAL, 0, PAL_SCREEN_VBSTART);
-	else
-		m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_HTOTAL, 0, NTSC_SCREEN_HBSTART, NTSC_SCREEN_VTOTAL, 0, NTSC_SCREEN_VBSTART);
 }
 
 void solo_asic_device::device_start()
@@ -428,11 +270,8 @@ void solo_asic_device::device_start()
 	m_bootmode = 0x0;
 	m_use_bootmode = 0x0;
 
-	dac_update_timer = timer_alloc(FUNC(solo_asic_device::dac_update), this);
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
 	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
-	han_message_timer = timer_alloc(FUNC(solo_asic_device::check_han_message_state), this);
-	han_reboot_timer = timer_alloc(FUNC(solo_asic_device::han_reboot), this);
 
 	solo_asic_device::device_reset();
 
@@ -441,12 +280,9 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_tcompare));
 	save_item(NAME(m_busgpio_intenable));
 	save_item(NAME(m_busgpio_intstat));
-	save_item(NAME(m_busaud_intenable));
-	save_item(NAME(m_busaud_intstat));
+	save_item(NAME(m_busgpio_intpol));
 	save_item(NAME(m_busdev_intenable));
 	save_item(NAME(m_busdev_intstat));
-	save_item(NAME(m_busvid_intenable));
-	save_item(NAME(m_busvid_intstat));
 	save_item(NAME(m_busrio_intenable));
 	save_item(NAME(m_busrio_intstat));
 	save_item(NAME(m_bustim_intenable));
@@ -454,66 +290,18 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_errenable));
 	save_item(NAME(m_chpcntl));
 	save_item(NAME(m_wdenable));
+	save_item(NAME(m_iiccntl));
+	save_item(NAME(m_iic_sda));
+	save_item(NAME(m_iic_scl));
 	save_item(NAME(m_errstat));
+	save_item(NAME(m_j1fenladdr));
+	save_item(NAME(m_j1fenhaddr));
+	save_item(NAME(m_j2fenladdr));
+	save_item(NAME(m_j2fenhaddr));
 	save_item(NAME(m_resetcause));
 	save_item(NAME(m_bootmode));
 	save_item(NAME(m_use_bootmode));
 
-	save_item(NAME(m_vid_nstart));
-	save_item(NAME(m_vid_nsize));
-	save_item(NAME(m_vid_dmacntl));
-	save_item(NAME(m_vid_cstart));
-	save_item(NAME(m_vid_csize));
-	save_item(NAME(m_vid_ccnt));
-	save_item(NAME(m_vid_cline));
-	save_item(NAME(m_vid_vdata));
-	save_item(NAME(m_vid_intenable));
-	save_item(NAME(m_vid_intstat));
-
-	save_item(NAME(m_gfx_cntl));
-	save_item(NAME(m_gfx_activelines));
-	save_item(NAME(m_gfx_wbdstart));
-	save_item(NAME(m_gfx_wbdlsize));
-	save_item(NAME(m_gfx_intenable));
-	save_item(NAME(m_gfx_intstat));
-
-	save_item(NAME(m_div_intenable));
-	save_item(NAME(m_div_intstat));
-
-	save_item(NAME(m_pot_vstart));
-	save_item(NAME(m_pot_vsize));
-	save_item(NAME(m_pot_blank_color));
-	save_item(NAME(m_pot_hstart));
-	save_item(NAME(m_pot_hsize));
-	save_item(NAME(m_pot_cntl));
-	save_item(NAME(m_pot_hintline));
-	save_item(NAME(m_pot_intenable));
-	save_item(NAME(m_pot_intstat));
-
-	save_item(NAME(m_vid_draw_nstart));
-	save_item(NAME(m_pot_draw_hstart));
-	save_item(NAME(m_pot_draw_hsize));
-	save_item(NAME(m_pot_draw_vstart));
-	save_item(NAME(m_pot_draw_vsize));
-	save_item(NAME(m_pot_draw_blank_color));
-	save_item(NAME(m_pot_draw_hintline));
-
-	save_item(NAME(m_aud_cstart));
-	save_item(NAME(m_aud_csize));
-	save_item(NAME(m_aud_cconfig));
-	save_item(NAME(m_aud_ccnt));
-	save_item(NAME(m_aud_nstart));
-	save_item(NAME(m_aud_nsize));
-	save_item(NAME(m_aud_nconfig));
-	save_item(NAME(m_aud_dmacntl));
-	save_item(NAME(m_han_enabled));
-	save_item(NAME(m_han_intenable));
-	save_item(NAME(m_han_intstat));
-	save_item(NAME(m_han_need_in_int));
-	save_item(NAME(m_han_msgbuff_status));
-	save_item(NAME(m_han_msgbuff_index));
-	save_item(NAME(m_han_startup_step));
-	save_item(NAME(m_han_msgbuff));
 	save_item(NAME(m_smrtcrd_serial_bitmask));
 	save_item(NAME(m_smrtcrd_serial_rxdata));
 	save_item(NAME(m_utvdma_src));
@@ -528,10 +316,14 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_rom_cntl0));
 	save_item(NAME(m_rom_cntl1));
 	save_item(NAME(m_ledstate));
-	save_item(NAME(dev_idcntl));
-	save_item(NAME(dev_id_state));
-	save_item(NAME(dev_id_bit));
-	save_item(NAME(dev_id_bitidx));
+	save_item(NAME(m_dev_idcntl));
+	save_item(NAME(m_dev_id_state));
+	save_item(NAME(m_dev_id_bit));
+	save_item(NAME(m_dev_id_bitidx));
+	save_item(NAME(m_dev_gpio_in));
+	save_item(NAME(m_dev_gpio_out));
+	save_item(NAME(m_dev_gpio_in_mask));
+	save_item(NAME(m_dev_gpio_out_mask));
 }
 
 void solo_asic_device::device_reset()
@@ -548,15 +340,6 @@ void solo_asic_device::device_reset()
 		}
 	}
 
-	dac_update_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
-
-	if (m_han_enabled)
-	{
-		m_hostcpu->set_input_line(MIPS3_IRQ3, CLEAR_LINE);
-		han_message_timer->enable(false);
-		han_reboot_timer->adjust(attotime::from_msec(HAN_REBOOT_WAIT_MS));
-	}
-
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
 	m_memdata = 0x0;
@@ -566,84 +349,30 @@ void solo_asic_device::device_reset()
 	m_chpcntl = 0x0;
 	m_wdenable = 0x0;
 	m_errstat = 0x0;
-	m_nvcntl = 0x0;
+	m_iiccntl = 0x0;
+	m_iic_sda = 0x0;
+	m_iic_scl = 0x0;
 	m_fence1_addr = 0x0;
 	m_fence1_mask = 0x0;
 	m_fence2_addr = 0x0;
 	m_fence2_mask = 0x0;
+	m_j1fenladdr = 0x0;
+	m_j1fenhaddr = 0x0;
+	m_j2fenladdr = 0x0;
+	m_j2fenhaddr = 0x0;
 	m_tcompare = 0x0;
 	m_bus_intenable = 0x0;
 	m_bus_intstat = 0x0;
 	m_busgpio_intenable = 0x0;
 	m_busgpio_intstat = 0x0;
-	m_busaud_intenable = 0x0;
-	m_busaud_intstat = 0x0;
+	m_busgpio_intpol = 0x0;
 	m_busdev_intenable = 0x0;
 	m_busdev_intstat = 0x0;
-	m_busvid_intenable = 0x0;
-	m_busvid_intstat = 0x0;
 	m_busrio_intenable = 0x0;
 	m_busrio_intstat = 0x0;
 	m_bustim_intenable = 0x0;
 	m_bustim_intstat = 0x0;
-
-	m_vid_nstart = 0x0;
-	m_vid_nsize = 0x0;
-	m_vid_dmacntl = 0x0;
-	m_vid_cstart = 0x0;
-	m_vid_csize = 0x0;
-	m_vid_ccnt = 0x0;
-	m_vid_cline = 0x0;
-	m_vid_vdata = 0x0;
-	m_vid_intenable = 0x0;
-	m_vid_intstat = 0x0;
-
-	m_gfx_cntl = 0x0;
-	m_gfx_activelines = 0x0;
-	m_gfx_wbdstart = 0x0;
-	m_gfx_wbdlsize = 0x0;
-	m_gfx_intenable = 0x0;
-	m_gfx_intstat = 0x0;
-
-	m_div_intenable = 0x0;
-	m_div_intstat = 0x0;
-
-	m_pot_vstart = POT_DEFAULT_VSTART;
-	m_pot_vsize = POT_DEFAULT_VSIZE;
-	m_pot_blank_color = POT_DEFAULT_COLOR;
-	m_pot_hstart = POT_VIDUNIT_HSTART_OFFSET + POT_DEFAULT_HSTART;
-	m_pot_hsize = POT_DEFAULT_HSIZE;
-	m_pot_cntl = 0x0;
-	m_pot_hintline = 0x0;
-	m_pot_intenable = 0x0;
-	m_pot_intstat = 0x0;
-
-	m_vid_draw_nstart = 0x0;
-	m_pot_draw_hstart = POT_VIDUNIT_HSTART_OFFSET;
-	m_pot_draw_hsize = m_pot_hsize;
-	m_pot_draw_vstart = m_pot_vstart;
-	m_pot_draw_vsize = m_pot_vsize;
-	m_pot_draw_blank_color = m_pot_blank_color;
-	m_pot_draw_hintline = 0x0;
-
-	m_aud_cstart = 0x0;
-	m_aud_csize = 0x0;
-	m_aud_cend = 0x0;
-	m_aud_cconfig = 0x0;
-	m_aud_ccnt = 0x0;
-	m_aud_nstart = 0x0;
-	m_aud_nsize = 0x0;
-	m_aud_nconfig = 0x0;
-	m_aud_dmacntl = 0x0;
-	m_aud_dma_ongoing = false;
 	
-	m_han_intenable = 0x0;
-	m_han_intstat = 0x0;
-	m_han_need_in_int = false;
-	m_han_msgbuff_status = 0x0;
-	m_han_msgbuff_index = 0x0;
-	m_han_startup_step = HAN_STARTUP_BEGIN;
-
 	m_rom_cntl0 = 0x0;
 	m_rom_cntl1 = 0x0;
 
@@ -652,10 +381,14 @@ void solo_asic_device::device_reset()
 	m_connect_led = 0;
 	m_message_led = 0;
 
-	dev_idcntl = 0x00;
-	dev_id_state = SSID_STATE_IDLE;
-	dev_id_bit = 0x0;
-	dev_id_bitidx = 0x0;
+	m_dev_idcntl = 0x00;
+	m_dev_id_state = SSID_STATE_IDLE;
+	m_dev_id_bit = 0x0;
+	m_dev_id_bitidx = 0x0;
+	m_dev_gpio_in = 0x0;
+	m_dev_gpio_out = 0x0;
+	m_dev_gpio_in_mask = 0x0;
+	m_dev_gpio_out_mask = (~m_dev_gpio_in_mask);
 
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
@@ -675,9 +408,11 @@ void solo_asic_device::device_reset()
 	modem_should_threint = false;
 	solo_asic_device::modfw_hack_begin();
 
-	solo_asic_device::validate_active_area();
-	solo_asic_device::watchdog_enable(m_wdenable);
-	m_irkbdc->enable(1);
+	if (device().started())
+	{
+		solo_asic_device::watchdog_enable(m_wdenable);
+		m_irkbdc->enable(1);
+	}
 
 	// Assume it's a watchdog reset if the reset wasn't commanded using the BUS_RESETCAUSE register
 	if (m_resetcause != RESETCAUSE_SOFTWARE)
@@ -688,74 +423,7 @@ void solo_asic_device::device_reset()
 
 void solo_asic_device::device_stop()
 {
-}
-
-void solo_asic_device::validate_active_area()
-{
-	// The active h size can't be larger than the screen width or smaller than 2 pixels.
-	m_pot_draw_hsize = std::clamp(m_pot_hsize, (uint32_t)0x2, (uint32_t)m_screen->width());
-	// The active v size can't be larger than the screen height or smaller than 2 pixels.
-	m_pot_draw_vsize = std::clamp(m_pot_vsize, (uint32_t)0x2, (uint32_t)m_screen->height());
-
-
-	uint32_t hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
-	uint32_t vstart_offset = POT_VIDUNIT_VSTART_OFFSET;
-	if (m_pot_cntl & POT_FCNTL_USEGFX)
-	{
-		hstart_offset = POT_GFXUNIT_HSTART_OFFSET;
-		vstart_offset = POT_GFXUNIT_VSTART_OFFSET;
-	}
-	else
-	{
-		hstart_offset = POT_VIDUNIT_HSTART_OFFSET;
-		vstart_offset = POT_VIDUNIT_VSTART_OFFSET;
-	}
-
-	// The active h start can't be smaller than 2
-	m_pot_draw_hstart = std::max(m_pot_hstart - hstart_offset, (uint32_t)0x2);
-	// The active v start can't be smaller than 2
-	m_pot_draw_vstart = std::max(m_pot_vstart - vstart_offset, (uint32_t)0x2);
-
-	// The active h start can't push the active area off the screen.
-	if ((m_pot_draw_hstart + m_pot_draw_hsize) > m_screen->width())
-		m_pot_draw_hstart = (m_screen->width() - m_pot_draw_hsize); // to screen edge
-	else if (m_pot_draw_hstart < 0)
-		m_pot_draw_hstart = 0;
-
-	// The active v start can't push the active area off the screen.
-	if ((m_pot_draw_vstart + m_pot_draw_vsize) > m_screen->height())
-		m_pot_draw_vstart = (m_screen->height() - m_pot_draw_vsize); // to screen edge
-	else if (m_pot_draw_vstart < 0)
-		m_pot_draw_vstart = 0;
-
-	solo_asic_device::pixel_buffer_index_update();
-}
-
-void solo_asic_device::pixel_buffer_index_update()
-{
-	uint32_t screen_lines = m_pot_draw_vsize;
-	uint32_t screen_buffer_size = m_vid_nsize;
-
-	/*if (!(m_pot_cntl & POT_FCNTL_PROGRESSIVE))
-	{
-		// Interlace mode splits the buffer into two halfs. We can capture both halfs if we double the line count.
-		screen_buffer_size = (screen_buffer_size * 2);
-		screen_lines = (screen_lines * 2);
-	}*/
-
-	m_vid_draw_nstart = m_vid_nstart;
-
-	if (m_emu_config->read() & EMUCONFIG_PBUFF1)
-	{
-		m_vid_draw_nstart += screen_buffer_size;
-		m_vid_draw_nstart -= (m_pot_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_pot_draw_vsize = screen_lines;
-	}
-	else
-	{
-		m_vid_draw_nstart += 2 * (m_pot_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_pot_draw_vsize = screen_lines - 2;
-	}
+	//
 }
 
 void solo_asic_device::watchdog_enable(int state)
@@ -810,7 +478,7 @@ void solo_asic_device::mod_reset()
 
 uint32_t solo_asic_device::reg_0000_r()
 {
-	return m_chpid;
+	return m_chip_id;
 }
 
 uint32_t solo_asic_device::reg_0004_r()
@@ -839,45 +507,19 @@ void solo_asic_device::reg_0004_w(uint32_t data)
 
 	if ((m_chpcntl ^ data) & CHPCNTL_AUDCLKDIV_MASK)
 	{
-		uint32_t audclk_cntl = (data & CHPCNTL_AUDCLKDIV_MASK);
+		// On hardware this sets the AUD_XTAL audio clock divider. AUD_XTAL is typically based on the system bus clock.
 
-		uint32_t sys_clk = solo_asic_device::clock();
-		uint32_t aud_clk = AUD_DEFAULT_CLK;
+		//uint32_t requested_audclk_div = ((data & CHPCNTL_AUDCLKDIV_MASK) >> CHPCNTL_AUDCLKDIV_SHIFT) * 0x100;
+		//m_audio->set_aout_clock(solo_asic_device::clock() / requested_audclk_div);
 
-		switch(audclk_cntl)
-		{
-			case CHPCNTL_AUDCLKDIV_EXTC:
-			default:
-				aud_clk = AUD_DEFAULT_CLK;
-				break;
+		// The OS/fimrware tries to find the closest divider to create a 44100Hz or 48000Hz audio clock based
+		// on the calculated system bus clock.
+		// 
+		// This implementation always sets 44100Hz exactly to cover most cases. This doesn't behave exactly like 
+		// hardware but is better optimized for audio quality. There's some tradeoffs with this but I fell this 
+		// is better for our use case.
 
-			case CHPCNTL_AUDCLKDIV_DIV1:
-				aud_clk = sys_clk / (1 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV2:
-				aud_clk = sys_clk / (2 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV3:
-				aud_clk = sys_clk / (3 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV4:
-				aud_clk = sys_clk / (4 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV5:
-				aud_clk = sys_clk / (5 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV6:
-				aud_clk = sys_clk / (6 * 0x100);
-				break;
-
-		}
-
-		dac_update_timer->adjust(attotime::from_hz(aud_clk), 0, attotime::from_hz(aud_clk));
+		m_audio->set_aout_clock(44100);
 	}
 
 	m_chpcntl = data;
@@ -919,7 +561,7 @@ uint32_t solo_asic_device::reg_0108_r()
 
 void solo_asic_device::reg_0108_w(uint32_t data)
 {
-	solo_asic_device::set_bus_irq(data, 0);
+	solo_asic_device::set_bus_irq(data, CLEAR_LINE);
 }
 
 uint32_t solo_asic_device::reg_0050_r()
@@ -973,14 +615,10 @@ void solo_asic_device::reg_0110_w(uint32_t data)
 uint32_t solo_asic_device::reg_0014_r()
 {
 	if (do7e_hack)
-	{
 		// This register is the LSR modem register in this state.
 		return 0x0; // This causes the firmware to break out of the handler loop
-	}
 	else
-	{
 		return m_errenable;
-	}
 }
 
 void solo_asic_device::reg_0014_w(uint32_t data)
@@ -1002,10 +640,10 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 		// Turn back on the modem downloader hack.
 		solo_asic_device::modfw_hack_begin();
 
-		if (m_han_enabled && m_han_startup_step == HAN_STARTUP_DONE)
-		{
-			han_reboot_timer->adjust(attotime::from_msec(HAN_REBOOT_WAIT_MS));
-		}
+		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, CLEAR_LINE);
+
+		if (m_j2fenladdr == 0x0)
+			m_reset_hack_cb(1);
 	}
 
 	m_errenable &= (~data) & 0xFF;
@@ -1014,6 +652,16 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 uint32_t solo_asic_device::reg_0018_r()
 {
 	return 0x00000000;
+}
+
+uint32_t solo_asic_device::reg_0030_r()
+{
+	return m_wdvalue;
+}
+
+void solo_asic_device::reg_0030_w(uint32_t data)
+{
+	m_wdvalue = data; // value is ignored
 }
 
 void solo_asic_device::reg_0118_w(uint32_t data)
@@ -1091,7 +739,7 @@ void solo_asic_device::reg_004c_w(uint32_t data)
 	}
 	else
 	{
-		solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 0);
+		solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, CLEAR_LINE);
 	}
 }
 
@@ -1103,6 +751,9 @@ uint32_t solo_asic_device::reg_005c_r()
 void solo_asic_device::reg_005c_w(uint32_t data)
 {
 	m_busgpio_intenable |= data;
+
+	if (m_busgpio_intenable != 0x0)
+		solo_asic_device::reg_007c_w(BUS_INT_DEV_GPIO);
 }
 
 uint32_t solo_asic_device::reg_015c_r()
@@ -1112,7 +763,11 @@ uint32_t solo_asic_device::reg_015c_r()
 
 void solo_asic_device::reg_015c_w(uint32_t data)
 {
+	solo_asic_device::reg_0158_w(data);
 	m_busgpio_intenable &= (~data);
+
+	if (m_busgpio_intenable == 0x0)
+		solo_asic_device::reg_017c_w(BUS_INT_DEV_GPIO);
 }
 
 uint32_t solo_asic_device::reg_0058_r()
@@ -1137,57 +792,63 @@ uint32_t solo_asic_device::reg_0158_r()
 
 void solo_asic_device::reg_0158_w(uint32_t data)
 {
-	m_busgpio_intstat &= (~data);
+	solo_asic_device::set_gpio_irq(data, CLEAR_LINE);
+}
+
+uint32_t solo_asic_device::reg_0064_r()
+{
+	return m_busgpio_intpol;
+}
+
+void solo_asic_device::reg_0064_w(uint32_t data)
+{
+	m_busgpio_intpol = data;
 }
 
 uint32_t solo_asic_device::reg_0070_r()
 {
-	return m_busaud_intenable;
+	return m_audio->busaud_intenable_get();
 }
 
 void solo_asic_device::reg_0070_w(uint32_t data)
 {
-	m_busaud_intenable |= data;
-	if (m_busaud_intenable != 0x0)
-	{
-		m_bus_intenable |= BUS_INT_AUDIO;
-	}
+	m_audio->busaud_intenable_set(data);
 }
 
 uint32_t solo_asic_device::reg_0170_r()
 {
-	return m_busaud_intenable;
+	return m_audio->busaud_intenable_get();
 }
 
 void solo_asic_device::reg_0170_w(uint32_t data)
 {
 	solo_asic_device::reg_0168_w(data);
-	m_busaud_intenable &= (~data);
+	m_audio->busaud_intenable_clear(data);
 }
 
 uint32_t solo_asic_device::reg_0068_r()
 {
-	return m_busaud_intstat;
+	return m_audio->busaud_intstat_get();
 }
 
 uint32_t solo_asic_device::reg_006c_r()
 {
-	return m_busaud_intstat;
+	return m_audio->busaud_intstat_get();
 }
 
 void solo_asic_device::reg_006c_w(uint32_t data)
 {
-	m_busaud_intstat |= data;
+	m_audio->busaud_intstat_set(data);
 }
 
 uint32_t solo_asic_device::reg_0168_r()
 {
-	return m_busaud_intstat;
+	return m_audio->busaud_intstat_get();
 }
 
 void solo_asic_device::reg_0168_w(uint32_t data)
 {
-	solo_asic_device::set_audio_irq(data, 0);
+	return m_audio->busaud_intstat_clear(data);
 }
 
 uint32_t solo_asic_device::reg_007c_r()
@@ -1199,9 +860,7 @@ void solo_asic_device::reg_007c_w(uint32_t data)
 {
 	m_busdev_intenable |= data;
 	if (m_busdev_intenable != 0x0)
-	{
 		m_bus_intenable |= BUS_INT_DEV;
-	}
 }
 
 uint32_t solo_asic_device::reg_017c_r()
@@ -1237,92 +896,53 @@ uint32_t solo_asic_device::reg_0174_r()
 
 void solo_asic_device::reg_0174_w(uint32_t data)
 {
-	solo_asic_device::set_dev_irq(data, 0);
+	solo_asic_device::set_dev_irq(data, CLEAR_LINE);
 }
 
 uint32_t solo_asic_device::reg_0088_r()
 {
-	return m_busvid_intenable;
+	return m_video->busvid_intenable_get();
 }
 
 void solo_asic_device::reg_0088_w(uint32_t data)
 {
-	m_busvid_intenable |= data;
-	if (m_busvid_intenable != 0x0)
-	{
-		m_bus_intenable |= BUS_INT_VIDEO;
-	}
+	m_video->busvid_intenable_set(data);
 }
 
 uint32_t solo_asic_device::reg_0188_r()
 {
-	return m_busvid_intenable;
+	return m_video->busvid_intenable_get();
 }
 
 void solo_asic_device::reg_0188_w(uint32_t data)
 {
 	solo_asic_device::reg_0180_w(data);
-	m_busvid_intenable &= (~data);
+	m_video->busvid_intenable_clear(data);
 }
 
 uint32_t solo_asic_device::reg_0080_r()
 {
-	return m_busvid_intstat;
+	return m_video->busvid_intstat_get();
 }
 
 uint32_t solo_asic_device::reg_0084_r()
 {
-	return m_busvid_intstat;
+	return m_video->busvid_intstat_get();
 }
 
 void solo_asic_device::reg_0084_w(uint32_t data)
 {
-	m_busvid_intstat |= data;
+	m_video->busvid_intstat_set(data);
 }
 
 uint32_t solo_asic_device::reg_0180_r()
 {
-	return m_busvid_intstat;
+	return m_video->busvid_intstat_get();
 }
 
 void solo_asic_device::reg_0180_w(uint32_t data)
 {
-	uint32_t check_intstat = 0x0;
-
-	switch (data)
-	{
-		case BUS_INT_VID_DIVUNIT:
-			check_intstat = m_div_intstat;
-			break;
-
-		case BUS_INT_VID_GFXUNIT:
-			check_intstat = m_gfx_intstat;
-			break;
-
-		case BUS_INT_VID_POTUNIT:
-			check_intstat = m_pot_intstat;
-			break;
-
-		case BUS_INT_VID_VIDUNIT:
-			check_intstat = m_vid_intstat;
-			break;
-	}
-
-	// Windows CE builds
-	if (!solo_asic_device::is_webtvos())
-	{
-		solo_asic_device::set_video_irq(data, check_intstat, 0);
-	}
-	// WebTV OS builds
-	else if (check_intstat == 0x0)
-	{
-		m_busvid_intstat &= (~data);
-
-		if(m_busvid_intstat == 0x0)
-		{
-			solo_asic_device::set_bus_irq(BUS_INT_VIDEO, 0);
-		}
-	}
+	m_video->busvid_intstat_clear(data);
 }
 
 uint32_t solo_asic_device::reg_0098_r()
@@ -1349,7 +969,7 @@ void solo_asic_device::reg_0198_w(uint32_t data)
 	// Windows CE builds
 	if (!solo_asic_device::is_webtvos())
 	{
-		solo_asic_device::set_rio_irq(data, 0);
+		solo_asic_device::set_rio_irq(data, CLEAR_LINE);
 		m_busrio_intenable &= (~data);
 	}
 	// WebTV OS builds the modem timinng is incorrect, so ignore the ROM trying to disable the modem interrupt.
@@ -1382,12 +1002,12 @@ uint32_t solo_asic_device::reg_018c_r()
 
 void solo_asic_device::reg_018c_w(uint32_t data)
 {
-	solo_asic_device::set_rio_irq(data, 0);
+	solo_asic_device::set_rio_irq(data, CLEAR_LINE);
 
 	// Re-assert RIO interrupt if the modem UART device still hasn't cleared the interrupt pending state.
-	if ((solo_asic_device::is_webtvos() && m_modem_uart->intrpt_r()) || solo_asic_device::get_wince_intrpt_r())
+	if (!modfw_mode && ((solo_asic_device::is_webtvos() && m_modem_uart->intrpt_r()) || solo_asic_device::get_wince_intrpt_r()))
 	{
-		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, 1);
+		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, ASSERT_LINE);
 	}
 }
 
@@ -1438,7 +1058,7 @@ uint32_t solo_asic_device::reg_019c_r()
 
 void solo_asic_device::reg_019c_w(uint32_t data)
 {
-	solo_asic_device::set_timer_irq(data, 0);
+	solo_asic_device::set_timer_irq(data, CLEAR_LINE);
 }
 
 uint32_t solo_asic_device::reg_00a8_r()
@@ -1465,6 +1085,46 @@ void solo_asic_device::reg_00ac_w(uint32_t data)
 	m_resetcause &= (~data) & 0xff;
 }
 
+uint32_t solo_asic_device::reg_00b0_r()
+{
+	return m_j1fenladdr;
+}
+
+void solo_asic_device::reg_00b0_w(uint32_t data)
+{
+	m_j1fenladdr = data;
+}
+
+uint32_t solo_asic_device::reg_00b4_r()
+{
+	return m_j1fenhaddr;
+}
+
+void solo_asic_device::reg_00b4_w(uint32_t data)
+{
+	m_j1fenhaddr = data;
+}
+
+uint32_t solo_asic_device::reg_00b8_r()
+{
+	return m_j2fenladdr;
+}
+
+void solo_asic_device::reg_00b8_w(uint32_t data)
+{
+	m_j2fenladdr = data;
+}
+
+uint32_t solo_asic_device::reg_00bc_r()
+{
+	return m_j2fenhaddr;
+}
+
+void solo_asic_device::reg_00bc_w(uint32_t data)
+{
+	m_j2fenhaddr = data;
+}
+
 uint32_t solo_asic_device::reg_00c8_r()
 {
 	return m_bootmode;
@@ -1487,7 +1147,7 @@ void solo_asic_device::reg_00cc_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_1000_r()
 {
-	return m_sys_config->read();
+	return m_sys_config;
 }
 
 uint32_t solo_asic_device::reg_1004_r()
@@ -1509,183 +1169,6 @@ void solo_asic_device::reg_1008_w(uint32_t data)
 	m_rom_cntl1 = data;
 }
 
-uint32_t solo_asic_device::reg_2000_r()
-{
-	return m_aud_cstart;
-}
-
-uint32_t solo_asic_device::reg_2004_r()
-{
-	return m_aud_csize;
-}
-
-uint32_t solo_asic_device::reg_2008_r()
-{
-	return m_aud_cconfig;
-}
-
-void solo_asic_device::reg_2008_w(uint32_t data)
-{
-	m_aud_cconfig = data;
-}
-
-uint32_t solo_asic_device::reg_200c_r()
-{
-	return m_aud_ccnt;
-}
-
-uint32_t solo_asic_device::reg_2010_r()
-{
-	return m_aud_nstart;
-}
-
-void solo_asic_device::reg_2010_w(uint32_t data)
-{
-	m_aud_nstart = data;
-}
-
-uint32_t solo_asic_device::reg_2014_r()
-{
-	return m_aud_nsize;
-}
-
-void solo_asic_device::reg_2014_w(uint32_t data)
-{
-	m_aud_nsize = data;
-}
-
-uint32_t solo_asic_device::reg_2018_r()
-{
-	return m_aud_nconfig;
-}
-
-void solo_asic_device::reg_2018_w(uint32_t data)
-{
-	m_aud_nconfig = data;
-}
-
-uint32_t solo_asic_device::reg_201c_r()
-{
-	return m_aud_dmacntl;
-}
-
-void solo_asic_device::reg_201c_w(uint32_t data)
-{
-	if ((m_aud_dmacntl ^ data) & AUD_DMACNTL_DMAEN)
-	{
-		if (data & AUD_DMACNTL_DMAEN)
-		{
-			m_lspeaker->set_input_gain(0, AUD_OUTPUT_GAIN);
-			m_rspeaker->set_input_gain(0, AUD_OUTPUT_GAIN);
-		}
-		else
-		{
-			m_lspeaker->set_input_gain(0, 0.0);
-			m_rspeaker->set_input_gain(0, 0.0);
-		}
-	}
-
-	m_aud_dmacntl = data;
-}
-
-uint32_t solo_asic_device::reg_3000_r()
-{
-	return m_vid_cstart;
-}
-
-uint32_t solo_asic_device::reg_3004_r()
-{
-	return m_vid_csize;
-}
-
-uint32_t solo_asic_device::reg_3008_r()
-{
-	return m_vid_ccnt;
-}
-
-uint32_t solo_asic_device::reg_300c_r()
-{
-	return m_vid_nstart;
-}
-
-void solo_asic_device::reg_300c_w(uint32_t data)
-{
-	bool has_changed = (m_vid_nstart != data);
-
-	m_vid_nstart = data;
-
-	if (has_changed)
-		solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_3010_r()
-{
-	return m_vid_nsize;
-}
-
-void solo_asic_device::reg_3010_w(uint32_t data)
-{
-	bool has_changed = (m_vid_nsize != data);
-
-	m_vid_nsize = data;
-
-	if (has_changed)
-		solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_3014_r()
-{
-	return m_vid_dmacntl;
-}
-
-void solo_asic_device::reg_3014_w(uint32_t data)
-{
-	if ((m_vid_dmacntl ^ data) & VID_DMACNTL_NV && data & VID_DMACNTL_NV)
-		solo_asic_device::pixel_buffer_index_update();
-
-	m_vid_dmacntl = data;
-}
-
-uint32_t solo_asic_device::reg_3038_r()
-{
-	return m_vid_intstat;
-}
-
-void solo_asic_device::reg_3138_w(uint32_t data)
-{
-	solo_asic_device::set_video_irq(BUS_INT_VID_VIDUNIT, data, 0);
-}
-
-uint32_t solo_asic_device::reg_303c_r()
-{
-	return m_vid_intenable;
-}
-
-void solo_asic_device::reg_303c_w(uint32_t data)
-{
-	m_vid_intenable |= data;
-	if (m_vid_intenable != 0x0)
-	{
-		m_busvid_intenable |= BUS_INT_VID_VIDUNIT;
-		m_bus_intenable |= BUS_INT_VIDEO;
-	}
-}
-
-void solo_asic_device::reg_313c_w(uint32_t data)
-{
-	solo_asic_device::reg_3138_w(data);
-	m_vid_intenable &= (~data);
-}
-
-uint32_t solo_asic_device::reg_3040_r()
-{
-	return m_vid_vdata;
-}
-
-void solo_asic_device::reg_3040_w(uint32_t data)
-{
-	m_vid_vdata = data;
-}
 
 // Read IR receiver chip
 uint32_t solo_asic_device::reg_4000_r()
@@ -1715,138 +1198,153 @@ void solo_asic_device::reg_4004_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_4008_r()
 {
-	dev_id_bit = 0x0;
+	m_dev_id_bit = 0x0;
 
-	if (dev_id_state == SSID_STATE_PRESENCE)
+	if (m_dev_id_state == SSID_STATE_PRESENCE)
 	{
-		dev_id_bit = 0x0; // We're present.
-		dev_id_state = SSID_STATE_COMMAND; // This normally would stay in presence mode for 480us then command, but we immediatly go into command mode.
-		dev_id_bitidx = 0x0;
+		m_dev_id_bit = 0x0; // We're present.
+		m_dev_id_state = SSID_STATE_COMMAND; // This normally would stay in presence mode for 480us then command, but we immediatly go into command mode.
+		m_dev_id_bitidx = 0x0;
 	}
-	else if (dev_id_state == SSID_STATE_READROM_PULSEEND)
+	else if (m_dev_id_state == SSID_STATE_READROM_PULSEEND)
 	{
-		dev_id_state = SSID_STATE_READROM_BIT;
+		m_dev_id_state = SSID_STATE_READROM_BIT;
 	}
-	else if (dev_id_state == SSID_STATE_READROM_BIT)
+	else if (m_dev_id_state == SSID_STATE_READROM_BIT)
 	{
-		dev_id_state = SSID_STATE_READROM; // Go back into the read ROM pulse state
+		m_dev_id_state = SSID_STATE_READROM; // Go back into the read ROM pulse state
 
-		dev_id_bit = m_serial_id->direct_read(dev_id_bitidx / 8) >> (dev_id_bitidx & 0x7);
+		m_dev_id_bit = m_serial_id->direct_read(m_dev_id_bitidx / 8) >> (m_dev_id_bitidx & 0x7);
 
-		dev_id_bitidx++;
-		if (dev_id_bitidx == 64)
+		m_dev_id_bitidx++;
+		if (m_dev_id_bitidx == 64)
 		{
 			// We've read the entire SSID. Go back into idle.
-			dev_id_state = SSID_STATE_IDLE;
-			dev_id_bitidx = 0x0;
+			m_dev_id_state = SSID_STATE_IDLE;
+			m_dev_id_bitidx = 0x0;
 		}
 	}
 
-	return dev_idcntl | (dev_id_bit & 1);
+	return m_dev_idcntl | (m_dev_id_bit & 1);
 }
 
 void solo_asic_device::reg_4008_w(uint32_t data)
 {
-	dev_idcntl = (data & 0x2);
+	m_dev_idcntl = (data & 0x2);
 
-	if (dev_idcntl & 0x2)
+	if (m_dev_idcntl & 0x2)
 	{
-		switch(dev_id_state) // States for high
+		switch(m_dev_id_state) // States for high
 		{
 			case SSID_STATE_RESET: // End reset low pulse to go into prescense mode. Chip should read low to indicate presence.
-				dev_id_state = SSID_STATE_PRESENCE; // This pulse normally lasts 480us before going into command mode.
+				m_dev_id_state = SSID_STATE_PRESENCE; // This pulse normally lasts 480us before going into command mode.
 				break;
 
 			case SSID_STATE_COMMAND: // Ended a command bit pulse. Increment bit index. We always assume a read from ROM command after we get 8 bits.
-				dev_id_bitidx++;
+				m_dev_id_bitidx++;
 
-				if (dev_id_bitidx == 8)
+				if (m_dev_id_bitidx == 8)
 				{
-					dev_id_state = SSID_STATE_READROM; // Now we can read back the SSID. ROM reads it as two 32-bit integers.
-					dev_id_bitidx = 0;
+					m_dev_id_state = SSID_STATE_READROM; // Now we can read back the SSID. ROM reads it as two 32-bit integers.
+					m_dev_id_bitidx = 0;
 				}
 				break;
 
 			case SSID_STATE_READROM_PULSESTART:
-				dev_id_state = SSID_STATE_READROM_PULSEEND;
+				m_dev_id_state = SSID_STATE_READROM_PULSEEND;
 		}
 	}
 	else
 	{
-		switch(dev_id_state) // States for low
+		switch(m_dev_id_state) // States for low
 		{
 			case SSID_STATE_IDLE: // When idle, we can drive the chip low for reset
-				dev_id_state = SSID_STATE_RESET; // We'd normally leave this for 480us to go into presence mode.
+				m_dev_id_state = SSID_STATE_RESET; // We'd normally leave this for 480us to go into presence mode.
 				break;
 
 			case SSID_STATE_READROM:
-				dev_id_state = SSID_STATE_READROM_PULSESTART;
+				m_dev_id_state = SSID_STATE_READROM_PULSESTART;
 				break;
 		}
 	}
 }
 
-// 400c commands the I2C bus (referenced as the IIC bus in WebTV's code)
-//
-// The SOLO programming doc calls this as an NVCNTL register but this us used as an I2C register.
-//
-// There's two known devices that sit on this bus:
-//
-//	Address		Device
-//	0x8C		Philips SAA7187 encoder
-//				Used for the S-Video and composite out
-//	0xa0		Atmel AT24C01A EEPROM NVRAM
-//				Used for the encryption shared secret (0x14) and crash log counter (0x23)
-//
-// We emulate the AT24C01A here.
-//
 uint32_t solo_asic_device::reg_400c_r()
 {
-	int sda_bit = (m_nvram->read_sda()) & 0x1;
+	m_iic_sda = m_iic_sda_in_cb();
 
-	return (m_nvcntl & 0xE) | sda_bit;
+	return (m_iiccntl & 0xE) | m_iic_sda;
 }
 
 void solo_asic_device::reg_400c_w(uint32_t data)
 {
-	if (data & NVCNTL_WRITE_EN) {
-		m_nvram->write_sda(((data & NVCNTL_SDA_W) == NVCNTL_SDA_W) & 0x1);
-	} else {
-		m_nvram->write_sda(0x1);
-	}
+	m_iic_scl = ((data & NVCNTL_SCL) == NVCNTL_SCL) & 1;
 
-	m_nvram->write_scl(((data & NVCNTL_SCL) == NVCNTL_SCL) & 1);
+	if (data & NVCNTL_WRITE_EN)
+		m_iic_sda = ((data & NVCNTL_SDA_W) == NVCNTL_SDA_W) & 0x1;
+	else
+		m_iic_sda = 0x1;
 
-	m_nvcntl = data & 0xE;
+	m_iiccntl = data & 0xE;
+
+	m_iic_sda_out_cb(m_iic_sda);
 }
 
 uint32_t solo_asic_device::reg_4010_r()
 {
-	return 0;
+	return (m_dev_gpio_in | m_dev_gpio_out);
 }
 
 void solo_asic_device::reg_4010_w(uint32_t data)
 {
-	//
+	m_dev_gpio_out |= (data & m_dev_gpio_out_mask);
 }
 
 uint32_t solo_asic_device::reg_4014_r()
 {
-	return 0;
+	return m_dev_gpio_out;
 }
 
 void solo_asic_device::reg_4014_w(uint32_t data)
 {
+	m_dev_gpio_out |= (data & m_dev_gpio_out_mask);
+}
+
+uint32_t solo_asic_device::reg_4114_r()
+{
+	return m_dev_gpio_out;
+}
+
+void solo_asic_device::reg_4114_w(uint32_t data)
+{
+	m_dev_gpio_out &= (~(data & m_dev_gpio_out_mask));
 }
 
 uint32_t solo_asic_device::reg_4018_r()
 {
-	return 0x00000000; //
+	return m_dev_gpio_in_mask;
 }
 
 void solo_asic_device::reg_4018_w(uint32_t data)
 {
-	//
+	m_dev_gpio_in_mask |= data;
+
+	if (m_dev_gpio_in_mask != 0x0)
+		solo_asic_device::reg_005c_w(m_dev_gpio_in_mask);
+}
+
+uint32_t solo_asic_device::reg_4118_r()
+{
+	return m_dev_gpio_in_mask;
+}
+
+void solo_asic_device::reg_4118_w(uint32_t data)
+{
+	m_dev_gpio_in_mask = (~data);
+	m_dev_gpio_out_mask = data;
+
+	if (m_dev_gpio_in_mask != 0x0)
+		solo_asic_device::reg_005c_w(m_dev_gpio_in_mask);
 }
 
 uint32_t solo_asic_device::reg_4020_r()
@@ -1937,453 +1435,36 @@ void solo_asic_device::reg_5010_w(uint32_t data)
 	m_memtiming = data;
 }
 
-// gfxUnit registers
-
-uint32_t solo_asic_device::reg_6004_r()
-{
-	return m_gfx_cntl;
-}
-
-void solo_asic_device::reg_6004_w(uint32_t data)
-{
-	m_gfx_cntl = data;
-}
-
-uint32_t solo_asic_device::reg_6010_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6010_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6014_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6014_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6018_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6018_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_601c_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_601c_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6020_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6020_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6024_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6024_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6028_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6028_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_602c_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_602c_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6030_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6030_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6034_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6034_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6038_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6038_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_603c_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_603c_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6040_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6040_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6044_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6044_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_6048_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6048_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_604c_r()
-{
-	return m_gfx_activelines;
-}
-
-void solo_asic_device::reg_604c_w(uint32_t data)
-{
-	m_gfx_activelines = data;
-}
-
-uint32_t solo_asic_device::reg_6060_r()
-{
-	return m_gfx_intenable;
-}
-
-void solo_asic_device::reg_6060_w(uint32_t data)
-{
-	m_gfx_intenable |= data;
-	if (m_gfx_intenable != 0x0)
-	{
-		m_busvid_intenable |= BUS_INT_VID_GFXUNIT;
-		m_bus_intenable |= BUS_INT_VIDEO;
-	}
-}
-
-void solo_asic_device::reg_6064_w(uint32_t data)
-{
-	solo_asic_device::reg_606c_w(data);
-	m_gfx_intenable &= (~data);
-}
-
-uint32_t solo_asic_device::reg_6068_r()
-{
-	return m_gfx_intstat;
-}
-
-void solo_asic_device::reg_6068_w(uint32_t data)
-{
-	m_gfx_intstat |= data;
-}
-
-void solo_asic_device::reg_606c_w(uint32_t data)
-{
-	solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, data, 0);
-}
-
-uint32_t solo_asic_device::reg_6080_r()
-{
-	return m_gfx_wbdstart;
-}
-
-void solo_asic_device::reg_6080_w(uint32_t data)
-{
-	m_gfx_wbdstart = data;
-}
-uint32_t solo_asic_device::reg_6084_r()
-{
-	return m_gfx_wbdlsize;
-}
-
-void solo_asic_device::reg_6084_w(uint32_t data)
-{
-	m_gfx_wbdlsize = data;
-}
-uint32_t solo_asic_device::reg_608c_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_608c_w(uint32_t data)
-{
-	//
-}
-uint32_t solo_asic_device::reg_6090_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6090_w(uint32_t data)
-{
-	//
-}
-uint32_t solo_asic_device::reg_6094_r()
-{
-	return 0x00000000;
-}
-
-void solo_asic_device::reg_6094_w(uint32_t data)
-{
-	//
-}
-
-// divUnit registers
-
-uint32_t solo_asic_device::reg_8004_r()
-{
-	return m_div_dmacntl;
-}
-
-void solo_asic_device::reg_8004_w(uint32_t data)
-{
-	m_div_dmacntl = data;
-}
-
-uint32_t solo_asic_device::reg_801c_r()
-{
-	return m_div_nextcfg;
-}
-
-void solo_asic_device::reg_801c_w(uint32_t data)
-{
-	m_div_nextcfg = data;
-	m_div_currcfg = data;
-}
-
-uint32_t solo_asic_device::reg_8038_r()
-{
-	return m_div_currcfg;
-}
-
-void solo_asic_device::reg_8038_w(uint32_t data)
-{
-	m_div_currcfg = data;
-	m_div_nextcfg = data;
-}
-
-// potUnit registers
-
-uint32_t solo_asic_device::reg_9080_r()
-{
-	return m_pot_vstart;
-}
-
-void solo_asic_device::reg_9080_w(uint32_t data)
-{
-	bool has_changed = (m_pot_vstart != data);
-
-	m_pot_vstart = data;
-
-	if (has_changed)
-			solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_9084_r()
-{
-	return m_pot_vsize;
-}
-
-void solo_asic_device::reg_9084_w(uint32_t data)
-{
-	bool has_changed = (m_pot_vstart != data);
-
-	m_pot_vsize = data;
-
-	if (has_changed)
-			solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_9088_r()
-{
-	return m_pot_blank_color;
-}
-
-void solo_asic_device::reg_9088_w(uint32_t data)
-{
-	m_pot_blank_color = data;
-
-	m_pot_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);     
-}
-
-uint32_t solo_asic_device::reg_908c_r()
-{
-	return m_pot_hstart;
-}
-
-void solo_asic_device::reg_908c_w(uint32_t data)
-{
-	bool has_changed = (m_pot_hstart != data);
-
-	m_pot_hstart = data;
-
-	if (has_changed)
-			solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_9090_r()
-{
-	return m_pot_hsize;
-}
-
-void solo_asic_device::reg_9090_w(uint32_t data)
-{
-	bool has_changed = (m_pot_hsize != data);
-
-	m_pot_hsize = data;
-
-	if (has_changed)
-			solo_asic_device::validate_active_area();
-}
-
-uint32_t solo_asic_device::reg_9094_r()
-{
-	return m_pot_cntl;
-}
-
-void solo_asic_device::reg_9094_w(uint32_t data)
-{
-	m_pot_cntl = data;
-}
-
-uint32_t solo_asic_device::reg_9098_r()
-{
-	return m_pot_hintline;
-}
-
-void solo_asic_device::reg_9098_w(uint32_t data)
-{
-	m_pot_hintline = data;
-
-	m_pot_draw_hintline = std::min(m_pot_hintline, (uint32_t)(m_screen->height() - 1));
-}
-
-// _vid_ int variables are being used because everything fires as Vvid interrupts right now (code was copied from SPOT)
-
-uint32_t solo_asic_device::reg_909c_r()
-{
-	return m_pot_intenable;
-}
-
-void solo_asic_device::reg_909c_w(uint32_t data)
-{
-	m_pot_intenable |= data;
-	if (m_pot_intenable != 0x0)
-	{
-		m_busvid_intenable |= BUS_INT_VID_POTUNIT;
-		m_bus_intenable |= BUS_INT_VIDEO;
-	}
-}
-
-void solo_asic_device::reg_90a4_w(uint32_t data)
-{
-	solo_asic_device::reg_90a8_w(data);
-	m_pot_intenable &= (~data);
-}
-
-uint32_t solo_asic_device::reg_90a0_r()
-{
-	return m_pot_intstat;
-}
-
-uint32_t solo_asic_device::reg_90a8_r()
-{
-	return m_pot_intstat;
-}
-
-void solo_asic_device::reg_90a8_w(uint32_t data)
-{
-	solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, data, 0);
-}
-
-uint32_t solo_asic_device::reg_90ac_r()
-{
-	return m_screen->vpos();
-}
-
-uint32_t solo_asic_device::reg_a000_r()
-{
-	return 0x00000000;
-}
-
 // sucUnit registers
 
 void solo_asic_device::reg_a000_w(uint32_t data)
 {
-	osd_printf_verbose("%c", (data & 0xff));
+	m_debug_uart->serial_tx_byte_w(data & 0xff);
 }
 
 uint32_t solo_asic_device::reg_a00c_r()
 {
-	return 0x00000000;
+	return m_debug_uart->serial_rx_buffcnt_r();
 }
 
 uint32_t solo_asic_device::reg_a010_r()
 {
-	return 0x00000001;
+	return m_debug_uart->serial_tx_buffmax_r();
+}
+
+uint32_t solo_asic_device::reg_a040_r()
+{
+	return m_debug_uart->serial_rx_byte_r();
+}
+
+uint32_t solo_asic_device::reg_a04c_r()
+{
+	return m_debug_uart->serial_rx_buffcnt_r();
+}
+
+uint32_t solo_asic_device::reg_a050_r()
+{
+	return m_debug_uart->serial_rx_buffmax_r();
 }
 
 uint32_t solo_asic_device::reg_aab8_r()
@@ -2401,9 +1482,7 @@ uint32_t solo_asic_device::reg_c020_r()
 void solo_asic_device::reg_c020_w(uint32_t data)
 {
 	if (m_utvdma_locked)
-	{
 		m_utvdma_src = data;
-	}
 }
 
 uint32_t solo_asic_device::reg_c024_r()
@@ -2414,9 +1493,7 @@ uint32_t solo_asic_device::reg_c024_r()
 void solo_asic_device::reg_c024_w(uint32_t data)
 {
 	if (m_utvdma_locked)
-	{
 		m_utvdma_dst = data;
-	}
 }
 
 uint32_t solo_asic_device::reg_c028_r()
@@ -2427,9 +1504,7 @@ uint32_t solo_asic_device::reg_c028_r()
 void solo_asic_device::reg_c028_w(uint32_t data)
 {
 	if (m_utvdma_locked)
-	{
 		m_utvdma_size = data;
-	}
 }
 
 uint32_t solo_asic_device::reg_c02c_r()
@@ -2440,9 +1515,7 @@ uint32_t solo_asic_device::reg_c02c_r()
 void solo_asic_device::reg_c02c_w(uint32_t data)
 {
 	if (m_utvdma_locked)
-	{
 		m_utvdma_mode = data;
-	}
 }
 
 uint32_t solo_asic_device::reg_c040_r()
@@ -2459,9 +1532,7 @@ void solo_asic_device::reg_c040_w(uint32_t data)
 		m_utvdma_cntl = data;
 
 		if (switched_to_ready && !m_utvdma_started)
-		{
 			solo_asic_device::utvdma_start();
-		}
 	}
 }
 
@@ -2483,14 +1554,11 @@ void solo_asic_device::utvdma_start()
 		m_utvdma_cdst = m_utvdma_dst;
 		m_utvdma_csize = m_utvdma_size;
 		m_utvdma_cmode = m_utvdma_mode;
+
 		if (m_utvdma_cmode & UTV_DMAMODE_READ)
-		{
 			m_utvdma_ccnt = m_utvdma_cdst;
-		}
 		else
-		{
 			m_utvdma_ccnt = m_utvdma_csrc;
-		}
 		
 		m_utvdma_started = 0x1;
 	}
@@ -2499,13 +1567,9 @@ void solo_asic_device::utvdma_start()
 void solo_asic_device::utvdma_next()
 {
 	if (m_utvdma_src != m_utvdma_csrc || m_utvdma_dst != m_utvdma_cdst || m_utvdma_csize != m_utvdma_size || m_utvdma_cmode != m_utvdma_mode)
-	{
 		solo_asic_device::utvdma_start();
-	}
 	else
-	{
 		m_utvdma_csize = 0x0;
-	}
 }
 
 void solo_asic_device::utvdma_stop()
@@ -2518,7 +1582,6 @@ void solo_asic_device::utvdma_stop()
 	m_utvdma_cmode = 0x0;
 	m_utvdma_cntl = 0x0;
 
-	solo_asic_device::set_dev_irq(BUS_INT_DEV_DMA, ASSERT_LINE);
 }
 
 // Hardware modem registers
@@ -2808,500 +1871,124 @@ int solo_asic_device::get_wince_intrpt_r()
 
 uint32_t solo_asic_device::reg_ide_000000_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(0));
+	return m_ata->cs0_r(0);
 }
 
 void solo_asic_device::reg_ide_000000_w(uint32_t data)
 {
-	m_ata->cs0_w(0, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(0, data);
 }
 
 uint32_t solo_asic_device::reg_ide_000004_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(1));
+	return m_ata->cs0_r(1);
 }
 
 void solo_asic_device::reg_ide_000004_w(uint32_t data)
 {
-	m_ata->cs0_w(1, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(1, data);
 }
 
 uint32_t solo_asic_device::reg_ide_000008_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(2));
+	return m_ata->cs0_r(2);
 }
 
 void solo_asic_device::reg_ide_000008_w(uint32_t data)
 {
-	m_ata->cs0_w(2, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(2, data);
 }
 
 uint32_t solo_asic_device::reg_ide_00000c_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(3));
+	return m_ata->cs0_r(3);
 }
 
 void solo_asic_device::reg_ide_00000c_w(uint32_t data)
 {
-	m_ata->cs0_w(3, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(3, data);
 }
 
 uint32_t solo_asic_device::reg_ide_000010_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(4));
+	return m_ata->cs0_r(4);
 }
 
 void solo_asic_device::reg_ide_000010_w(uint32_t data)
 {
-	m_ata->cs0_w(4, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(4, data);
 }
 
 uint32_t solo_asic_device::reg_ide_000014_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(5));
+	return m_ata->cs0_r(5);
 }
 
 void solo_asic_device::reg_ide_000014_w(uint32_t data)
 {
-	m_ata->cs0_w(5, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(5, data);
 }
 
 uint32_t solo_asic_device::reg_ide_000018_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(6));
+	return m_ata->cs0_r(6);
 }
 
 void solo_asic_device::reg_ide_000018_w(uint32_t data)
 {
-	m_ata->cs0_w(6, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(6, data);
 }
 
 uint32_t solo_asic_device::reg_ide_00001c_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs0_r(7));
+	return m_ata->cs0_r(7);
 }
 
 void solo_asic_device::reg_ide_00001c_w(uint32_t data)
 {
-	m_ata->cs0_w(7, solo_asic_device::arrange_han_data(data));
+	m_ata->cs0_w(7, data);
 }
 
 uint32_t solo_asic_device::reg_ide_400018_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs1_r(6));
+	return m_ata->cs1_r(6);
 }
 
 void solo_asic_device::reg_ide_400018_w(uint32_t data)
 {
-	m_ata->cs1_w(6, solo_asic_device::arrange_han_data(data));
+	m_ata->cs1_w(6, data);
 }
 
 uint32_t solo_asic_device::reg_ide_40001c_r()
 {
-	return solo_asic_device::arrange_han_data(m_ata->cs1_r(7));
+	return m_ata->cs1_r(7);
 }
 
 void solo_asic_device::reg_ide_40001c_w(uint32_t data)
 {
-	m_ata->cs1_w(7, solo_asic_device::arrange_han_data(data));
+	m_ata->cs1_w(7, data);
 }
 
-// Pekoe registers
+// IIC operations used for devices like the tuner, NVRAM etc...
 
-uint32_t solo_asic_device::reg_pekoe_0000_r()
+uint8_t solo_asic_device::sda_r()
 {
-	return 0x00000020;
+	return m_iic_sda & 0x1;
 }
 
-void solo_asic_device::reg_pekoe_0000_w(uint32_t data)
+void solo_asic_device::sda_w(uint8_t state)
 {
-	if (data != 0x00)
-	{
-		osd_printf_verbose("%c", (data & 0xff));
-	}
+	m_iic_sda = state & 0x1;
 }
 
-void solo_asic_device::reg_pekoe_0004_w(uint32_t data)
+uint8_t solo_asic_device::scl_r()
 {
-	//
+	return m_iic_scl & 0x1;
 }
 
-void solo_asic_device::reg_pekoe_0008_w(uint32_t data)
+void solo_asic_device::scl_w(uint8_t state)
 {
-	//
-}
-
-void solo_asic_device::reg_pekoe_000c_w(uint32_t data)
-{
-	//
-}
-
-void solo_asic_device::reg_pekoe_0010_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_pekoe_0014_r()
-{
-	uint32_t status = PEKOE_CAN_SEND_BYTE;
-
-	return status;
-}
-
-// Han registers
-
-uint32_t solo_asic_device::reg_han_0000_r()
-{
-	return solo_asic_device::arrange_han_data(m_han_intstat);
-}
-
-void solo_asic_device::reg_han_0000_w(uint32_t data)
-{
-	data = solo_asic_device::arrange_han_data(data);
-
-	solo_asic_device::set_han_irq(data, 0);
-}
-
-uint32_t solo_asic_device::reg_han_0004_r()
-{
-	return solo_asic_device::arrange_han_data(m_han_intenable);
-}
-
-void solo_asic_device::reg_han_0004_w(uint32_t data)
-{
-	data = solo_asic_device::arrange_han_data(data);
-
-	m_han_intenable = data;
-}
-
-uint32_t solo_asic_device::reg_han_0010_r()
-{
-	return solo_asic_device::arrange_han_data(0x00000000);
-}
-
-void solo_asic_device::reg_han_0010_w(uint32_t data)
-{
-	//
-}
-
-uint32_t solo_asic_device::reg_han_0080_r()
-{
-	return solo_asic_device::arrange_han_data(m_han_msgbuff_status);
-}
-
-void solo_asic_device::reg_han_0080_w(uint32_t data)
-{
-	uint32_t cntl = solo_asic_device::arrange_han_data(data);
-
-	m_han_msgbuff_index = 0x0;
-	
-	switch (cntl)
-	{
-		case HAN_MSGCNTL_BUFF_RESET:
-			m_han_msgbuff_index = 0x0;
-			break;
-
-		case HAN_MSGCNTL_DATA_READ:
-		{
-			if (m_han_startup_step == HAN_STARTUP_SEND_RESTART)
-			{
-				m_han_startup_step = HAN_STARTUP_RESTART_OK;
-			}
-			else if(m_han_startup_step == HAN_STARTUP_SEND_RESET)
-			{
-				m_han_startup_step = HAN_STARTUP_DONE;
-			}
-			break;
-		}
-
-		case HAN_MSGCNTL_BUFF_RELEASE:
-			m_han_msgbuff_status &= (~HAN_MSGCNTL_BUFF_OWN);
-			break;
-
-		case HAN_MSGCNTL_BUFF_OWN:
-			m_han_msgbuff_status |= HAN_MSGCNTL_BUFF_OWN;
-			break;
-	}
-}
-
-uint32_t solo_asic_device::reg_han_0084_r()
-{
-	if (m_han_msgbuff_status & HAN_MSGCNTL_DATA_WAITING && m_han_msgbuff_index < (HAN_MSGBUFF_SIZE >> 1))
-	{
-		uint32_t data = solo_asic_device::arrange_han_data(m_han_msgbuff[m_han_msgbuff_index++]);
-
-		if (m_han_msgbuff_index >= (HAN_MSGBUFF_SIZE >> 1))
-		{
-			m_han_msgbuff_status |= HAN_MSGCNTL_DATA_VALID;
-			m_han_msgbuff_status &= (~HAN_MSGCNTL_DATA_WAITING);
-		}
-
-		return data;
-	}
-	else
-	{
-		return 0x00000000;
-	}
-}
-
-void solo_asic_device::reg_han_0084_w(uint32_t data)
-{
-	if (m_han_msgbuff_status & HAN_MSGCNTL_BUFF_OWN && m_han_msgbuff_index < (HAN_MSGBUFF_SIZE >> 1))
-	{
-		m_han_msgbuff[m_han_msgbuff_index++] = solo_asic_device::arrange_han_data(data);
-
-		if (m_han_msgbuff_index >= (HAN_MSGBUFF_SIZE >> 1))
-		{
-			uint8_t han_msgtype = m_han_msgbuff[HAN_MSGTYPE_INDEX] & 0xff;
-
-			if(han_msgtype == han_msgtype_t::IPC_CLASS_MAILBOX)
-			{
-				switch (m_han_msgbuff[HAN_MSGSUBTYPE_INDEX])
-				{
-					case han_mailbox_msgsubtype_t::SRA2EPC_RETURN_FROM_STANDBY:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRC2EPC_RETURN_FROM_STANDBY,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case han_mailbox_msgsubtype_t::SRA2EPC_GO_TO_STANDBY:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRC2EPC_IN_STANDBY,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case han_mailbox_msgsubtype_t::SRA2EPC_GET_SYSTEM_INFO:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_SYSTEM_INFO,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case han_mailbox_msgsubtype_t::WEB2SRC_GET_CAPABILITIES:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::WEB2SRC_GET_CAPABILITIES,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case han_mailbox_msgsubtype_t::SRA2EPC_GET_ALARM_STATUS:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_ALARM_STATUS,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case han_mailbox_msgsubtype_t::SRC2EPC_GET_AC3_SETUP:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRC2EPC_GET_AC3_SETUP,
-							NULL,
-							0x0000
-						);
-						break;
-
-
-					case han_mailbox_msgsubtype_t::EPC2SRC_GET_SUID_LIST:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRC2EPC_SERVICE_LIST_NOT_AVAILABLE,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case han_mailbox_msgsubtype_t::EPC2SRC_GET_SERVICE_LIST:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRC2EPC_SERVICE_LIST_NOT_AVAILABLE,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_GET_CURRENT_TRANSPONDER:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_CURRENT_TRANSPONDER,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_GET_CURRENT_NETWORK:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_CURRENT_NETWORK,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_CHECK_XPONDER_NUM:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_CHECK_XPONDER_NUM,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_DISH_500_INSTALL:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_DISH_500_INSTALL,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_GET_SIGNAL_STRENGTH:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_SIGNAL_STRENGTH,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_GET_POINTING_INFO:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_POINTING_INFO,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_CHECK_SWITCH:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRC2EPC_SWITCH_VERIFIED,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_GET_SWITCH_INFO:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_SWITCH_INFO,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_GET_SWITCH_TEST_STEP:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_SWITCH_TEST_STEP,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case SRA2EPC_GET_NETWORK_HIDDEN_STATUS:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::SRA2EPC_GET_NETWORK_HIDDEN_STATUS,
-							NULL,
-							0x0000
-						);
-						break;
-
-					case WEB2EPC_HARD_RESET:
-						send_han_message(
-							han_msgtype_t::IPC_CLASS_MAILBOX,
-							han_mailbox_msgsubtype_t::WEB2EPC_HARD_RESET,
-							NULL,
-							0x0000
-						);
-						break;
-				}
-			}
-			else if(han_msgtype == han_msgtype_t::IPC_CLASS_DIAG)
-			{
-				send_han_message(
-					han_msgtype_t::IPC_CLASS_DIAG,
-					han_diag_msgsubtype_t::DIAG_ECHO_MB_MSG,
-					NULL,
-					0x0000
-				);
-			}
-
-			m_han_msgbuff_status &= (~HAN_MSGCNTL_BUFF_OWN);
-			m_han_msgbuff_status |= HAN_MSGCNTL_DATA_READ;
-		}
-	}
-}
-
-TIMER_CALLBACK_MEMBER(solo_asic_device::dac_update)
-{
-	if (m_aud_dmacntl & AUD_DMACNTL_DMAEN)
-	{
-		if (m_aud_dma_ongoing)
-		{
-			address_space &space = m_hostcpu->space(AS_PROGRAM);
-
-			int16_t samplel = space.read_word(m_aud_ccnt);
-			m_aud_ccnt += 2;
-			int16_t sampler = space.read_word(m_aud_ccnt);
-			m_aud_ccnt += 2;
-
-			// For 8-bit we're assuming left-aligned samples
-			switch(m_aud_cconfig)
-			{
-				case AUD_CONFIG_16BIT_STEREO:
-				default:
-					m_dac[0]->write(samplel);
-					m_dac[1]->write(sampler);
-					break;
-
-				case AUD_CONFIG_16BIT_MONO:
-					m_dac[0]->write(samplel);
-					m_dac[1]->write(samplel);
-					break;
-
-				case AUD_CONFIG_8BIT_STEREO:
-					m_dac[0]->write((samplel >> 0x8) & 0xFF);
-					m_dac[1]->write((sampler >> 0x8) & 0xFF);
-					break;
-
-				case AUD_CONFIG_8BIT_MONO:
-					m_dac[0]->write((samplel >> 0x8) & 0xFF);
-					m_dac[1]->write((samplel >> 0x8) & 0xFF);
-					break;
-			}
-			if (m_aud_ccnt >= m_aud_cend)
-			{
-				solo_asic_device::set_audio_irq(BUS_INT_AUD_AUDDMAOUT, 1);
-				m_aud_dma_ongoing = false; // nothing more to DMA
-			}
-		}
-		if (!m_aud_dma_ongoing)
-		{
-			// wait for next DMA values to be marked as valid
-			m_aud_dma_ongoing = m_aud_dmacntl & (AUD_DMACNTL_NV | AUD_DMACNTL_NVF);
-			if (!m_aud_dma_ongoing) return; // values aren't marked as valid; don't prepare for next DMA
-			m_aud_cstart = m_aud_nstart;
-			m_aud_csize = m_aud_nsize;
-			m_aud_cend = (m_aud_cstart + m_aud_csize);
-			m_aud_cconfig = m_aud_nconfig;
-			m_aud_ccnt = m_aud_cstart;
-		}
-	}
+	m_iic_scl = state & 0x1;
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
@@ -3309,7 +1996,7 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 	if (modem_should_threint && m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE)
 	{
 		// Assert to tell Windows CE we're ready for more data
-		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, 1);
+		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, ASSERT_LINE);
 	}
 	else if (modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
 	{
@@ -3335,127 +2022,34 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::timer_irq)
 {
 	if (m_tcompare > 0x0)
 	{
-		solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, 1);
+		solo_asic_device::set_timer_irq(BUS_INT_TIM_SYSTIMER, ASSERT_LINE);
 	}
 }
 
-TIMER_CALLBACK_MEMBER(solo_asic_device::check_han_message_state)
+void solo_asic_device::int_enable_vid_w(int state)
 {
-	if (m_han_startup_step == HAN_STARTUP_BEGIN)
-	{
-		if (send_han_message(
-				han_msgtype_t::IPC_CLASS_RESTART,
-				0x0000,
-				NULL,
-				0x0000
-			))
-		{
-			m_han_startup_step = HAN_STARTUP_SEND_RESTART;
-		}
-	}
-	else if (m_han_startup_step == HAN_STARTUP_RESTART_OK)
-	{
-		if (send_han_message(
-				han_msgtype_t::IPC_CLASS_MAILBOX,
-				han_mailbox_msgsubtype_t::EPC2SRA_RESET,
-				NULL,
-				0x0000
-			))
-		{
-			m_han_startup_step = HAN_STARTUP_SEND_RESET;
-		}
-	}
-	else if(solo_asic_device::have_queued_han_message())
-	{
-		m_han_msgbuff_index = 0x0;
-		solo_asic_device::set_han_irq(HAN_INT_MSG_IN, 1);
-		m_han_need_in_int = false;
-	}
+	if (state)
+		m_bus_intenable |= BUS_INT_VIDEO;
 	else
-	{
-		solo_asic_device::set_han_irq(HAN_INT_MSG_OUT, 1);
-	}
+		m_bus_intenable &= (~BUS_INT_VIDEO);
 }
 
-TIMER_CALLBACK_MEMBER(solo_asic_device::han_reboot)
+void solo_asic_device::irq_vid_w(int state)
 {
-	m_han_need_in_int = false;
-	m_han_msgbuff_status = 0x0;
-	m_han_msgbuff_index = 0x0;
-	m_han_startup_step = HAN_STARTUP_BEGIN;
-
-	han_message_timer->adjust(attotime::from_hz(HAN_MSGIRQ_HACK_HZ), 0, attotime::from_hz(HAN_MSGIRQ_HACK_HZ));
-	han_message_timer->enable(true);
+	solo_asic_device::set_bus_irq(BUS_INT_VIDEO, state);
 }
 
-bool solo_asic_device::have_queued_han_message()
+void solo_asic_device::int_enable_aud_w(int state)
 {
-	return (((m_han_msgbuff_status & HAN_MSGCNTL_DATA_WAITING) != 0x0) && m_han_need_in_int);
-}
-
-bool solo_asic_device::can_send_han_message()
-{
-	return ((m_han_intenable & HAN_INT_MSG_OUT) != 0x0);
-}
-
-bool solo_asic_device::send_han_message(uint16_t msg_type, uint16_t msg_subtype, uint8_t* msg, uint16_t msg_size)
-{
-	if (solo_asic_device::can_send_han_message())
-	{
-		// Bytes 0x000-0x002[uint16]: Message size
-		// Bytes 0x002-0x003[uint8]:  Message sequence
-		// Bytes 0x003-0x004[uint8]:  Message type
-		// Bytes 0x004-0x008[uint16]: Message sub type or id
-		// Bytes 0x008-0x100[blob]:  Message-specific data (params etc...)
-
-		memset(m_han_msgbuff, 0x00, HAN_MSGBUFF_SIZE);
-
-		m_han_msgbuff[HAN_MSGSIZE_INDEX] = HAN_MSGBUFF_SIZE;
-		m_han_msgbuff[HAN_MSGTYPE_INDEX] = msg_type;
-		m_han_msgbuff[HAN_MSGSUBTYPE_INDEX] = msg_subtype;
-
-		if (msg != NULL && msg_size > 0)
-		{
-			memcpy(&m_han_msgbuff[HAN_MSG_START_INDEX], msg, std::min(msg_size, (uint16_t)((HAN_MSGBUFF_SIZE >> 1) - (sizeof(m_han_msgbuff[0]) * 2))));
-		}
-
-		m_han_msgbuff_status = HAN_MSGCNTL_DATA_WAITING;
-		m_han_msgbuff_status &= (~(HAN_MSGCNTL_BUFF_OWN | HAN_MSGCNTL_DATA_READ));
-
-		m_han_msgbuff_index = 0x0;
-
-		m_han_need_in_int = true;
-
-		return true;
-	}
+	if (state)
+		m_bus_intenable |= BUS_INT_AUDIO;
 	else
-	{
-		return false;
-	}
+		m_bus_intenable &= (~BUS_INT_AUDIO);
 }
 
-uint32_t solo_asic_device::arrange_han_data(uint32_t data)
+void solo_asic_device::irq_aud_w(int state)
 {
-	if (m_han_enabled)
-	{
-		// aka std::byteswap, __builtin_bswap32, _byteswap_ulong
-		uint32_t han_data = 0x00000000;
-		han_data |= ((data >> 0x00) & 0xff) << 0x18;
-		han_data |= ((data >> 0x08) & 0xff) << 0x10;
-		han_data |= ((data >> 0x10) & 0xff) << 0x08;
-		han_data |= ((data >> 0x18) & 0xff) << 0x00;
-
-		return han_data;
-	}
-	else
-	{
-		return data;
-	}
-}
-
-void solo_asic_device::vblank_irq(int state)
-{
-	solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_VSYNCO, 1);
+	solo_asic_device::set_bus_irq(BUS_INT_AUDIO, state);
 }
 
 void solo_asic_device::irq_modem_w(int state)
@@ -3467,16 +2061,19 @@ void solo_asic_device::irq_modem_w(int state)
 	}
 }
 
+void solo_asic_device::irq_uart_w(int state)
+{
+	solo_asic_device::set_dev_irq(BUS_INT_DEV_UART, state);
+}
+
 void solo_asic_device::irq_ide1_w(int state)
 {
-	if (m_han_enabled)
-	{
-		solo_asic_device::set_han_irq(HAN_INT_IDE, state);
-	}
-	else
-	{
-		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
-	}
+	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
+}
+
+void solo_asic_device::irq_ide2_w(int state)
+{
+	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE2, state);
 }
 
 void solo_asic_device::dmarq_ide1_w(int state)
@@ -3494,30 +2091,20 @@ void solo_asic_device::dmarq_ide1_w(int state)
 			while (m_ide1_dmarq_state)
 			{
 				if (m_utvdma_cmode & UTV_DMAMODE_READ)
-				{
 					solo_asic_device::dmarq_dmaread(&m_ide1_dmarq_state, m_utvdma_csrc, m_utvdma_cdst, (m_utvdma_csize * sizeof(uint16_t)));
-				}
 				else
-				{
 					solo_asic_device::dmarq_dmawrite(&m_ide1_dmarq_state, m_utvdma_cdst, m_utvdma_csrc, (m_utvdma_csize * sizeof(uint16_t)));
-				}
 			}
 
+			solo_asic_device::set_dev_irq(BUS_INT_DEV_DMA, ASSERT_LINE);
+
 			if (m_utvdma_csize == 0x0)
-			{
 				solo_asic_device::utvdma_stop();
-			}
 
 			m_ata->write_dmack(CLEAR_LINE);
 		}
 	}
 }
-
-void solo_asic_device::irq_ide2_w(int state)
-{
-	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE2, state);
-}
-
 void solo_asic_device::dmarq_dmaread(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size)
 {
 	if (buf_size > 0)
@@ -3532,7 +2119,7 @@ void solo_asic_device::dmarq_dmaread(uint32_t* dmarq_state, uint32_t ide_device_
 			{
 				space.write_word(m_utvdma_ccnt, m_ata->read_dma());
 
-				m_utvdma_ccnt += 2;
+				m_utvdma_ccnt += 0x02;
 			}
 			else
 			{
@@ -3541,16 +2128,12 @@ void solo_asic_device::dmarq_dmaread(uint32_t* dmarq_state, uint32_t ide_device_
 		}
 
 		if ((m_utvdma_ccnt - buf_start) >= buf_size)
-		{
 			solo_asic_device::utvdma_next();
-		}
 	}
 	else
 	{
 		while (*dmarq_state)
-		{
 			m_ata->read_dma();
-		}
 	}
 }
 
@@ -3568,7 +2151,7 @@ void solo_asic_device::dmarq_dmawrite(uint32_t* dmarq_state, uint32_t ide_device
 			{
 				m_ata->write_dma(space.read_word(m_utvdma_ccnt));
 
-				m_utvdma_ccnt += 2;
+				m_utvdma_ccnt += 0x02;
 			}
 			else
 			{
@@ -3577,16 +2160,12 @@ void solo_asic_device::dmarq_dmawrite(uint32_t* dmarq_state, uint32_t ide_device
 		}
 
 		if ((m_utvdma_ccnt - buf_start) >= buf_size)
-		{
 			solo_asic_device::utvdma_next();
-		}
 	}
 	else
 	{
 		while (*dmarq_state)
-		{
-			m_ata->write_dma(0x00);
-		}
+			m_ata->write_dma(0x0000);
 	}
 }
 
@@ -3595,24 +2174,32 @@ void solo_asic_device::irq_keyboard_w(int state)
 	solo_asic_device::set_dev_irq(BUS_INT_DEV_IRIN, state);
 }
 
-void solo_asic_device::set_audio_irq(uint32_t mask, int state)
+void solo_asic_device::set_gpio_irq(uint32_t mask, int state)
 {
-	if (m_busaud_intenable & mask)
+	if (mask & m_dev_gpio_in_mask)
+	{
+		m_busgpio_intenable |= m_dev_gpio_in_mask;
+	}
+
+	mask &= m_busgpio_intenable;
+
+	if (m_busgpio_intenable & mask)
 	{
 		if (state)
 		{
-			m_busaud_intstat |= mask;
+			// If the GPIO interrupt is enabled and needs to fire, then make sure the SOLO DEV's GPIO interrupt is enabled.
+			solo_asic_device::reg_007c_w(BUS_INT_DEV_GPIO);
 
-			solo_asic_device::set_bus_irq(BUS_INT_AUDIO, state);
+			m_busgpio_intstat |= mask;
+
+			solo_asic_device::set_dev_irq(BUS_INT_DEV_GPIO, state);
 		}
 		else
 		{
-			m_busaud_intstat &= (~mask);
+			m_busgpio_intstat &= (~mask);
 
-			if(m_busaud_intstat == 0x00)
-			{
-				solo_asic_device::set_bus_irq(BUS_INT_AUDIO, state);
-			}
+			if(m_busgpio_intstat == 0x00)
+				solo_asic_device::set_dev_irq(BUS_INT_DEV_GPIO, state);
 		}
 	}
 }
@@ -3632,9 +2219,7 @@ void solo_asic_device::set_dev_irq(uint32_t mask, int state)
 			m_busdev_intstat &= (~mask);
 
 			if(m_busdev_intstat == 0x00)
-			{
 				solo_asic_device::set_bus_irq(BUS_INT_DEV, state);
-			}
 		}
 	}
 }
@@ -3654,96 +2239,7 @@ void solo_asic_device::set_rio_irq(uint32_t mask, int state)
 			m_busrio_intstat &= (~mask);
 
 			if(m_busrio_intstat == 0x00)
-			{
 				solo_asic_device::set_bus_irq(BUS_INT_RIO, state);
-			}
-		}
-	}
-}
-
-void solo_asic_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int state)
-{
-	if (m_busvid_intenable & mask)
-	{
-		uint32_t sub_intstat = 0x00;
-
-		switch (mask)
-		{
-			case BUS_INT_VID_DIVUNIT:
-				if (m_div_intenable & sub_mask)
-				{
-					if (state)
-						m_div_intstat |= sub_mask;
-					else
-						m_div_intstat &= (~sub_mask);
-				}
-				else
-				{
-					state = 0;
-				}
-				sub_intstat = m_div_intstat;
-				break;
-
-			case BUS_INT_VID_GFXUNIT:
-				if (m_gfx_intenable & sub_mask)
-				{
-					if (state)
-						m_gfx_intstat |= sub_mask;
-					else
-						m_gfx_intstat &= (~sub_mask);
-				}
-				else
-				{
-					state = 0;
-				}
-				sub_intstat = m_gfx_intstat;
-				break;
-
-			case BUS_INT_VID_POTUNIT:
-				if (m_pot_intenable & sub_mask)
-				{
-					if (state)
-						m_pot_intstat |= sub_mask;
-					else
-						m_pot_intstat &= (~sub_mask);
-				}
-				else
-				{
-					state = 0;
-				}
-				sub_intstat = m_pot_intstat;
-				break;
-
-			case BUS_INT_VID_VIDUNIT:
-				if (m_vid_intenable & sub_mask)
-				{
-					if (state)
-						m_vid_intstat |= sub_mask;
-					else
-						m_vid_intstat &= (~sub_mask);
-				}
-				else
-				{
-					state = 0;
-				}
-				sub_intstat = m_vid_intstat;
-				break;
-		}
-
-		if (state)
-		{
-			m_busvid_intstat |= mask;
-
-			solo_asic_device::set_bus_irq(BUS_INT_VIDEO, state);
-		}
-		else if(sub_intstat == 0x0)
-		{
-			m_busvid_intstat &= (~mask);
-
-			if(m_busvid_intstat == 0x0)
-			{
-				solo_asic_device::set_bus_irq(BUS_INT_VIDEO, state);
-			}
 		}
 	}
 }
@@ -3763,28 +2259,7 @@ void solo_asic_device::set_timer_irq(uint32_t mask, int state)
 			m_bustim_intstat &= (~mask);
 
 			if(m_bustim_intstat == 0x00)
-			{
 				solo_asic_device::set_bus_irq(BUS_INT_TIMER, state);
-			}
-		}
-	}
-}
-
-void solo_asic_device::set_han_irq(uint32_t mask, int state)
-{
-	if (m_han_intenable & mask)
-	{
-		if (state)
-		{
-			m_han_intstat |= mask;
-
-			m_hostcpu->set_input_line(MIPS3_IRQ3, ASSERT_LINE);
-		}
-		else
-		{
-			m_han_intstat &= (~mask);
-
-			m_hostcpu->set_input_line(MIPS3_IRQ3, CLEAR_LINE);
 		}
 	}
 }
@@ -3798,9 +2273,7 @@ void solo_asic_device::set_bus_irq(uint32_t mask, int state)
 			m_bus_intstat |= mask;
 
 			if (m_bus_intstat != 0x0)
-			{
 				m_hostcpu->set_input_line(MIPS3_IRQ0, ASSERT_LINE);
-			}
 		}
 		else
 		{
@@ -3808,180 +2281,7 @@ void solo_asic_device::set_bus_irq(uint32_t mask, int state)
 
 			// Once there's no more interrupts in progress then clear the IRQ0 bit.
 			if (m_bus_intstat == 0x0)
-			{
 				m_hostcpu->set_input_line(MIPS3_IRQ0, CLEAR_LINE);
-			}
 		}
 	}
  }
-
-uint32_t solo_asic_device::gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
-{
-	uint16_t screen_width = bitmap.width();
-	uint16_t screen_height = bitmap.height();
-	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
-	bool screen_enabled = (m_pot_cntl & POT_FCNTL_EN) && (m_gfx_cntl & GFX_FCNTL_EN);
-
-	m_vid_cstart = m_vid_nstart;
-	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_gfx_wbdstart;
-
-	// These values are quick hacks to get gfxUnit to draw properly.
-	// Changes will come once we understand gfxUnit better
-	uint32_t _m_pot_draw_hstart = 40;
-	uint32_t _m_pot_draw_hsize = m_gfx_wbdlsize;
-	uint32_t _m_pot_draw_vstart = m_pot_vstart;
-	uint32_t _m_pot_draw_vsize = m_pot_vsize - 59;
-
-	address_space &space = m_hostcpu->space(AS_PROGRAM);
-
-	for (int y = 0; y < screen_height; y++)
-	{
-		uint32_t *line = &bitmap.pix(y);
-
-		m_vid_cline = y;
-
-		if (m_vid_cline == m_pot_draw_hintline)
-			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
-
-		for (int x = 0; x < screen_width; x += 2)
-		{
-			uint32_t pixel = POT_DEFAULT_COLOR;
-
-			bool is_active_area = (
-				y >= _m_pot_draw_vstart
-				&& y < (_m_pot_draw_vstart + _m_pot_draw_vsize)
-
-				&& x >= _m_pot_draw_hstart
-				&& x < (_m_pot_draw_hstart + _m_pot_draw_hsize)
-			);
-
-			if (screen_enabled && is_active_area)
-			{
-				pixel = space.read_dword(m_vid_ccnt);
-
-				m_vid_ccnt += vid_step;
-			}
-			else
-			{
-				pixel = m_pot_draw_blank_color;
-			}
-
-			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
-			int32_t Cb = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
-			int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
-			int32_t Cr = ((pixel) & 0xff) - VID_UV_OFFSET;
-
-			y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
-			y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
-
-			int32_t r = ((0x166 * Cr) + VID_UV_OFFSET) >> 8;
-			int32_t b = ((0x1C7 * Cb) + VID_UV_OFFSET) >> 8;
-			int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
-
-			*line++ = (
-				std::clamp(y1 + r, 0x00, 0xff) << 0x10
-				| std::clamp(y1 - g, 0x00, 0xff) << 0x08
-				| std::clamp(y1 + b, 0x00, 0xff)
-			);
-
-			*line++ = (
-				std::clamp(y2 + r, 0x00, 0xff) << 0x10
-				| std::clamp(y2 - g, 0x00, 0xff) << 0x08
-				| std::clamp(y2 + b, 0x00, 0xff)
-			);
-		}
-	}
-
-	solo_asic_device::set_video_irq(BUS_INT_VID_GFXUNIT, GFX_INT_RANGEINT_WBEOF, 1);
-
-	return 0;
-}
-
-uint32_t solo_asic_device::vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
-{
-	uint16_t screen_width = bitmap.width();
-	uint16_t screen_height = bitmap.height();
-	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
-	bool screen_enabled = (m_pot_cntl & POT_FCNTL_EN) && (m_vid_dmacntl & VID_DMACNTL_DMAEN);
-
-	m_vid_cstart = m_vid_nstart;
-	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_vid_draw_nstart;
-
-	address_space &space = m_hostcpu->space(AS_PROGRAM);
-
-	for (int y = 0; y < screen_height; y++)
-	{
-		uint32_t *line = &bitmap.pix(y);
-
-		m_vid_cline = y;
-
-		if (m_vid_cline == m_pot_draw_hintline)
-			solo_asic_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
-
-		for (int x = 0; x < screen_width; x += 2)
-		{
-			uint32_t pixel = POT_DEFAULT_COLOR;
-
-			bool is_active_area = (
-				y >= m_pot_draw_vstart
-				&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
-
-				&& x >= m_pot_draw_hstart
-				&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
-			);
-
-			if (screen_enabled && is_active_area)
-			{
-				pixel = space.read_dword(m_vid_ccnt);
-
-				m_vid_ccnt += vid_step;
-			}
-			else
-			{
-				pixel = m_pot_draw_blank_color;
-			}
-
-			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
-			int32_t Cb = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
-			int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
-			int32_t Cr = ((pixel) & 0xff) - VID_UV_OFFSET;
-
-			y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
-			y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
-
-			int32_t r = ((0x166 * Cr) + VID_UV_OFFSET) >> 8;
-			int32_t b = ((0x1C7 * Cb) + VID_UV_OFFSET) >> 8;
-			int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
-
-			*line++ = (
-				std::clamp(y1 + r, 0x00, 0xff) << 0x10
-				| std::clamp(y1 - g, 0x00, 0xff) << 0x08
-				| std::clamp(y1 + b, 0x00, 0xff)
-			);
-
-			*line++ = (
-				std::clamp(y2 + r, 0x00, 0xff) << 0x10
-				| std::clamp(y2 - g, 0x00, 0xff) << 0x08
-				| std::clamp(y2 + b, 0x00, 0xff)
-			);
-		}
-	}
-
-	solo_asic_device::set_video_irq(BUS_INT_VID_VIDUNIT, VID_INT_DMA, 1);
-
-	return 0;
-}
-
-uint32_t solo_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
-{
-	if (m_pot_cntl & POT_FCNTL_USEGFX)
-	{
-		return gfxunit_screen_update(screen, bitmap, cliprect);
-	}
-	else
-	{
-		return vidunit_screen_update(screen, bitmap, cliprect);
-	}
-}
