@@ -1,3 +1,8 @@
+// license: BSD-3-Clause
+// copyright-holders: wtvemac
+
+// Description here
+
 #ifndef MAME_MACHINE_HAN_ASIC_H
 #define MAME_MACHINE_HAN_ASIC_H
 

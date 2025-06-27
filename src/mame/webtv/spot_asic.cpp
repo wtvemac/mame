@@ -1,33 +1,8 @@
-// license:BSD-3-Clause
-// copyright-holders:FairPlay137,wtvemac
+// license: BSD-3-Clause
+// copyright-holders: FairPlay137, wtvemac
 
-/***********************************************************************************************
+// Description here
 
-    spot_asic.cpp
-
-    WebTV Networks Inc. SPOT ASIC
-
-    This ASIC controls most of the I/O on the 1st generation WebTV hardware. It is also referred
-    to as FIDO on the actual chip that implements the SPOT logic.
-
-    This implementation is based off of both the archived technical specifications, as well as
-    the various reverse-engineering efforts of the WebTV community.
-
-    The SPOT ASIC is split into multiple "units", just like its successor.
-
-    The romUnit (0xA4001xxx) provides a shared interface to the ROM.
-
-    The audUnit (0xA4002xxx) handles audio DMA.
-
-    The vidUnit (0xA4003xxx) handles video DMA.
-
-    The devUnit (0xA4004xxx) handles GPIO, IR input, front panel LEDs, modem interfacing, and the
-    PS/2 keyboard port.
-
-    The memUnit (0xA4005xxx) handles memory timing and other memory-related operations. These
-    registers are only emulated for completeness; they do not have an effect on the emulation.
-
-****************************************************************************************************/
 #include "emu.h"
 
 #include "machine/input_merger.h"
@@ -38,49 +13,51 @@
 #include "machine.h"
 #include "config.h"
 
-#define LOG_UNKNOWN     (1U << 1)
-#define LOG_READS       (1U << 2)
-#define LOG_WRITES      (1U << 3)
-#define LOG_ERRORS      (1U << 4)
-#define LOG_I2C_IGNORES (1U << 5)
-#define LOG_DEFAULT     (LOG_READS | LOG_WRITES | LOG_ERRORS | LOG_I2C_IGNORES | LOG_UNKNOWN)
-
-#define VERBOSE         (LOG_DEFAULT)
-#include "logmacro.h"
-
 DEFINE_DEVICE_TYPE(SPOT_ASIC, spot_asic_device, "spot_asic", "WebTV SPOT ASIC")
 
-spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config)
 	: device_t(mconfig, SPOT_ASIC, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
 	device_video_interface(mconfig, *this),
-	m_hostcpu(*this, finder_base::DUMMY_TAG),
+	m_hostcpu(*owner, "maincpu"),
+	m_hostram(*owner, "mainram"),
 	m_serial_id(*this, finder_base::DUMMY_TAG),
-	m_nvram(*this, finder_base::DUMMY_TAG),
 	m_kbdc(*this, "kbdc"),
+	m_kbd(*this, "kbd"),
 	m_screen(*this, "screen"),
 	m_dac(*this, "dac%u", 0),
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker"),
-    m_modem_uart(*this, "modem_uart"),
+	m_modem_uart(*this, "modem_uart"),
+	m_debug_uart(*this, "debug"),
 	m_watchdog(*this, "watchdog"),
-    m_sys_config(*owner, "sys_config"),
-    m_emu_config(*owner, "emu_config"),
-    m_power_led(*this, "power_led"),
-    m_connect_led(*this, "connect_led"),
-    m_message_led(*this, "message_led")
+	m_power_led(*this, "power_led"),
+	m_connect_led(*this, "connect_led"),
+	m_message_led(*this, "message_led"),
+	m_iic_sda_in_cb(*this, 0),
+	m_iic_sda_out_cb(*this)
 {
+	m_chip_id = chip_id;
+	m_sys_config = sys_config;
 }
 
-static DEVICE_INPUT_DEFAULTS_START( wtv_modem )
-	DEVICE_INPUT_DEFAULTS( "RS232_RXBAUD", 0xff, RS232_BAUD_115200 )
-	DEVICE_INPUT_DEFAULTS( "RS232_TXBAUD", 0xff, RS232_BAUD_115200 )
-	DEVICE_INPUT_DEFAULTS( "RS232_DATABITS", 0xff, RS232_DATABITS_8 )
-	DEVICE_INPUT_DEFAULTS( "RS232_PARITY", 0xff, RS232_PARITY_NONE )
-	DEVICE_INPUT_DEFAULTS( "RS232_STOPBITS", 0xff, RS232_STOPBITS_1 )
+static DEVICE_INPUT_DEFAULTS_START(wtv_modem)
+	DEVICE_INPUT_DEFAULTS("RS232_RXBAUD", 0xff, RS232_BAUD_115200)
+	DEVICE_INPUT_DEFAULTS("RS232_TXBAUD", 0xff, RS232_BAUD_115200)
+	DEVICE_INPUT_DEFAULTS("RS232_DATABITS", 0xff, RS232_DATABITS_8)
+	DEVICE_INPUT_DEFAULTS("RS232_PARITY", 0xff, RS232_PARITY_NONE)
+	DEVICE_INPUT_DEFAULTS("RS232_STOPBITS", 0xff, RS232_STOPBITS_1)
 DEVICE_INPUT_DEFAULTS_END
 
-DECLARE_INPUT_CHANGED_MEMBER(pbuff_index_changed);
+void spot_asic_device::map(address_map &map)
+{
+	map(0x0000, 0x0fff).m(FUNC(spot_asic_device::bus_unit_map));
+	map(0x1000, 0x1fff).m(FUNC(spot_asic_device::rom_unit_map));
+	map(0x2000, 0x2fff).m(FUNC(spot_asic_device::aud_unit_map));
+	map(0x3000, 0x3fff).m(FUNC(spot_asic_device::vid_unit_map));
+	map(0x4000, 0x4fff).m(FUNC(spot_asic_device::dev_unit_map));
+	map(0x5000, 0x5fff).m(FUNC(spot_asic_device::mem_unit_map));
+}
 
 void spot_asic_device::bus_unit_map(address_map &map)
 {
@@ -183,11 +160,15 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
 	m_screen->set_screen_update(FUNC(spot_asic_device::screen_update));
 	m_screen->screen_vblank().set(FUNC(spot_asic_device::vblank_irq));
-	m_screen->set_raw(VID_DEFAULT_XTAL, VID_DEFAULT_HTOTAL, 0, VID_DEFAULT_HBSTART, VID_DEFAULT_VTOTAL, 0, VID_DEFAULT_VBSTART);
+	if (m_sys_config & SYSCONFIG_NTSC)
+		m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_HTOTAL, 0, NTSC_SCREEN_HBSTART, NTSC_SCREEN_VTOTAL, 0, NTSC_SCREEN_VBSTART);
+	else
+		m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_HTOTAL, 0, PAL_SCREEN_HBSTART, PAL_SCREEN_VTOTAL, 0, PAL_SCREEN_VBSTART);
 
 	SPEAKER(config, m_lspeaker).front_left();
-	SPEAKER(config, m_rspeaker).front_right();
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.0);
+
+	SPEAKER(config, m_rspeaker).front_right();
 	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.0);
 
 	NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
@@ -208,25 +189,16 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
 	m_kbdc->input_buffer_full_callback().set(FUNC(spot_asic_device::irq_keyboard_w));
 	m_kbdc->system_reset_callback().set_inputline(":maincpu", INPUT_LINE_RESET);
-	m_kbdc->set_keyboard_tag("at_keyboard");
+	m_kbdc->set_keyboard_tag("kbd");
 
-	at_keyboard_device &at_keyb(AT_KEYB(config, "at_keyboard", pc_keyboard_device::KEYBOARD_TYPE::AT, 1));
-	at_keyb.keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
+	AT_KEYB(config, m_kbd, pc_keyboard_device::KEYBOARD_TYPE::AT, 1);
+	m_kbd->keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
+
+	WTV_RS232DBG(config, m_debug_uart);
+	m_debug_uart->serial_rx_handler().set(FUNC(spot_asic_device::irq_uart_w));
 
 	WATCHDOG_TIMER(config, m_watchdog);
 	spot_asic_device::watchdog_enable(0);
-}
-
-void spot_asic_device::device_resolve_objects()
-{
-	// This grabs the configuration before it's usually done so we can read the PAL or NTSC bit to configure the screen.
-	machine().manager().before_load_settings(machine());
-	machine().configuration().load_settings();
-
-	if (m_sys_config->read() & SYSCONFIG_NTSC)
-		m_screen->set_raw(NTSC_SCREEN_XTAL, NTSC_SCREEN_HTOTAL, 0, NTSC_SCREEN_HBSTART, NTSC_SCREEN_VTOTAL, 0, NTSC_SCREEN_VBSTART);
-	else
-		m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_HTOTAL, 0, PAL_SCREEN_HBSTART, PAL_SCREEN_VTOTAL, 0, PAL_SCREEN_VBSTART);
 }
 
 void spot_asic_device::device_start()
@@ -235,7 +207,7 @@ void spot_asic_device::device_start()
 	m_connect_led.resolve();
 	m_message_led.resolve();
 
-	dac_update_timer = timer_alloc(FUNC(spot_asic_device::dac_update), this);
+	play_aout_timer = timer_alloc(FUNC(spot_asic_device::play_aout_samples), this);
 	modem_buffer_timer = timer_alloc(FUNC(spot_asic_device::flush_modem_buffer), this);
 
 	spot_asic_device::device_reset();
@@ -267,16 +239,15 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_vid_draw_vsize));
 	save_item(NAME(m_vid_draw_blank_color));
 
-	save_item(NAME(m_aud_cstart));
-	save_item(NAME(m_aud_csize));
-	save_item(NAME(m_aud_cconfig));
-	save_item(NAME(m_aud_ccnt));
-	save_item(NAME(m_aud_nstart));
-	save_item(NAME(m_aud_nsize));
-	save_item(NAME(m_aud_nconfig));
-	save_item(NAME(m_aud_dmacntl));
-	save_item(NAME(m_smrtcrd_serial_bitmask));
-	save_item(NAME(m_smrtcrd_serial_rxdata));
+	save_item(NAME(m_aud_ocstart));
+	save_item(NAME(m_aud_ocsize));
+	save_item(NAME(m_aud_occonfig));
+	save_item(NAME(m_aud_occnt));
+	save_item(NAME(m_aud_ocvalid));
+	save_item(NAME(m_aud_onstart));
+	save_item(NAME(m_aud_onsize));
+	save_item(NAME(m_aud_onconfig));
+	save_item(NAME(m_aud_odmacntl));
 	save_item(NAME(m_rom_cntl0));
 	save_item(NAME(m_rom_cntl1));
 	save_item(NAME(m_ledstate));
@@ -288,7 +259,7 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-	dac_update_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
+	play_aout_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
 
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
@@ -302,7 +273,9 @@ void spot_asic_device::device_reset()
 	m_wdenable = 0x0;
 	m_errstat = 0x0;
 	m_timeout_compare = 0xffff;
-	m_nvcntl = 0x0;
+	m_iiccntl = 0x0;
+	m_iic_sda = 0x0;
+	m_iic_scl = 0x0;
 	m_fence1_addr = 0x0;
 	m_fence1_mask = 0x0;
 	m_fence2_addr = 0x0;
@@ -330,16 +303,16 @@ void spot_asic_device::device_reset()
 	m_vid_draw_vsize = m_vid_vsize;
 	m_vid_draw_blank_color = m_vid_blank_color;
 
-	m_aud_cstart = 0x0;
-	m_aud_csize = 0x0;
-	m_aud_cend = 0x0;
-	m_aud_cconfig = 0x0;
-	m_aud_ccnt = 0x0;
-	m_aud_nstart = 0x0;
-	m_aud_nsize = 0x0;
-	m_aud_nconfig = 0x0;
-	m_aud_dmacntl = 0x0;
-	m_aud_dma_ongoing = false;
+	m_aud_ocstart = 0x0;
+	m_aud_ocsize = 0x0;
+	m_aud_ocend = 0x0;
+	m_aud_occonfig = 0x0;
+	m_aud_occnt = 0x0;
+	m_aud_ocvalid = false;
+	m_aud_onstart = 0x0;
+	m_aud_onsize = 0x0;
+	m_aud_onconfig = 0x0;
+	m_aud_odmacntl = 0x0;
 
 	m_rom_cntl0 = 0x0;
 	m_rom_cntl1 = 0x0;
@@ -353,9 +326,6 @@ void spot_asic_device::device_reset()
 	dev_id_state = SSID_STATE_IDLE;
 	dev_id_bit = 0x0;
 	dev_id_bitidx = 0x0;
-
-	m_smrtcrd_serial_bitmask = 0x0;
-	m_smrtcrd_serial_rxdata = 0x0;
 
 	modem_txbuff_size = 0x0;
 	modem_txbuff_index = 0x0;
@@ -375,51 +345,31 @@ void spot_asic_device::validate_active_area()
 	// The active v size can't be larger than the screen height or smaller than 2 pixels.
 	m_vid_draw_vsize = std::clamp(m_vid_vsize, (uint32_t)0x2, (uint32_t)m_screen->height());
 
+	uint32_t screen_lines = m_vid_draw_vsize;
+
+	// Interlace mode splits the buffer into two halfs. We can capture both halfs if we double the line count.
+	if (m_vid_fcntl & VID_FCNTL_INTERLACE)
+		screen_lines = (screen_lines * 2);
+
+	m_vid_draw_nstart = m_vid_nstart + (2 * (m_vid_draw_hsize * VID_BYTES_PER_PIXEL));
+	m_vid_draw_vsize  = screen_lines - 3;
+
 	// The active h start can't be smaller than 2
-	m_vid_draw_hstart = std::max(m_vid_hstart - VID_HSTART_OFFSET, (uint32_t)0x2);
+	m_vid_draw_hstart = std::max((int32_t)m_vid_hstart - (int32_t)VID_HSTART_OFFSET, (int32_t)0x2);
 	// The active v start can't be smaller than 2
-	m_vid_draw_vstart = std::max(m_vid_vstart, (uint32_t)0x2);
+	m_vid_draw_vstart = std::max((int32_t)m_vid_vstart - (int32_t)VID_VSTART_OFFSET, (int32_t)0x2);
 
 	// The active h start can't push the active area off the screen.
 	if ((m_vid_draw_hstart + m_vid_draw_hsize) > m_screen->width())
 		m_vid_draw_hstart = (m_screen->width() - m_vid_draw_hsize); // to screen edge
-	else if (m_vid_draw_hstart < 0)
+	else if ((int32_t)m_vid_draw_hstart < 0)
 		m_vid_draw_hstart = 0;
 
 	// The active v start can't push the active area off the screen.
 	if ((m_vid_draw_vstart + m_vid_draw_vsize) > m_screen->height())
 		m_vid_draw_vstart = (m_screen->height() - m_vid_draw_vsize); // to screen edge
-	else if (m_vid_draw_vstart < 0)
+	else if ((int32_t)m_vid_draw_vstart < 0)
 		m_vid_draw_vstart = 0;
-
-	spot_asic_device::pixel_buffer_index_update();
-}
-
-void spot_asic_device::pixel_buffer_index_update()
-{
-	uint32_t screen_lines = m_vid_draw_vsize;
-	uint32_t screen_buffer_size = m_vid_nsize;
-
-	if (m_vid_fcntl & VID_FCNTL_INTERLACE)
-	{
-		// Interlace mode splits the buffer into two halfs. We can capture both halfs if we double the line count.
-		screen_buffer_size = (screen_buffer_size * 2);
-		screen_lines = (screen_lines * 2);
-	}
-
-	m_vid_draw_nstart = m_vid_nstart;
-
-	if (m_emu_config->read() & EMUCONFIG_PBUFF1)
-	{
-		m_vid_draw_nstart += screen_buffer_size;
-		m_vid_draw_nstart -= (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_draw_vsize = screen_lines;
-	}
-	else
-	{
-		m_vid_draw_nstart += 2 * (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
-		m_vid_draw_vsize = screen_lines - 3;
-	}
 }
 
 void spot_asic_device::watchdog_enable(int state)
@@ -436,7 +386,7 @@ void spot_asic_device::watchdog_enable(int state)
 
 uint32_t spot_asic_device::reg_0000_r()
 {
-	return 0x01010000;
+	return m_chip_id;
 }
 
 uint32_t spot_asic_device::reg_0004_r()
@@ -463,47 +413,21 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 		}
 	}
 
-	if (!(m_sys_config->read() & SYSCONFIG_AUDDACMODE) && (m_chpcntl ^ data) & CHPCNTL_AUDCLKDIV_MASK)
+	if ((m_chpcntl ^ data) & CHPCNTL_AUDCLKDIV_MASK)
 	{
-		uint32_t audclk_cntl = (data & CHPCNTL_AUDCLKDIV_MASK);
+		// On hardware this sets the AUD_XTAL audio clock divider. AUD_XTAL is typically based on the system bus clock.
 
-		uint32_t sys_clk = spot_asic_device::clock();
-		uint32_t aud_clk = AUD_DEFAULT_CLK;
+		//uint32_t requested_audclk_div = ((data & CHPCNTL_AUDCLKDIV_MASK) >> CHPCNTL_AUDCLKDIV_SHIFT) * 0x100;
+		//m_audio->set_aout_clock(solo_asic_device::clock() / requested_audclk_div);
 
-		switch(audclk_cntl)
-		{
-			case CHPCNTL_AUDCLKDIV_EXTC:
-			default:
-				aud_clk = AUD_DEFAULT_CLK;
-				break;
+		// The OS/fimrware tries to find the closest divider to create a 44100Hz or 48000Hz audio clock based
+		// on the calculated system bus clock.
+		// 
+		// This implementation always sets 44100Hz exactly to cover most cases. This doesn't behave exactly like 
+		// hardware but is better optimized for audio quality. There's some tradeoffs with this but I fell this 
+		// is better for our use case.
 
-			case CHPCNTL_AUDCLKDIV_DIV1:
-				aud_clk = sys_clk / (1 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV2:
-				aud_clk = sys_clk / (2 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV3:
-				aud_clk = sys_clk / (3 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV4:
-				aud_clk = sys_clk / (4 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV5:
-				aud_clk = sys_clk / (5 * 0x100);
-				break;
-
-			case CHPCNTL_AUDCLKDIV_DIV6:
-				aud_clk = sys_clk / (6 * 0x100);
-				break;
-
-		}
-
-		dac_update_timer->adjust(attotime::from_hz(aud_clk), 0, attotime::from_hz(aud_clk));
+		play_aout_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
 	}
 
 	m_chpcntl = data;
@@ -631,7 +555,7 @@ void spot_asic_device::reg_0028_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_1000_r()
 {
-	return m_sys_config->read();
+	return m_sys_config;
 }
 
 uint32_t spot_asic_device::reg_1004_r()
@@ -655,69 +579,69 @@ void spot_asic_device::reg_1008_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_2000_r()
 {
-	return m_aud_cstart;
+	return m_aud_ocstart;
 }
 
 uint32_t spot_asic_device::reg_2004_r()
 {
-	return m_aud_csize;
+	return m_aud_ocsize;
 }
 
 uint32_t spot_asic_device::reg_2008_r()
 {
-	return m_aud_cconfig;
+	return m_aud_occonfig;
 }
 
 void spot_asic_device::reg_2008_w(uint32_t data)
 {
-	m_aud_cconfig = data;
+	m_aud_occonfig = data;
 }
 
 uint32_t spot_asic_device::reg_200c_r()
 {
-	return m_aud_ccnt;
+	return m_aud_occnt;
 }
 
 uint32_t spot_asic_device::reg_2010_r()
 {
-	return m_aud_nstart;
+	return m_aud_onstart;
 }
 
 void spot_asic_device::reg_2010_w(uint32_t data)
 {
-	m_aud_nstart = data;
+	m_aud_onstart = data;
 }
 
 uint32_t spot_asic_device::reg_2014_r()
 {
-	return m_aud_nsize;
+	return m_aud_onsize;
 }
 
 void spot_asic_device::reg_2014_w(uint32_t data)
 {
-	m_aud_nsize = data;
+	m_aud_onsize = data;
 }
 
 uint32_t spot_asic_device::reg_2018_r()
 {
-	return m_aud_nconfig;
+	return m_aud_onconfig;
 }
 
 void spot_asic_device::reg_2018_w(uint32_t data)
 {
-	m_aud_nconfig = data;
+	m_aud_onconfig = data;
 }
 
 uint32_t spot_asic_device::reg_201c_r()
 {
 	spot_asic_device::irq_audio_w(0);
 
-	return m_aud_dmacntl;
+	return m_aud_odmacntl;
 }
 
 void spot_asic_device::reg_201c_w(uint32_t data)
 {
-	if ((m_aud_dmacntl ^ data) & AUD_DMACNTL_DMAEN)
+	if ((m_aud_odmacntl ^ data) & AUD_DMACNTL_DMAEN)
 	{
 		if (data & AUD_DMACNTL_DMAEN)
 		{
@@ -731,7 +655,7 @@ void spot_asic_device::reg_201c_w(uint32_t data)
 		}
 	}
 
-	m_aud_dmacntl = data;
+	m_aud_odmacntl = data;
 }
 
 uint32_t spot_asic_device::reg_3000_r()
@@ -787,7 +711,7 @@ uint32_t spot_asic_device::reg_3014_r()
 void spot_asic_device::reg_3014_w(uint32_t data)
 {
 	if ((m_vid_dmacntl ^ data) & VID_DMACNTL_NV && data & VID_DMACNTL_NV)
-		spot_asic_device::pixel_buffer_index_update();
+		spot_asic_device::validate_active_area();
 
 	m_vid_dmacntl = data;
 }
@@ -887,7 +811,6 @@ void spot_asic_device::reg_3030_w(uint32_t data)
 uint32_t spot_asic_device::reg_3034_r()
 {
 	return m_screen->vpos();
-	//return (m_vid_cline++) & 0x1ffff;
 }
 
 uint32_t spot_asic_device::reg_3038_r()
@@ -1015,89 +938,35 @@ void spot_asic_device::reg_4008_w(uint32_t data)
 	}
 }
 
-// 400c commands the I2C bus (referenced as the IIC bus in WebTV's code)
-//
-// The SPOT programming doc calls this as an NVCNTL register but this us used as an I2C register.
-//
-// There's two known devices that sit on this bus:
-//
-//	Address		Device
-//	0x8C		Philips SAA7187 encoder
-//				Used for the S-Video and composite out
-//	0xa0		Atmel AT24C01A EEPROM NVRAM
-//				Used for the encryption shared secret (0x14) and crash log counter (0x23)
-//
-// We emulate the AT24C01A here.
-//
 uint32_t spot_asic_device::reg_400c_r()
 {
-	int sda_bit = (m_nvram->read_sda()) & 0x1;
+	m_iic_sda = m_iic_sda_in_cb();
 
-	return (m_nvcntl & 0xE) | sda_bit;
+	return (m_iiccntl & 0xE) | m_iic_sda;
 }
 
 void spot_asic_device::reg_400c_w(uint32_t data)
 {
-	if (data & NVCNTL_WRITE_EN) {
-		m_nvram->write_sda(((data & NVCNTL_SDA_W) == NVCNTL_SDA_W) & 0x1);
-	} else {
-		m_nvram->write_sda(0x1);
-	}
+	m_iic_scl = ((data & NVCNTL_SCL) == NVCNTL_SCL) & 1;
 
-	m_nvram->write_scl(((data & NVCNTL_SCL) == NVCNTL_SCL) & 1);
+	if (data & NVCNTL_WRITE_EN)
+		m_iic_sda = ((data & NVCNTL_SDA_W) == NVCNTL_SDA_W) & 0x1;
+	else
+		m_iic_sda = 0x1;
 
-	m_nvcntl = data & 0xE;
+	m_iiccntl = data & 0xE;
+
+	m_iic_sda_out_cb(m_iic_sda);
 }
 
 uint32_t spot_asic_device::reg_4010_r()
 {
-	if (m_emu_config->read() & EMUCONFIG_BANGSERIAL)
-	{
-		// bitbang functionality does not accept smartcard input
-		return 0;
-	}
-	else
-	{
-		// TODO: get data!
-		return 0;
-	}
+	return 0;
 }
 
 void spot_asic_device::reg_4010_w(uint32_t data)
 {
-	if (m_emu_config->read() & EMUCONFIG_BANGSERIAL)
-	{
-		m_smrtcrd_serial_bitmask = (m_smrtcrd_serial_bitmask << 1) | 1;
-		m_smrtcrd_serial_rxdata = (m_smrtcrd_serial_rxdata << 1) | (data == 0);
-
-		// Just checking if the all bits are present. Not checking if they're valid.
-		if ((m_smrtcrd_serial_bitmask & 0x7ff) == 0x7ff)
-		{
-			uint8_t bangserial_config = (m_emu_config->read() & EMUCONFIG_BANGSERIAL);
-			uint8_t rxbyte = 0x00;
-
-			if ((bangserial_config == EMUCONFIG_BANGSERIAL_AUTO && ((m_smrtcrd_serial_rxdata & 0x700) != 0x600)) || (bangserial_config == EMUCONFIG_BANGSERIAL_V1))
-				// V1: there's 2 bits at the start (1 high and 1 low), 8 data bits and 1 bit at the end.
-				rxbyte = (m_smrtcrd_serial_rxdata >> 1);
-			else
-				// V2: there's 3 bits at the start (all high), 8 data bits and no bits at the end.
-				rxbyte = m_smrtcrd_serial_rxdata;
-
-			// This reverses the bit order
-			rxbyte = (rxbyte & 0xf0) >> 4 | (rxbyte & 0x0f) << 4; // Divide byte into 2 nibbles and swap them
-			rxbyte = (rxbyte & 0xcc) >> 2 | (rxbyte & 0x33) << 2; // Divide nibble into 2 bits and swap them
-			rxbyte = (rxbyte & 0xaa) >> 1 | (rxbyte & 0x55) << 1; // Divide again and swap the remaining bits
-
-			osd_printf_verbose("%c", rxbyte);
-
-			m_smrtcrd_serial_bitmask = 0x0;
-			m_smrtcrd_serial_rxdata = 0x0;
-		}
-	}
-	else
-	{
-		// TODO: reimplement smartcard slot
-	}
+	m_debug_uart->serial_tx_bitbang_w(data);
 }
 
 uint32_t spot_asic_device::reg_4014_r()
@@ -1341,59 +1210,92 @@ void spot_asic_device::reg_5010_w(uint32_t data)
 	m_memtiming = data;
 }
 
-TIMER_CALLBACK_MEMBER(spot_asic_device::dac_update)
+// IIC operations used for devices like the tuner, NVRAM etc...
+
+uint8_t spot_asic_device::sda_r()
 {
-	if (m_aud_dmacntl & AUD_DMACNTL_DMAEN)
+	return m_iic_sda & 0x1;
+}
+
+void spot_asic_device::sda_w(uint8_t state)
+{
+	m_iic_sda = state & 0x1;
+}
+
+uint8_t spot_asic_device::scl_r()
+{
+	return m_iic_scl & 0x1;
+}
+
+void spot_asic_device::scl_w(uint8_t state)
+{
+	m_iic_scl = state & 0x1;
+}
+
+TIMER_CALLBACK_MEMBER(spot_asic_device::play_aout_samples)
+{
+	if (m_aud_odmacntl & AUD_DMACNTL_DMAEN)
 	{
-		if (m_aud_dma_ongoing)
+		// No current buffer ready to play. Check if there's anything lined up for us.
+		if (!m_aud_ocvalid && (m_aud_odmacntl & AUD_DMACNTL_NV) && m_aud_onstart != 0x80000000)
 		{
-			address_space &space = m_hostcpu->space(AS_PROGRAM);
+			m_aud_ocstart = m_aud_onstart;
+			m_aud_ocsize = m_aud_onsize;
+			m_aud_occonfig = m_aud_onconfig;
 
-			int16_t samplel = space.read_word(m_aud_ccnt);
-			m_aud_ccnt += 2;
-			int16_t sampler = space.read_word(m_aud_ccnt);
-			m_aud_ccnt += 2;
+			m_aud_occnt = m_aud_ocstart;
+			m_aud_ocend = (m_aud_ocstart + m_aud_ocsize);
 
-			// For 8-bit we're assuming left-aligned samples
-			switch(m_aud_cconfig)
+			// Next buffer loaded, so we will now play the it
+			m_aud_ocvalid = true;
+
+			// If next buffer isn't flagged as continous then invalidate the next values.
+			// The OS will reload it with valid values.
+			if ((m_aud_odmacntl & AUD_DMACNTL_NVF) == 0x0)
+			{
+				m_aud_odmacntl &= (~AUD_DMACNTL_NV);
+			}
+
+			// Ask OS to load new next values. We will play it after the current buffer finished playing.
+			spot_asic_device::irq_audio_w(1);
+		}
+
+		// If the current buffer is valid (ready), then play it.
+		if (m_aud_ocvalid)
+		{
+			switch(m_aud_occonfig)
 			{
 				case AUD_CONFIG_16BIT_STEREO:
 				default:
-					m_dac[0]->write(samplel);
-					m_dac[1]->write(sampler);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x00) & 0xffff);
 					break;
 
 				case AUD_CONFIG_16BIT_MONO:
-					m_dac[0]->write(samplel);
-					m_dac[1]->write(samplel);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
 					break;
 
+				// For 8-bit we're assuming left-aligned samples
+
 				case AUD_CONFIG_8BIT_STEREO:
-					m_dac[0]->write((samplel >> 0x8) & 0xFF);
-					m_dac[1]->write((sampler >> 0x8) & 0xFF);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x08) & 0x00ff);
 					break;
 
 				case AUD_CONFIG_8BIT_MONO:
-					m_dac[0]->write((samplel >> 0x8) & 0xFF);
-					m_dac[1]->write((samplel >> 0x8) & 0xFF);
+					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
+					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
 					break;
 			}
-			if (m_aud_ccnt >= m_aud_cend)
+
+			m_aud_occnt += 4;
+
+			if (m_aud_occnt >= m_aud_ocend)
 			{
-				spot_asic_device::irq_audio_w(1);
-				m_aud_dma_ongoing = false; // nothing more to DMA
+				// Invalidate current buffer and load next (valid) buffer.
+				m_aud_ocvalid = false;
 			}
-		}
-		if (!m_aud_dma_ongoing)
-		{
-			// wait for next DMA values to be marked as valid
-			m_aud_dma_ongoing = m_aud_dmacntl & (AUD_DMACNTL_NV | AUD_DMACNTL_NVF);
-			if (!m_aud_dma_ongoing) return; // values aren't marked as valid; don't prepare for next DMA
-			m_aud_cstart = m_aud_nstart;
-			m_aud_csize = m_aud_nsize;
-			m_aud_cend = (m_aud_cstart + m_aud_csize);
-			m_aud_cconfig = m_aud_nconfig;
-			m_aud_ccnt = m_aud_cstart;
 		}
 	}
 }
@@ -1415,7 +1317,15 @@ TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
 		modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
 }
 
-// The interrupt handler gets copied into memory @ 0x80000200 to match up with the MIPS3 interrupt vector
+void spot_asic_device::irq_uart_w(int state)
+{
+	while (m_debug_uart->serial_rx_buffcnt_r() > 0)
+	{
+		char32_t rxbyte = m_debug_uart->serial_rx_byte_r() & 0xff;
+
+		m_kbd->queue_chars(&rxbyte, 1);
+	}
+}
 
 void spot_asic_device::vblank_irq(int state) 
 {
@@ -1475,12 +1385,11 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height = bitmap.height();
 	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
+	bool screen_enabled = (m_vid_fcntl & VID_FCNTL_VIDENAB) && (m_vid_dmacntl & VID_DMACNTL_DMAEN);
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
 	m_vid_ccnt = m_vid_draw_nstart;
-
-	address_space &space = m_hostcpu->space(AS_PROGRAM);
 
 	for (int y = 0; y < screen_height; y++)
 	{
@@ -1503,9 +1412,9 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 				&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
 			);
 
-			if (m_vid_fcntl & VID_FCNTL_VIDENAB && m_vid_dmacntl & VID_DMACNTL_DMAEN && is_active_area)
+			if (screen_enabled && is_active_area)
 			{
-				pixel = space.read_dword(m_vid_ccnt);
+				pixel = m_hostram[m_vid_ccnt >> 0x2];
 
 				m_vid_ccnt += vid_step;
 			}
