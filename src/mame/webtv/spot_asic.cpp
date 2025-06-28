@@ -281,7 +281,7 @@ void spot_asic_device::device_reset()
 	m_fence2_addr = 0x0;
 	m_fence2_mask = 0x0;
 
-	m_vid_nstart = 0x0;
+	m_vid_nstart = 0x80000000;
 	m_vid_nsize = 0x0;
 	m_vid_dmacntl = 0x0;
 	m_vid_hstart = VID_HSTART_OFFSET + VID_DEFAULT_HSTART;
@@ -309,7 +309,7 @@ void spot_asic_device::device_reset()
 	m_aud_occonfig = 0x0;
 	m_aud_occnt = 0x0;
 	m_aud_ocvalid = false;
-	m_aud_onstart = 0x0;
+	m_aud_onstart = 0x80000000;
 	m_aud_onsize = 0x0;
 	m_aud_onconfig = 0x0;
 	m_aud_odmacntl = 0x0;
@@ -609,7 +609,7 @@ uint32_t spot_asic_device::reg_2010_r()
 
 void spot_asic_device::reg_2010_w(uint32_t data)
 {
-	m_aud_onstart = data;
+	m_aud_onstart = data & (~0xfc000003);
 }
 
 uint32_t spot_asic_device::reg_2014_r()
@@ -680,6 +680,8 @@ uint32_t spot_asic_device::reg_300c_r()
 
 void spot_asic_device::reg_300c_w(uint32_t data)
 {
+	data &= (~0xfc000003);
+
 	bool has_changed = (m_vid_nstart != data);
 
 	m_vid_nstart = data;
@@ -1412,7 +1414,7 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 				&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
 			);
 
-			if (screen_enabled && is_active_area)
+			if (screen_enabled && is_active_area && m_vid_ccnt != 0x80000000)
 			{
 				pixel = m_hostram[m_vid_ccnt >> 0x2];
 
