@@ -298,7 +298,14 @@ void webtv1_state::machine_reset()
 	m_reset_count++;
 
 	if (m_reset_count == 1)
-		popmessage("NOTE: WebTV starts with the display off. Press F1 to power on.");
+	{
+		game_driver driver = machine().system();
+
+		if (strcmp(driver.name, "wtv1bfe") == 0)
+			popmessage("NOTE: WebTV starts with the display off. Press F3 to power on for pre-alpha builds or F1 to power on for other builds.");
+		else
+			popmessage("NOTE: WebTV starts with the display off. Press F1 to power on.");
+	}
 }
 
 //
