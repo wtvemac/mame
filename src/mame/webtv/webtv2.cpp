@@ -698,7 +698,7 @@ ROM_START(wtv2jpp)
 	ROM_LOAD("bootrom.o", 0x000000, 0x400000, NO_DUMP)
 
 	DISK_REGION("ata:0:hdd")
-	DISK_IMAGE("wtvjpphdd", 0x0000, NO_DUMP )
+	DISK_IMAGE("wtvjphdd", 0x0000, NO_DUMP )
 
 ROM_END
 
@@ -730,7 +730,7 @@ ROM_START(wtv2jpc)
 	ROM_LOAD("bootrom.o", 0x000000, 0x400000, NO_DUMP)
 
 	DISK_REGION("ata:0:hdd")
-	DISK_IMAGE("wtvjpchdd", 0x0000, NO_DUMP )
+	DISK_IMAGE("wtvjchdd", 0x0000, NO_DUMP )
 
 ROM_END
 
@@ -764,7 +764,7 @@ ROM_START(wtv2drb)
 	ROMX_LOAD("dbugrom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(1))
 
 	DISK_REGION("ata:0:hdd")
-	DISK_IMAGE("wtvderbyhdd", 0x0000, NO_DUMP )
+	DISK_IMAGE("wtvdhdd", 0x0000, NO_DUMP )
 
 ROM_END
 
@@ -941,7 +941,7 @@ ROM_START(wtv2esr)
 	ROM_LOAD("bootrom.o", 0x000000, 0x200000, NO_DUMP)
 
 	DISK_REGION("ata:0:hdd")
-	DISK_IMAGE("wtvestrhdd", 0x0000, NO_DUMP )
+	DISK_IMAGE("wtvehdd", 0x0000, NO_DUMP )
 
 ROM_END
 
@@ -985,7 +985,7 @@ ROM_START(wtv2utv)
 	ROMX_LOAD("dgbprom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(2))
 
 	DISK_REGION("ata:0:hdd")
-	DISK_IMAGE("wtvutvhdd", 0x0000, NO_DUMP )
+	DISK_IMAGE("wtvuhdd", 0x0000, NO_DUMP )
 
 ROM_END
 
