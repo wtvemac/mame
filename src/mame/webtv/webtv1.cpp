@@ -430,11 +430,11 @@ void webtv1_state::ram_flasher_w(offs_t offset, uint8_t data)
 
 // There's few known devices that can sit on this bus:
 //
-//	Slace Address	Device
-//	0x8c			Philips SAA7187 encoder (SPOT)
-//					Used for the S-Video and composite out
-//	0xa0			Atmel AT24C01A EEPROM NVRAM (SPOT and SOLO)
-//					Used for the encryption shared secret (0x14) and crash log counter (0x23)
+//	0x8c/0x8d	Philips SAA7187 video encoder
+//				Used for the S-Video and composite out
+//	0xa0/0xa1	Atmel AT24C01A EEPROM NVRAM
+//				Used for the encryption shared secret (0x14), crash log counter (0x23) and other settings
+//
 
 uint8_t webtv1_state::iic_sda_r()
 {
