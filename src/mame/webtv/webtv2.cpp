@@ -561,16 +561,17 @@ void webtv2_state::ram_flasher_w(offs_t offset, uint8_t data)
 
 // There's a few known devices that can sit on this bus:
 //
-//	Slave Address	Device
-//	0x8c			Philips SAA7187 encoder (SPOT)
-//					Used for the S-Video and composite out
-//	0xa0			Atmel AT24C01A EEPROM NVRAM (SPOT and SOLO)
-//					Used for the encryption shared secret (0x14), crash log counter (0x23) and other settings
-//	0x88			Rockwell BT827 or Rockwell BT835 media in/out
-//	0x18			UltimateTV's LSI L64734 -OR- Conexant CX24110 tuner 0
-//	0x1a			UltimateTV's LSI L64734 -OR- Conexant CX24110 tuner 1
-//	0xc2			?
-//	0x8c			?
+//	Address		Device
+//	0x18/0x19	UltimateTV's LSI L64734 -OR- Conexant CX24110 tuner 0
+//	0x1a/0x1b	UltimateTV's LSI L64734 -OR- Conexant CX24110 tuner 1
+//	0x88/0x89	Rockwell/BrookTree Bt827 or Rockwell/BrookTree Bt835 media in/out
+//	0x8c/0x8d	Philips SAA7187 video encoder
+//				Used for the S-Video and composite out
+//	0xa0/0xa1	Atmel AT24C01A EEPROM NVRAM
+//				Used for the encryption shared secret (0x14), crash log counter (0x23) and other settings
+//	0xb6/0xb7	9850 audio encoder
+//	0xc2		ALPS tuner
+//
 
 uint8_t webtv2_state::iic_sda_r()
 {
