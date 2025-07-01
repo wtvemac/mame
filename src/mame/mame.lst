@@ -49003,7 +49003,6 @@ wtv2npl
 wtv2ncl
 wtv2esr
 wtv2utv
-wtv2uvd
 
 @source:westinghouse/testconsole.cpp
 whousetc

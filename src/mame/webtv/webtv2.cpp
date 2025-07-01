@@ -126,7 +126,6 @@ public:
 	void webtv2_newclsc(machine_config& config);
 	void webtv2_estar(machine_config& config);
 	void webtv2_utv(machine_config& config);
-	void webtv2_utvdev(machine_config& config);
 
 protected:
 
@@ -993,47 +992,6 @@ ROM_END
 ////////////////////////////////////////////
 ////////////////////////////////////////////
 
-void webtv2_state::webtv2_utvdev(machine_config& config)
-{
-	// Configuring with HWMODEM just in case someone wants to run a modified UTV build that can interact with the hardware modem.
-	// serial.dll may be used from the wtv2wld box but significant modifications are required so the correct kernel calls are made
-
-	// The UTV has a PCI and USB bus that can be implemented in fud_asic. From there you can implement a USB to ethernet driver.
-	// You'll need to add an entry in the NVRAM to enable the USB ethernet driver (usually activated by connecting to the servie via the modem)
-
-	// Or you can create your own method to get connected with a custom Windows CE driver.
-
-	build_webtv_device(
-		config,
-		MIPS_RM5231_BE,
-		CPU_250MHZ,
-		MEM_32MB,
-		MEM_2MB,
-		0x09040000,
-		0x038ff233,
-		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::SWMODEM | webtv2_state::HWMODEM | webtv2_state::DTV01_SAT_TUNER | webtv2_state::BT835_MEDIA_IN | webtv2_state::FUD
-	);
-}
-
-ROM_START(wtv2uvd)
-
-	ROM_REGION(0x8, "serial_id", 0)
-	ROM_LOAD("ds2401.bin", 0x0000, 0x0008, NO_DUMP)
-
-	ROM_REGION32_BE(0x800000, "bank1", 0)
-	ROM_SYSTEM_BIOS(0, "bootrom", "UltimateTV Dev BootROM (build 2525)")
-	ROMX_LOAD("bootrom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(0))
-	ROM_SYSTEM_BIOS(1, "dbugrom", "Debug UltimateTV BootROM (2.0.6, build 2545)")
-	ROMX_LOAD("dbugrom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(1))
-	ROM_SYSTEM_BIOS(2, "dgbprom", "Debug UltimateTV BootROM w/ HD bypass (2.0.6, build 2545)")
-	ROMX_LOAD("dgbprom.o", 0x000000, 0x200000, NO_DUMP, ROM_BIOS(2))
-
-ROM_END
-
-////////////////////////////////////////////
-////////////////////////////////////////////
-////////////////////////////////////////////
-
 //   YEAR  NAME      PARENT  COMPAT  MACHINE         INPUT CLASS         INIT       COMPANY    FULLNAME                                                                                 FLAGS
 CONS(1997, wtv2lc2,       0,      0, webtv2_lc2,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Plus | Sony INT-W200 / Philips MAT972 / Mitsubishi WB-2000 / Samsung SIS-100", MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2lc2
@@ -1051,4 +1009,3 @@ CONS(1999, wtv2esr,       0,      0, webtv2_estar,   0,    webtv2_state, base_in
 // Can add child machines here if you want to split out wtv2esr
 CONS(2000, wtv2utv,       0,      0, webtv2_utv,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: UltimateTV | Sony SAT-W60 / RCA DWD490RE / RCA DWD495RG",                      MACHINE_UNOFFICIAL | MACHINE_NODEVICE_LAN)
 // Can add child machines here if you want to split out wtv2utv
-CONS(2000, wtv2uvd,       0,      0, webtv2_utvdev,  0,    webtv2_state, base_init, "WebTV",   "WebTV 2: UltimateTV | Development Box",                                                 MACHINE_UNOFFICIAL | MACHINE_NODEVICE_LAN)
