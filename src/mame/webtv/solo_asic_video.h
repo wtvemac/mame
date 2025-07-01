@@ -168,7 +168,7 @@ enum gfx_texdata_type_t : uint8_t
 	TEXDATA_TYPE_VQ4_444  = 0x07
 };
 
-typedef struct // 32 bits / 4 bytes
+typedef struct gfx_ymap // 32 bits / 4 bytes
 {
 	uint32_t data[1];
 
@@ -181,7 +181,7 @@ typedef struct // 32 bits / 4 bytes
 	uint16_t             celblk_ptr() const {                       return ((data[0x0] >> 0x00) & 0x0003ff); } // 10 bits
 } gfx_ymap_t;
 
-typedef struct // 384 bits / 48 bytes
+typedef struct gfx_cel // 384 bits / 48 bytes
 {
 	uint32_t data[12];
 
