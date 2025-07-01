@@ -40,7 +40,6 @@ private:
 
 	void serial_rx(int state);
 
-	uint32_t m_serial_tx_baud_rate;
 	uint8_t m_serial_tx_bit_idx;
 	uint8_t m_serial_tx_cur_byte;
 	uint8_t m_serial_tx_buff[BUFF_MAX_SIZE];
