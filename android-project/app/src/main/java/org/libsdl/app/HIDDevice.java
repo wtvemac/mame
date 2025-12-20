@@ -1,5 +1,3 @@
-// license:Zlib
-// copyright-holders:SDL2 Developers
 package org.libsdl.app;
 
 import android.hardware.usb.UsbDevice;

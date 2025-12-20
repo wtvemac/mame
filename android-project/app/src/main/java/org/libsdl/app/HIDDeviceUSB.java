@@ -1,5 +1,3 @@
-// license:Zlib
-// copyright-holders:SDL2 Developers
 package org.libsdl.app;
 
 import android.hardware.usb.*;
@@ -54,7 +52,7 @@ class HIDDeviceUSB implements HIDDevice {
     @Override
     public String getSerialNumber() {
         String result = null;
-        if (Build.VERSION.SDK_INT >= 21) {
+        if (Build.VERSION.SDK_INT >= 21 /* Android 5.0 (LOLLIPOP) */) {
             try {
                 result = mDevice.getSerialNumber();
             }
@@ -76,7 +74,7 @@ class HIDDeviceUSB implements HIDDevice {
     @Override
     public String getManufacturerName() {
         String result = null;
-        if (Build.VERSION.SDK_INT >= 21) {
+        if (Build.VERSION.SDK_INT >= 21 /* Android 5.0 (LOLLIPOP) */) {
             result = mDevice.getManufacturerName();
         }
         if (result == null) {
@@ -88,7 +86,7 @@ class HIDDeviceUSB implements HIDDevice {
     @Override
     public String getProductName() {
         String result = null;
-        if (Build.VERSION.SDK_INT >= 21) {
+        if (Build.VERSION.SDK_INT >= 21 /* Android 5.0 (LOLLIPOP) */) {
             result = mDevice.getProductName();
         }
         if (result == null) {
