@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_SOLO_ASIC_H
-#define MAME_MACHINE_SOLO_ASIC_H
+#ifndef MAME_WEBTV_SOLO_ASIC_H
+#define MAME_WEBTV_SOLO_ASIC_H
 
 #pragma once
 
@@ -546,4 +546,4 @@ private:
 
 DECLARE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device)
 
-#endif
+#endif // MAME_WEBTV_SOLO_ASIC_H

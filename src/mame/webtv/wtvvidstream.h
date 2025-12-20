@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_WTVSTREAM_H
-#define MAME_MACHINE_WTVSTREAM_H
+#ifndef MAME_WEBTV_WTVVIDSTREAM_H
+#define MAME_WEBTV_WTVVIDSTREAM_H
 
 #pragma once
 
@@ -90,4 +90,4 @@ protected:
 
 DECLARE_DEVICE_TYPE(SAA71786, saa71786_encoder_device)
 
-#endif // MAME_MACHINE_WTVSTREAM_H
+#endif // MAME_WEBTV_WTVVIDSTREAM_H

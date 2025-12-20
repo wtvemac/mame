@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_WTVSOFTMODEM_DSP_H
-#define MAME_MACHINE_WTVSOFTMODEM_DSP_H
+#ifndef MAME_WEBTV_WTVSOFTMODEM_DSP_H
+#define MAME_WEBTV_WTVSOFTMODEM_DSP_H
 
 #pragma once
 
@@ -159,4 +159,4 @@ private:
 
 };
 
-#endif // MAME_MACHINE_WTVSOFTMODEM_DSP_H
+#endif // MAME_WEBTV_WTVSOFTMODEM_DSP_H

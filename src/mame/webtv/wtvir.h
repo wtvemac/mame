@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_WTVIR_H
-#define MAME_MACHINE_WTVIR_H
+#ifndef MAME_WEBTV_WTVIR_H
+#define MAME_WEBTV_WTVIR_H
 
 #pragma once
 
@@ -120,4 +120,4 @@ protected:
 
 DECLARE_DEVICE_TYPE(SEJIN_KBD, wtvir_sejin_device)
 
-#endif // MAME_MACHINE_WTVIR_H
+#endif // MAME_WEBTV_WTVIR_H

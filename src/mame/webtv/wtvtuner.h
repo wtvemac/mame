@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_WTVTUNER_H
-#define MAME_MACHINE_WTVTUNER_H
+#ifndef MAME_WEBTV_WTVTUNER_H
+#define MAME_WEBTV_WTVTUNER_H
 
 #pragma once
 
@@ -76,4 +76,4 @@ private:
 
 DECLARE_DEVICE_TYPE(L64734, l64734_tuner_device)
 
-#endif // MAME_MACHINE_WTVTUNER_H
+#endif // MAME_WEBTV_WTVTUNER_H
