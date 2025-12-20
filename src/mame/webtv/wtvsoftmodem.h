@@ -8,8 +8,8 @@
 // WebTV OS In  <- This device TX: uint32_t pull(int32_t* sample, uint32_t sample_count)
 // WebTV OS Out -> This device RX: void push(const int32_t* sample, uint32_t sample_count);
 
-#ifndef MAME_MACHINE_WTVSOFTMODEM_H
-#define MAME_MACHINE_WTVSOFTMODEM_H
+#ifndef MAME_WEBTV_WTVSOFTMODEM_H
+#define MAME_WEBTV_WTVSOFTMODEM_H
 
 #pragma once
 
@@ -112,4 +112,4 @@ protected:
 
 DECLARE_DEVICE_TYPE(WTVSOFTMODEM, wtvsoftmodem_device)
 
-#endif // MAME_MACHINE_WTVSOFTMODEM_H
+#endif // MAME_WEBTV_WTVSOFTMODEM_H

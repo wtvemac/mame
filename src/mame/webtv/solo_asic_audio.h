@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_SOLO_ASIC_AUDIO
-#define MAME_MACHINE_SOLO_ASIC_AUDIO
+#ifndef MAME_WEBTV_SOLO_ASIC_AUDIO_H
+#define MAME_WEBTV_SOLO_ASIC_AUDIO_H
 
 #include "cpu/mips/mips3.h"
 #include "sound/dac.h"
@@ -244,4 +244,4 @@ private:
 
 DECLARE_DEVICE_TYPE(SOLO_ASIC_AUDIO, solo_asic_audio_device)
 
-#endif // MAME_MACHINE_SOLO_ASIC_AUDIO
+#endif // MAME_WEBTV_SOLO_ASIC_AUDIO_H

@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_WTVSOFTMODEM_FSK_H
-#define MAME_MACHINE_WTVSOFTMODEM_FSK_H
+#ifndef MAME_WEBTV_WTVSOFTMODEM_FSK_H
+#define MAME_WEBTV_WTVSOFTMODEM_FSK_H
 
 #pragma once
 
@@ -363,4 +363,4 @@ private:
 
 };
 
-#endif // MAME_MACHINE_WTVSOFTMODEM_FSK_H
+#endif // MAME_WEBTV_WTVSOFTMODEM_FSK_H
