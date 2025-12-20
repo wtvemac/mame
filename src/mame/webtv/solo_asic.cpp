@@ -24,7 +24,7 @@
 
 DEFINE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device, "solo_asic", "WebTV SOLO ASIC")
 
-solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config)
+solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config, bool softmodem_enabled)
 	: device_t(mconfig, SOLO_ASIC, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
 	m_hostcpu(*owner, "maincpu"),
@@ -34,6 +34,7 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
 	m_serial_id(*this, finder_base::DUMMY_TAG),
 	m_irkbdc(*this, "irkbdc"),
     m_modem_uart(*this, "modem_uart"),
+	m_softmodem_uart(*this, "smodem_uart"),
 	m_debug_uart(*this, "debug"),
 	m_watchdog(*this, "watchdog"),
     m_power_led(*this, "power_led"),
@@ -46,6 +47,8 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
 {
 	m_chip_id = chip_id;
 	m_sys_config = sys_config;
+	m_softmodem_enabled = softmodem_enabled;
+	m_hardmodem_enabled = !softmodem_enabled;
 }
 
 static DEVICE_INPUT_DEFAULTS_START(wtv_modem)
@@ -230,28 +233,48 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 	else
 		m_video->enable_ntsc();
 
-	SOLO_ASIC_AUDIO(config, m_audio);
+	if (m_softmodem_enabled)
+	{
+		WTVSOFTMODEM(config, m_softmodem_uart);
+		m_softmodem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
+		m_softmodem_uart->out_dtr_callback().set("modem", FUNC(rs232_port_device::write_dtr));
+		m_softmodem_uart->out_rts_callback().set("modem", FUNC(rs232_port_device::write_rts));
+
+		rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
+		rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
+		rs232.rxd_handler().set(m_softmodem_uart, FUNC(wtvsoftmodem_device::rx_w));
+		rs232.dcd_handler().set(m_softmodem_uart, FUNC(wtvsoftmodem_device::dcd_w));
+		rs232.dsr_handler().set(m_softmodem_uart, FUNC(wtvsoftmodem_device::dsr_w));
+		rs232.ri_handler().set(m_softmodem_uart, FUNC(wtvsoftmodem_device::ri_w));
+		rs232.cts_handler().set(m_softmodem_uart, FUNC(wtvsoftmodem_device::cts_w));
+	}
+	else
+	{
+		NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
+		m_modem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
+		m_modem_uart->out_dtr_callback().set("modem", FUNC(rs232_port_device::write_dtr));
+		m_modem_uart->out_rts_callback().set("modem", FUNC(rs232_port_device::write_rts));
+		m_modem_uart->out_int_callback().set(FUNC(solo_asic_device::irq_modem_w));
+
+		rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
+		rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
+		rs232.rxd_handler().set(m_modem_uart, FUNC(ns16450_device::rx_w));
+		rs232.dcd_handler().set(m_modem_uart, FUNC(ns16450_device::dcd_w));
+		rs232.dsr_handler().set(m_modem_uart, FUNC(ns16450_device::dsr_w));
+		rs232.ri_handler().set(m_modem_uart, FUNC(ns16450_device::ri_w));
+		rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
+	}
+
+	SOLO_ASIC_AUDIO(config, m_audio, 0, m_softmodem_enabled);
 	m_audio->int_enable_callback().set(FUNC(solo_asic_device::int_enable_aud_w));
 	m_audio->int_irq_callback().set(FUNC(solo_asic_device::irq_aud_w));
 	m_audio->set_hostcpu(m_hostcpu);
 	m_audio->set_hostram(m_hostram);
+	if (m_softmodem_enabled)
+		m_audio->set_softmodem(m_softmodem_uart);
 
 	SEJIN_KBD(config, m_irkbdc);
 	m_irkbdc->sample_fifo_trigger_callback().set(FUNC(solo_asic_device::irq_keyboard_w));
-
-	NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
-	m_modem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
-	m_modem_uart->out_dtr_callback().set("modem", FUNC(rs232_port_device::write_dtr));
-	m_modem_uart->out_rts_callback().set("modem", FUNC(rs232_port_device::write_rts));
-	m_modem_uart->out_int_callback().set(FUNC(solo_asic_device::irq_modem_w));
-
-	rs232_port_device &rs232(RS232_PORT(config, "modem", default_rs232_devices, "null_modem"));
-	rs232.set_option_device_input_defaults("null_modem", DEVICE_INPUT_DEFAULTS_NAME(wtv_modem));
-	rs232.rxd_handler().set(m_modem_uart, FUNC(ns16450_device::rx_w));
-	rs232.dcd_handler().set(m_modem_uart, FUNC(ns16450_device::dcd_w));
-	rs232.dsr_handler().set(m_modem_uart, FUNC(ns16450_device::dsr_w));
-	rs232.ri_handler().set(m_modem_uart, FUNC(ns16450_device::ri_w));
-	rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
 
 	WTV_RS232DBG(config, m_debug_uart);
 	m_debug_uart->serial_rx_handler().set(FUNC(solo_asic_device::irq_uart_w));
@@ -460,7 +483,7 @@ void solo_asic_device::modfw_hack_end()
 {
 	modfw_mode = false;
 
-	if (!solo_asic_device::is_webtvos())
+	if (m_hardmodem_enabled && !solo_asic_device::is_webtvos())
 	{
 		// DLAB enabled, 8 data bits
 		m_modem_uart->ins8250_w(0x3, 0x83);
@@ -527,7 +550,7 @@ void solo_asic_device::reg_0004_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_0008_r()
 {
-	if (do7e_hack)
+	if (do7e_hack && m_hardmodem_enabled)
 	{
 		do7e_hack = false;
 
@@ -1005,7 +1028,7 @@ void solo_asic_device::reg_018c_w(uint32_t data)
 	solo_asic_device::set_rio_irq(data, CLEAR_LINE);
 
 	// Re-assert RIO interrupt if the modem UART device still hasn't cleared the interrupt pending state.
-	if (!modfw_mode && ((solo_asic_device::is_webtvos() && m_modem_uart->intrpt_r()) || solo_asic_device::get_wince_intrpt_r()))
+	if (m_hardmodem_enabled && !modfw_mode && ((solo_asic_device::is_webtvos() && m_modem_uart->intrpt_r()) || solo_asic_device::get_wince_intrpt_r()))
 	{
 		solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE0, ASSERT_LINE);
 	}
@@ -1292,32 +1315,58 @@ void solo_asic_device::reg_400c_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_4010_r()
 {
-	return (m_dev_gpio_in | m_dev_gpio_out);
+	uint32_t gpio_data = (m_dev_gpio_in & m_dev_gpio_in_mask);
+	gpio_data |= (m_dev_gpio_out & m_dev_gpio_out_mask);
+
+	return gpio_data;
 }
 
 void solo_asic_device::reg_4010_w(uint32_t data)
 {
-	m_dev_gpio_out |= (data & m_dev_gpio_out_mask);
+	// Can't set GPIOIN pins, use registers 0x4014 and 0x4114 instead.
 }
 
 uint32_t solo_asic_device::reg_4014_r()
 {
-	return m_dev_gpio_out;
+	return (m_dev_gpio_out & m_dev_gpio_out_mask);
 }
 
 void solo_asic_device::reg_4014_w(uint32_t data)
 {
-	m_dev_gpio_out |= (data & m_dev_gpio_out_mask);
+	data &= m_dev_gpio_out_mask;
+
+	if (m_softmodem_enabled)
+	{
+		if (data & GPIO_SOFTMODEM_HOOK_STATE)
+			m_softmodem_uart->set_off_hook();
+		else if (data & GPIO_SOFTMODEM_RESET)
+			m_softmodem_uart->restart();
+		else if (data & GPIO_SOFTMODEM_LINE_CHECK)
+			solo_asic_device::set_gpio_irq(GPIO_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+	}
+
+	m_dev_gpio_out |= data;
 }
 
 uint32_t solo_asic_device::reg_4114_r()
 {
-	return m_dev_gpio_out;
+	return (m_dev_gpio_out & m_dev_gpio_out_mask);
 }
 
 void solo_asic_device::reg_4114_w(uint32_t data)
 {
-	m_dev_gpio_out &= (~(data & m_dev_gpio_out_mask));
+	data &= m_dev_gpio_out_mask;
+
+	if (m_softmodem_enabled)
+	{
+		if (data & GPIO_SOFTMODEM_HOOK_STATE)
+			m_softmodem_uart->set_on_hook();
+		// NOTE: currently there is a bug where the UTV doesn't reset properly after the first dial. Need to look into this.
+		else if (data & GPIO_SOFTMODEM_LINE_CHECK)
+			solo_asic_device::set_gpio_irq(GPIO_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+	}
+
+	m_dev_gpio_out &= (~data);
 }
 
 uint32_t solo_asic_device::reg_4018_r()
@@ -1327,10 +1376,8 @@ uint32_t solo_asic_device::reg_4018_r()
 
 void solo_asic_device::reg_4018_w(uint32_t data)
 {
-	m_dev_gpio_in_mask |= data;
-
-	if (m_dev_gpio_in_mask != 0x0)
-		solo_asic_device::reg_005c_w(m_dev_gpio_in_mask);
+	m_dev_gpio_out_mask |= data;
+	m_dev_gpio_in_mask = (~m_dev_gpio_out_mask);
 }
 
 uint32_t solo_asic_device::reg_4118_r()
@@ -1340,11 +1387,8 @@ uint32_t solo_asic_device::reg_4118_r()
 
 void solo_asic_device::reg_4118_w(uint32_t data)
 {
-	m_dev_gpio_in_mask = (~data);
-	m_dev_gpio_out_mask = data;
-
-	if (m_dev_gpio_in_mask != 0x0)
-		solo_asic_device::reg_005c_w(m_dev_gpio_in_mask);
+	m_dev_gpio_out_mask &= (~data);
+	m_dev_gpio_in_mask = (~m_dev_gpio_out_mask);
 }
 
 uint32_t solo_asic_device::reg_4020_r()
@@ -2187,9 +2231,6 @@ void solo_asic_device::set_gpio_irq(uint32_t mask, int state)
 	{
 		if (state)
 		{
-			// If the GPIO interrupt is enabled and needs to fire, then make sure the SOLO DEV's GPIO interrupt is enabled.
-			solo_asic_device::reg_007c_w(BUS_INT_DEV_GPIO);
-
 			m_busgpio_intstat |= mask;
 
 			solo_asic_device::set_dev_irq(BUS_INT_DEV_GPIO, state);
