@@ -15,6 +15,7 @@
 #include "solo_asic_audio.h"
 #include "wtvir.h"
 #include "wtvdbg.h"
+#include "wtvsoftmodem.h"
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 #include "machine/ins8250.h"
@@ -80,6 +81,14 @@ constexpr uint32_t NVCNTL_WRITE_EN = 1 << 2;
 constexpr uint32_t NVCNTL_SDA_W    = 1 << 1;
 constexpr uint32_t NVCNTL_SDA_R    = 1 << 0;
 
+// Used to set or clear the hook state on boxes before the UTV
+constexpr uint32_t GPIO_SOFTMODEM_HOOK_STATE       = 1 << 10;
+// Used in the UTV, not sure if names are correct. These names are based on reverse-engineered behaviour.
+// UTV seems to start with setting the modem off hook, then checking if their a line voltage to know if the line is ready.
+constexpr uint32_t GPIO_SOFTMODEM_RESET            = 1 <<  5; // Called before the modem is opened and after the modem is closed.
+constexpr uint32_t GPIO_SOFTMODEM_HAS_LINE_VOLTAGE = 1 <<  6; // GPIO IRQ indicating line voltage is available.
+constexpr uint32_t GPIO_SOFTMODEM_LINE_CHECK       = 1 << 14; // Called every so often, looks like it requests the modem to IRQ if there's line voltage.
+
 constexpr uint8_t  INS8250_LSR_TSRE = 0x40;
 constexpr uint8_t  INS8250_LSR_THRE = 0x20;
 constexpr uint16_t MBUFF_MAX_SIZE   = 0x800;
@@ -109,7 +118,7 @@ class solo_asic_device : public device_t, public device_serial_interface
 
 public:
 
-	solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t chip_id = 0, uint32_t sys_config = 0);
+	solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t chip_id = 0, uint32_t sys_config = 0, bool softmodem_enabled = false);
 
 	void map(address_map &map);
 	void bus_unit_map(address_map &map);
@@ -228,6 +237,8 @@ protected:
 	uint32_t m_utvdma_ccnt;
 	uint32_t m_ide1_dmarq_state;
 
+	bool m_softmodem_enabled;
+	bool m_hardmodem_enabled;
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
 	uint32_t modem_txbuff_index;
@@ -248,7 +259,8 @@ private:
 	required_device<solo_asic_audio_device> m_audio;
 	required_device<ds2401_device> m_serial_id;
 	required_device<wtvir_sejin_device> m_irkbdc;
-	required_device<ns16550_device> m_modem_uart;
+	optional_device<ns16550_device> m_modem_uart;
+	optional_device<wtvsoftmodem_device> m_softmodem_uart;
 	required_device<wtvdbg_rs232_device> m_debug_uart;
 	required_device<watchdog_timer_device> m_watchdog;
 

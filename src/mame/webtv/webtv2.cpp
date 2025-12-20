@@ -314,7 +314,7 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 
 	m_maincpu->set_system_clock(bus_clock.value());
 
-	SOLO_ASIC(config, m_soloasic, bus_clock, chip_id, sys_config);
+	SOLO_ASIC(config, m_soloasic, bus_clock, chip_id, sys_config, ((m_device_config & webtv2_state::SWMODEM) != 0x00));
 	m_soloasic->set_serial_id(m_serial_id);
 	m_soloasic->set_ata(m_ata);
 	m_soloasic->reset_hack_callback().set(FUNC(webtv2_state::reset_hack));
