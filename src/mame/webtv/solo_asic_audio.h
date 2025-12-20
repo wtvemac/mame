@@ -9,8 +9,13 @@
 #include "cpu/mips/mips3.h"
 #include "sound/dac.h"
 #include "speaker.h"
+#include "wtvsoftmodem.h"
 
 #pragma once
+
+#define MOD_AUDIO_DEBUG false
+#define MOD_PLAY_IN     true
+#define MOD_PLAY_OUT    true
 
 constexpr uint32_t BUS_INT_AUD_SPDIFOUT  = 1 << 7; // UltimateTV's S/PDIF out
 constexpr uint32_t BUS_INT_AUD_SMODEMIN  = 1 << 6; // Soft modem DMA in
@@ -27,6 +32,11 @@ constexpr uint32_t AUD_CONFIG_8BIT_MONO    = 3;
 constexpr uint32_t AUD_DEFAULT_CLK = 44100;
 constexpr float    AUD_OUTPUT_GAIN = 1.0;
 
+constexpr uint32_t MOD_DMACNTL_UTV    = 1 << 3; // Unknown why this exists but is used in UTV's Solo chip
+constexpr uint32_t MOD_DMACNTL_DMAEN  = 1 << 2;
+constexpr uint32_t MOD_DMACNTL_NV     = 1 << 1;
+constexpr uint32_t MOD_DMACNTL_NVF    = 1 << 0;
+
 constexpr uint32_t AUD_DMACNTL_DMAEN  = 1 << 2; // audUnit DMA channel enabled
 constexpr uint32_t AUD_DMACNTL_NV     = 1 << 1; // audUnit DMA next registers are valid
 constexpr uint32_t AUD_DMACNTL_NVF    = 1 << 0; // audUnit DMA next registers are always valid
@@ -36,15 +46,17 @@ class solo_asic_audio_device : public device_t
 
 public:
 
-	solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+	solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, bool softmodem_enabled = false);
 
 	void map(address_map &map);
 	void aud_unit_map(address_map &map);
 	void div_unit_map(address_map &map);
+	void mod_unit_map(address_map &map);
 	void spdif_unit_map(address_map &map);
 
 	template <typename T> void set_hostcpu(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 	template <typename T> void set_hostram(T &&tag) { m_hostram.set_tag(std::forward<T>(tag)); }
+	template <typename T> void set_softmodem(T &&tag) { m_softmodem.set_tag(std::forward<T>(tag)); }
 
 	void set_aout_clock(uint32_t clock);
 
@@ -80,6 +92,27 @@ protected:
 	uint32_t m_aud_onsize;
 	uint32_t m_aud_onconfig;
 	uint32_t m_aud_odmacntl;
+	
+	bool m_mod_enabled;
+	uint32_t m_mod_ocstart;
+	uint32_t m_mod_ocsize;
+	uint32_t m_mod_ocend;
+	uint32_t m_mod_occonfig;
+	uint32_t m_mod_occnt;
+	bool m_mod_ocvalid;
+	uint32_t m_mod_onstart;
+	uint32_t m_mod_onsize;
+	uint32_t m_mod_onconfig;
+	uint32_t m_mod_odmacntl;
+	uint32_t m_mod_icstart;
+	uint32_t m_mod_icsize;
+	uint32_t m_mod_icend;
+	uint32_t m_mod_iccnt;
+	bool m_mod_icvalid;
+	uint32_t m_mod_instart;
+	uint32_t m_mod_insize;
+	uint32_t m_mod_inconfig;
+	uint32_t m_mod_idmacntl;
 
 	uint32_t m_div_audcntl;
 	uint32_t m_div_cstart;
@@ -106,11 +139,18 @@ private:
 	required_device<speaker_device> m_lspeaker;
 	required_device<speaker_device> m_rspeaker;
 
+	optional_device<wtvsoftmodem_device> m_softmodem;
+
 	devcb_write_line m_int_enable_cb;
 	devcb_write_line m_int_irq_cb;
 
 	emu_timer *play_aout_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(play_aout_samples);
+
+	emu_timer *play_modout_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(play_modout_samples);
+	emu_timer *play_modin_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(play_modin_samples);
 
 	void set_audio_irq(uint32_t mask, int state);
 
@@ -141,6 +181,43 @@ private:
 	void reg_804c_w(uint32_t data); // DIV_CURAUDADDR (write)
 	uint32_t reg_8050_r();          // DIV_CURAUDLEN (read)
 	void reg_8050_w(uint32_t data); // DIV_CURAUDLEN (write)
+
+	/* modUnit */
+
+	uint32_t reg_b000_r();
+	void reg_b000_w(uint32_t data);
+	uint32_t reg_b004_r();
+	void reg_b004_w(uint32_t data);
+	uint32_t reg_b008_r();
+	void reg_b008_w(uint32_t data);
+	uint32_t reg_b00c_r();
+	void reg_b00c_w(uint32_t data);
+	uint32_t reg_b010_r();
+	void reg_b010_w(uint32_t data);
+	uint32_t reg_b014_r();
+	void reg_b014_w(uint32_t data);
+	uint32_t reg_b018_r();
+	void reg_b018_w(uint32_t data);
+	uint32_t reg_b01c_r();
+	void reg_b01c_w(uint32_t data);
+	uint32_t reg_b020_r();
+	void reg_b020_w(uint32_t data);
+	uint32_t reg_b024_r();
+	void reg_b024_w(uint32_t data);
+	uint32_t reg_b02c_r();
+	void reg_b02c_w(uint32_t data);
+	uint32_t reg_b030_r();
+	void reg_b030_w(uint32_t data);
+	uint32_t reg_b034_r();
+	void reg_b034_w(uint32_t data);
+	uint32_t reg_b03c_r();
+	void reg_b03c_w(uint32_t data);
+	uint32_t reg_b040_r();
+	void reg_b040_w(uint32_t data);
+	uint32_t reg_b044_r();
+	void reg_b044_w(uint32_t data);
+	uint32_t reg_b05c_r();
+	void reg_b05c_w(uint32_t data);
 
 	/* spdifUnit registers */
 
