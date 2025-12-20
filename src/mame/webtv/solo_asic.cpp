@@ -24,7 +24,7 @@
 
 DEFINE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device, "solo_asic", "WebTV SOLO ASIC")
 
-solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config, bool softmodem_enabled)
+solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config, uint32_t aud_clock, bool softmodem_enabled)
 	: device_t(mconfig, SOLO_ASIC, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
 	m_hostcpu(*owner, "maincpu"),
@@ -47,6 +47,7 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
 {
 	m_chip_id = chip_id;
 	m_sys_config = sys_config;
+	m_aud_clock = aud_clock;
 	m_softmodem_enabled = softmodem_enabled;
 	m_hardmodem_enabled = !softmodem_enabled;
 }
@@ -542,7 +543,7 @@ void solo_asic_device::reg_0004_w(uint32_t data)
 		// hardware but is better optimized for audio quality. There's some tradeoffs with this but I fell this 
 		// is better for our use case.
 
-		m_audio->set_aout_clock(44100);
+		m_audio->set_aout_clock(m_aud_clock);
 	}
 
 	m_chpcntl = data;
