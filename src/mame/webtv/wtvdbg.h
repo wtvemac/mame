@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_WTVDBG_H
-#define MAME_MACHINE_WTVDBG_H
+#ifndef MAME_WEBTV_WTVDBG_H
+#define MAME_WEBTV_WTVDBG_H
 
 #pragma once
 
@@ -124,4 +124,4 @@ protected:
 
 DECLARE_DEVICE_TYPE(WTV_PEKOEDBG, wtvdbg_pekoe_device)
 
-#endif // MAME_MACHINE_WTVDBG_H
+#endif // MAME_WEBTV_WTVDBG_H

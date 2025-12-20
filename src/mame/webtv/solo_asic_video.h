@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_SOLO_ASIC_VIDEO
-#define MAME_MACHINE_SOLO_ASIC_VIDEO
+#ifndef MAME_WEBTV_SOLO_ASIC_VIDEO_H
+#define MAME_WEBTV_SOLO_ASIC_VIDEO_H
 
 #include "cpu/mips/mips3.h"
 
@@ -582,4 +582,4 @@ private:
 
 DECLARE_DEVICE_TYPE(SOLO_ASIC_VIDEO, solo_asic_video_device)
 
-#endif // MAME_MACHINE_SOLO_ASIC_VIDEO
+#endif // MAME_WEBTV_SOLO_ASIC_VIDEO_H

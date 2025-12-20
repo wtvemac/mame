@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_MDOC_H
-#define MAME_MACHINE_MDOC_H
+#ifndef MAME_WEBTV_MDOC_H
+#define MAME_WEBTV_MDOC_H
 
 #pragma once
 
@@ -378,4 +378,4 @@ class mdoc_collection : public device_t
 };
 DECLARE_DEVICE_TYPE(MDOC_COLLECTION, mdoc_collection)
 
-#endif // MAME_MACHINE_MDOC_H
+#endif // MAME_WEBTV_MDOC_H
