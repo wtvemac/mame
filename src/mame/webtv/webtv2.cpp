@@ -90,6 +90,9 @@ public:
 		CUSTOM_ADDRMAP    = 0x80000000
 	};
 
+	static constexpr XTAL AUD_44kHZ = XTAL(44'100);
+	static constexpr XTAL AUD_48kHZ = XTAL(48'000);
+
 	webtv2_state(const machine_config& mconfig, device_type type, const char* tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
@@ -171,7 +174,7 @@ private:
 
 	uint8_t ram_flasher[RAM_FLASHER_SIZE];
 
-	void build_webtv_device(machine_config &config, webtv2_state::cpu_type_t cpu, XTAL cpu_clock, webtv2_state::mem_size_t ram_size, webtv2_state::mem_size_t rom_size, uint32_t chip_id, uint32_t sys_config, uint32_t device_config);
+	void build_webtv_device(machine_config &config, webtv2_state::cpu_type_t cpu, XTAL cpu_clock, webtv2_state::mem_size_t ram_size, webtv2_state::mem_size_t rom_size, uint32_t chip_id, uint32_t sys_config, uint32_t device_config, XTAL aud_clock = AUD_44kHZ);
 
 	void base_addrmap(address_map &map);
 	
@@ -191,7 +194,7 @@ private:
 
 };
 
-void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_type_t cpu, XTAL cpu_clock, webtv2_state::mem_size_t ram_size, webtv2_state::mem_size_t rom_size, uint32_t chip_id, uint32_t sys_config, uint32_t device_config)
+void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_type_t cpu, XTAL cpu_clock, webtv2_state::mem_size_t ram_size, webtv2_state::mem_size_t rom_size, uint32_t chip_id, uint32_t sys_config, uint32_t device_config, XTAL aud_clock)
 {
 	config.set_default_layout(layout_webtv);
 
@@ -314,7 +317,7 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 
 	m_maincpu->set_system_clock(bus_clock.value());
 
-	SOLO_ASIC(config, m_soloasic, bus_clock, chip_id, sys_config, ((m_device_config & webtv2_state::SWMODEM) != 0x00));
+	SOLO_ASIC(config, m_soloasic, bus_clock, chip_id, sys_config, aud_clock.value(), ((m_device_config & webtv2_state::SWMODEM) != 0x00));
 	m_soloasic->set_serial_id(m_serial_id);
 	m_soloasic->set_ata(m_ata);
 	m_soloasic->reset_hack_callback().set(FUNC(webtv2_state::reset_hack));
@@ -926,7 +929,8 @@ void webtv2_state::webtv2_estar(machine_config& config)
 		MEM_2MB,
 		0x03320000,
 		0x002fc310,
-		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::HAN | webtv2_state::SWMODEM | webtv2_state::ESTAR_SAT_TUNER | webtv2_state::BT827_MEDIA_IN
+		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::HAN | webtv2_state::SWMODEM | webtv2_state::ESTAR_SAT_TUNER | webtv2_state::BT827_MEDIA_IN,
+		AUD_48kHZ
 	);
 }
 
@@ -966,7 +970,8 @@ void webtv2_state::webtv2_utv(machine_config& config)
 		MEM_2MB,
 		0x04120000,
 		0x034dea33,
-		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::SWMODEM | webtv2_state::HWMODEM | webtv2_state::DTV01_SAT_TUNER | webtv2_state::BT835_MEDIA_IN | webtv2_state::FUD
+		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::SWMODEM | webtv2_state::HWMODEM | webtv2_state::DTV01_SAT_TUNER | webtv2_state::BT835_MEDIA_IN | webtv2_state::FUD,
+		AUD_48kHZ
 	);
 }
 
