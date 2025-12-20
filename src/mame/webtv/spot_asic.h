@@ -3,8 +3,8 @@
 
 // Description here
 
-#ifndef MAME_MACHINE_SPOT_ASIC_H
-#define MAME_MACHINE_SPOT_ASIC_H
+#ifndef MAME_WEBTV_SPOT_ASIC_H
+#define MAME_WEBTV_SPOT_ASIC_H
 
 #pragma once
 
@@ -464,4 +464,4 @@ private:
 
 DECLARE_DEVICE_TYPE(SPOT_ASIC, spot_asic_device)
 
-#endif
+#endif // MAME_WEBTV_SPOT_ASIC_H
