@@ -5,8 +5,8 @@
 
 // https://www.itu.int/rec/T-REC-V.8-199905-S
 
-#ifndef MAME_MACHINE_WTVSOFTMODEM_V8_H
-#define MAME_MACHINE_WTVSOFTMODEM_V8_H
+#ifndef MAME_WEBTV_WTVSOFTMODEM_V8_H
+#define MAME_WEBTV_WTVSOFTMODEM_V8_H
 
 #pragma once
 
@@ -435,4 +435,4 @@ private:
 
 };
 
-#endif // MAME_MACHINE_WTVSOFTMODEM_V8_H
+#endif // MAME_WEBTV_WTVSOFTMODEM_V8_H
