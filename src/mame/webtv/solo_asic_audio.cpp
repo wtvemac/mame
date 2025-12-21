@@ -15,6 +15,7 @@ solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, co
 	m_hostram(*this, finder_base::DUMMY_TAG),
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker"),
+	m_audio_in(*this, "audio_input"),
 	m_softmodem(*this, finder_base::DUMMY_TAG),
 	m_int_enable_cb(*this),
 	m_int_irq_cb(*this)
@@ -24,7 +25,7 @@ solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, co
 
 void solo_asic_audio_device::device_start()
 {
-	m_aud_stream = stream_alloc(0, 2, AUD_DEFAULT_CLK);
+	m_aud_stream = stream_alloc(1, 2, AUD_DEFAULT_CLK);
 
 	if (m_mod_enabled)
 	{
@@ -46,6 +47,14 @@ void solo_asic_audio_device::device_start()
 	save_item(NAME(m_aud_onsize));
 	save_item(NAME(m_aud_onconfig));
 	save_item(NAME(m_aud_odmacntl));
+
+	save_item(NAME(m_aud_icstart));
+	save_item(NAME(m_aud_icsize));
+	save_item(NAME(m_aud_iccnt));
+	save_item(NAME(m_aud_icvalid));
+	save_item(NAME(m_aud_instart));
+	save_item(NAME(m_aud_insize));
+	save_item(NAME(m_aud_idmacntl));
 
 	save_item(NAME(m_mod_ocstart));
 	save_item(NAME(m_mod_ocsize));
@@ -108,6 +117,15 @@ void solo_asic_audio_device::device_reset()
 	m_aud_onconfig = 0x0;
 	m_aud_odmacntl = 0x0;
 
+	m_aud_icstart = 0x0;
+	m_aud_icsize = 0x0;
+	m_aud_icend = 0x0;
+	m_aud_iccnt = 0x0;
+	m_aud_icvalid = false;
+	m_aud_instart = 0x80000000;
+	m_aud_insize = 0x0;
+	m_aud_idmacntl = 0x0;
+
 	m_mod_ocstart = 0x0;
 	m_mod_ocsize = 0x0;
 	m_mod_ocend = 0x0;
@@ -157,6 +175,9 @@ void solo_asic_audio_device::device_add_mconfig(machine_config &config)
 
 	SPEAKER(config, m_rspeaker, 1).front_right();
 	add_route(1, m_rspeaker, AUD_OUTPUT_GAIN);
+
+	MICROPHONE(config, m_audio_in, 1).front_center();
+	m_audio_in->add_route(0, *this, 1.0, 0);
 }
 
 void solo_asic_audio_device::map(address_map &map)
@@ -179,6 +200,13 @@ void solo_asic_audio_device::aud_unit_map(address_map &map)
 	map(0x014, 0x017).rw(FUNC(solo_asic_audio_device::reg_2014_r), FUNC(solo_asic_audio_device::reg_2014_w)); // AUD_ONSIZE
 	map(0x018, 0x01b).rw(FUNC(solo_asic_audio_device::reg_2018_r), FUNC(solo_asic_audio_device::reg_2018_w)); // AUD_ONCONFIG
 	map(0x01c, 0x01f).rw(FUNC(solo_asic_audio_device::reg_201c_r), FUNC(solo_asic_audio_device::reg_201c_w)); // AUD_ODMACNTL
+
+	map(0x020, 0x023).r(FUNC(solo_asic_audio_device::reg_2020_r));                                            // AUD_ICSTART
+	map(0x024, 0x027).r(FUNC(solo_asic_audio_device::reg_2024_r));                                            // AUD_ICSIZE
+	map(0x02c, 0x02f).r(FUNC(solo_asic_audio_device::reg_202c_r));                                            // AUD_ICCNT
+	map(0x030, 0x033).rw(FUNC(solo_asic_audio_device::reg_2030_r), FUNC(solo_asic_audio_device::reg_2030_w)); // AUD_INSTART
+	map(0x034, 0x037).rw(FUNC(solo_asic_audio_device::reg_2034_r), FUNC(solo_asic_audio_device::reg_2034_w)); // AYD_INSIZE
+	map(0x03c, 0x03f).rw(FUNC(solo_asic_audio_device::reg_203c_r), FUNC(solo_asic_audio_device::reg_203c_w)); // AUD_IDMACNTL
 }
 
 void solo_asic_audio_device::div_unit_map(address_map &map)
@@ -267,7 +295,11 @@ void solo_asic_audio_device::set_aout_clock(uint32_t clock)
 void solo_asic_audio_device::adjust_audio_update_rate()
 {
 	double sample_rate = (double)m_aud_stream->sample_rate();
-	double samples_per_block = (double)(m_aud_onsize / 4);
+	// The SOLO allows the input and output audio buffers to be different sizes.
+	// But since MAME expects them to be the same, we use the largest buffer to cover both.
+	// The smaller buffer would be corrupted in this case. Luckly the WebTV OS keeps the buffers
+	// the same size so it works out.
+	double samples_per_block = (double)(std::max(m_aud_onsize, m_aud_insize) / 4);
 
 	if (samples_per_block > 0)
 		machine().sound().set_update_interval(attotime::from_hz(sample_rate / samples_per_block));
@@ -349,6 +381,63 @@ void solo_asic_audio_device::reg_201c_w(uint32_t data)
 	}
 
 	m_aud_odmacntl = data;
+}
+
+uint32_t solo_asic_audio_device::reg_2020_r()
+{
+	return m_aud_icstart;
+}
+
+uint32_t solo_asic_audio_device::reg_2024_r()
+{
+	return m_aud_icsize;
+}
+
+uint32_t solo_asic_audio_device::reg_202c_r()
+{
+	return m_aud_iccnt;
+}
+
+uint32_t solo_asic_audio_device::reg_2030_r()
+{
+	return m_aud_instart;
+}
+
+void solo_asic_audio_device::reg_2030_w(uint32_t data)
+{
+	m_aud_instart = data & (~0xfc000003);
+}
+
+uint32_t solo_asic_audio_device::reg_2034_r()
+{
+	return m_aud_insize;
+}
+
+void solo_asic_audio_device::reg_2034_w(uint32_t data)
+{
+	m_aud_insize = data;
+
+	solo_asic_audio_device::adjust_audio_update_rate();
+}
+
+uint32_t solo_asic_audio_device::reg_203c_r()
+{
+	return m_aud_idmacntl;
+}
+
+void solo_asic_audio_device::reg_203c_w(uint32_t data)
+{
+	if ((m_aud_idmacntl ^ data) & AUD_DMACNTL_DMAEN)
+	{
+		if (data & AUD_DMACNTL_DMAEN)
+		{
+		}
+		else
+		{
+		}
+	}
+
+	m_aud_idmacntl = data;
 }
 
 // divUnit
@@ -838,6 +927,59 @@ void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 	}
 }
 
+void solo_asic_audio_device::audio_input_update(sound_stream &stream)
+{
+	if (m_aud_idmacntl & AUD_DMACNTL_DMAEN)
+	{
+		// No current buffer ready for input samples. Check if there OS has anything lined up for us.
+		if (!m_aud_icvalid && (m_aud_idmacntl & AUD_DMACNTL_NV) && m_aud_instart != 0x80000000)
+		{
+			m_aud_icstart = m_aud_instart;
+			m_aud_icsize = m_aud_insize;
+
+			m_aud_iccnt = m_aud_icstart;
+			m_aud_icend = (m_aud_icstart + m_aud_icsize);
+
+			// Next buffer ready for input samples, so we will now push it
+			m_aud_icvalid = true;
+		}
+
+		// If there's a buffer ready for input samples, then copy our input samples.
+		if (m_aud_icvalid)
+		{
+			for(int i = 0; i < stream.samples(); i++)
+			{
+				int16_t sample = (int16_t)(stream.get(0, i) * (float)0x8000);
+
+				// The buffer allows for stereo input but we're only have 1 input channel at the moment
+				// So we're just repeating the same value for the left and right channels.
+				m_hostram[m_aud_iccnt >> 0x02] = (sample << 0x10) | (sample << 0x00);
+
+				m_aud_iccnt += 4;
+
+				if (m_aud_iccnt >= m_aud_icend)
+				{
+					// We finished copying samples, so invalidate the buffer.
+					m_aud_icvalid = false;
+
+					// If next buffer isn't flagged as continous then tell the OS we've invalidated the buffer.
+					// The OS will tell us when the next buffer is ready.
+					if ((m_aud_idmacntl & AUD_DMACNTL_NVF) == 0x0)
+					{
+						m_aud_idmacntl &= (~AUD_DMACNTL_NV);
+					}
+
+					// Ask the OS to process our input samples and to prepare a new buffer for us (if needed).
+					solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_AUDDMAIN, ASSERT_LINE);
+
+					break;
+				}
+
+			}
+		}
+	}
+}
+
 void solo_asic_audio_device::set_audio_irq(uint32_t mask, int state)
 {
 	if (m_busaud_intenable & mask)
@@ -861,4 +1003,5 @@ void solo_asic_audio_device::set_audio_irq(uint32_t mask, int state)
 void solo_asic_audio_device::sound_stream_update(sound_stream &stream)
 {
 	solo_asic_audio_device::audio_output_update(stream);
+	solo_asic_audio_device::audio_input_update(stream);
 }
