@@ -2850,6 +2850,11 @@ void sound_manager::set_resampler_hq_phases(u32 phases)
 	}
 }
 
+void sound_manager::set_update_interval(attotime update_attotime)
+{
+	m_update_timer->adjust(update_attotime, 0, update_attotime);
+}
+
 const char *sound_manager::resampler_type_names(u32 type) const
 {
 	using util::lang_translate;

@@ -481,6 +481,7 @@ public:
 	void set_resampler_hq_latency(float latency);
 	void set_resampler_hq_length(u32 length);
 	void set_resampler_hq_phases(u32 phases);
+	void set_update_interval(attotime update_attotime);
 
 private:
 	struct effect_step {
