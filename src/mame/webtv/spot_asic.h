@@ -17,7 +17,7 @@
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
 #include "machine/ins8250.h"
-#include "sound/dac.h"
+#include "sound.h"
 #include "speaker.h"
 #include "machine/watchdog.h"
 
@@ -148,7 +148,7 @@ constexpr uint8_t SSID_STATE_READROM_PULSESTART = 0x5;
 constexpr uint8_t SSID_STATE_READROM_PULSEEND   = 0x6;
 constexpr uint8_t SSID_STATE_READROM_BIT        = 0x7;
 
-class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface
+class spot_asic_device : public device_t, public device_serial_interface, public device_video_interface, public device_sound_interface
 {
 
 public:
@@ -179,6 +179,7 @@ protected:
 	virtual void device_start() override;
 	virtual void device_reset() override;
 	virtual void device_stop() override;
+	virtual void sound_stream_update(sound_stream &stream) override;
 
 	uint32_t m_chip_id = 0x01010000;
 	uint32_t m_sys_config = 0x00000000;
@@ -272,7 +273,7 @@ private:
 	required_device<at_keyboard_device> m_kbd;
 	required_device<screen_device> m_screen;
 
-	required_device_array<dac_word_interface, 2> m_dac;
+	sound_stream *m_aud_stream;
 	required_device<speaker_device> m_lspeaker;
 	required_device<speaker_device> m_rspeaker;
 
@@ -305,6 +306,8 @@ private:
 	void set_vid_irq(uint8_t mask, int state);
 
 	void validate_active_area();
+	void adjust_audio_update_rate();
+	void set_aout_clock(uint32_t clock);
 	void spot_update_cycle_counting();
 	void watchdog_enable(int state);
 
