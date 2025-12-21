@@ -36,7 +36,7 @@ int wtvtuner_device_base::sda_read()
 DEFINE_DEVICE_TYPE(TUNER, generic_tuner_device, "generic_tuner_device", "TV Tuner")
 
 generic_tuner_device::generic_tuner_device(const machine_config &mconfig, const char *tag, device_t *owner, u16 iic_address, uint32_t clock) :
-	wtvtuner_device_base(mconfig, L64734, tag, owner, clock, iic_address)
+	wtvtuner_device_base(mconfig, TUNER, tag, owner, clock, iic_address)
 {
 }
 
