@@ -6,7 +6,7 @@
 #include "emu.h"
 #include "solo_asic_audio.h"
 
-DEFINE_DEVICE_TYPE(SOLO_ASIC_AUDIO, solo_asic_audio_device, "solo_asic_audio_device", "WebTV SOLO AUDIO (aud, div)")
+DEFINE_DEVICE_TYPE(SOLO_ASIC_AUDIO, solo_asic_audio_device, "solo_asic_audio_device", "WebTV SOLO AUDIO (aud, mod, div, UTV's spdif)")
 
 solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, bool softmodem_enabled)
 	: device_t(mconfig, SOLO_ASIC_AUDIO, tag, owner, clock),
