@@ -266,7 +266,7 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 		rs232.cts_handler().set(m_modem_uart, FUNC(ns16450_device::cts_w));
 	}
 
-	SOLO_ASIC_AUDIO(config, m_audio, 0, m_softmodem_enabled);
+	SOLO_ASIC_AUDIO(config, m_audio, 0, m_aud_clock, m_softmodem_enabled);
 	m_audio->int_enable_callback().set(FUNC(solo_asic_device::int_enable_aud_w));
 	m_audio->int_irq_callback().set(FUNC(solo_asic_device::irq_aud_w));
 	m_audio->set_hostcpu(m_hostcpu);
