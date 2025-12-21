@@ -8,7 +8,7 @@
 
 DEFINE_DEVICE_TYPE(SOLO_ASIC_AUDIO, solo_asic_audio_device, "solo_asic_audio_device", "WebTV SOLO AUDIO (aud, mod, div, UTV's spdif)")
 
-solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, bool softmodem_enabled)
+solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t aud_clock, bool softmodem_enabled)
 	: device_t(mconfig, SOLO_ASIC_AUDIO, tag, owner, clock),
 	device_sound_interface(mconfig, *this),
 	m_hostcpu(*this, finder_base::DUMMY_TAG),
@@ -20,12 +20,13 @@ solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, co
 	m_int_enable_cb(*this),
 	m_int_irq_cb(*this)
 {
+	m_aud_clock = aud_clock;
 	m_mod_enabled = softmodem_enabled;
 }
 
 void solo_asic_audio_device::device_start()
 {
-	m_aud_stream = stream_alloc(1, 2, AUD_DEFAULT_CLK);
+	m_aud_stream = stream_alloc(1, 2, m_aud_clock);
 
 	if (m_mod_enabled)
 	{
