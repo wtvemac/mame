@@ -7,7 +7,7 @@
 #define MAME_WEBTV_SOLO_ASIC_AUDIO_H
 
 #include "cpu/mips/mips3.h"
-#include "sound/dac.h"
+#include "sound.h"
 #include "speaker.h"
 #include "wtvsoftmodem.h"
 
@@ -41,7 +41,7 @@ constexpr uint32_t AUD_DMACNTL_DMAEN  = 1 << 2; // audUnit DMA channel enabled
 constexpr uint32_t AUD_DMACNTL_NV     = 1 << 1; // audUnit DMA next registers are valid
 constexpr uint32_t AUD_DMACNTL_NVF    = 1 << 0; // audUnit DMA next registers are always valid
 
-class solo_asic_audio_device : public device_t
+class solo_asic_audio_device : public device_t, public device_sound_interface
 {
 
 public:
@@ -78,6 +78,7 @@ protected:
 	virtual void device_reset() override;
 	virtual void device_stop() override;
 	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void sound_stream_update(sound_stream &stream) override;
 
 	uint32_t m_busaud_intenable;
 	uint32_t m_busaud_intstat;
@@ -135,7 +136,7 @@ private:
 	required_device<mips3_device> m_hostcpu;
 	required_shared_ptr<uint32_t> m_hostram;
 
-	required_device_array<dac_word_interface, 2> m_dac;
+	sound_stream *m_aud_stream;
 	required_device<speaker_device> m_lspeaker;
 	required_device<speaker_device> m_rspeaker;
 
@@ -144,13 +145,14 @@ private:
 	devcb_write_line m_int_enable_cb;
 	devcb_write_line m_int_irq_cb;
 
-	emu_timer *play_aout_timer = nullptr;
-	TIMER_CALLBACK_MEMBER(play_aout_samples);
-
 	emu_timer *play_modout_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(play_modout_samples);
 	emu_timer *play_modin_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(play_modin_samples);
+
+	void adjust_audio_update_rate();
+
+	void audio_output_update(sound_stream &stream);
 
 	void set_audio_irq(uint32_t mask, int state);
 

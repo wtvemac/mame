@@ -10,9 +10,9 @@ DEFINE_DEVICE_TYPE(SOLO_ASIC_AUDIO, solo_asic_audio_device, "solo_asic_audio_dev
 
 solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, bool softmodem_enabled)
 	: device_t(mconfig, SOLO_ASIC_AUDIO, tag, owner, clock),
+	device_sound_interface(mconfig, *this),
 	m_hostcpu(*this, finder_base::DUMMY_TAG),
 	m_hostram(*this, finder_base::DUMMY_TAG),
-	m_dac(*this, "dac%u", 0),
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker"),
 	m_softmodem(*this, finder_base::DUMMY_TAG),
@@ -24,7 +24,7 @@ solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, co
 
 void solo_asic_audio_device::device_start()
 {
-	play_aout_timer = timer_alloc(FUNC(solo_asic_audio_device::play_aout_samples), this);
+	m_aud_stream = stream_alloc(0, 2, AUD_DEFAULT_CLK);
 
 	if (m_mod_enabled)
 	{
@@ -86,8 +86,6 @@ void solo_asic_audio_device::device_start()
 
 void solo_asic_audio_device::device_reset()
 {
-	play_aout_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
-
 	if (m_mod_enabled)
 	{
 		play_modout_timer->adjust(attotime::from_hz(wtvsoftmodem_device::DEFAULT_SAMPLE_RATE), 0, attotime::from_hz(wtvsoftmodem_device::DEFAULT_SAMPLE_RATE));
@@ -154,11 +152,11 @@ void solo_asic_audio_device::device_stop()
 
 void solo_asic_audio_device::device_add_mconfig(machine_config &config)
 {
-	SPEAKER(config, m_lspeaker).front_left();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.9);
+	SPEAKER(config, m_lspeaker, 1).front_left();
+	add_route(0, m_lspeaker, AUD_OUTPUT_GAIN);
 
-	SPEAKER(config, m_rspeaker).front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.9);
+	SPEAKER(config, m_rspeaker, 1).front_right();
+	add_route(1, m_rspeaker, AUD_OUTPUT_GAIN);
 }
 
 void solo_asic_audio_device::map(address_map &map)
@@ -262,7 +260,17 @@ void solo_asic_audio_device::busaud_intstat_clear(uint32_t data)
 
 void solo_asic_audio_device::set_aout_clock(uint32_t clock)
 {
-	play_aout_timer->adjust(attotime::from_hz(clock), 0, attotime::from_hz(clock));
+	m_aud_stream->set_sample_rate(clock);
+	solo_asic_audio_device::adjust_audio_update_rate();
+}
+
+void solo_asic_audio_device::adjust_audio_update_rate()
+{
+	double sample_rate = (double)m_aud_stream->sample_rate();
+	double samples_per_block = (double)(m_aud_onsize / 4);
+
+	if (samples_per_block > 0)
+		machine().sound().set_update_interval(attotime::from_hz(sample_rate / samples_per_block));
 }
 
 // audUnit
@@ -305,6 +313,8 @@ uint32_t solo_asic_audio_device::reg_2014_r()
 void solo_asic_audio_device::reg_2014_w(uint32_t data)
 {
 	m_aud_onsize = data;
+
+	solo_asic_audio_device::adjust_audio_update_rate();
 }
 
 uint32_t solo_asic_audio_device::reg_2018_r()
@@ -688,7 +698,8 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modout_samples)
 		if (m_mod_ocvalid)
 		{
 #if MOD_AUDIO_DEBUG && MOD_PLAY_OUT
-			m_dac[0]->write((m_hostram[m_mod_occnt >> 0x02] >> 0x00) & 0xffff);
+			// Temporarily (maybe) disabled, new channels need to be created for this.
+			//m_dac[0]->write((m_hostram[m_mod_occnt >> 0x02] >> 0x00) & 0xffff);
 #endif
 
 			m_mod_occnt += 4;
@@ -720,7 +731,8 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 		if (m_mod_icvalid)
 		{
 #if MOD_AUDIO_DEBUG && MOD_PLAY_IN
-			m_dac[1]->write((m_hostram[m_mod_iccnt >> 0x02] >> 0x00) & 0xffff);
+			// Temporarily (maybe) disabled, new channels need to be created for this.
+			//m_dac[1]->write((m_hostram[m_mod_iccnt >> 0x02] >> 0x00) & 0xffff);
 #endif
 
 			m_mod_iccnt += 4;
@@ -742,9 +754,8 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 	}
 }
 
-TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_aout_samples)
+void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 {
-#if !MOD_AUDIO_DEBUG
 	if (m_aud_odmacntl & AUD_DMACNTL_DMAEN)
 	{
 		// No current buffer ready to play. Check if there's anything lined up for us.
@@ -774,42 +785,57 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_aout_samples)
 		// If the current buffer is valid (ready), then play it.
 		if (m_aud_ocvalid)
 		{
-			switch(m_aud_occonfig)
+			for(int i = 0; i < stream.samples(); i++)
 			{
-				case AUD_CONFIG_16BIT_STEREO:
-				default:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x00) & 0xffff);
+				int16_t lchannel_sample;
+				int16_t rchannel_sample;
+				uint32_t max_sample_value;
+
+				switch(m_aud_occonfig)
+				{
+					case AUD_CONFIG_16BIT_STEREO:
+					default:
+						lchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x10;
+						rchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x00;
+						max_sample_value = 0x8000;
+						break;
+
+					case AUD_CONFIG_16BIT_MONO:
+						lchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x10;
+						rchannel_sample = lchannel_sample;
+						max_sample_value = 0x8000;
+						break;
+
+					// For 8-bit we're assuming left-aligned samples
+
+					case AUD_CONFIG_8BIT_STEREO:
+						lchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x18);
+						rchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x08);
+						max_sample_value = 0x80;
+						break;
+
+					case AUD_CONFIG_8BIT_MONO:
+						lchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x18);
+						rchannel_sample = lchannel_sample;
+						max_sample_value = 0x80;
+						break;
+				}
+
+				stream.put_int(0, i, lchannel_sample, max_sample_value);
+				stream.put_int(1, i, rchannel_sample, max_sample_value);
+
+				m_aud_occnt += 4;
+
+				if (m_aud_occnt >= m_aud_ocend)
+				{
+					// Invalidate current buffer and load next (valid) buffer.
+					m_aud_ocvalid = false;
 					break;
+				}
 
-				case AUD_CONFIG_16BIT_MONO:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
-					break;
-
-				// For 8-bit we're assuming left-aligned samples
-
-				case AUD_CONFIG_8BIT_STEREO:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x08) & 0x00ff);
-					break;
-
-				case AUD_CONFIG_8BIT_MONO:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
-					break;
-			}
-
-			m_aud_occnt += 4;
-
-			if (m_aud_occnt >= m_aud_ocend)
-			{
-				// Invalidate current buffer and load next (valid) buffer.
-				m_aud_ocvalid = false;
 			}
 		}
 	}
-#endif
 }
 
 void solo_asic_audio_device::set_audio_irq(uint32_t mask, int state)
@@ -830,4 +856,9 @@ void solo_asic_audio_device::set_audio_irq(uint32_t mask, int state)
 				m_int_irq_cb(state);
 		}
 	}
+}
+
+void solo_asic_audio_device::sound_stream_update(sound_stream &stream)
+{
+	solo_asic_audio_device::audio_output_update(stream);
 }

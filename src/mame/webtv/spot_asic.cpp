@@ -19,13 +19,13 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	: device_t(mconfig, SPOT_ASIC, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
 	device_video_interface(mconfig, *this),
+	device_sound_interface(mconfig, *this),
 	m_hostcpu(*owner, "maincpu"),
 	m_hostram(*owner, "mainram"),
 	m_serial_id(*this, finder_base::DUMMY_TAG),
 	m_kbdc(*this, "kbdc"),
 	m_kbd(*this, "kbd"),
 	m_screen(*this, "screen"),
-	m_dac(*this, "dac%u", 0),
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker"),
 	m_modem_uart(*this, "modem_uart"),
@@ -165,11 +165,11 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	else
 		m_screen->set_raw(PAL_SCREEN_XTAL, PAL_SCREEN_HTOTAL, 0, PAL_SCREEN_HBSTART, PAL_SCREEN_VTOTAL, 0, PAL_SCREEN_VBSTART);
 
-	SPEAKER(config, m_lspeaker).front_left();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[0], 0).add_route(0, m_lspeaker, 0.9);
+	SPEAKER(config, m_lspeaker, 1).front_left();
+	add_route(0, m_lspeaker, AUD_OUTPUT_GAIN);
 
-	SPEAKER(config, m_rspeaker).front_right();
-	DAC_16BIT_R2R_TWOS_COMPLEMENT(config, m_dac[1], 0).add_route(0, m_rspeaker, 0.9);
+	SPEAKER(config, m_rspeaker, 1).front_right();
+	add_route(1, m_rspeaker, AUD_OUTPUT_GAIN);
 
 	NS16550(config, m_modem_uart, 1.8432_MHz_XTAL);
 	m_modem_uart->out_tx_callback().set("modem", FUNC(rs232_port_device::write_txd));
@@ -207,7 +207,8 @@ void spot_asic_device::device_start()
 	m_connect_led.resolve();
 	m_message_led.resolve();
 
-	play_aout_timer = timer_alloc(FUNC(spot_asic_device::play_aout_samples), this);
+	m_aud_stream = stream_alloc(0, 2, AUD_DEFAULT_CLK);
+
 	modem_buffer_timer = timer_alloc(FUNC(spot_asic_device::flush_modem_buffer), this);
 
 	spot_asic_device::device_reset();
@@ -259,8 +260,6 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
-	play_aout_timer->adjust(attotime::from_hz(AUD_DEFAULT_CLK), 0, attotime::from_hz(AUD_DEFAULT_CLK));
-
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
 	m_memdata = 0x0;
@@ -372,6 +371,21 @@ void spot_asic_device::validate_active_area()
 		m_vid_draw_vstart = 0;
 }
 
+void spot_asic_device::set_aout_clock(uint32_t clock)
+{
+	m_aud_stream->set_sample_rate(clock);
+	spot_asic_device::adjust_audio_update_rate();
+}
+
+void spot_asic_device::adjust_audio_update_rate()
+{
+	double sample_rate = (double)m_aud_stream->sample_rate();
+	double samples_per_block = (double)(m_aud_onsize / 4);
+
+	if (samples_per_block > 0)
+		machine().sound().set_update_interval(attotime::from_hz(sample_rate / samples_per_block));
+}
+
 void spot_asic_device::watchdog_enable(int state)
 {
 	m_wdenable = state;
@@ -427,7 +441,7 @@ void spot_asic_device::reg_0004_w(uint32_t data)
 		// hardware but is better optimized for audio quality. There's some tradeoffs with this but I fell this 
 		// is better for our use case.
 
-		play_aout_timer->adjust(attotime::from_hz(44100), 0, attotime::from_hz(44100));
+		spot_asic_device::set_aout_clock(AUD_DEFAULT_CLK);
 	}
 
 	m_chpcntl = data;
@@ -620,6 +634,8 @@ uint32_t spot_asic_device::reg_2014_r()
 void spot_asic_device::reg_2014_w(uint32_t data)
 {
 	m_aud_onsize = data;
+
+	spot_asic_device::adjust_audio_update_rate();
 }
 
 uint32_t spot_asic_device::reg_2018_r()
@@ -1234,74 +1250,6 @@ void spot_asic_device::scl_w(uint8_t state)
 	m_iic_scl = state & 0x1;
 }
 
-TIMER_CALLBACK_MEMBER(spot_asic_device::play_aout_samples)
-{
-	if (m_aud_odmacntl & AUD_DMACNTL_DMAEN)
-	{
-		// No current buffer ready to play. Check if there's anything lined up for us.
-		if (!m_aud_ocvalid && (m_aud_odmacntl & AUD_DMACNTL_NV) && m_aud_onstart != 0x80000000)
-		{
-			m_aud_ocstart = m_aud_onstart;
-			m_aud_ocsize = m_aud_onsize;
-			m_aud_occonfig = m_aud_onconfig;
-
-			m_aud_occnt = m_aud_ocstart;
-			m_aud_ocend = (m_aud_ocstart + m_aud_ocsize);
-
-			// Next buffer loaded, so we will now play the it
-			m_aud_ocvalid = true;
-
-			// If next buffer isn't flagged as continous then invalidate the next values.
-			// The OS will reload it with valid values.
-			if ((m_aud_odmacntl & AUD_DMACNTL_NVF) == 0x0)
-			{
-				m_aud_odmacntl &= (~AUD_DMACNTL_NV);
-			}
-
-			// Ask OS to load new next values. We will play it after the current buffer finished playing.
-			spot_asic_device::irq_audio_w(1);
-		}
-
-		// If the current buffer is valid (ready), then play it.
-		if (m_aud_ocvalid)
-		{
-			switch(m_aud_occonfig)
-			{
-				case AUD_CONFIG_16BIT_STEREO:
-				default:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x00) & 0xffff);
-					break;
-
-				case AUD_CONFIG_16BIT_MONO:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x10) & 0xffff);
-					break;
-
-				// For 8-bit we're assuming left-aligned samples
-
-				case AUD_CONFIG_8BIT_STEREO:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x08) & 0x00ff);
-					break;
-
-				case AUD_CONFIG_8BIT_MONO:
-					m_dac[0]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
-					m_dac[1]->write((m_hostram[m_aud_occnt >> 0x02] >> 0x18) & 0x00ff);
-					break;
-			}
-
-			m_aud_occnt += 4;
-
-			if (m_aud_occnt >= m_aud_ocend)
-			{
-				// Invalidate current buffer and load next (valid) buffer.
-				m_aud_ocvalid = false;
-			}
-		}
-	}
-}
-
 TIMER_CALLBACK_MEMBER(spot_asic_device::flush_modem_buffer)
 {
 	if (modem_txbuff_size > 0 && (m_modem_uart->ins8250_r(0x5) & INS8250_LSR_TSRE))
@@ -1454,4 +1402,88 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 	spot_asic_device::set_vid_irq(VID_INT_DMA, 1);
 
 	return 0;
+}
+
+void spot_asic_device::sound_stream_update(sound_stream &stream)
+{
+	if (m_aud_odmacntl & AUD_DMACNTL_DMAEN)
+	{
+		// No current buffer ready to play. Check if there's anything lined up for us.
+		if (!m_aud_ocvalid && (m_aud_odmacntl & AUD_DMACNTL_NV) && m_aud_onstart != 0x80000000)
+		{
+			m_aud_ocstart = m_aud_onstart;
+			m_aud_ocsize = m_aud_onsize;
+			m_aud_occonfig = m_aud_onconfig;
+
+			m_aud_occnt = m_aud_ocstart;
+			m_aud_ocend = (m_aud_ocstart + m_aud_ocsize);
+
+			// Next buffer loaded, so we will now play the it
+			m_aud_ocvalid = true;
+
+			// If next buffer isn't flagged as continous then invalidate the next values.
+			// The OS will reload it with valid values.
+			if ((m_aud_odmacntl & AUD_DMACNTL_NVF) == 0x0)
+			{
+				m_aud_odmacntl &= (~AUD_DMACNTL_NV);
+			}
+
+			// Ask OS to load new next values. We will play it after the current buffer finished playing.
+			spot_asic_device::irq_audio_w(1);
+		}
+
+		// If the current buffer is valid (ready), then play it.
+		if (m_aud_ocvalid)
+		{
+			for(int i = 0; i < stream.samples(); i++)
+			{
+				int16_t lchannel_sample;
+				int16_t rchannel_sample;
+				uint32_t max_sample_value;
+
+				switch(m_aud_occonfig)
+				{
+					case AUD_CONFIG_16BIT_STEREO:
+					default:
+						lchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x10;
+						rchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x00;
+						max_sample_value = 0x8000;
+						break;
+
+					case AUD_CONFIG_16BIT_MONO:
+						lchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x10;
+						rchannel_sample = lchannel_sample;
+						max_sample_value = 0x8000;
+						break;
+
+					// For 8-bit we're assuming left-aligned samples
+
+					case AUD_CONFIG_8BIT_STEREO:
+						lchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x18);
+						rchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x08);
+						max_sample_value = 0x80;
+						break;
+
+					case AUD_CONFIG_8BIT_MONO:
+						lchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x18);
+						rchannel_sample = lchannel_sample;
+						max_sample_value = 0x80;
+						break;
+				}
+
+				stream.put_int(0, i, lchannel_sample, max_sample_value);
+				stream.put_int(1, i, rchannel_sample, max_sample_value);
+
+				m_aud_occnt += 4;
+
+				if (m_aud_occnt >= m_aud_ocend)
+				{
+					// Invalidate current buffer and load next (valid) buffer.
+					m_aud_ocvalid = false;
+					break;
+				}
+
+			}
+		}
+	}
 }
