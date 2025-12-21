@@ -47,7 +47,7 @@ class solo_asic_audio_device : public device_t, public device_sound_interface
 
 public:
 
-	solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, bool softmodem_enabled = false);
+	solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t aud_clock = 44100, bool softmodem_enabled = false);
 
 	void map(address_map &map);
 	void aud_unit_map(address_map &map);
@@ -80,6 +80,8 @@ protected:
 	virtual void device_stop() override;
 	virtual void device_add_mconfig(machine_config &config) override;
 	virtual void sound_stream_update(sound_stream &stream) override;
+
+	uint32_t m_aud_clock;
 
 	uint32_t m_busaud_intenable;
 	uint32_t m_busaud_intstat;
