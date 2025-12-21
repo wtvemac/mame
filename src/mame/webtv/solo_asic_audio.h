@@ -31,6 +31,7 @@ constexpr uint32_t AUD_CONFIG_8BIT_MONO    = 3;
 
 constexpr uint32_t AUD_DEFAULT_CLK = 44100;
 constexpr float    AUD_OUTPUT_GAIN = 1.0;
+constexpr float    AUD_INPUT_GAIN  = 1.0;
 
 constexpr uint32_t MOD_DMACNTL_UTV    = 1 << 3; // Unknown why this exists but is used in UTV's Solo chip
 constexpr uint32_t MOD_DMACNTL_DMAEN  = 1 << 2;
@@ -94,6 +95,15 @@ protected:
 	uint32_t m_aud_onconfig;
 	uint32_t m_aud_odmacntl;
 	
+	uint32_t m_aud_icstart;
+	uint32_t m_aud_icsize;
+	uint32_t m_aud_icend;
+	uint32_t m_aud_iccnt;
+	bool m_aud_icvalid;
+	uint32_t m_aud_instart;
+	uint32_t m_aud_insize;
+	uint32_t m_aud_idmacntl;
+
 	bool m_mod_enabled;
 	uint32_t m_mod_ocstart;
 	uint32_t m_mod_ocsize;
@@ -140,6 +150,8 @@ private:
 	required_device<speaker_device> m_lspeaker;
 	required_device<speaker_device> m_rspeaker;
 
+	required_device<microphone_device> m_audio_in;
+
 	optional_device<wtvsoftmodem_device> m_softmodem;
 
 	devcb_write_line m_int_enable_cb;
@@ -153,6 +165,7 @@ private:
 	void adjust_audio_update_rate();
 
 	void audio_output_update(sound_stream &stream);
+	void audio_input_update(sound_stream &stream);
 
 	void set_audio_irq(uint32_t mask, int state);
 
@@ -170,6 +183,16 @@ private:
 	void reg_2018_w(uint32_t data); // AUD_ONCONFIG (write)
 	uint32_t reg_201c_r();          // AUD_ODMACNTL (read)
 	void reg_201c_w(uint32_t data); // AUD_ODMACNTL (write)
+
+	uint32_t reg_2020_r();          // AUD_ICSTART (read-only)
+	uint32_t reg_2024_r();          // AUD_ICSIZE (read-only)
+	uint32_t reg_202c_r();          // AUD_ICCNT (read-only)
+	uint32_t reg_2030_r();          // AUD_INSTART (read)
+	void reg_2030_w(uint32_t data); // AUD_INSTART (write)
+	uint32_t reg_2034_r();          // AUD_INSIZE (read)
+	void reg_2034_w(uint32_t data); // AUD_INSIZE (write)
+	uint32_t reg_203c_r();          // AUD_IDMACNTL (read)
+	void reg_203c_w(uint32_t data); // AUD_IDMACNTL (write)
 
 	/* divUnit registers */
 
