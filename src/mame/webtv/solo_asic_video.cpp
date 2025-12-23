@@ -62,6 +62,25 @@ void solo_asic_video_device::device_start()
 	save_item(NAME(m_gfx_intenable));
 	save_item(NAME(m_gfx_intstat));
 
+	save_item(NAME(m_div_synccntl));
+	save_item(NAME(m_div_nvbitb));
+	save_item(NAME(m_div_nvbilr));
+	save_item(NAME(m_div_nvbistart));
+	save_item(NAME(m_div_ntb));
+	save_item(NAME(m_div_nlr));
+	save_item(NAME(m_div_nstart));
+	save_item(NAME(m_div_cvbitb));
+	save_item(NAME(m_div_cvbilr));
+	save_item(NAME(m_div_cvbistart));
+	save_item(NAME(m_div_ctb));
+	save_item(NAME(m_div_clr));
+	save_item(NAME(m_div_cstart));
+	save_item(NAME(m_div_syncphase));
+	save_item(NAME(m_div_gpio_in));
+	save_item(NAME(m_div_gpio_out));
+	save_item(NAME(m_div_gpio_in_mask));
+	save_item(NAME(m_div_gpio_out_mask));
+
 	save_item(NAME(m_dve_unknown1));
 	save_item(NAME(m_dve_unknown2));
 
@@ -125,6 +144,25 @@ void solo_asic_video_device::device_reset()
 	m_gfx_wbdconfig = 0x0;
 	m_gfx_intenable = 0x0;
 	m_gfx_intstat = 0x0;
+
+	m_div_synccntl = 0x0;
+	m_div_nvbitb = 0x0;
+	m_div_nvbilr = 0x0;
+	m_div_nvbistart = 0x80000000;
+	m_div_ntb = 0x0;
+	m_div_nlr = 0x0;
+	m_div_nstart = 0x80000000;
+	m_div_cvbitb = 0x0;
+	m_div_cvbilr = 0x0;
+	m_div_cvbistart = 0x80000000;
+	m_div_ctb = 0x0;
+	m_div_clr = 0x0;
+	m_div_cstart = 0x80000000;
+	m_div_syncphase = 0x0;
+	m_div_gpio_in = 0x0;
+	m_div_gpio_out = 0x0;
+	m_div_gpio_in_mask = 0x0;
+	m_div_gpio_out_mask = (~m_div_gpio_in_mask);
 
 	m_dve_unknown1 = 0x0;
 	m_dve_unknown2 = 0x0;
@@ -232,10 +270,26 @@ void solo_asic_video_device::dve_unit_map(address_map &map)
 
 void solo_asic_video_device::div_unit_map(address_map &map)
 {
-	map(0x004, 0x007).rw(FUNC(solo_asic_video_device::reg_8004_r), FUNC(solo_asic_video_device::reg_8004_w)); // DIV_CMACTL
+	map(0x000, 0x003).rw(FUNC(solo_asic_video_device::reg_8000_r), FUNC(solo_asic_video_device::reg_8000_w)); // DIV_SYNCCNTL
+	map(0x004, 0x007).rw(FUNC(solo_asic_video_device::reg_8004_r), FUNC(solo_asic_video_device::reg_8004_w)); // DIV_DMACNTL
+	map(0x008, 0x00b).rw(FUNC(solo_asic_video_device::reg_8008_r), FUNC(solo_asic_video_device::reg_8008_w)); // DIV_NEXTVBITB
+	map(0x00c, 0x00f).rw(FUNC(solo_asic_video_device::reg_800c_r), FUNC(solo_asic_video_device::reg_800c_w)); // DIV_NEXTVBILR
+	map(0x010, 0x013).rw(FUNC(solo_asic_video_device::reg_8010_r), FUNC(solo_asic_video_device::reg_8010_w)); // DIV_NEXTVBIADDR
+	map(0x014, 0x017).rw(FUNC(solo_asic_video_device::reg_8014_r), FUNC(solo_asic_video_device::reg_8014_w)); // DIV_NEXTTB
+	map(0x018, 0x01b).rw(FUNC(solo_asic_video_device::reg_8018_r), FUNC(solo_asic_video_device::reg_8018_w)); // DIV_NEXTLR
 	map(0x01c, 0x01f).rw(FUNC(solo_asic_video_device::reg_801c_r), FUNC(solo_asic_video_device::reg_801c_w)); // DIV_NEXTCFG
-	map(0x038, 0x03b).rw(FUNC(solo_asic_video_device::reg_8038_r), FUNC(solo_asic_video_device::reg_8038_w)); // DIV_CURRCFG
-	map(0x060, 0x063).rw(FUNC(solo_asic_video_device::reg_8060_r), FUNC(solo_asic_video_device::reg_8060_w)); // DIV_SYNCPHASE
+	map(0x020, 0x023).rw(FUNC(solo_asic_video_device::reg_8020_r), FUNC(solo_asic_video_device::reg_8020_w)); // DIV_NEXTADDR
+	map(0x024, 0x027).r(FUNC(solo_asic_video_device::reg_8024_r));                                            // DIV_CURRVBITB
+	map(0x028, 0x02b).r(FUNC(solo_asic_video_device::reg_8028_r));                                            // DIV_CURRVBILR
+	map(0x02c, 0x02f).r(FUNC(solo_asic_video_device::reg_802c_r));                                            // DIV_CURRVBIADDR
+	map(0x030, 0x033).r(FUNC(solo_asic_video_device::reg_8030_r));                                            // DIV_CURRTB
+	map(0x034, 0x037).r(FUNC(solo_asic_video_device::reg_8034_r));                                            // DIV_CURRLR
+	map(0x038, 0x03b).r(FUNC(solo_asic_video_device::reg_8038_r));                                            // DIV_CURRCFG
+	map(0x03c, 0x03f).r(FUNC(solo_asic_video_device::reg_803c_r));                                            // DlV_CURRADDR
+	map(0x060, 0x063).r(FUNC(solo_asic_video_device::reg_8060_r));                                            // DIV_SYNCPHASE
+	map(0x064, 0x067).rw(FUNC(solo_asic_video_device::reg_8064_r), FUNC(solo_asic_video_device::reg_8064_w)); // DIV_GPOIOEN
+	map(0x068, 0x06b).rw(FUNC(solo_asic_video_device::reg_8068_r), FUNC(solo_asic_video_device::reg_8068_w)); // DIV_GPIOOUT
+	map(0x06c, 0x06f).r(FUNC(solo_asic_video_device::reg_806c_r));                                            // DIV_GPIOIN
 }
 
 void solo_asic_video_device::pot_unit_map(address_map &map)
@@ -773,6 +827,16 @@ void solo_asic_video_device::reg_7028_w(uint32_t data)
 
 // divUnit registers
 
+uint32_t solo_asic_video_device::reg_8000_r()
+{
+	return m_div_synccntl;
+}
+
+void solo_asic_video_device::reg_8000_w(uint32_t data)
+{
+	m_div_synccntl = data;
+}
+
 uint32_t solo_asic_video_device::reg_8004_r()
 {
 	return m_div_dmacntl;
@@ -783,6 +847,55 @@ void solo_asic_video_device::reg_8004_w(uint32_t data)
 	m_div_dmacntl = data;
 }
 
+uint32_t solo_asic_video_device::reg_8008_r()
+{
+	return m_div_nvbitb;
+}
+
+void solo_asic_video_device::reg_8008_w(uint32_t data)
+{
+	m_div_nvbitb = data;
+}
+uint32_t solo_asic_video_device::reg_800c_r()
+{
+	return m_div_nvbilr;
+}
+
+void solo_asic_video_device::reg_800c_w(uint32_t data)
+{
+	m_div_nvbilr = data;
+}
+
+uint32_t solo_asic_video_device::reg_8010_r()
+{
+	return m_div_nvbistart;
+}
+
+void solo_asic_video_device::reg_8010_w(uint32_t data)
+{
+	m_div_nvbistart = data;
+}
+
+uint32_t solo_asic_video_device::reg_8014_r()
+{
+	return m_div_ntb;
+}
+
+void solo_asic_video_device::reg_8014_w(uint32_t data)
+{
+	m_div_ntb = data;
+}
+
+uint32_t solo_asic_video_device::reg_8018_r()
+{
+	return m_div_nlr;
+}
+
+void solo_asic_video_device::reg_8018_w(uint32_t data)
+{
+	m_div_nlr = data;
+}
+
 uint32_t solo_asic_video_device::reg_801c_r()
 {
 	return m_div_nextcfg;
@@ -791,7 +904,41 @@ uint32_t solo_asic_video_device::reg_801c_r()
 void solo_asic_video_device::reg_801c_w(uint32_t data)
 {
 	m_div_nextcfg = data;
-	m_div_currcfg = 0;
+}
+
+uint32_t solo_asic_video_device::reg_8020_r()
+{
+	return m_div_nstart;
+}
+
+void solo_asic_video_device::reg_8020_w(uint32_t data)
+{
+	m_div_nstart = data;
+}
+
+uint32_t solo_asic_video_device::reg_8024_r()
+{
+	return m_div_cvbitb;
+}
+
+uint32_t solo_asic_video_device::reg_8028_r()
+{
+	return m_div_cvbilr;
+}
+
+uint32_t solo_asic_video_device::reg_802c_r()
+{
+	return m_div_cvbistart;
+}
+
+uint32_t solo_asic_video_device::reg_8030_r()
+{
+	return m_div_ctb;
+}
+
+uint32_t solo_asic_video_device::reg_8034_r()
+{
+	return m_div_clr;
 }
 
 uint32_t solo_asic_video_device::reg_8038_r()
@@ -799,19 +946,42 @@ uint32_t solo_asic_video_device::reg_8038_r()
 	return m_div_currcfg;
 }
 
-void solo_asic_video_device::reg_8038_w(uint32_t data)
+uint32_t solo_asic_video_device::reg_803c_r()
 {
-	m_div_currcfg = data;
+	return m_div_cstart;
 }
 
 uint32_t solo_asic_video_device::reg_8060_r()
 {
-	return 0x00000000;
+	return m_div_syncphase;
 }
 
-void solo_asic_video_device::reg_8060_w(uint32_t data)
+uint32_t solo_asic_video_device::reg_8064_r()
 {
-	//
+	return m_div_gpio_out_mask;
+}
+
+void solo_asic_video_device::reg_8064_w(uint32_t data)
+{
+	m_div_gpio_out_mask = data;
+	m_div_gpio_in_mask = (~m_div_gpio_out_mask);
+}
+
+uint32_t solo_asic_video_device::reg_8068_r()
+{
+	return (m_div_gpio_out & m_div_gpio_out_mask);
+}
+
+void solo_asic_video_device::reg_8068_w(uint32_t data)
+{
+	data &= m_div_gpio_out_mask;
+
+	m_div_gpio_out |= data;
+}
+
+uint32_t solo_asic_video_device::reg_806c_r()
+{
+	return (m_div_gpio_in & m_div_gpio_in_mask);
 }
 
 // potUnit registers
