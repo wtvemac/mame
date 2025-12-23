@@ -36,6 +36,7 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
     m_modem_uart(*this, "modem_uart"),
 	m_softmodem_uart(*this, "smodem_uart"),
 	m_debug_uart(*this, "debug"),
+	m_pport(*this, "pport"),
 	m_watchdog(*this, "watchdog"),
     m_power_led(*this, "power_led"),
     m_connect_led(*this, "connect_led"),
@@ -160,6 +161,18 @@ void solo_asic_device::dev_unit_map(address_map &map)
 	map(0x024, 0x027).rw(FUNC(solo_asic_device::reg_4024_r), FUNC(solo_asic_device::reg_4024_w)); // DEV_IRIN_REJECT_INT
 	map(0x028, 0x02b).r(FUNC(solo_asic_device::reg_4028_r));                                      // DEV_IRIN_TRANS_DATA
 	map(0x02c, 0x02f).rw(FUNC(solo_asic_device::reg_402c_r), FUNC(solo_asic_device::reg_402c_w)); // DEV_IRIN_STATCNTL
+	map(0x200, 0x203).rw(FUNC(solo_asic_device::reg_4200_r), FUNC(solo_asic_device::reg_4200_w)); // DEV_PPORT_DATA
+	map(0x204, 0x207).rw(FUNC(solo_asic_device::reg_4204_r), FUNC(solo_asic_device::reg_4204_w)); // DEV_PPORT_CTRL
+	map(0x208, 0x20b).r(FUNC(solo_asic_device::reg_4208_r));                                      // DEV_PPORT_STAT
+	map(0x20c, 0x20f).rw(FUNC(solo_asic_device::reg_420c_r), FUNC(solo_asic_device::reg_420c_w)); // DEV_PPORT_CNFG
+	map(0x210, 0x213).rw(FUNC(solo_asic_device::reg_4210_r), FUNC(solo_asic_device::reg_4210_w)); // DEV_PPORT_FIFOCTRL
+	map(0x214, 0x217).rw(FUNC(solo_asic_device::reg_4214_r), FUNC(solo_asic_device::reg_4214_w)); // DEV_PPORT_FIFOSTAT
+	map(0x218, 0x21b).rw(FUNC(solo_asic_device::reg_4218_r), FUNC(solo_asic_device::reg_4218_w)); // DEV_PPORT_TIMEOUT
+	map(0x21c, 0x21f).rw(FUNC(solo_asic_device::reg_421c_r), FUNC(solo_asic_device::reg_421c_w)); // DEV_PPORT_STAT2
+	map(0x220, 0x223).rw(FUNC(solo_asic_device::reg_4220_r), FUNC(solo_asic_device::reg_4220_w)); // DEV_PPORT_IEN
+	map(0x224, 0x227).rw(FUNC(solo_asic_device::reg_4224_r), FUNC(solo_asic_device::reg_4224_w)); // DEV_PPORT_IST
+	map(0x228, 0x22b).rw(FUNC(solo_asic_device::reg_4228_r), FUNC(solo_asic_device::reg_4228_w)); // DEV_PPORT_CLRINT
+	map(0x22c, 0x22f).rw(FUNC(solo_asic_device::reg_422c_r), FUNC(solo_asic_device::reg_422c_w)); // DEV_PPORT_ENABLE
 }
 
 void solo_asic_device::mem_unit_map(address_map &map)
@@ -280,6 +293,9 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 	WTV_RS232DBG(config, m_debug_uart);
 	m_debug_uart->serial_rx_handler().set(FUNC(solo_asic_device::irq_uart_w));
 
+	PC_LPT(config, m_pport);
+	m_pport->irq_handler().set(FUNC(solo_asic_device::irq_pport_w));
+
 	WATCHDOG_TIMER(config, m_watchdog);
 	solo_asic_device::watchdog_enable(0);
 }
@@ -348,6 +364,9 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_dev_gpio_out));
 	save_item(NAME(m_dev_gpio_in_mask));
 	save_item(NAME(m_dev_gpio_out_mask));
+	save_item(NAME(m_dev_pport_enabled));
+	save_item(NAME(m_dev_pport_intenable));
+	save_item(NAME(m_dev_pport_intstat));
 }
 
 void solo_asic_device::device_reset()
@@ -413,6 +432,10 @@ void solo_asic_device::device_reset()
 	m_dev_gpio_out = 0x0;
 	m_dev_gpio_in_mask = 0x0;
 	m_dev_gpio_out_mask = (~m_dev_gpio_in_mask);
+	m_dev_pport_enabled = false;
+	m_dev_pport_intenable = 0x0;
+	m_dev_pport_intstat = 0x0;
+
 
 	m_smrtcrd_serial_bitmask = 0x0;
 	m_smrtcrd_serial_rxdata = 0x0;
@@ -1427,6 +1450,200 @@ void solo_asic_device::reg_402c_w(uint32_t data)
 	m_irkbdc->data_w(wtvir_sejin_device::DEV_IRIN_STATCNTL, data);
 }
 
+uint32_t solo_asic_device::reg_4200_r()
+{
+	if (m_dev_pport_enabled)
+		return m_pport->data_r();
+	else
+		return 0x00000000;
+}
+
+void solo_asic_device::reg_4200_w(uint32_t data)
+{
+	if (m_dev_pport_enabled)
+		m_pport->data_w(data & 0xff);
+}
+
+uint32_t solo_asic_device::reg_4204_r()
+{
+	if (m_dev_pport_enabled)
+	{
+		uint8_t lpt_ppt_ctrl = m_pport->control_r();
+
+		uint32_t ppt_ctrl_ecpcmnd     = 0x00 << 5;
+		uint32_t ppt_ctrl_dir         = ((lpt_ppt_ctrl &  32) >> 5) << 4;
+		uint32_t ppt_ctrl_selectin_n  = ((lpt_ppt_ctrl &   8) >> 3) << 3;
+		uint32_t ppt_ctrl_autofd_n    = ((lpt_ppt_ctrl &   2) >> 1) << 2;
+		uint32_t ppt_ctrl_init_n      = ((lpt_ppt_ctrl &   4) >> 2) << 1;
+		uint32_t ppt_ctrl_stb_n       = ((lpt_ppt_ctrl &   1) >> 0) << 0;
+
+		return (
+			ppt_ctrl_ecpcmnd
+			| ppt_ctrl_dir
+			| ppt_ctrl_selectin_n
+			| ppt_ctrl_autofd_n
+			| ppt_ctrl_init_n
+			| ppt_ctrl_stb_n
+		);
+	}
+	else
+	{
+		return 0x00000000;
+	}
+}
+
+void solo_asic_device::reg_4204_w(uint32_t data)
+{
+	if (m_dev_pport_enabled)
+	{
+		//uint32_t ppt_ctrl_ecpcmnd     = ((data &  32) >> 5) << 0;
+		uint32_t ppt_ctrl_dir         = ((data &  16) >> 4) << 5;
+		uint32_t ppt_ctrl_selectin_n  = ((data &   8) >> 3) << 3;
+		uint32_t ppt_ctrl_autofd_n    = ((data &   4) >> 2) << 1;
+		uint32_t ppt_ctrl_init_n      = ((data &   2) >> 1) << 2;
+		uint32_t ppt_ctrl_stb_n       = ((data &   1) >> 0) << 0;
+
+		uint8_t lpt_ppt_ctrl =
+			ppt_ctrl_dir
+			| ppt_ctrl_selectin_n
+			| ppt_ctrl_autofd_n
+			| ppt_ctrl_init_n
+			| ppt_ctrl_stb_n;
+
+		m_pport->control_w(lpt_ppt_ctrl);
+	}
+}
+
+uint32_t solo_asic_device::reg_4208_r()
+{
+	if (m_dev_pport_enabled)
+	{
+		uint8_t lpt_ppt_stat = m_pport->status_r();
+
+		uint32_t ppt_stat_ack_n   = ((lpt_ppt_stat &  64) >> 6) << 4;
+		uint32_t ppt_ctrl_sel     = ((lpt_ppt_stat &  16) >> 4) << 3;
+		uint32_t ppt_ctrl_err     = ((lpt_ppt_stat &  32) >> 5) << 2;
+		uint32_t ppt_ctrl_fault_n = ((lpt_ppt_stat &   8) >> 3) << 1;
+		uint32_t ppt_ctrl_busy    = ((lpt_ppt_stat & 128) >> 7) << 0;
+
+		return (
+			ppt_stat_ack_n
+			| ppt_ctrl_sel
+			| ppt_ctrl_err
+			| ppt_ctrl_fault_n
+			| ppt_ctrl_busy
+		);
+	}
+	else
+	{
+		return 0x00000000;
+	}
+}
+
+uint32_t solo_asic_device::reg_420c_r()
+{
+	return 0x00000000; // CNFG
+}
+
+void solo_asic_device::reg_420c_w(uint32_t data)
+{
+	// CNFG
+}
+
+uint32_t solo_asic_device::reg_4210_r()
+{
+	return 0x00000000; // FIFOCTRL
+}
+
+void solo_asic_device::reg_4210_w(uint32_t data)
+{
+	// FIFOCTRL
+}
+
+uint32_t solo_asic_device::reg_4214_r()
+{
+	return 0x00000000; // FIFOSTAT
+}
+
+void solo_asic_device::reg_4214_w(uint32_t data)
+{
+	// FIFOSTAT
+}
+
+uint32_t solo_asic_device::reg_4218_r()
+{
+	return 0x00000000; // TIMEOUT
+}
+
+void solo_asic_device::reg_4218_w(uint32_t data)
+{
+	// TIMEOUT
+}
+
+uint32_t solo_asic_device::reg_421c_r()
+{
+	return 0x00000000; // STAT2
+}
+
+void solo_asic_device::reg_421c_w(uint32_t data)
+{
+	// STAT2
+}
+
+uint32_t solo_asic_device::reg_4220_r()
+{
+	return m_dev_pport_enabled;
+}
+
+void solo_asic_device::reg_4220_w(uint32_t data)
+{
+	m_dev_pport_intenable = data;
+	if (m_dev_pport_intenable != 0x00)
+	{
+		solo_asic_device::reg_007c_w(BUS_INT_DEV_PARPORT);
+		m_pport->control_w(0x10);
+	}
+	else
+	{
+		solo_asic_device::reg_017c_w(BUS_INT_DEV_PARPORT);
+	}
+}
+
+uint32_t solo_asic_device::reg_4224_r()
+{
+	return m_dev_pport_intstat;
+}
+
+void solo_asic_device::reg_4224_w(uint32_t data)
+{
+	m_dev_pport_intstat |= data;
+}
+
+uint32_t solo_asic_device::reg_4228_r()
+{
+	return m_dev_pport_intstat;
+}
+
+void solo_asic_device::reg_4228_w(uint32_t data)
+{
+	solo_asic_device::set_pport_irq(data, CLEAR_LINE);
+}
+
+uint32_t solo_asic_device::reg_422c_r()
+{
+	return m_dev_pport_enabled;
+}
+
+void solo_asic_device::reg_422c_w(uint32_t data)
+{
+	m_dev_pport_enabled = data & 0x1;
+}
+
+// 422c_w=1
+// 420c_w=0
+// 4204_w=5
+//		=>3
+
 // memUnit registers
 
 uint32_t solo_asic_device::reg_5000_r()
@@ -2111,6 +2328,11 @@ void solo_asic_device::irq_uart_w(int state)
 	solo_asic_device::set_dev_irq(BUS_INT_DEV_UART, state);
 }
 
+void solo_asic_device::irq_pport_w(int state)
+{
+	solo_asic_device::set_pport_irq(PPORT_INT_ACK_DONE, state);
+}
+
 void solo_asic_device::irq_ide1_w(int state)
 {
 	solo_asic_device::set_rio_irq(BUS_INT_RIO_DEVICE1, state);
@@ -2242,6 +2464,26 @@ void solo_asic_device::set_gpio_irq(uint32_t mask, int state)
 
 			if(m_busgpio_intstat == 0x00)
 				solo_asic_device::set_dev_irq(BUS_INT_DEV_GPIO, state);
+		}
+	}
+}
+
+void solo_asic_device::set_pport_irq(uint32_t mask, int state)
+{
+	if (m_dev_pport_intenable & mask)
+	{
+		if (state)
+		{
+			m_dev_pport_intstat |= mask;
+
+			solo_asic_device::set_dev_irq(BUS_INT_DEV_PARPORT, state);
+		}
+		else
+		{
+			m_dev_pport_intstat &= (~mask);
+
+			if(m_dev_pport_intstat == 0x00)
+				solo_asic_device::set_dev_irq(BUS_INT_DEV_PARPORT, state);
 		}
 	}
 }
