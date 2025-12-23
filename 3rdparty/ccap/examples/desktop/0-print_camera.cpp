@@ -1,0 +1,78 @@
+/**
+ * @file print_camera.cpp
+ * @author wysaid (this@wysaid.org)
+ * @brief Example for ccap.
+ * @date 2025-05
+ *
+ */
+
+#include <ccap.h>
+#include <cstdio>
+#include <iostream>
+#include <string>
+#include <vector>
+
+std::vector<std::string> findCameraNames() {
+    ccap::Provider cameraProvider; /// Default ctor, no need to open camera.
+    std::vector<std::string> deviceNames = cameraProvider.findDeviceNames();
+
+    if (!deviceNames.empty()) {
+        printf("## Found %zu video capture device: \n", deviceNames.size());
+        int deviceIndex = 0;
+        for (const auto& name : deviceNames) {
+            printf("    %d: %s\n", deviceIndex++, name.c_str());
+        }
+    } else {
+        fputs("Failed to find any video capture device.", stderr);
+    }
+
+    return deviceNames;
+}
+
+void printCameraInfo(const std::string& deviceName) {
+    ccap::setLogLevel(ccap::LogLevel::Verbose);
+
+    ccap::Provider cameraProvider(deviceName); /// Pass a device name to open camera.
+    if (!cameraProvider.isOpened()) {
+        fprintf(stderr, "### Failed to open video capture device: %s\n", deviceName.c_str());
+        return;
+    }
+
+    auto deviceInfo = cameraProvider.getDeviceInfo();
+    if (!deviceInfo) {
+        fputs("Failed to get device info.", stderr);
+        return;
+    }
+
+    printf("===== Info for device: %s =======\n", deviceName.c_str());
+
+    printf("  Supported resolutions:\n");
+    for (const auto& resolution : deviceInfo->supportedResolutions) {
+        printf("    %dx%d\n", resolution.width, resolution.height);
+    }
+
+    printf("  Supported pixel formats:\n");
+    for (auto pixelFormat : deviceInfo->supportedPixelFormats) {
+        printf("    %s\n", ccap::pixelFormatToString(pixelFormat).data());
+    }
+
+    puts("===== Info end =======\n");
+}
+
+int main() {
+    // Set error callback to receive error notifications
+    ccap::setErrorCallback([](ccap::ErrorCode errorCode, std::string_view description) {
+        std::cerr << "Camera Error - Code: " << static_cast<int>(errorCode) 
+                  << ", Description: " << description << std::endl;
+    });
+
+    auto deviceNames = findCameraNames();
+    if (deviceNames.empty()) {
+        return 1;
+    }
+    for (const auto& name : deviceNames) {
+        printCameraInfo(name);
+    }
+
+    return 0;
+}
