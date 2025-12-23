@@ -395,6 +395,25 @@ protected:
 	uint32_t m_gfx_intenable;
 	uint32_t m_gfx_intstat;
 
+	uint32_t m_div_synccntl;
+	uint32_t m_div_nvbitb;
+	uint32_t m_div_nvbilr;
+	uint32_t m_div_nvbistart;
+	uint32_t m_div_ntb;
+	uint32_t m_div_nlr;
+	uint32_t m_div_nstart;
+	uint32_t m_div_cvbitb;
+	uint32_t m_div_cvbilr;
+	uint32_t m_div_cvbistart;
+	uint32_t m_div_ctb;
+	uint32_t m_div_clr;
+	uint32_t m_div_cstart;
+	uint32_t m_div_syncphase;
+	uint32_t m_div_gpio_in;
+	uint32_t m_div_gpio_out;
+	uint32_t m_div_gpio_in_mask;
+	uint32_t m_div_gpio_out_mask;
+
 	uint32_t m_dve_unknown1;
 	uint32_t m_dve_unknown2;
 	
@@ -541,14 +560,37 @@ private:
 
 	/* divUnit registers */
 
-	uint32_t reg_8004_r();
-	void reg_8004_w(uint32_t data);
-	uint32_t reg_801c_r();
-	void reg_801c_w(uint32_t data);
-	uint32_t reg_8038_r();
-	void reg_8038_w(uint32_t data);
-	uint32_t reg_8060_r();
-	void reg_8060_w(uint32_t data);
+	uint32_t reg_8000_r();          // DIV_SYNCCNTL (read)
+	void reg_8000_w(uint32_t data); // DIV_SYNCCNTL (write)
+	uint32_t reg_8004_r();          // DIV_DMACNTL (read)
+	void reg_8004_w(uint32_t data); // DIV_DMACNTL (write)
+	uint32_t reg_8008_r();          // DIV_NEXTVBITB (read)
+	void reg_8008_w(uint32_t data); // DIV_NEXTVBITB (write)
+	uint32_t reg_800c_r();          // DIV_NEXTVBILR (read)
+	void reg_800c_w(uint32_t data); // DIV_NEXTVBILR (write)
+	uint32_t reg_8010_r();          // DIV_NEXTVBIADDR (read)
+	void reg_8010_w(uint32_t data); // DIV_NEXTVBIADDR (write)
+	uint32_t reg_8014_r();          // DIV_NEXTTB (read)
+	void reg_8014_w(uint32_t data); // DIV_NEXTTB (write)
+	uint32_t reg_8018_r();          // DIV_NEXTLR (read)
+	void reg_8018_w(uint32_t data); // DIV_NEXTLR (write)
+	uint32_t reg_801c_r();          // DIV_NEXTCFG (read)
+	void reg_801c_w(uint32_t data); // DIV_NEXTCFG (write)
+	uint32_t reg_8020_r();          // DIV_NEXTADDR (read)
+	void reg_8020_w(uint32_t data); // DIV_NEXTADDR (write)
+	uint32_t reg_8024_r();          // DIV_CURRVBITB (read)
+	uint32_t reg_8028_r();          // DIV_CURRVBILR (read)
+	uint32_t reg_802c_r();          // DIV_CURRVBIADDR (read)
+	uint32_t reg_8030_r();          // DIV_CURRTB (read)
+	uint32_t reg_8034_r();          // DIV_CURRLR (read)
+	uint32_t reg_8038_r();          // DIV_CURRCFG (read)
+	uint32_t reg_803c_r();          // DlV_CURRADDR (read)
+	uint32_t reg_8060_r();          // DIV_SYNCPHASE (read)
+	uint32_t reg_8064_r();          // DIV_GPOIOEN (read)
+	void reg_8064_w(uint32_t data); // DIV_GPOIOEN (write)
+	uint32_t reg_8068_r();          // DIV_GPIOOUT (read)
+	void reg_8068_w(uint32_t data); // DIV_GPIOOUT (write)
+	uint32_t reg_806c_r();          // DIV_GPIOIN (read)
 
 	/* potUnit registers */
 

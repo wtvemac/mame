@@ -215,8 +215,8 @@ void solo_asic_audio_device::div_unit_map(address_map &map)
 	map(0x040, 0x043).rw(FUNC(solo_asic_audio_device::reg_8040_r), FUNC(solo_asic_audio_device::reg_8040_w)); // DIV_AUDCNTL
 	map(0x044, 0x047).rw(FUNC(solo_asic_audio_device::reg_8044_r), FUNC(solo_asic_audio_device::reg_8044_w)); // DIV_NEXTAUDADDR
 	map(0x048, 0x04b).rw(FUNC(solo_asic_audio_device::reg_8048_r), FUNC(solo_asic_audio_device::reg_8048_w)); // DIV_NEXTAUDLEN
-	map(0x04c, 0x04f).rw(FUNC(solo_asic_audio_device::reg_804c_r), FUNC(solo_asic_audio_device::reg_804c_w)); // DIV_CURAUDADDR
-	map(0x050, 0x053).rw(FUNC(solo_asic_audio_device::reg_8050_r), FUNC(solo_asic_audio_device::reg_8050_w)); // DIV_CURAUDLEN
+	map(0x04c, 0x04f).r(FUNC(solo_asic_audio_device::reg_804c_r));                                            // DIV_CURAUDADDR
+	map(0x050, 0x053).r(FUNC(solo_asic_audio_device::reg_8050_r));                                            // DIV_CURAUDLEN
 }
 
 void solo_asic_audio_device::mod_unit_map(address_map &map)
@@ -455,42 +455,32 @@ void solo_asic_audio_device::reg_8040_w(uint32_t data)
 
 uint32_t solo_asic_audio_device::reg_8044_r()
 {
-	return m_div_cstart;
+	return m_div_nstart;
 }
 
 void solo_asic_audio_device::reg_8044_w(uint32_t data)
 {
-	m_div_cstart = data;
+	m_div_nstart = data & (~0xfc000003);
 }
 
 uint32_t solo_asic_audio_device::reg_8048_r()
 {
-	return m_div_csize;
+	return m_div_nsize;
 }
 
 void solo_asic_audio_device::reg_8048_w(uint32_t data)
 {
-	m_div_csize = data;
+	m_div_nsize = data;
 }
 
 uint32_t solo_asic_audio_device::reg_804c_r()
 {
-	return m_div_nstart;
-}
-
-void solo_asic_audio_device::reg_804c_w(uint32_t data)
-{
-	m_div_nstart = data & (~0xfc000003);
+	return m_div_cstart | 0xa0000000;
 }
 
 uint32_t solo_asic_audio_device::reg_8050_r()
 {
-	return m_div_nsize;
-}
-
-void solo_asic_audio_device::reg_8050_w(uint32_t data)
-{
-	m_div_nsize = data;
+	return m_div_csize;
 }
 
 // modUnit
