@@ -20,6 +20,7 @@
 #include "machine/i2cmem.h"
 #include "machine/ins8250.h"
 #include "bus/ata/ataintf.h"
+#include "machine/pc_lpt.h"
 #include "machine/watchdog.h"
 
 constexpr uint32_t SYSCONFIG_PAL = 1 << 3;  // use PAL mode
@@ -72,6 +73,11 @@ constexpr uint32_t BUS_INT_RIO_DEVICE0 = 1 << 2;
 
 constexpr uint32_t BUS_INT_TIM_SYSTIMER = 1 << 3;
 constexpr uint32_t BUS_INT_TIM_BUSTOUT  = 1 << 2;
+
+constexpr uint32_t PPORT_INT_CFIFO_ERROR = 1 << 4;
+constexpr uint32_t PPORT_INT_ACK_DONE    = 1 << 3;
+constexpr uint32_t PPORT_INT_ECP_REVERSE = 1 << 2;
+constexpr uint32_t PPORT_INT_THRESH      = 1 << 0;
 
 constexpr uint32_t UTV_DMAMODE_READ    = 1 << 0;
 constexpr uint32_t UTV_DMACNTL_READY   = 1 << 2;
@@ -220,6 +226,9 @@ protected:
 	uint32_t m_dev_gpio_out;
 	uint32_t m_dev_gpio_in_mask;
 	uint32_t m_dev_gpio_out_mask;
+	bool m_dev_pport_enabled;
+	uint32_t m_dev_pport_intenable;
+	uint32_t m_dev_pport_intstat;
 
 	uint16_t m_smrtcrd_serial_bitmask = 0x0;
 	uint16_t m_smrtcrd_serial_rxdata = 0x0;
@@ -264,6 +273,7 @@ private:
 	optional_device<ns16550_device> m_modem_uart;
 	optional_device<wtvsoftmodem_device> m_softmodem_uart;
 	required_device<wtvdbg_rs232_device> m_debug_uart;
+	required_device<pc_lpt_device> m_pport;
 	required_device<watchdog_timer_device> m_watchdog;
 
 	output_finder<> m_power_led;
@@ -289,10 +299,12 @@ private:
 	void irq_aud_w(int state);
 	void irq_modem_w(int state);
 	void irq_uart_w(int state);
+	void irq_pport_w(int state);
 	void dmarq_dmaread(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size);
 	void dmarq_dmawrite(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size);
 	void irq_keyboard_w(int state);
 	void set_gpio_irq(uint32_t mask, int state);
+	void set_pport_irq(uint32_t mask, int state);
 	void set_dev_irq(uint32_t mask, int state);
 	void set_rio_irq(uint32_t mask, int state);
 	void set_timer_irq(uint32_t mask, int state);
@@ -451,8 +463,30 @@ private:
 	uint32_t reg_4028_r();          // DEV_IRIN_TRANS_DATA (read)
 	uint32_t reg_402c_r();          // DEV_IRIN_STATCNTL (read)
 	void reg_402c_w(uint32_t data); // DEV_IRIN_STATCNTL (write)
-
 	// The boot ROM seems to write to register 4018, which is not mentioned anywhere in the documentation.
+	uint32_t reg_4200_r();          // DEV_PPORT_DATA (read)
+	void reg_4200_w(uint32_t data); // DEV_PPORT_DATA (write)
+	uint32_t reg_4204_r();          // DEV_PPORT_CTRL (read)
+	void reg_4204_w(uint32_t data); // DEV_PPORT_CTRL (write)
+	uint32_t reg_4208_r();          // DEV_PPORT_STAT (read)
+	uint32_t reg_420c_r();          // DEV_PPORT_CNFG (read)
+	void reg_420c_w(uint32_t data); // DEV_PPORT_CNFG (write)
+	uint32_t reg_4210_r();          // DEV_PPORT_FIFOCTRL (read)
+	void reg_4210_w(uint32_t data); // DEV_PPORT_FIFOCTRL (write)
+	uint32_t reg_4214_r();          // DEV_PPORT_FIFOSTAT (read)
+	void reg_4214_w(uint32_t data); // DEV_PPORT_FIFOSTAT (write)
+	uint32_t reg_4218_r();          // DEV_PPORT_TIMEOUT (read)
+	void reg_4218_w(uint32_t data); // DEV_PPORT_TIMEOUT (write)
+	uint32_t reg_421c_r();          // DEV_PPORT_STAT2 (read)
+	void reg_421c_w(uint32_t data); // DEV_PPORT_STAT2 (write)
+	uint32_t reg_4220_r();          // DEV_PPORT_IEN (read)
+	void reg_4220_w(uint32_t data); // DEV_PPORT_IEN (write)
+	uint32_t reg_4224_r();          // DEV_PPORT_IST (read)
+	void reg_4224_w(uint32_t data); // DEV_PPORT_IST (write)
+	uint32_t reg_4228_r();          // DEV_PPORT_CLRINT (read)
+	void reg_4228_w(uint32_t data); // DEV_PPORT_CLRINT (write)
+	uint32_t reg_422c_r();          // DEV_PPORT_ENABLE (read)
+	void reg_422c_w(uint32_t data); // DEV_PPORT_ENABLE (write)
 
 	/* memUnit registers */
 
