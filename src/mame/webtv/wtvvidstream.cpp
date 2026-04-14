@@ -125,3 +125,36 @@ void saa71786_encoder_device::write_data(u16 offset, u8 data)
 {
 	//
 }
+
+// Datasheet: https://www.gp2x.dev/archives/docs/gp2x/DSH-200670-001.pdf
+// I couldn't find a CX25874 data sheet but the CX25874 datasheet seems to map very well.
+
+DEFINE_DEVICE_TYPE(CX25873, cx25873_encoder_device, "cx25873_encoder_device", "Conexant CX25873-13 High Performance Video Encoder")
+
+cx25873_encoder_device::cx25873_encoder_device(const machine_config &mconfig, const char *tag, device_t *owner, u16 iic_address, uint32_t clock) :
+	wtvvidstream_device_base(mconfig, CX25873, tag, owner, clock, iic_address)
+{
+}
+
+void cx25873_encoder_device::device_start()
+{
+	//
+}
+
+void cx25873_encoder_device::device_reset()
+{
+	//
+}
+
+u8 cx25873_encoder_device::read_data(u16 offset)
+{
+	if(offset == cx25873_encoder_device::ENC_REG_IDVER)
+		return (cx25873_encoder_device::ENC_ID << 0x05) | (cx25873_encoder_device::ENC_MACROVISION_VER << 0x00);
+	else
+		return m_reg[offset & (cx25873_encoder_device::ENC_REGS_SIZE - 1)];
+}
+
+void cx25873_encoder_device::write_data(u16 offset, u8 data)
+{
+	m_reg[offset & (cx25873_encoder_device::ENC_REGS_SIZE - 1)] = data;
+}

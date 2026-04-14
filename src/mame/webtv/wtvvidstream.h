@@ -90,4 +90,31 @@ protected:
 
 DECLARE_DEVICE_TYPE(SAA71786, saa71786_encoder_device)
 
+class cx25873_encoder_device : public wtvvidstream_device_base
+{
+
+public:
+
+	static constexpr uint32_t ENC_ID              = 0x05;
+	static constexpr uint32_t ENC_MACROVISION_VER = 0x01;
+
+	static constexpr uint32_t ENC_REGS_SIZE = 0x100;
+	static constexpr uint32_t ENC_REG_IDVER = 0x00;
+
+	cx25873_encoder_device(const machine_config &mconfig, const char *tag, device_t *owner, u16 iic_address, uint32_t clock = 0);
+
+protected:
+
+	uint8_t m_reg[cx25873_encoder_device::ENC_REGS_SIZE];
+
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+
+	virtual u8 read_data(u16 offset) override;
+	virtual void write_data(u16 offset, u8 data) override;
+
+};
+
+DECLARE_DEVICE_TYPE(CX25873, cx25873_encoder_device)
+
 #endif // MAME_WEBTV_WTVVIDSTREAM_H
