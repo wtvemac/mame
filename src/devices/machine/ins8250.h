@@ -20,6 +20,9 @@
 class ins8250_uart_device : public device_t, public device_serial_interface
 {
 public:
+	static constexpr uint16_t INS8250_TX_BUFFER_SIZE = 256;
+	static constexpr uint16_t INS8250_RX_BUFFER_SIZE = 256;
+
 	auto out_tx_callback() { return m_out_tx_cb.bind(); }
 	auto out_dtr_callback() { return m_out_dtr_cb.bind(); }
 	auto out_rts_callback() { return m_out_rts_cb.bind(); }
@@ -128,9 +131,9 @@ protected:
 private:
 	void set_timer() { m_timeout->adjust(attotime::from_hz((clock()*4*8)/(m_regs.dl*16))); }
 	int m_rintlvl;
-	u8 m_rfifo[16];
+	u8 m_rfifo[ins8250_uart_device::INS8250_RX_BUFFER_SIZE];
 	u8 m_efifo[16];
-	u8 m_tfifo[16];
+	u8 m_tfifo[ins8250_uart_device::INS8250_TX_BUFFER_SIZE];
 	int m_rhead, m_rtail, m_rnum;
 	int m_thead, m_ttail;
 	emu_timer *m_timeout;

@@ -534,7 +534,7 @@ void ns16550_device::rcv_complete()
 	m_regs.lsr |= INS8250_LSR_DR;
 	m_rfifo[m_rhead] = get_received_char();
 	m_efifo[m_rhead] = errors;
-	++m_rhead &= 0x0f;
+	++m_rhead &= (ins8250_uart_device::INS8250_RX_BUFFER_SIZE - 1);
 	m_rnum++;
 	if(m_rnum >= m_rintlvl)
 		trigger_int(COM_INT_PENDING_RECEIVED_DATA_AVAILABLE);
@@ -549,7 +549,7 @@ void ns16550_device::tra_complete()
 	if(m_ttail != m_thead)
 	{
 		transmit_register_setup(m_tfifo[m_ttail]);
-		++m_ttail &= 0x0f;
+		++m_ttail &= (ins8250_uart_device::INS8250_TX_BUFFER_SIZE - 1);
 		m_regs.lsr &= ~INS8250_LSR_TSRE;
 		if(m_ttail == m_thead)
 		{
@@ -558,7 +558,7 @@ void ns16550_device::tra_complete()
 		}
 	}
 	else
-		m_regs.lsr |= 0x40;
+		m_regs.lsr |= INS8250_LSR_TSRE;
 }
 
 void ins8250_uart_device::rcv_complete()
@@ -754,7 +754,7 @@ TIMER_CALLBACK_MEMBER(ns16550_device::timeout_expired)
 void ns16550_device::push_tx(u8 data)
 {
 	m_tfifo[m_thead] = data;
-	++m_thead &= 0x0f;
+	++m_thead &= (ins8250_uart_device::INS8250_TX_BUFFER_SIZE - 1);
 }
 
 u8 ns16550_device::pop_rx()
@@ -764,7 +764,7 @@ u8 ns16550_device::pop_rx()
 
 	if(m_rnum)
 	{
-		++m_rtail &= 0x0f;
+		++m_rtail &= (ins8250_uart_device::INS8250_RX_BUFFER_SIZE - 1);
 		m_rnum--;
 		if (m_rnum > 0 && m_efifo[m_rtail] != 0)
 		{
