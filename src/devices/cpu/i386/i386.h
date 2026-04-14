@@ -1698,6 +1698,20 @@ protected:
 };
 
 
+class p3celeron_device : public pentium_pro_device
+{
+public:
+	// construction/destruction
+	p3celeron_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+protected:
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+
+	virtual void opcode_cpuid() override;
+};
+
+
 class pentium4_device : public pentium_device
 {
 public:
@@ -1722,6 +1736,7 @@ DECLARE_DEVICE_TYPE(MEDIAGX,     mediagx_device)
 DECLARE_DEVICE_TYPE(PENTIUM_PRO, pentium_pro_device)
 DECLARE_DEVICE_TYPE(PENTIUM2,    pentium2_device)
 DECLARE_DEVICE_TYPE(PENTIUM3,    pentium3_device)
+DECLARE_DEVICE_TYPE(P3CELERON,   p3celeron_device)
 DECLARE_DEVICE_TYPE(PENTIUM4,    pentium4_device)
 
 #endif // MAME_CPU_I386_I386_H

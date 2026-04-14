@@ -56,6 +56,7 @@ DEFINE_DEVICE_TYPE(MEDIAGX,     mediagx_device,     "mediagx",     "Cyrix MediaG
 DEFINE_DEVICE_TYPE(PENTIUM_PRO, pentium_pro_device, "pentium_pro", "Intel Pentium Pro")
 DEFINE_DEVICE_TYPE(PENTIUM2,    pentium2_device,    "pentium2",    "Intel Pentium II")
 DEFINE_DEVICE_TYPE(PENTIUM3,    pentium3_device,    "pentium3",    "Intel Pentium III")
+DEFINE_DEVICE_TYPE(P3CELERON,   p3celeron_device,   "p3celeron",   "Intel Pentium III-based Celeron")
 DEFINE_DEVICE_TYPE(PENTIUM4,    pentium4_device,    "pentium4",    "Intel Pentium 4")
 
 
@@ -140,6 +141,13 @@ pentium2_device::pentium2_device(const machine_config &mconfig, const char *tag,
 
 pentium3_device::pentium3_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: pentium_pro_device(mconfig, PENTIUM3, tag, owner, clock)
+{
+	// 64 dtlb small, 8 dtlb large, 32 itlb small, 2 itlb large
+	set_vtlb_dynamic_entries(96);
+}
+
+p3celeron_device::p3celeron_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: pentium_pro_device(mconfig, P3CELERON, tag, owner, clock)
 {
 	// 64 dtlb small, 8 dtlb large, 32 itlb small, 2 itlb large
 	set_vtlb_dynamic_entries(96);
@@ -3442,6 +3450,98 @@ void pentium3_device::opcode_cpuid()
 			// NOTE: if this is triggered from an Arcade system then there's a very good chance
 			// that is trying to tie the serial as a form of copy protection cfr. gamecstl
 			LOGMASKED(LOG_MSR, "CPUID with EAX=00000003 (Pentium III PSN?) at %08x!\n", m_eip);
+			REG32(EAX) = 0x00000000;
+			REG32(EBX) = 0x00000000;
+			REG32(ECX) = 0x01234567;
+			REG32(EDX) = 0x89abcdef;
+			CYCLES(CYCLES_CPUID);
+			break;
+		}
+		default:
+			pentium_pro_device::opcode_cpuid();
+	}
+}
+
+/*****************************************************************************/
+/* Intel Celeron Pentium III */
+
+void p3celeron_device::device_start()
+{
+	i386_common_init();
+	register_state_i386_x87_xmm();
+
+	build_x87_opcode_table();
+	build_opcode_table(OP_I386 | OP_FPU | OP_I486 | OP_PENTIUM | OP_PPRO | OP_MMX | OP_SSE);
+	m_cycle_table_rm = cycle_table_rm[CPU_CYCLES_PENTIUM].get();  // TODO: generate own cycle tables
+	m_cycle_table_pm = cycle_table_pm[CPU_CYCLES_PENTIUM].get();  // TODO: generate own cycle tables
+}
+
+void p3celeron_device::device_reset()
+{
+	zero_state();
+
+	m_sreg[CS].selector = 0xf000;
+	m_sreg[CS].base     = 0xffff0000;
+	m_sreg[CS].limit    = 0xffff;
+	m_sreg[CS].flags    = 0x0093;
+
+	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
+	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
+	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+
+	m_idtr.base = 0;
+	m_idtr.limit = 0x3ff;
+
+	m_a20_mask = ~0;
+
+	m_cr[0] = 0x60000010;
+	m_eflags = 0x00200000;
+	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_eip = 0xfff0;
+	m_mxcsr = 0x1f80;
+	m_smm = false;
+	m_smi_latched = false;
+	m_smbase = 0x30000;
+	m_nmi_masked = false;
+	m_nmi_latched = false;
+
+	x87_reset();
+
+	// [11:8] Family
+	// [ 7:4] Model
+	// [ 3:0] Stepping ID
+	// Family 6, Model 8 (Pentium III / Coppermine)
+	REG32(EAX) = 0;
+	REG32(EDX) = (6 << 8) | (11 << 4) | (4);
+
+	m_cpuid_id0 = 0x756e6547;   // Genu
+	m_cpuid_id1 = 0x49656e69;   // ineI
+	m_cpuid_id2 = 0x6c65746e;   // ntel
+
+	m_cpuid_max_input_value_eax = 0x03;
+	m_cpu_version = REG32(EDX);
+
+	// [ 0:0] FPU on chip
+	// [ 4:4] Time Stamp Counter
+	// [ 8:8] CMPXCHG8B instruction
+	// [ D:D] PTE Global Bit
+	// [15:15] CMOV and FCMOV
+	// [18:18] PSN (Processor Serial Number, P3 only)
+	m_feature_flags = 0x0004a111;       // TODO: enable relevant flags here
+
+	CHANGE_PC(m_eip);
+}
+
+void p3celeron_device::opcode_cpuid()
+{
+	switch (REG32(EAX))
+	{
+		case 0x00000003:
+		{
+			// TODO: lower part of 96 bits s/n for Pentium III processors only (ditched in 4)
+			// (upper 32-bits part is in EAX=1 EAX return)
+			// NB: if this is triggered from an Arcade system then there's a very good chance
+			// that is trying to tie the serial as a form of copy protection cfr. gamecstl
 			REG32(EAX) = 0x00000000;
 			REG32(EBX) = 0x00000000;
 			REG32(ECX) = 0x01234567;
