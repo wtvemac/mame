@@ -147,7 +147,7 @@ private:
 	static constexpr uint32_t BIT_SYNC_CMJM  = (0x3ff << 10) | 0x00f;
 	static constexpr uint32_t BIT_SYNC_CJ    = 0x3ff;
 
-	static constexpr uint8_t  MAX_RX_BUFFER_SIZE   = 64;
+	static constexpr uint8_t  MAX_RX_BUFFER_SIZE  = 64;
 	static constexpr uint8_t  MAX_TX_BUFFER_SIZE  = 64;
 
 	static constexpr wtvsoftmodem_dsp::frequency_t V8_FREQ_TABLE[] = {
