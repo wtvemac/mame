@@ -70,8 +70,8 @@ private:
 
 	static constexpr uint16_t MAX_TX_BUFFER_SIZE = 256;
 	uint8_t tx_buffer[MAX_TX_BUFFER_SIZE];
-	uint8_t tx_buffer_size;
-	uint8_t tx_buffer_index;
+	uint16_t tx_buffer_size;
+	uint16_t tx_buffer_index;
 
 	void reset_rx();
 	virtual void push_rx_bit(bool bit) override;
