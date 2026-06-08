@@ -185,6 +185,42 @@ private:
 	uint32_t m_csr_membase;
 	uint32_t m_csr_iobase;
 
+	inline uint32_t dma_read_byte(offs_t addr)
+	{
+		return m_dma_space->read_byte(addr);
+	}
+
+	inline void dma_write_byte(offs_t addr, uint8_t data)
+	{
+		m_dma_space->write_byte(addr, data);
+	}
+
+	inline uint32_t dma_read_word(offs_t addr)
+	{
+		return m_dma_space->read_word(addr);
+	}
+
+	inline void dma_write_word(offs_t addr, uint16_t data)
+	{
+		m_dma_space->write_word(addr, data);
+	}
+
+	inline uint32_t dma_read_dword(offs_t addr)
+	{
+		uint32_t data;
+
+		data =  m_dma_space->read_word(addr + 0x00) << 0x00;
+		data |= m_dma_space->read_word(addr + 0x02) << 0x10;
+
+		return data;
+	}
+
+	inline void dma_write_dword(offs_t addr, uint32_t data)
+	{
+		m_dma_space->write_word(addr + 0x00, (data >> 0x00) & 0xffff);
+		m_dma_space->write_word(addr + 0x02, (data >> 0x10) & 0xffff);
+	}
+
 	// LAN Connect (PLC) is similar to Intel's AC97 AC-Link where we're talking to ICs that interface with the physical world.
 	
 	// Registers for the Intel 8256ET PHY
