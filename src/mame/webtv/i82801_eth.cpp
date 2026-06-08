@@ -769,7 +769,7 @@ void i82801_eth_device::csr_port_w(uint32_t data)
 			break;
 
 		case i82801_eth_device::PORT_FUNC_SELF_TEST:
-			m_dma_space->write_dword(port_pointer, i82801_eth_device::PORT_SELF_TEST_GOOD);
+			i82801_eth_device::dma_write_dword(port_pointer, i82801_eth_device::PORT_SELF_TEST_GOOD);
 			//i82801_eth_device::full_controller_reset();
 			m_csr_port = 0;
 			break;
@@ -930,7 +930,7 @@ void i82801_eth_device::csr_sts_w(uint8_t data)
 
 uint16_t i82801_eth_device::r16_advance(uint32_t* exc_addr)
 {
-	uint16_t data = m_dma_space->read_word(*exc_addr);
+	uint16_t data = i82801_eth_device::dma_read_word(*exc_addr);
 
 	*exc_addr += 2;
 
@@ -939,14 +939,14 @@ uint16_t i82801_eth_device::r16_advance(uint32_t* exc_addr)
 
 void i82801_eth_device::w16_advance(uint32_t* exc_addr, uint16_t data)
 {
-	m_dma_space->write_word(*exc_addr, data);
+	i82801_eth_device::dma_write_word(*exc_addr, data);
 
 	*exc_addr += 2;
 }
 
 uint32_t i82801_eth_device::r32_advance(uint32_t* exc_addr)
 {
-	uint32_t data = m_dma_space->read_dword(*exc_addr);
+	uint32_t data = i82801_eth_device::dma_read_dword(*exc_addr);
 
 	*exc_addr += 4;
 
@@ -955,27 +955,27 @@ uint32_t i82801_eth_device::r32_advance(uint32_t* exc_addr)
 
 void i82801_eth_device::w32_advance(uint32_t* exc_addr, uint32_t data)
 {
-	m_dma_space->write_dword(*exc_addr, data);
+	i82801_eth_device::dma_write_dword(*exc_addr, data);
 
 	*exc_addr += 4;
 }
 
 void i82801_eth_device::set_status(uint32_t* saddr, uint16_t status)
 {
-	uint16_t cur_status = m_dma_space->read_word(*saddr);
+	uint16_t cur_status = i82801_eth_device::dma_read_word(*saddr);
 
 	uint16_t new_status = (cur_status & (~i82801_eth_device::STATUS_WMASK)) | (status & i82801_eth_device::STATUS_WMASK);
 
-	m_dma_space->write_word(*saddr, new_status);
+	i82801_eth_device::dma_write_word(*saddr, new_status);
 }
 
 void i82801_eth_device::clear_status(uint32_t* saddr, uint16_t status)
 {
-	uint16_t cur_status = m_dma_space->read_word(*saddr);
+	uint16_t cur_status = i82801_eth_device::dma_read_word(*saddr);
 
 	uint16_t new_status = cur_status & (~(status & i82801_eth_device::STATUS_WMASK));
 
-	m_dma_space->write_word(*saddr, new_status);
+	i82801_eth_device::dma_write_word(*saddr, new_status);
 }
 
 uint16_t i82801_eth_device::copy_from_memory(uint8_t* buffer, uint32_t mem_addr, uint16_t length)
@@ -984,7 +984,7 @@ uint16_t i82801_eth_device::copy_from_memory(uint8_t* buffer, uint32_t mem_addr,
 
 	for(copied_length = 0; copied_length < length; copied_length++)
 	{
-		*buffer = m_dma_space->read_byte(mem_addr++);
+		*buffer = i82801_eth_device::dma_read_byte(mem_addr++);
 		buffer++;
 	}
 
@@ -997,7 +997,7 @@ uint16_t i82801_eth_device::copy_to_memory(uint8_t* buffer, uint32_t mem_addr, u
 
 	for(copied_length = 0; copied_length < length; copied_length++)
 	{
-		m_dma_space->write_byte(mem_addr++, *buffer);
+		i82801_eth_device::dma_write_byte(mem_addr++, *buffer);
 		buffer++;
 	}
 
@@ -1285,7 +1285,7 @@ void i82801_eth_device::cu_transmit(uint32_t commnd_word)
 		uint8_t tbd_idx = 0;
 		while(tbd_idx < tbd_count)
 		{
-			uint32_t txbuf_props = m_dma_space->read_dword(tbd_addr + 4);
+			uint32_t txbuf_props = i82801_eth_device::dma_read_dword(tbd_addr + 4);
 
 			uint16_t txbuf_size = (txbuf_props & i82801_eth_device::CU_TBD_BYTE_COUNT_MASK) >> i82801_eth_device::CU_TBD_BYTE_COUNT_SHIFT;
 
@@ -1300,7 +1300,7 @@ void i82801_eth_device::cu_transmit(uint32_t commnd_word)
 				continue;
 			}
 
-			uint32_t txbuf_addr = m_dma_space->read_dword(tbd_addr + 0);
+			uint32_t txbuf_addr = i82801_eth_device::dma_read_dword(tbd_addr + 0);
 
 			bool tbd_eol = (txbuf_props & i82801_eth_device::CU_TBD_EOL);
 
@@ -1401,7 +1401,7 @@ void i82801_eth_device::set_ru_state(ru_state_t state)
 
 void i82801_eth_device::set_rfd_buffer_props(uint32_t* saddr, uint16_t written_size, bool eof)
 {
-	uint32_t cur_bprops = m_dma_space->read_dword(*saddr + 12);
+	uint32_t cur_bprops = i82801_eth_device::dma_read_dword(*saddr + 12);
 
 	uint32_t new_bprops = 0x0000;
 
@@ -1413,7 +1413,7 @@ void i82801_eth_device::set_rfd_buffer_props(uint32_t* saddr, uint16_t written_s
 
 	new_bprops |= cur_bprops & (~i82801_eth_device::RU_RFD_BPROPS_WMASK);
 
-	m_dma_space->write_dword(*saddr + 12, new_bprops);
+	i82801_eth_device::dma_write_dword(*saddr + 12, new_bprops);
 }
 
 void i82801_eth_device::ru_set_next_addr(uint32_t offset_addr)
