@@ -531,8 +531,8 @@ private:
 	static constexpr uint16_t CU_CBL_COMMAND_INT       = 1 << 13;
 	static constexpr uint16_t CU_CBL_COMMAND_CID_SHIFT = 8;
 	static constexpr uint16_t CU_CBL_COMMAND_CID_MASK  = 0x1f << i82801_eth_device::CU_CBL_COMMAND_CID_SHIFT;
-	static constexpr uint16_t CU_CBL_COMMAND_RAW       = 1 << 5;
-	static constexpr uint16_t CU_CBL_COMMAND_FLEX_MODE = 1 << 4;
+	static constexpr uint16_t CU_CBL_COMMAND_RAW       = 1 << 4;
+	static constexpr uint16_t CU_CBL_COMMAND_FLEX_MODE = 1 << 3;
 	static constexpr uint16_t CU_CBL_COMMAND_OP_SHIFT  = 0;
 	static constexpr uint16_t CU_CBL_COMMAND_OP_MASK   = 0x07 << i82801_eth_device::CU_CBL_COMMAND_OP_SHIFT;
 
