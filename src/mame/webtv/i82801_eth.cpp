@@ -1329,18 +1329,17 @@ void i82801_eth_device::cu_transmit(uint32_t commnd_word)
 
 	if(m_cu_frame_len >= i82801_eth_device::MIN_FRAME_SIZE)
 	{
-		bool insert_mac = !(m_configuration.nasi() || (commnd_word & CU_CBL_COMMAND_RAW));
-		bool insert_crc = !(commnd_word & CU_CBL_COMMAND_RAW);
-
-		if(insert_mac)
+		// The transmit command requests insertion of the source MAC and CRC (if CU_CBL_COMMAND_RAW bit isn't set or NC in the docs)
+		if(!(commnd_word & CU_CBL_COMMAND_RAW))
 		{
-			const std::array<u8, 6> &mac = get_mac();
+			// The source MAC is set if No Source Address Insertion (NASI) is unset
+			if(!m_configuration.nasi())
+			{
+				const std::array<u8, 6> &mac = get_mac();
 
-			std::copy_n(std::begin(mac), std::size(mac), std::begin(m_cu_frame) + 6);
-		}
+				std::copy_n(std::begin(mac), std::size(mac), std::begin(m_cu_frame) + 6);
+			}
 
-		if(insert_crc)
-		{
 			uint32_t crc = util::crc32_creator::simple(m_cu_frame, m_cu_frame_len);
 
 			put_u32le(&m_cu_frame[(m_cu_frame_len & (i82801_eth_device::MAX_FRAME_SIZE - 1)) - 4], crc);
@@ -1348,7 +1347,7 @@ void i82801_eth_device::cu_transmit(uint32_t commnd_word)
 
 		m_counters.tx_cnt++;
 
-		send(&m_cu_frame[0], m_cu_frame_len);
+		send(&m_cu_frame[0], m_cu_frame_len & (i82801_eth_device::MAX_FRAME_SIZE - 1));
 
 		uint16_t status = i82801_eth_device::CU_CBL_STATUS_COMPLETE | i82801_eth_device::CU_CBL_STATUS_OK;
 		i82801_eth_device::set_status(&m_cbl_cblk_addr, status);
