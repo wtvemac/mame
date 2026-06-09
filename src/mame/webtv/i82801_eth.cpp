@@ -1342,7 +1342,8 @@ void i82801_eth_device::cu_transmit(uint32_t commnd_word)
 
 			uint32_t crc = util::crc32_creator::simple(m_cu_frame, m_cu_frame_len);
 
-			put_u32le(&m_cu_frame[(m_cu_frame_len & (i82801_eth_device::MAX_FRAME_SIZE - 1)) - 4], crc);
+			put_u32le(&m_cu_frame[(m_cu_frame_len & (i82801_eth_device::MAX_FRAME_SIZE - 1))], crc);
+			m_cu_frame_len += 4;
 		}
 
 		m_counters.tx_cnt++;
