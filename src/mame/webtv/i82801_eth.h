@@ -338,9 +338,12 @@ private:
 	bool m_default_link_state;
 
 	static constexpr uint32_t MAX_FRAME_SIZE = 0x10000;
-	static constexpr uint32_t MIN_FRAME_SIZE = 6 + 6 + 2 + 4;
+	static constexpr uint32_t MAC_SIZE       = 6;
+	static constexpr uint32_t MIN_FRAME_SIZE = (i82801_eth_device::MAC_SIZE * 2) + 2 + 4;
 
 	static constexpr uint32_t NULL_POINTER = 0xffffffff;
+
+	static constexpr uint8_t BROADCAST_MAC[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 	static constexpr uint8_t CU_CONFIG_MIN_SIZE = 0x04;
 	static constexpr uint8_t CU_CONFIG_MAX_SIZE = 0x16;
@@ -348,8 +351,10 @@ private:
 	{
 		uint8_t data[i82801_eth_device::CU_CONFIG_MAX_SIZE];
 
-		uint8_t size() const { return std::clamp((uint8_t)(data[0] & 0x3f), i82801_eth_device::CU_CONFIG_MIN_SIZE, i82801_eth_device::CU_CONFIG_MAX_SIZE); }
-		bool    nasi() const { return (data[10] & 0x08); }
+		uint8_t size()              const { return std::clamp((uint8_t)(data[0] & 0x3f), i82801_eth_device::CU_CONFIG_MIN_SIZE, i82801_eth_device::CU_CONFIG_MAX_SIZE); }
+		bool    nasi()              const { return (data[10] & 0x08); }
+		bool    promiscuous_mode()  const { return (data[15] & 0x01); }
+		bool    broadcast_disable() const { return (data[15] & 0x02); }
 
 	} eth_configuration_t;
 	eth_configuration_t m_configuration;
@@ -762,6 +767,7 @@ private:
 	void set_ru_state(ru_state_t state);
 	void set_rfd_buffer_props(uint32_t* saddr, uint16_t actual_size, bool eof);
 	void ru_set_next_addr(uint32_t offset_addr);
+	bool ru_can_process_frame(uint8_t *frame, int frame_len);
 	void ru_execute_wait();
 	void ru_execute_next();
 	void ru_execute_pause();
