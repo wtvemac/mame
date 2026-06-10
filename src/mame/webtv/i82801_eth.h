@@ -345,6 +345,11 @@ private:
 
 	static constexpr uint8_t BROADCAST_MAC[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
+	static constexpr uint8_t MAC_MULTICAST_MSB = 0x01;
+
+	uint64_t m_mutlicast_table;
+	uint64_t m_otheria_table;
+
 	static constexpr uint8_t CU_CONFIG_MIN_SIZE = 0x04;
 	static constexpr uint8_t CU_CONFIG_MAX_SIZE = 0x16;
 	typedef struct eth_configuration
@@ -355,6 +360,8 @@ private:
 		bool    nasi()              const { return (data[10] & 0x08); }
 		bool    promiscuous_mode()  const { return (data[15] & 0x01); }
 		bool    broadcast_disable() const { return (data[15] & 0x02); }
+		bool    multiple_ia()       const { return (data[20] & 0x40); }
+		bool    all_multicast()     const { return (data[21] & 0x08); }
 
 	} eth_configuration_t;
 	eth_configuration_t m_configuration;
@@ -745,6 +752,8 @@ private:
 	void clear_status(uint32_t* saddr, uint16_t status);
 	uint16_t copy_from_memory(uint8_t* buffer, uint32_t mem_addr, uint16_t length);
 	uint16_t copy_to_memory(uint8_t* buffer, uint32_t mem_addr, uint16_t length);
+	uint64_t get_mac_table_value(uint8_t* mac);
+	bool is_mac_multicast(uint8_t* mac);
 
 	cu_state_t get_cu_state();
 	void set_cu_state(cu_state_t state);
