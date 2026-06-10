@@ -1244,17 +1244,15 @@ TIMER_CALLBACK_MEMBER(i82801_eth_device::cu_cbl_execute)
 
 void i82801_eth_device::cu_iasetup(uint32_t commnd_word)
 {
-	uint8_t mac[6];
+	std::array<uint8_t, i82801_eth_device::MAC_SIZE> mac;
 
-	uint32_t ia0 = i82801_eth_device::r32_advance(&m_cbl_cexc_addr);
-	put_u32le(&mac[0], ia0);
-
-	uint32_t ia1 = i82801_eth_device::r32_advance(&m_cbl_cexc_addr);
-	put_u16le(&mac[4], ia1 & 0xffff);
+	put_u16le(&mac[0], i82801_eth_device::r16_advance(&m_cbl_cexc_addr));
+	put_u16le(&mac[2], i82801_eth_device::r16_advance(&m_cbl_cexc_addr));
+	put_u16le(&mac[4], i82801_eth_device::r16_advance(&m_cbl_cexc_addr));
 
 	logerror("set MAC address to %02x:%02x:%02x:%02x:%02x:%02x\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-	set_mac(mac);
+	set_mac(&mac[0]);
 
 	uint16_t status = i82801_eth_device::CU_CBL_STATUS_COMPLETE | i82801_eth_device::CU_CBL_STATUS_OK;
 	i82801_eth_device::set_status(&m_cbl_cblk_addr, status);
@@ -1373,9 +1371,9 @@ void i82801_eth_device::cu_transmit(uint32_t commnd_word)
 			// The source MAC is set if No Source Address Insertion (NASI) is unset
 			if(!m_configuration.nasi())
 			{
-				const std::array<u8, 6> &mac = get_mac();
+				const std::array<uint8_t, i82801_eth_device::MAC_SIZE> &mac = get_mac();
 
-				std::copy_n(std::begin(mac), std::size(mac), std::begin(m_cu_frame) + 6);
+				std::copy_n(std::begin(mac), std::size(mac), std::begin(m_cu_frame) + i82801_eth_device::MAC_SIZE);
 			}
 
 			uint32_t crc = util::crc32_creator::simple(m_cu_frame, m_cu_frame_len);
