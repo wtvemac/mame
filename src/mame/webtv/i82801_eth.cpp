@@ -1288,15 +1288,11 @@ void i82801_eth_device::cu_mcsetup(uint32_t commnd_word)
 
 void i82801_eth_device::cu_configure(uint32_t commnd_word)
 {
-	uint32_t config0 = i82801_eth_device::r32_advance(&m_cbl_cexc_addr);
-	put_u32le(&m_configuration.data[0], config0);
+	m_configuration.data[0] = i82801_eth_device::dma_read_byte(m_cbl_cexc_addr++);
 
-	uint8_t size = m_configuration.size() >> 2;
-	for(uint8_t bidx = 1, cidx = 4; bidx < size; bidx++, cidx += 4)
-	{
-		uint32_t config = i82801_eth_device::r32_advance(&m_cbl_cexc_addr);
-		put_u32le(&m_configuration.data[cidx], config);
-	}
+	uint8_t size = m_configuration.size();
+	for(uint8_t bidx = 1; bidx < size; bidx++)
+		m_configuration.data[bidx] = i82801_eth_device::dma_read_byte(m_cbl_cexc_addr++);
 
 	uint16_t status = i82801_eth_device::CU_CBL_STATUS_COMPLETE | i82801_eth_device::CU_CBL_STATUS_OK;
 	i82801_eth_device::set_status(&m_cbl_cblk_addr, status);
