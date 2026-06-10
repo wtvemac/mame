@@ -608,6 +608,8 @@ void i82801_eth_device::full_controller_reset()
 	i82801_eth_device::cu_execute_stop();
 	i82801_eth_device::ru_execute_stop();
 
+	set_mac(i82801_eth_device::BROADCAST_MAC);
+
 	if(link_established)
 		i82801_eth_device::set_link_state(true);
 }
@@ -1424,6 +1426,41 @@ void i82801_eth_device::ru_set_next_addr(uint32_t offset_addr)
 		m_rfd_nfrm_addr = i82801_eth_device::NULL_POINTER;
 }
 
+bool i82801_eth_device::ru_can_process_frame(uint8_t *frame, int frame_len)
+{
+	if(frame_len >= i82801_eth_device::MIN_FRAME_SIZE && frame_len < i82801_eth_device::MAX_FRAME_SIZE)
+	{
+		// Allow any frames to enter.
+		if(m_configuration.promiscuous_mode())
+		{
+			return true;
+		}
+		// The first 6 bytes of *frame is the destination MAC address.
+		// Allow frame to pass if the destination is the broadcast MAC address (ff:ff:ff:ff:ff:ff)
+		// and broadcast MAC matching isn't disabled.
+		else if(std::memcmp(frame, i82801_eth_device::BROADCAST_MAC, i82801_eth_device::MAC_SIZE) == 0)
+		{
+			return !(m_configuration.broadcast_disable());
+		}
+		// Allow frame to pass if the destination is the individual address (the device's MAC)
+		// The OS usually uses the first 6 bytes of the ethernet EEPROM as the individual address.
+		// NOTE: the default individual address is the broadcast MAC until it's configured.
+		else if(std::memcmp(frame, &get_mac()[0], i82801_eth_device::MAC_SIZE) == 0)
+		{
+			return true;
+		}
+		else
+		{
+			// Multicast and multiple IA check needs to be here.
+			return false;
+		}
+	}
+	else
+	{
+		return false;
+	}
+}
+
 void i82801_eth_device::ru_execute_wait()
 {
 	ru_state_t state;
@@ -1632,25 +1669,21 @@ void i82801_eth_device::set_irq(uint32_t mask, int state)
 
 int i82801_eth_device::recv_start_cb(uint8_t *frame, int frame_len)
 {
-
 	if(m_ru_state == ru_state_t::RU_READY)
 	{
-		if(frame_len > 0)
+		if(i82801_eth_device::ru_can_process_frame(frame, frame_len))
 		{
-			if(frame_len < i82801_eth_device::MAX_FRAME_SIZE)
-			{
-				i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_EARLY_RECV_INT, ASSERT_LINE);
+			i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_EARLY_RECV_INT, ASSERT_LINE);
 
-				m_ru_frame_len = frame_len;
+			m_ru_frame_len = frame_len;
 
-				std::copy_n(frame, m_ru_frame_len, std::begin(m_ru_frame));
+			std::copy_n(frame, m_ru_frame_len, std::begin(m_ru_frame));
 
-				i82801_eth_device::ru_execute_next();
+			i82801_eth_device::ru_execute_next();
 
-				m_counters.rx_cnt++;
+			m_counters.rx_cnt++;
 
-				return m_ru_frame_len;
-			}
+			return m_ru_frame_len;
 		}
 	}
 
