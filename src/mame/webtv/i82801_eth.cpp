@@ -600,6 +600,8 @@ void i82801_eth_device::full_controller_reset()
 	m_csr_cntl = 0x00;
 	m_csr_sts = 0x00;
 	m_pm_csr = 0x0000;
+	m_mutlicast_table = 0x0000000000000000;
+	m_otheria_table = 0x0000000000000000;
 
 	std::fill(std::begin(m_configuration.data), std::end(m_configuration.data), 0x00);
 
@@ -1006,6 +1008,18 @@ uint16_t i82801_eth_device::copy_to_memory(uint8_t* buffer, uint32_t mem_addr, u
 	return copied_length;
 }
 
+uint64_t i82801_eth_device::get_mac_table_value(uint8_t* mac)
+{
+	uint32_t crc = util::crc32_creator::simple(mac, i82801_eth_device::MAC_SIZE);
+
+	return (uint64_t)1 << ((crc >> 2) & 0x3f);
+}
+
+bool i82801_eth_device::is_mac_multicast(uint8_t* mac)
+{
+	return mac[0] & i82801_eth_device::MAC_MULTICAST_MSB;
+}
+
 i82801_eth_device::cu_state_t i82801_eth_device::get_cu_state()
 {
 	return m_cu_state;
@@ -1248,6 +1262,28 @@ void i82801_eth_device::cu_iasetup(uint32_t commnd_word)
 
 void i82801_eth_device::cu_mcsetup(uint32_t commnd_word)
 {
+	uint32_t payload_length = i82801_eth_device::r32_advance(&m_cbl_cexc_addr) & 0x7fff;
+
+	while(payload_length > i82801_eth_device::MAC_SIZE)
+	{
+		std::array<uint8_t, i82801_eth_device::MAC_SIZE> mac;
+
+		put_u16le(&mac[0], i82801_eth_device::r16_advance(&m_cbl_cexc_addr));
+		put_u16le(&mac[2], i82801_eth_device::r16_advance(&m_cbl_cexc_addr));
+		put_u16le(&mac[4], i82801_eth_device::r16_advance(&m_cbl_cexc_addr));
+
+		if(i82801_eth_device::is_mac_multicast(&mac[0]))
+		{
+			m_mutlicast_table |= i82801_eth_device::get_mac_table_value(&mac[0]);
+		}
+		else if(m_configuration.multiple_ia())
+		{
+			m_otheria_table |= i82801_eth_device::get_mac_table_value(&mac[0]);
+		}
+
+		payload_length -= i82801_eth_device::MAC_SIZE;
+	}
+
 	uint16_t status = i82801_eth_device::CU_CBL_STATUS_COMPLETE | i82801_eth_device::CU_CBL_STATUS_OK;
 	i82801_eth_device::set_status(&m_cbl_cblk_addr, status);
 }
@@ -1449,16 +1485,20 @@ bool i82801_eth_device::ru_can_process_frame(uint8_t *frame, int frame_len)
 		{
 			return true;
 		}
-		else
+		// Allow multicast frames if the destination is in our configured table or we allow any multicast destination.
+		else if(i82801_eth_device::is_mac_multicast(frame))
 		{
-			// Multicast and multiple IA check needs to be here.
-			return false;
+			return (m_configuration.all_multicast() || (m_mutlicast_table & i82801_eth_device::get_mac_table_value(frame)));
+		}
+		// If multiple individual addresses are allowed then check if destination is in our configured other individual address table.
+		else if(m_configuration.multiple_ia())
+		{
+			return (m_otheria_table & i82801_eth_device::get_mac_table_value(frame));
 		}
 	}
-	else
-	{
-		return false;
-	}
+
+	// Otherwise say we shouldn't process this frame by default.
+	return false;
 }
 
 void i82801_eth_device::ru_execute_wait()
