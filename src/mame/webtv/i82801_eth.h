@@ -477,7 +477,7 @@ private:
 	uint32_t m_csr_scb_genptr;
 	uint32_t m_csr_scp_dmpptr;
 	uint32_t m_csr_port;
-	uint32_t m_csr_dma_bytecnt;
+	uint32_t m_csr_recvdma_bytecnt;
 	uint8_t m_csr_early_recvint;
 	uint16_t m_csr_flow_cntl;
 	uint8_t m_csr_pmdr;
@@ -730,7 +730,6 @@ private:
 	uint32_t csr_mdi_cntl_r();
 	void csr_mdi_cntl_w(uint32_t data);
 	uint32_t csr_dma_bytecnt_r();
-	void csr_dma_bytecnt_w(uint32_t data);
 	uint8_t csr_early_recvint_r();
 	void csr_early_recvint_w(uint8_t data);
 	uint8_t csr_flow_cntl_high_r();
