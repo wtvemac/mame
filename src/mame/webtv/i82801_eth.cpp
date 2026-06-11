@@ -594,7 +594,7 @@ void i82801_eth_device::full_controller_reset()
 	m_csr_port = 0x00000000;
 	m_csr_mdi_cntl = i82801_eth_device::MDI_READY;
 	m_csr_recvdma_bytecnt = 0x00000000;
-	m_csr_early_recvint = 0x00;
+	m_csr_erint_bytecnt = 0x00;
 	m_csr_flow_cntl = 0x0000;
 	m_csr_pmdr = 0x00;
 	m_csr_cntl = 0x00;
@@ -862,12 +862,12 @@ uint32_t i82801_eth_device::csr_dma_bytecnt_r()
 
 uint8_t i82801_eth_device::csr_early_recvint_r()
 {
-	return m_csr_early_recvint;
+	return m_csr_erint_bytecnt;
 }
 
 void i82801_eth_device::csr_early_recvint_w(uint8_t data)
 {
-	m_csr_early_recvint = data;
+	m_csr_erint_bytecnt = data;
 }
 
 uint8_t i82801_eth_device::csr_flow_cntl_high_r()
@@ -1643,6 +1643,9 @@ TIMER_CALLBACK_MEMBER(i82801_eth_device::ru_rfd_execute)
 
 	m_csr_recvdma_bytecnt += written_size;
 
+	if(m_csr_erint_bytecnt > 0 && written_size >= m_csr_erint_bytecnt)
+		i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_EARLY_RECV_INT, ASSERT_LINE);
+
 	bool eof = m_ru_frame_idx >= m_ru_frame_len;
 
 	if(!eof && (next_offset == i82801_eth_device::NULL_POINTER || buffer_size == 0))
@@ -1704,8 +1707,6 @@ int i82801_eth_device::recv_start_cb(uint8_t *frame, int frame_len)
 	{
 		if(i82801_eth_device::ru_can_process_frame(frame, frame_len))
 		{
-			i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_EARLY_RECV_INT, ASSERT_LINE);
-
 			m_ru_frame_len = frame_len;
 
 			std::copy_n(frame, m_ru_frame_len, std::begin(m_ru_frame));

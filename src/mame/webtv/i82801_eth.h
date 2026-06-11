@@ -478,7 +478,7 @@ private:
 	uint32_t m_csr_scp_dmpptr;
 	uint32_t m_csr_port;
 	uint32_t m_csr_recvdma_bytecnt;
-	uint8_t m_csr_early_recvint;
+	uint8_t m_csr_erint_bytecnt;
 	uint16_t m_csr_flow_cntl;
 	uint8_t m_csr_pmdr;
 	uint8_t m_csr_cntl;
