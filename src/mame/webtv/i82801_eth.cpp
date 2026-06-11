@@ -593,7 +593,7 @@ void i82801_eth_device::full_controller_reset()
 	m_csr_scb_genptr = 0x00000000;
 	m_csr_port = 0x00000000;
 	m_csr_mdi_cntl = i82801_eth_device::MDI_READY;
-	m_csr_dma_bytecnt = 0x00000000;
+	m_csr_recvdma_bytecnt = 0x00000000;
 	m_csr_early_recvint = 0x00;
 	m_csr_flow_cntl = 0x0000;
 	m_csr_pmdr = 0x00;
@@ -699,7 +699,7 @@ void i82801_eth_device::csr_map(address_map &map)
 	map(0x08, 0x0b).rw(FUNC(i82801_eth_device::csr_port_r), FUNC(i82801_eth_device::csr_port_w));
 	map(0x0e, 0x0e).rw(FUNC(i82801_eth_device::csr_eeprom_cntl_r), FUNC(i82801_eth_device::csr_eeprom_cntl_w));
 	map(0x10, 0x13).rw(FUNC(i82801_eth_device::csr_mdi_cntl_r), FUNC(i82801_eth_device::csr_mdi_cntl_w));
-	map(0x14, 0x17).rw(FUNC(i82801_eth_device::csr_dma_bytecnt_r), FUNC(i82801_eth_device::csr_dma_bytecnt_w));
+	map(0x14, 0x17).r(FUNC(i82801_eth_device::csr_dma_bytecnt_r));
 	map(0x18, 0x18).rw(FUNC(i82801_eth_device::csr_early_recvint_r), FUNC(i82801_eth_device::csr_early_recvint_w));
 	map(0x19, 0x19).rw(FUNC(i82801_eth_device::csr_flow_cntl_high_r), FUNC(i82801_eth_device::csr_flow_cntl_high_w));
 	map(0x1a, 0x1a).rw(FUNC(i82801_eth_device::csr_flow_cntl_low_r), FUNC(i82801_eth_device::csr_flow_cntl_low_w));
@@ -857,12 +857,7 @@ void i82801_eth_device::csr_mdi_cntl_w(uint32_t data)
 
 uint32_t i82801_eth_device::csr_dma_bytecnt_r()
 {
-	return m_csr_dma_bytecnt;
-}
-
-void i82801_eth_device::csr_dma_bytecnt_w(uint32_t data)
-{
-	m_csr_dma_bytecnt = data;
+	return m_csr_recvdma_bytecnt;
 }
 
 uint8_t i82801_eth_device::csr_early_recvint_r()
@@ -1645,6 +1640,8 @@ TIMER_CALLBACK_MEMBER(i82801_eth_device::ru_rfd_execute)
 	written_size = i82801_eth_device::copy_to_memory(&m_ru_frame[m_ru_frame_idx & (i82801_eth_device::MAX_FRAME_SIZE - 1)], m_rfd_cexc_addr, write_size);
 
 	m_ru_frame_idx += written_size;
+
+	m_csr_recvdma_bytecnt += written_size;
 
 	bool eof = m_ru_frame_idx >= m_ru_frame_len;
 
