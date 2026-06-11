@@ -819,6 +819,8 @@ void i82801_eth_device::csr_mdi_cntl_w(uint32_t data)
 
 	uint8_t opcode = (data & i82801_eth_device::MDI_OPCODE_MASK) >> i82801_eth_device::MDI_OPCODE_SHIFT;
 
+	bool executed = false;
+
 	switch(opcode)
 	{
 		case mdi_cmd_t::MDI_WRITE:
@@ -829,8 +831,7 @@ void i82801_eth_device::csr_mdi_cntl_w(uint32_t data)
 
 			i82801_eth_device::phy_state_write(phy_offset, reg_offset, write_data);
 
-			data |= i82801_eth_device::MDI_READY;
-			i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_MDI_INT, ASSERT_LINE);
+			executed = true;
 			break;
 		}
 
@@ -843,13 +844,19 @@ void i82801_eth_device::csr_mdi_cntl_w(uint32_t data)
 			data &= (~i82801_eth_device::MDI_DATA_MASK);
 			data |= ((read_data << i82801_eth_device::MDI_DATA_SHIFT) & i82801_eth_device::MDI_DATA_MASK);
 
-			data |= i82801_eth_device::MDI_READY;
-			i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_MDI_INT, ASSERT_LINE);
+			executed = true;
 			break;
 		}
 
 		default:
 			break;
+	}
+
+	if(executed)
+	{
+		data |= i82801_eth_device::MDI_READY;
+		if(m_csr_mdi_cntl & i82801_eth_device::MDI_INT_EN)
+			i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_MDI_INT, ASSERT_LINE);
 	}
 
 	m_csr_mdi_cntl = data;
