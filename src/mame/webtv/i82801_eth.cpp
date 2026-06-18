@@ -1228,14 +1228,7 @@ TIMER_CALLBACK_MEMBER(i82801_eth_device::cu_cbl_execute)
 
 	if(went_inactive)
 	{
-		if(hpq_active && m_cbl_lpq_nblk_addr != i82801_eth_device::NULL_POINTER)
-		{
-			i82801_eth_device::cu_execute_next(cu_state_t::CU_LPQ_ACTIVE);
-		}
-		else
-		{
-			i82801_eth_device::delayed_irq_assert(i82801_eth_device::SCB_STATUS_CU_NA_INT, i82801_eth_device::PENDING_IRQ_RATE);
-		}
+		i82801_eth_device::delayed_irq_assert(i82801_eth_device::SCB_STATUS_CU_NA_INT, i82801_eth_device::PENDING_IRQ_RATE);
 	}
 	else
 	{
