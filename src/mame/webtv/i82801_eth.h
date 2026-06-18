@@ -499,6 +499,11 @@ private:
 	static constexpr uint16_t SCB_STATUS_RU_MASK         = 0x0f << i82801_eth_device::SCB_STATUS_RU_SHIFT;
 
 	uint16_t m_csr_scb_sts;
+	uint16_t m_pending_irq_mask;
+
+	const attotime PENDING_IRQ_RATE = attotime::from_usec(10000);
+	emu_timer* m_await_irq_timer;
+	TIMER_CALLBACK_MEMBER(assert_pending_irq);
 
 	static constexpr uint16_t SCB_CNTL_CU_DONE_INT_MASK     = 1 << 15; // CX
 	static constexpr uint16_t SCB_CNTL_RU_DONE_INT_MASK     = 1 << 14; // FR
@@ -783,6 +788,7 @@ private:
 	void ru_complete();
 	void ru_scb_execute();
 
+	void delayed_irq_assert(uint32_t mask, attotime wait);
 	void set_irq(uint32_t mask, int state);
 
 };

@@ -342,6 +342,7 @@ void i82801_eth_device::device_start()
 
 	m_cu_action_timer = timer_alloc(FUNC(i82801_eth_device::cu_cbl_execute), this);
 	m_ru_action_timer = timer_alloc(FUNC(i82801_eth_device::ru_rfd_execute), this);
+	m_await_irq_timer = timer_alloc(FUNC(i82801_eth_device::assert_pending_irq), this);
 }
 
 void i82801_eth_device::device_reset()
@@ -589,6 +590,7 @@ void i82801_eth_device::full_controller_reset()
 	// subsystem_id set from eeprom
 
 	m_csr_scb_sts = 0x0000;
+	m_pending_irq_mask = 0x0000;
 	m_csr_scb_cmd = 0x0000;
 	m_csr_scb_genptr = 0x00000000;
 	m_csr_port = 0x00000000;
@@ -1201,7 +1203,7 @@ TIMER_CALLBACK_MEMBER(i82801_eth_device::cu_cbl_execute)
 	}
 
 	if(commnd_word & i82801_eth_device::CU_CBL_COMMAND_INT)
-		i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_CU_DONE_INT, ASSERT_LINE);
+		i82801_eth_device::delayed_irq_assert(i82801_eth_device::SCB_STATUS_CU_DONE_INT, i82801_eth_device::PENDING_IRQ_RATE);
 
 	bool went_inactive = false;
 
@@ -1232,7 +1234,7 @@ TIMER_CALLBACK_MEMBER(i82801_eth_device::cu_cbl_execute)
 		}
 		else
 		{
-			i82801_eth_device::set_irq(i82801_eth_device::SCB_STATUS_CU_NA_INT, ASSERT_LINE);
+			i82801_eth_device::delayed_irq_assert(i82801_eth_device::SCB_STATUS_CU_NA_INT, i82801_eth_device::PENDING_IRQ_RATE);
 		}
 	}
 	else
@@ -1674,6 +1676,25 @@ TIMER_CALLBACK_MEMBER(i82801_eth_device::ru_rfd_execute)
 		i82801_eth_device::ru_execute_next();
 	else
 		i82801_eth_device::ru_complete();
+}
+
+void i82801_eth_device::delayed_irq_assert(uint32_t mask, attotime wait)
+{
+	m_pending_irq_mask |= mask;
+
+	m_await_irq_timer->enable(true);
+	m_await_irq_timer->adjust(i82801_eth_device::PENDING_IRQ_RATE);
+}
+
+TIMER_CALLBACK_MEMBER(i82801_eth_device::assert_pending_irq)
+{
+	if(m_pending_irq_mask != 0x0000)
+		i82801_eth_device::set_irq(m_pending_irq_mask, ASSERT_LINE);
+
+	m_pending_irq_mask = 0x0000;
+
+	m_await_irq_timer->enable(false);
+	m_await_irq_timer->reset();
 }
 
 void i82801_eth_device::set_irq(uint32_t mask, int state)
