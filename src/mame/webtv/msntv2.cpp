@@ -205,7 +205,7 @@ void msntv2_state::configure_ethernet(device_t *device)
 	auto &eth = *downcast<i82801_eth_device *>(device);
 	eth.set_ids(0x8086103a, 0x82, device_class, 0x00000000);
 	eth.set_busmaster_tag(":maincpu", AS_PROGRAM);
-	eth.set_connected_pirq(i82801_lpc_device::INT_PIN_A, i82801_lpc_device::PIRQ_SELECT_A);
+	eth.set_connected_pirq(i82801_lpc_device::INT_PIN_A, i82801_lpc_device::PIRQ_SELECT_E);
 	eth.pirq_callback().set(":pci:1f.0", FUNC(i82801_lpc_device::pirq_w));
 	eth.set_default_link_state(true);
 }
