@@ -1685,24 +1685,30 @@ void i82801_eth_device::set_irq(uint32_t mask, int state)
 
 	bool irq_enabled = false;
 
-	if(mask & i82801_eth_device::SCB_STATUS_CU_DONE_INT)
-		irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_CU_DONE_INT_MASK);
-	if(mask & i82801_eth_device::SCB_STATUS_RU_DONE_INT)
-		irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_RU_DONE_INT_MASK);
-	if(mask & i82801_eth_device::SCB_STATUS_CU_NA_INT)
-		irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_CU_NA_INT_MASK);
-	if(mask & i82801_eth_device::SCB_STATUS_RU_NR_INT)
-		irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_RU_NR_INT_MASK);
-	if(mask & i82801_eth_device::SCB_STATUS_MDI_INT)
-		irq_enabled |= (m_csr_mdi_cntl & MDI_INT_EN);
-	if(mask & i82801_eth_device::SCB_STATUS_SW_INT)
-		irq_enabled |= true;
-	if(mask & i82801_eth_device::SCB_STATUS_EARLY_RECV_INT)
-		irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_EARLY_RECV_INT_MASK);
-	if(mask & i82801_eth_device::SCB_STATUS_FCNTL_PAUSE_INT)
-		irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_FCNTL_PAUSE_INT_MASK);
+	if(state == ASSERT_LINE)
+	{
+		if(mask & i82801_eth_device::SCB_STATUS_CU_DONE_INT)
+			irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_CU_DONE_INT_MASK);
+		if(mask & i82801_eth_device::SCB_STATUS_RU_DONE_INT)
+			irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_RU_DONE_INT_MASK);
+		if(mask & i82801_eth_device::SCB_STATUS_CU_NA_INT)
+			irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_CU_NA_INT_MASK);
+		if(mask & i82801_eth_device::SCB_STATUS_RU_NR_INT)
+			irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_RU_NR_INT_MASK);
+		if(mask & i82801_eth_device::SCB_STATUS_MDI_INT)
+			irq_enabled |= (m_csr_mdi_cntl & MDI_INT_EN);
+		if(mask & i82801_eth_device::SCB_STATUS_SW_INT)
+			irq_enabled |= true;
+		if(mask & i82801_eth_device::SCB_STATUS_EARLY_RECV_INT)
+			irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_EARLY_RECV_INT_MASK);
+		if(mask & i82801_eth_device::SCB_STATUS_FCNTL_PAUSE_INT)
+			irq_enabled |= !(m_csr_scb_cmd & SCB_CNTL_FCNTL_PAUSE_INT_MASK);
 
-	irq_enabled &= !(m_csr_scb_cmd & SCB_CNTL_INTA_DISABLE);
+		irq_enabled &= !(m_csr_scb_cmd & SCB_CNTL_INTA_DISABLE);
+
+	} else {
+		irq_enabled = true;
+	}
 
 	if (irq_enabled)
 		m_pirq_cb(m_pirq_pin, state);
