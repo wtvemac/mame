@@ -1355,11 +1355,14 @@ void i82801_eth_device::cu_transmit(uint32_t commnd_word)
 		// The Intel ethernet driver on Windows CE sometimes adds blank padding bytes to the begining of the frame.
 		// This messes with sending the frame in MAME. It seems to always be 16 bytes so this tries to detect that and skip those bytes.
 		// At the moment I don't know of anything that's documented which explains this. It doesn't appear to be the SF bit or anything in the CONFIGURATION table.
-		if(copied_length > 16)
+		if(copied_length > 28)
 		{
-			bool trim_start = std::all_of(std::begin(m_cu_frame), std::begin(m_cu_frame) + 16, [](uint8_t byte) { 
-				return byte == 0x00; 
-			});
+			const uint8_t* mac = &get_mac()[0];
+			size_t mac_size = i82801_eth_device::MAC_SIZE;
+
+			// If source doesn't match the main individual (MAC) address but matches 16 bytes in then trim the 16 byte fat.
+			// The frame needs to start with [DESTINATION MAC][SOURCE MAC]
+			bool trim_start = std::memcmp(&m_cu_frame[0 + mac_size], mac, mac_size) != 0 && std::memcmp(&m_cu_frame[16 + mac_size], mac, mac_size) == 0;
 
 			if(trim_start)
 				copied_length = i82801_eth_device::copy_from_memory(&m_cu_frame[m_cu_frame_len & (i82801_eth_device::MAX_FRAME_SIZE - 1)], m_cbl_cexc_addr + 16, tcb_buff_size);
