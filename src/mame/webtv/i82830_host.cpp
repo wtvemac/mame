@@ -93,9 +93,11 @@ void i82830_host_device::map_extra(uint64_t memory_window_start, uint64_t memory
 	io_space->install_device(0x0000, 0xffff, *static_cast<pci_host_device *>(this), &pci_host_device::io_configuration_access_map);
 
 	uint32_t ram_size = i82830_host_device::get_ram_size();
-	uint32_t ram_dword_size = ram_size >> 2;
+	const size_t ram_dword_size = ram_size >> 2;
+	if(ram_dword_size > m_ram.max_size())
+		assert(!"Couldn't allocate RAM! ram_size > max_size");
 	if(m_ram.size() < ram_dword_size)
-		m_ram.resize(ram_dword_size);
+		m_ram.resize(ram_dword_size, 0x00000000);
 
 	//
 	// DOS Application Area
