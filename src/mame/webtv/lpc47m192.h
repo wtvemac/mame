@@ -325,6 +325,9 @@ public:
 	void mouse_out_w(uint8_t data) { m_kbdc->mouse_out_w(data); }
 	auto mouse_in_w_callback() { return m_kbdc_mse_in_w_cb.bind(); }
 
+	auto runtime_r_callback() { return m_runtime_in_cb.bind(); }
+	auto runtime_w_callback() { return m_runtime_out_cb.bind(); }
+
 protected:
 
 	virtual void device_start() override ATTR_COLD;
@@ -386,6 +389,9 @@ private:
 	devcb_write32 m_kbdc_kbd_in_w_cb;
 
 	devcb_write32 m_kbdc_mse_in_w_cb;
+
+	devcb_read8 m_runtime_in_cb;
+	devcb_write8 m_runtime_out_cb;
 
 	uint8_t m_sysopt;
 
@@ -450,7 +456,7 @@ private:
 	uint16_t m_midi_ioaddr;
 	uint8_t m_midi_int_sel;
 
-	uint8_t m_runtime_block[RUNTIME_BLOCK_SIZE];
+	uint8_t m_runtime_block[lpc47m192_device::RUNTIME_BLOCK_SIZE]; // Default block when callbacks aren't setup
 
 	void set_default_values();
 
