@@ -58,7 +58,9 @@ lpc47m192_device::lpc47m192_device(const machine_config &mconfig, const char *ta
 	m_s2_dtr_w_cb(*this),
 	m_s2_rts_w_cb(*this),
 	m_kbdc_kbd_in_w_cb(*this),
-	m_kbdc_mse_in_w_cb(*this)
+	m_kbdc_mse_in_w_cb(*this),
+	m_runtime_in_cb(*this, 0),
+	m_runtime_out_cb(*this)
 {
 	m_sysopt = lpc47m192_device::OPTS_SYSOPT_LOW;
 }
@@ -280,7 +282,7 @@ void lpc47m192_device::set_default_values()
 	m_midi_ioaddr = lpc47m192_device::DEFAULT_MIDI_IOADDR;
 	m_midi_int_sel = lpc47m192_device::DEFAULT_MIDI_INT;
 
-	std::fill(std::begin(m_runtime_block), std::end(m_runtime_block), 0);
+	std::fill(std::begin(m_runtime_block), std::end(m_runtime_block), 0x00);
 
 	lpc47m192_device::remap(AS_IO, 0x0000, 0xffff);
 }
@@ -1190,19 +1192,16 @@ void lpc47m192_device::gate_a20_w(int state)
 
 uint8_t lpc47m192_device::runtime_r(offs_t offset)
 {
-	switch(offset)
-	{
-		default:
-			return m_runtime_block[offset & (RUNTIME_BLOCK_SIZE - 1)];
-	}
+	if(m_runtime_out_cb.isunset())
+		return m_runtime_block[offset & (lpc47m192_device::RUNTIME_BLOCK_SIZE - 1)];
+	else
+		return m_runtime_in_cb(offset);
 }
 
 void lpc47m192_device::runtime_w(offs_t offset, uint8_t data)
 {
-	switch(offset)
-	{
-		default:
-			m_runtime_block[offset & (RUNTIME_BLOCK_SIZE - 1)] = data;
-			break;
-	}
+	if(m_runtime_in_cb.isunset())
+		m_runtime_block[offset & (lpc47m192_device::RUNTIME_BLOCK_SIZE - 1)] = data;
+	else
+		m_runtime_out_cb(offset, data);
 }
