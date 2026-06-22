@@ -98,6 +98,15 @@ private:
 	bool smbus_69_block_completed;
 	bool ceddk_stall_hack_en = true;
 
+	uint8_t m_runtime_block[lpc47m192_device::RUNTIME_BLOCK_SIZE] = {
+		0x00, 0x00, 0x00, 0x00, 0xDC, 0x00, 0x14, 0x0F, 0xE7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x02, 0x04, 0x14, 0x0F, 0xCE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x02,
+		0x81, 0x81, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00,
+		0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x04, 0xc0, 0x00, 0x07,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x50, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00
+	};
+
 	void ceddk_stall_hack();
 	void ide0_legacy_irq(int state);
 	void ide1_legacy_irq(int state);
@@ -117,6 +126,8 @@ private:
 	uint8_t smbus_block_byte_read();
 	void smbus_block_byte_write(uint8_t data);
 	void smbus_status(int status);
+	uint8_t runtime_r(offs_t offset);
+	void runtime_w(offs_t offset, uint8_t data);
 
 };
 
@@ -183,6 +194,9 @@ void msntv2_state::configure_superio(device_t *device)
 	superio.connect_comb_rs232(config, "comb", comb_device_options, "null_modem");
 
 	superio.connect_kbdc_mouse(config, "mouse");
+
+	superio.runtime_r_callback().set(":", FUNC(msntv2_state::runtime_r));
+	superio.runtime_w_callback().set(":", FUNC(msntv2_state::runtime_w));
 }
 
 void msntv2_state::configure_fpanel(device_t *device)
@@ -452,6 +466,16 @@ void msntv2_state::smbus_status(int status)
 		default:
 			break;
 	}
+}
+
+uint8_t msntv2_state::runtime_r(offs_t offset)
+{
+	return m_runtime_block[offset & (lpc47m192_device::RUNTIME_BLOCK_SIZE - 1)];
+}
+
+void msntv2_state::runtime_w(offs_t offset, uint8_t data)
+{
+	m_runtime_block[offset & (lpc47m192_device::RUNTIME_BLOCK_SIZE - 1)] = data;
 }
 
 void msntv2_state::ide_set_subsystem_id(uint32_t subdevice_id)
