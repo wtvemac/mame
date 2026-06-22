@@ -237,9 +237,9 @@ public:
 	static constexpr uint8_t RUNTIME_GP60_REG                 = 0x47;
 	static constexpr uint8_t RUNTIME_GP61_REG                 = 0x48;
 	static constexpr uint8_t RUNTIME_GP1_REG                  = 0x4b;
-	static constexpr uint8_t RUNTIME_GP2_REG                  = 0x4c; //
+	static constexpr uint8_t RUNTIME_GP2_REG                  = 0x4c; // MSNTV2: Bit 2 is board version bit 1, bit 5 is board version bit 2
 	static constexpr uint8_t RUNTIME_GP3_REG                  = 0x4d;
-	static constexpr uint8_t RUNTIME_GP4_REG                  = 0x4e; //
+	static constexpr uint8_t RUNTIME_GP4_REG                  = 0x4e; // MSNTV2: Bit 3 is board version bit 3
 	static constexpr uint8_t RUNTIME_GP5_REG                  = 0x4f;
 	static constexpr uint8_t RUNTIME_GP6_REG                  = 0x50;
 	static constexpr uint8_t RUNTIME_FAN1_REG                 = 0x56;
