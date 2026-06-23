@@ -163,11 +163,8 @@ void i82801_ide_device::io_map(address_map &map)
 
 void i82801_ide_device::map_ide_bus(address_map &map, uint8_t ide_bus_index, bool is_legacy, uint16_t cmd_io_addr, uint16_t cnl_io_addr, uint16_t bmr_io_addr)
 {
-	auto ide_bus = m_ide[ide_bus_index];
-
-
 	if(cmd_io_addr != 0x0000)
-		map(cmd_io_addr, cmd_io_addr + (i82801_ide_device::IDE_CMD_SIZE - 1)).rw(ide_bus, FUNC(bus_master_ide_controller_device::read_cs0), FUNC(bus_master_ide_controller_device::write_cs0));
+		map(cmd_io_addr, cmd_io_addr + (i82801_ide_device::IDE_CMD_SIZE - 1)).rw(m_ide[ide_bus_index], FUNC(bus_master_ide_controller_device::read_cs0), FUNC(bus_master_ide_controller_device::write_cs0));
 
 	if(cnl_io_addr != 0x0000)
 	{
@@ -204,7 +201,7 @@ void i82801_ide_device::map_ide_bus(address_map &map, uint8_t ide_bus_index, boo
 	}
 
 	if(bmr_io_addr != 0x0000)
-		map(bmr_io_addr, bmr_io_addr + (i82801_ide_device::IDE_BMR_SIZE - 1)).rw(ide_bus, FUNC(bus_master_ide_controller_device::bmdma_r), FUNC(bus_master_ide_controller_device::bmdma_w));
+		map(bmr_io_addr, bmr_io_addr + (i82801_ide_device::IDE_BMR_SIZE - 1)).rw(m_ide[ide_bus_index], FUNC(bus_master_ide_controller_device::bmdma_r), FUNC(bus_master_ide_controller_device::bmdma_w));
 }
 
 void i82801_ide_device::map_empty_bus(address_map &map, bool is_legacy, uint16_t cmd_io_addr, uint16_t cnl_io_addr, uint16_t bmr_io_addr)
