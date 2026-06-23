@@ -203,10 +203,6 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 
 void spot_asic_device::device_start()
 {
-	m_power_led.resolve();
-	m_connect_led.resolve();
-	m_message_led.resolve();
-
 	m_aud_stream = stream_alloc(0, 2, AUD_DEFAULT_CLK);
 
 	modem_buffer_timer = timer_alloc(FUNC(spot_asic_device::flush_modem_buffer), this);

@@ -835,9 +835,7 @@ msntv2_fpanel_device::msntv2_fpanel_device(const machine_config &mconfig, const 
 
 void msntv2_fpanel_device::device_start()
 {
-	m_power_led.resolve();
-	m_connect_led.resolve();
-	m_message_led.resolve();
+	//
 }
 
 void msntv2_fpanel_device::device_reset()
