@@ -302,10 +302,6 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 
 void solo_asic_device::device_start()
 {
-	m_power_led.resolve();
-	m_connect_led.resolve();
-	m_message_led.resolve();
-
 	m_resetcause = 0x0;
 	m_bootmode = 0x0;
 	m_use_bootmode = 0x0;
