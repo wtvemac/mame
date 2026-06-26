@@ -147,7 +147,7 @@ void i82801_ac97_base::map_extra(uint64_t memory_window_start, uint64_t memory_w
 {
 
 	uint16_t nammbar = (m_nammbar & i82801_ac97_base::AC97_IO_MXR_BASE_MASK);
-	if(nammbar > 0 && (nammbar + i82801_ac97_base::AC97_NABM_REGS_SIZE) < 0x10000)
+	if(m_cfg & i82801_ac97_base::AC97_CNFG_IOSE && nammbar > 0 && (nammbar + i82801_ac97_base::AC97_NABM_REGS_SIZE) < 0x10000)
 		io_space->install_device(nammbar, nammbar + (ac97_codec_device::NAM_REGS_SIZE - 1), *this, &i82801_ac97_base::nam_io_map);
 
 	uint32_t mmbar = (m_mmbar & i82801_ac97_base::AC97_MEM_MXR_BASE_MASK);
@@ -155,7 +155,7 @@ void i82801_ac97_base::map_extra(uint64_t memory_window_start, uint64_t memory_w
 		memory_space->install_device(mmbar, mmbar + (ac97_codec_device::NAM_REGS_SIZE - 1), *this, &i82801_ac97_base::nam_mem_map);
 
 	uint16_t nabmbar = (m_nabmbar & i82801_ac97_base::AC97_IO_NABM_BASE_MASK);
-	if(nabmbar > 0 && (nabmbar + i82801_ac97_base::AC97_NABM_REGS_SIZE) < 0x10000)
+	if(m_cfg & i82801_ac97_base::AC97_CNFG_IOSE && nabmbar > 0 && (nabmbar + i82801_ac97_base::AC97_NABM_REGS_SIZE) < 0x10000)
 		io_space->install_device(nabmbar, nabmbar + (i82801_ac97_base::AC97_NABM_REGS_SIZE - 1), *this, &i82801_ac97_base::nabm_map);
 
 	uint32_t mbbar = (m_mbbar & i82801_ac97_base::AC97_MEM_NABM_BASE_MASK);
@@ -418,10 +418,11 @@ uint32_t i82801_ac97_base::nammbar_r()
 void i82801_ac97_base::nammbar_w(uint32_t data)
 {
 	uint32_t nammbar = (data & i82801_ac97_base::AC97_IO_MXR_BASE_MASK);
-	if((m_cfg & i82801_ac97_base::AC97_CNFG_IOSE) && nammbar != 0x00000000)
+	if(nammbar != 0x00000000)
 	{
 		m_nammbar = (m_nammbar & (~i82801_ac97_base::AC97_IO_MXR_BASE_MASK)) | nammbar;
-		i82801_ac97_base::remap_cb();
+		if(m_cfg & i82801_ac97_base::AC97_CNFG_IOSE)
+			i82801_ac97_base::remap_cb();
 	}
 }
 
@@ -433,10 +434,11 @@ uint32_t i82801_ac97_base::nambbar_r()
 void i82801_ac97_base::nambbar_w(uint32_t data)
 {
 	uint32_t nabmbar = (data & i82801_ac97_base::AC97_IO_NABM_BASE_MASK);
-	if((m_cfg & i82801_ac97_base::AC97_CNFG_IOSE) && nabmbar != 0x00000000)
+	if(nabmbar != 0x00000000)
 	{
 		m_nabmbar = (m_nabmbar & (~i82801_ac97_base::AC97_IO_NABM_BASE_MASK)) | nabmbar;
-		i82801_ac97_base::remap_cb();
+		if(m_cfg & i82801_ac97_base::AC97_CNFG_IOSE)
+			i82801_ac97_base::remap_cb();
 	}
 }
 
