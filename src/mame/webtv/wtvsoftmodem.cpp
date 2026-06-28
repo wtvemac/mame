@@ -39,6 +39,9 @@ in_cap=00000bb0 DCE is analog
 
 void wtvsoftmodem_device::device_reset()
 {
+	m_line_mixer_head = 0;
+	m_line_mixer_tail = 0;
+
 	m_state = ModemState::IDLE_ON_HOOK;
 
 	device_buffered_serial_interface::set_data_frame(1, 8, PARITY_NONE, STOP_BITS_1);
@@ -169,6 +172,19 @@ uint32_t wtvsoftmodem_device::pull(int32_t* sample, uint32_t sample_count)
 			break;
 	}
 
+	// Mix in outgoing samples from the WebTV build.
+	// This allows the user to hear both sides of the handshake.
+	if(m_state < wtvsoftmodem_device::LINE_MIXER_END_STATE)
+	{
+		for(uint16_t idx = 0; idx < sample_count; idx++)
+		{
+			if(m_line_mixer_head == m_line_mixer_tail)
+				break;
+			else
+				sample[idx] += m_line_mixer_buffer[m_line_mixer_head++ & (wtvsoftmodem_device::LINE_MIXER_BUFFER_SIZE - 1)];
+		}
+	}
+
 	return tx_sample_count;
 }
 
@@ -251,6 +267,14 @@ void wtvsoftmodem_device::push(const int32_t* sample, uint32_t sample_count)
 
 		default:
 			break;
+	}
+
+	// Save these samples so they can be mixed with the incoming samples since the WebTV only plays the incoming side.
+	// Samples are only saved during the handshake (< wtvsoftmodem_device::LINE_MIXER_END_STATE)
+	if(m_state < wtvsoftmodem_device::LINE_MIXER_END_STATE)
+	{
+		for(uint16_t idx = 0; idx < sample_count; idx++)
+			m_line_mixer_buffer[m_line_mixer_tail++ & (wtvsoftmodem_device::LINE_MIXER_BUFFER_SIZE - 1)] = sample[idx];
 	}
 }
 

@@ -34,6 +34,7 @@ public:
 		IDLE_OFF_HOOK,
 		CALLER_DIALING,
 		V8,
+		CONNECTED,
 		V22,
 		V23
 	};
@@ -71,6 +72,13 @@ private:
 	static constexpr uint32_t BEFORE_DATA_MS = 3200; // time is in milliseconds
 
 	static constexpr uint8_t touchppp_data_command[] = "ATD\x0d";
+
+	static constexpr uint16_t LINE_MIXER_BUFFER_SIZE = 128;
+	static constexpr ModemState LINE_MIXER_END_STATE = wtvsoftmodem_device::ModemState::CONNECTED;
+
+	uint16_t m_line_mixer_head;
+	uint16_t m_line_mixer_tail;
+	int32_t m_line_mixer_buffer[wtvsoftmodem_device::LINE_MIXER_BUFFER_SIZE];
 
 	devcb_write_line m_out_tx_cb;
 	devcb_write_line m_out_dtr_cb;
