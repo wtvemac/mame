@@ -24,7 +24,7 @@
 
 DEFINE_DEVICE_TYPE(SOLO_ASIC, solo_asic_device, "solo_asic", "WebTV SOLO ASIC")
 
-solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config, uint32_t aud_clock, bool softmodem_enabled)
+solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t chip_id, uint32_t sys_config, uint32_t aud_clock, bool softmodem_enabled, bool is_utv)
 	: device_t(mconfig, SOLO_ASIC, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
 	m_hostcpu(*owner, "maincpu"),
@@ -51,6 +51,7 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
 	m_aud_clock = aud_clock;
 	m_softmodem_enabled = softmodem_enabled;
 	m_hardmodem_enabled = !softmodem_enabled;
+	m_is_utv = is_utv;
 }
 
 static DEVICE_INPUT_DEFAULTS_START(wtv_modem)
@@ -1357,12 +1358,20 @@ void solo_asic_device::reg_4014_w(uint32_t data)
 
 	if (m_softmodem_enabled)
 	{
-		if (data & GPIO_SOFTMODEM_HOOK_STATE)
-			m_softmodem_uart->set_off_hook();
-		else if (data & GPIO_SOFTMODEM_RESET)
-			m_softmodem_uart->restart();
-		else if (data & GPIO_SOFTMODEM_LINE_CHECK)
-			solo_asic_device::set_gpio_irq(GPIO_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+		if(m_is_utv)
+		{
+			if (data & GPIO_UTV_SOFTMODEM_HOOK_STATE)
+				m_softmodem_uart->set_off_hook();
+			else if (data & GPIO_UTV_SOFTMODEM_RESET)
+				m_softmodem_uart->restart();
+			else if (data & GPIO_UTV_SOFTMODEM_LINE_CHECK)
+				solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+		}
+		else
+		{
+			if (data & GPIO_SOFTMODEM_RESET)
+				m_softmodem_uart->set_on_hook();
+		}
 	}
 
 	m_dev_gpio_out |= data;
@@ -1379,11 +1388,19 @@ void solo_asic_device::reg_4114_w(uint32_t data)
 
 	if (m_softmodem_enabled)
 	{
-		if (data & GPIO_SOFTMODEM_HOOK_STATE)
-			m_softmodem_uart->set_on_hook();
-		// NOTE: currently there is a bug where the UTV doesn't reset properly after the first dial. Need to look into this.
-		else if (data & GPIO_SOFTMODEM_LINE_CHECK)
-			solo_asic_device::set_gpio_irq(GPIO_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+		if(m_is_utv)
+		{
+			if (data & GPIO_UTV_SOFTMODEM_HOOK_STATE)
+				m_softmodem_uart->set_on_hook();
+			// NOTE: currently there is a bug where the UTV doesn't reset properly after the first dial. Need to look into this.
+			else if (data & GPIO_UTV_SOFTMODEM_LINE_CHECK)
+				solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+		}
+		else
+		{
+			if (data & GPIO_SOFTMODEM_RESET)
+				m_softmodem_uart->set_off_hook();
+		}
 	}
 
 	m_dev_gpio_out &= (~data);

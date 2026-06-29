@@ -88,12 +88,13 @@ constexpr uint32_t NVCNTL_SDA_W    = 1 << 1;
 constexpr uint32_t NVCNTL_SDA_R    = 1 << 0;
 
 // Used to set or clear the hook state on boxes before the UTV
-constexpr uint32_t GPIO_SOFTMODEM_HOOK_STATE       = 1 << 10;
+constexpr uint32_t GPIO_UTV_SOFTMODEM_HOOK_STATE       = 1 << 10;
 // Used in the UTV, not sure if names are correct. These names are based on reverse-engineered behaviour.
 // UTV seems to start with setting the modem off hook, then checking if their a line voltage to know if the line is ready.
-constexpr uint32_t GPIO_SOFTMODEM_RESET            = 1 <<  5; // Called before the modem is opened and after the modem is closed.
-constexpr uint32_t GPIO_SOFTMODEM_HAS_LINE_VOLTAGE = 1 <<  6; // GPIO IRQ indicating line voltage is available.
-constexpr uint32_t GPIO_SOFTMODEM_LINE_CHECK       = 1 << 14; // Called every so often, looks like it requests the modem to IRQ if there's line voltage.
+constexpr uint32_t GPIO_UTV_SOFTMODEM_RESET            = 1 <<  5; // Called before the modem is opened and after the modem is closed.
+constexpr uint32_t GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE = 1 <<  6; // GPIO IRQ indicating line voltage is available.
+constexpr uint32_t GPIO_UTV_SOFTMODEM_LINE_CHECK       = 1 << 14; // Called every so often, looks like it requests the modem to IRQ if there's line voltage.
+constexpr uint32_t GPIO_SOFTMODEM_RESET                = 1 << 14; // Modem reset for boxes before the UTV
 
 constexpr uint8_t  INS8250_LSR_TSRE = 0x40;
 constexpr uint8_t  INS8250_LSR_THRE = 0x20;
@@ -124,7 +125,7 @@ class solo_asic_device : public device_t, public device_serial_interface
 
 public:
 
-	solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t chip_id = 0, uint32_t sys_config = 0, uint32_t aud_clock = 44100, bool softmodem_enabled = false);
+	solo_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t chip_id = 0, uint32_t sys_config = 0, uint32_t aud_clock = 44100, bool softmodem_enabled = false, bool is_utv = false);
 
 	void map(address_map &map);
 	void bus_unit_map(address_map &map);
@@ -250,6 +251,7 @@ protected:
 
 	bool m_softmodem_enabled;
 	bool m_hardmodem_enabled;
+	bool m_is_utv;
 	uint8_t modem_txbuff[MBUFF_MAX_SIZE];
 	uint32_t modem_txbuff_size;
 	uint32_t modem_txbuff_index;
