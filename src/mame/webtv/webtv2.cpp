@@ -317,7 +317,10 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 
 	m_maincpu->set_system_clock(bus_clock.value());
 
-	SOLO_ASIC(config, m_soloasic, bus_clock, chip_id, sys_config, aud_clock.value(), ((m_device_config & webtv2_state::SWMODEM) != 0x00));
+	bool softmodem_enabled = ((m_device_config & webtv2_state::SWMODEM) != 0x00);
+	bool is_utv = ((m_device_config & webtv2_state::DTV01_SAT_TUNER) != 0x00);
+
+	SOLO_ASIC(config, m_soloasic, bus_clock, chip_id, sys_config, aud_clock.value(), softmodem_enabled, is_utv);
 	m_soloasic->set_serial_id(m_serial_id);
 	m_soloasic->set_ata(m_ata);
 	m_soloasic->reset_hack_callback().set(FUNC(webtv2_state::reset_hack));
