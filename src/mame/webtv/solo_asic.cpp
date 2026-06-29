@@ -1392,9 +1392,10 @@ void solo_asic_device::reg_4114_w(uint32_t data)
 		{
 			if (data & GPIO_UTV_SOFTMODEM_HOOK_STATE)
 				m_softmodem_uart->set_on_hook();
+
 			// NOTE: currently there is a bug where the UTV doesn't reset properly after the first dial. Need to look into this.
-			else if (data & GPIO_UTV_SOFTMODEM_LINE_CHECK)
-				solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+			// This is the current workaround
+			solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
 		}
 		else
 		{
