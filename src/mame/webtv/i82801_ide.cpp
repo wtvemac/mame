@@ -312,8 +312,12 @@ void i82801_ide_device::pcnl_bar_w(uint32_t data)
 	uint32_t iobase = (data & i82801_ide_device::IDE_IO_BASE_MASK);
 	if(iobase != 0x00000000)
 	{
-		m_pcnl_bar = (m_pcnl_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
-		i82801_ide_device::remap_cb();
+		uint32_t new_base = (m_pcnl_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
+		if(new_base != m_pcnl_bar)
+		{
+			m_pcnl_bar = new_base;
+			i82801_ide_device::remap_cb();
+		}
 	}
 }
 
@@ -327,8 +331,12 @@ void i82801_ide_device::scmd_bar_w(uint32_t data)
 	uint32_t iobase = (data & i82801_ide_device::IDE_IO_BASE_MASK);
 	if(iobase != 0x00000000)
 	{
-		m_scmd_bar = (m_scmd_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
-		i82801_ide_device::remap_cb();
+		uint32_t new_base = (m_scmd_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
+		if(new_base != m_scmd_bar)
+		{
+			m_scmd_bar = new_base;
+			i82801_ide_device::remap_cb();
+		}
 	}
 }
 
@@ -342,8 +350,12 @@ void i82801_ide_device::scnl_bar_w(uint32_t data)
 	uint32_t iobase = (data & i82801_ide_device::IDE_IO_BASE_MASK);
 	if(iobase != 0x00000000)
 	{
-		m_scnl_bar = (m_scnl_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
-		i82801_ide_device::remap_cb();
+		uint32_t new_base = (m_scnl_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
+		if(new_base != m_scnl_bar)
+		{
+			m_scnl_bar = new_base;
+			i82801_ide_device::remap_cb();
+		}
 	}
 }
 
@@ -357,8 +369,12 @@ void i82801_ide_device::bmr_bar_w(uint32_t data)
 	uint32_t iobase = (data & i82801_ide_device::IDE_IO_BASE_MASK);
 	if(iobase != 0x00000000)
 	{
-		m_bmr_bar = (m_bmr_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
-		i82801_ide_device::remap_cb();
+		uint32_t new_base = (m_bmr_bar & (~i82801_ide_device::IDE_IO_BASE_MASK)) | iobase;
+		if(new_base != m_scnl_bar)
+		{
+			m_bmr_bar = new_base;
+			i82801_ide_device::remap_cb();
+		}
 	}
 }
 
