@@ -638,8 +638,12 @@ void i82801_eth_device::csr_membase_w(uint32_t data)
 	uint32_t membase = (data & i82801_eth_device::CSR_MEM_BASE_MASK);
 	if(membase != 0x00000000)
 	{
-		m_csr_membase = (m_csr_membase & (~i82801_eth_device::CSR_MEM_BASE_MASK)) | membase;
-		i82801_eth_device::remap_cb();
+		uint32_t new_base = (m_csr_membase & (~i82801_eth_device::CSR_MEM_BASE_MASK)) | membase;
+		if(new_base != m_csr_iobase)
+		{
+			m_csr_membase = new_base;
+			i82801_eth_device::remap_cb();
+		}
 	}
 }
 
@@ -653,8 +657,12 @@ void i82801_eth_device::csr_iobase_w(uint32_t data)
 	uint32_t iobase = (data & i82801_eth_device::CSR_IO_BASE_MASK);
 	if(iobase != 0x00000000)
 	{
-		m_csr_iobase = (m_csr_iobase & (~i82801_eth_device::CSR_IO_BASE_MASK)) | iobase;
-		i82801_eth_device::remap_cb();
+		uint32_t new_base = (m_csr_iobase & (~i82801_eth_device::CSR_IO_BASE_MASK)) | iobase;
+		if(new_base != m_csr_iobase)
+		{
+			m_csr_iobase = new_base;
+			i82801_eth_device::remap_cb();
+		}
 	}
 }
 

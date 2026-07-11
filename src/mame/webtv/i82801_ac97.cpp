@@ -436,9 +436,13 @@ void i82801_ac97_base::nambbar_w(uint32_t data)
 	uint32_t nabmbar = (data & i82801_ac97_base::AC97_IO_NABM_BASE_MASK);
 	if(nabmbar != 0x00000000)
 	{
-		m_nabmbar = (m_nabmbar & (~i82801_ac97_base::AC97_IO_NABM_BASE_MASK)) | nabmbar;
-		if(m_cfg & i82801_ac97_base::AC97_CNFG_IOSE)
-			i82801_ac97_base::remap_cb();
+		uint32_t new_base = (m_nabmbar & (~i82801_ac97_base::AC97_IO_NABM_BASE_MASK)) | nabmbar;
+		if(new_base != m_nabmbar)
+		{
+			m_nabmbar = new_base;
+			if(m_cfg & i82801_ac97_base::AC97_CNFG_IOSE)
+				i82801_ac97_base::remap_cb();
+		}
 	}
 }
 
@@ -452,8 +456,12 @@ void i82801_ac97_base::mmbar_w(uint32_t data)
 	uint32_t mmbar = (data & i82801_ac97_base::AC97_MEM_MXR_BASE_MASK);
 	if(mmbar != 0x00000000)
 	{
-		m_mmbar = (m_mmbar & (~i82801_ac97_base::AC97_MEM_MXR_BASE_MASK)) | mmbar;
-		i82801_ac97_base::remap_cb();
+		uint32_t new_base = (m_mmbar & (~i82801_ac97_base::AC97_MEM_MXR_BASE_MASK)) | mmbar;
+		if(new_base != m_mmbar)
+		{
+			m_mmbar = new_base;
+			i82801_ac97_base::remap_cb();
+		}
 	}
 }
 

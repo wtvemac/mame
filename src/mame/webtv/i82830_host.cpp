@@ -377,8 +377,11 @@ uint8_t i82830_host_device::pam_r(offs_t offset)
 
 void i82830_host_device::pam_w(offs_t offset, uint8_t data)
 {
-	m_pam[offset] = data;
-	i82830_host_device::remap_cb();
+	if(m_pam[offset] != data)
+	{
+		m_pam[offset] = data;
+		i82830_host_device::remap_cb();
+	}
 }
 
 
@@ -404,7 +407,7 @@ uint8_t i82830_host_device::drb_r(offs_t offset)
 
 void i82830_host_device::drb_w(offs_t offset, uint8_t data)
 {
-	if(!(m_smram_cntl & i82830_host_device::SMRAM_CNTL_D_LCK))
+	if(!(m_smram_cntl & i82830_host_device::SMRAM_CNTL_D_LCK) && m_drb[offset] != data)
 	{
 		m_drb[offset] = data;
 		i82830_host_device::remap_cb();

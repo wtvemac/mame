@@ -117,8 +117,12 @@ void i82801_usb_uhci_device::usb_iobase_w(uint32_t data)
 	uint32_t iobase = (data & i82801_usb_uhci_device::USB_IO_BASE_MASK);
 	if(iobase != 0x00000000)
 	{
-		m_usb_iobase = (m_usb_iobase & (~i82801_usb_uhci_device::USB_IO_BASE_MASK)) | iobase;
-		i82801_usb_uhci_device::remap_cb();
+		uint32_t new_base = (m_usb_iobase & (~i82801_usb_uhci_device::USB_IO_BASE_MASK)) | iobase;
+		if(new_base != m_usb_iobase)
+		{
+			m_usb_iobase = new_base;
+			i82801_usb_uhci_device::remap_cb();
+		}
 	}
 }
 
@@ -382,8 +386,12 @@ void i82801_usb_ehci_device::usb_membase_w(uint32_t data)
 	uint32_t membase = (data & i82801_usb_ehci_device::USB_MEM_BASE_MASK);
 	if(membase != 0x00000000)
 	{
-		m_usb_membase = (m_usb_membase & (~i82801_usb_ehci_device::USB_MEM_BASE_MASK)) | membase;
-		i82801_usb_ehci_device::remap_cb();
+		uint32_t new_base = (m_usb_membase & (~i82801_usb_ehci_device::USB_MEM_BASE_MASK)) | membase;
+		if(new_base != m_usb_membase)
+		{
+			m_usb_membase = new_base;
+			i82801_usb_ehci_device::remap_cb();
+		}
 	}
 }
 

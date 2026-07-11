@@ -733,8 +733,12 @@ void i82830_graphics_device::gmadr_w(uint32_t data)
 	uint32_t gmadr = (data & gmadr_mask);
 	if(gmadr != 0x00000000)
 	{
-		m_gmadr = (m_gmadr & (~gmadr_mask)) | gmadr;
-		i82830_graphics_device::remap_cb();
+		uint32_t new_base = (m_gmadr & (~gmadr_mask)) | gmadr;
+		if(new_base != m_gmadr)
+		{
+			m_gmadr = new_base;
+			i82830_graphics_device::remap_cb();
+		}
 	}
 }
 
@@ -748,8 +752,12 @@ void i82830_graphics_device::mmadr_w(uint32_t data)
 	uint32_t mmadr = (data & i82830_graphics_device::GFX_MMADR_MEM_BASE_MASK);
 	if(mmadr != 0x00000000)
 	{
-		m_mmadr = (m_mmadr & (~i82830_graphics_device::GFX_MMADR_MEM_BASE_MASK)) | mmadr;
-		i82830_graphics_device::remap_cb();
+		uint32_t new_base = (m_mmadr & (~i82830_graphics_device::GFX_MMADR_MEM_BASE_MASK)) | mmadr;
+		if(new_base != m_mmadr)
+		{
+			m_mmadr = new_base;
+			i82830_graphics_device::remap_cb();
+		}
 	}
 }
 
