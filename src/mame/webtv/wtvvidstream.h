@@ -96,7 +96,7 @@ class cx25873_encoder_device : public wtvvidstream_device_base
 public:
 
 	static constexpr uint32_t ENC_ID              = 0x05;
-	static constexpr uint32_t ENC_MACROVISION_VER = 0x01;
+	static constexpr uint32_t ENC_MACROVISION_VER = 0x02;
 
 	static constexpr uint32_t ENC_REGS_SIZE = 0x100;
 	static constexpr uint32_t ENC_REG_IDVER = 0x00;
