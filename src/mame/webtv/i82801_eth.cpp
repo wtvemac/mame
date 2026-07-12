@@ -1160,6 +1160,8 @@ void i82801_eth_device::cu_scb_execute()
  
 TIMER_CALLBACK_MEMBER(i82801_eth_device::cu_cbl_execute)
 {
+	auto profile = g_profiler.start(PROFILER_USER1);
+
 	bool hpq_active = (i82801_eth_device::get_cu_state() == cu_state_t::CU_HPQ_ACTIVE);
 
 	if(hpq_active)
@@ -1647,6 +1649,7 @@ void i82801_eth_device::ru_scb_execute()
 
 TIMER_CALLBACK_MEMBER(i82801_eth_device::ru_rfd_execute)
 {
+	auto profile = g_profiler.start(PROFILER_USER1);
 
 	m_rfd_cfrm_addr = m_rfd_nfrm_addr;
 	m_rfd_cexc_addr = m_rfd_cfrm_addr;

@@ -752,6 +752,8 @@ void solo_asic_audio_device::reg_e044_w(uint32_t data)
 
 TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modout_samples)
 {
+	auto profile = g_profiler.start(PROFILER_USER1);
+
 	if (m_mod_odmacntl & MOD_DMACNTL_DMAEN)
 	{
 		if (!m_mod_ocvalid && (m_mod_odmacntl & MOD_DMACNTL_NV) && m_mod_onstart != 0x80000000)
@@ -794,6 +796,8 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modout_samples)
 
 TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 {
+	auto profile = g_profiler.start(PROFILER_USER1);
+
 	if (m_mod_idmacntl & MOD_DMACNTL_DMAEN)
 	{
 		if (!m_mod_icvalid && (m_mod_idmacntl & MOD_DMACNTL_NV) && m_mod_instart != 0x80000000)
@@ -993,6 +997,8 @@ void solo_asic_audio_device::set_audio_irq(uint32_t mask, int state)
 
 void solo_asic_audio_device::sound_stream_update(sound_stream &stream)
 {
+	auto profile = g_profiler.start(PROFILER_SOUND);
+
 	solo_asic_audio_device::audio_output_update(stream);
 	solo_asic_audio_device::audio_input_update(stream);
 }
