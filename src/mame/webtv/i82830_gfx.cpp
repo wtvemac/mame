@@ -218,6 +218,8 @@ void i82830_graphics_device::pins_execute_stop()
 
 bool i82830_graphics_device::execute_instruction_buffer(uint32_t mm_ringbuf_index)
 {
+	auto profile = g_profiler.start(PROFILER_DRAWGFX);
+
 	ins_parser_state_t parser_state = {
 		.start_addr = m_mm_block[mm_ringbuf_index + i82830_graphics_device::MM_CNTL_RINGBUF_START_OFFSET],
 		.cur_addr  = 0x00000000,
@@ -805,6 +807,8 @@ void i82830_graphics_device::xxx32_w(uint32_t data)
 
 uint32_t i82830_graphics_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+	auto profile = g_profiler.start(PROFILER_VIDEO);
+
 	uint32_t base = 0x00000000;
 	uint32_t screen_height = 480;
 	uint32_t screen_width = 640;

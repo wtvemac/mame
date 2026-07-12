@@ -1328,6 +1328,8 @@ void spot_asic_device::set_vid_irq(uint8_t mask, int state)
 
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+	auto profile = g_profiler.start(PROFILER_VIDEO);
+
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height = bitmap.height();
 	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
@@ -1402,6 +1404,8 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 
 void spot_asic_device::sound_stream_update(sound_stream &stream)
 {
+	auto profile = g_profiler.start(PROFILER_SOUND);
+
 	if (m_aud_odmacntl & AUD_DMACNTL_DMAEN)
 	{
 		// No current buffer ready to play. Check if there's anything lined up for us.

@@ -98,6 +98,8 @@ void stac9767_codec::nam_reset()
 
 void stac9767_codec::sound_stream_update(sound_stream &stream)
 {
+	auto profile = g_profiler.start(PROFILER_SOUND);
+
 	for(int i = 0; i < stream.samples(); i++)
 	{
 		int16_t lchannel_sample;

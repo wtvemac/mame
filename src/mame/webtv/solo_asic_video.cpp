@@ -1608,6 +1608,8 @@ inline void solo_asic_video_device::gfxunit_draw_cels(screen_device &screen, bit
 
 uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+	auto profile = g_profiler.start(PROFILER_DRAWGFX);
+
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height = bitmap.height();
 
@@ -1665,6 +1667,8 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 
 uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
+	auto profile = g_profiler.start(PROFILER_VIDEO);
+
 	uint16_t screen_width = bitmap.width();
 	uint16_t screen_height = bitmap.height();
 	uint8_t vid_step = (2 * BYTES_PER_PIXEL);
