@@ -47,6 +47,8 @@ class solo_asic_audio_device : public device_t, public device_sound_interface
 
 public:
 
+	static constexpr uint32_t AUDIO_FADE_WINDOW = AUD_DEFAULT_CLK / 14;
+
 	solo_asic_audio_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t aud_clock = 44100, bool softmodem_enabled = false);
 
 	void map(address_map &map);
@@ -85,6 +87,12 @@ protected:
 
 	uint32_t m_busaud_intenable;
 	uint32_t m_busaud_intstat;
+
+	int16_t m_aud_lsample;
+	int16_t m_aud_rsample;
+	uint32_t m_aud_max_sval;
+	uint32_t m_aud_fade_step_idx;
+	bool m_aud_fade_enabled;
 
 	uint32_t m_aud_ocstart;
 	uint32_t m_aud_ocsize;
