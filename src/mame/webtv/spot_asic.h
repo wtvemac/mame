@@ -266,6 +266,20 @@ protected:
 
 private:
 
+	typedef union {
+		uint32_t val;
+		struct {
+			int16_t left;
+			int16_t right;
+		} stereo16;
+		struct {
+			int8_t left;
+			int8_t lblk;
+			int8_t right;
+			int8_t rblk;
+		} stereo8;
+	} sample_t;
+
 	required_device<mips3_device> m_hostcpu;
 	required_shared_ptr<uint32_t> m_hostram;
 	required_device<ds2401_device> m_serial_id;
