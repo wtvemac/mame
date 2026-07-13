@@ -176,6 +176,9 @@ public:
 		uint32_t tx_caddr;                      // INTERNAL:    The address to the current position in the sample buffer.
 		uint8_t tx_cntl;                        // CR   [0x0b]: Transfer control
 		i82801_ac97_base::sample32_t tx_sample; // INTERNAL: last transferred sample
+		bool fade_enabled;                      // INTERNAL: if samples are being faded
+		uint32_t fade_step_idx;                 // INTERNAL: how many fade passes before we stop the fade
+		i82801_ac97_base::sample32_t f_sample;  // INTERNAL: fadeed sample
 	} nabm_channel_state;
 
 	static constexpr uint32_t AUD_DEFAULT_CLK = 48000;
@@ -318,6 +321,8 @@ public:
 	static constexpr uint8_t NABM_CHAN_CNTL_TRANSFER_EN       = 1 << 0;
 	static constexpr uint8_t NABM_CHAN_CNTL_INT_MASK          = 0x1c;
 
+	static constexpr uint32_t AUDIO_FADE_WINDOW               = i82801_ac97_base::AUD_DEFAULT_CLK / 16;
+
 	static constexpr nabm_channel_state NABM_CHAN_DEFAULT_STATE = {
 		.bdesc_valid = false,
 		.bdesc_start = 0x00000000,
@@ -330,6 +335,11 @@ public:
 		.tx_caddr = 0x00000000,
 		.tx_cntl = 0,
 		.tx_sample = {
+			.val = 0x00000000
+		},
+		.fade_enabled = false,
+		.fade_step_idx = 0,
+		.f_sample = {
 			.val = 0x00000000
 		}
 	};

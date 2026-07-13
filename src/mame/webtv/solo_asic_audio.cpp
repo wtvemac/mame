@@ -107,6 +107,10 @@ void solo_asic_audio_device::device_reset()
 	m_busaud_intenable = 0x0;
 	m_busaud_intstat = 0x0;
 
+	m_aud_lsample = 0;
+	m_aud_rsample = 0;
+	m_aud_max_sval = 0x8000;
+
 	m_aud_ocstart = 0x0;
 	m_aud_ocsize = 0x0;
 	m_aud_ocend = 0x0;
@@ -840,6 +844,9 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 
 void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 {
+	uint32_t sidx = 0;
+	uint32_t scnt = stream.samples();
+
 	if (m_aud_odmacntl & AUD_DMACNTL_DMAEN)
 	{
 		// No current buffer ready to play. Check if there's anything lined up for us.
@@ -869,12 +876,8 @@ void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 		// If the current buffer is valid (ready), then play it.
 		if (m_aud_ocvalid)
 		{
-			for(int i = 0; i < stream.samples(); i++)
+			for(sidx = 0; sidx < scnt; sidx++)
 			{
-				int16_t lchannel_sample;
-				int16_t rchannel_sample;
-				uint32_t max_sample_value;
-
 				solo_asic_audio_device::sample_t sample = {
 					.val = m_hostram[m_aud_occnt >> 0x02]
 				};
@@ -883,34 +886,51 @@ void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 				{
 					case AUD_CONFIG_16BIT_STEREO:
 					default:
-						lchannel_sample = sample.stereo16.left;
-						rchannel_sample = sample.stereo16.right;
-						max_sample_value = 0x8000;
+						m_aud_lsample = sample.stereo16.left;
+						m_aud_rsample = sample.stereo16.right;
+						m_aud_max_sval = 0x8000;
 						break;
 
 					case AUD_CONFIG_16BIT_MONO:
-						lchannel_sample = sample.stereo16.left;
-						rchannel_sample = lchannel_sample;
-						max_sample_value = 0x8000;
+						m_aud_lsample = sample.stereo16.left;
+						m_aud_rsample = m_aud_lsample;
+						m_aud_max_sval = 0x8000;
 						break;
 
 					// For 8-bit we're assuming left-aligned samples
 
 					case AUD_CONFIG_8BIT_STEREO:
-						lchannel_sample = sample.stereo8.left;
-						rchannel_sample = sample.stereo8.right;
-						max_sample_value = 0x80;
+						m_aud_lsample = sample.stereo8.left;
+						m_aud_rsample = sample.stereo8.right;
+						m_aud_max_sval = 0x80;
 						break;
 
 					case AUD_CONFIG_8BIT_MONO:
-						lchannel_sample = sample.stereo8.left;
-						rchannel_sample = lchannel_sample;
-						max_sample_value = 0x80;
+						m_aud_lsample = sample.stereo8.left;
+						m_aud_rsample = m_aud_lsample;
+						m_aud_max_sval = 0x80;
 						break;
 				}
 
-				stream.put_int(0, i, lchannel_sample, max_sample_value);
-				stream.put_int(1, i, rchannel_sample, max_sample_value);
+				// Fade back in, triggered by a fade out (below).
+				if(m_aud_fade_enabled)
+				{
+					if(m_aud_fade_step_idx <= solo_asic_audio_device::AUDIO_FADE_WINDOW)
+					{
+						float volume = (float)m_aud_fade_step_idx / solo_asic_audio_device::AUDIO_FADE_WINDOW;
+						m_aud_lsample = (int16_t)(m_aud_lsample * volume);
+						m_aud_rsample = (int16_t)(m_aud_rsample * volume);
+						m_aud_fade_step_idx++;
+					}
+					else
+					{
+						m_aud_fade_step_idx = solo_asic_audio_device::AUDIO_FADE_WINDOW;
+						m_aud_fade_enabled = false;
+					}
+				}
+
+				stream.put_int(0, sidx, m_aud_lsample, m_aud_max_sval);
+				stream.put_int(1, sidx, m_aud_rsample, m_aud_max_sval);
 
 				m_aud_occnt += 4;
 
@@ -923,6 +943,30 @@ void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 
 			}
 		}
+	}
+
+	// When the sample buffer isn't fully filled by the OS, we will apply a exponential fade on the last sample to smooth out audio and reduce abrupt clicking noise.
+	for(; sidx < scnt; sidx++)
+	{
+		int16_t lsample = 0;
+		int16_t rsample = 0;
+
+		if(m_aud_fade_enabled)
+		{
+			m_aud_fade_step_idx = solo_asic_audio_device::AUDIO_FADE_WINDOW;
+			m_aud_fade_enabled = true;
+		}
+
+		if(m_aud_fade_step_idx > 0)
+		{
+			m_aud_fade_step_idx--;
+			float volume = (float)m_aud_fade_step_idx / solo_asic_audio_device::AUDIO_FADE_WINDOW;
+			lsample = (int16_t)(m_aud_lsample * volume);
+			rsample = (int16_t)(m_aud_rsample * volume);
+		}
+
+		stream.put_int(0, sidx, lsample, m_aud_max_sval);
+		stream.put_int(1, sidx, rsample, m_aud_max_sval);
 	}
 }
 

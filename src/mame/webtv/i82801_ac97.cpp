@@ -780,12 +780,52 @@ i82801_ac97_base::sample32_t i82801_ac97_base::chan_sample_read32(offs_t offset)
 
 		m_chan[offset].tx_sample.val = dma_space->read_dword(m_chan[offset].tx_caddr);
 
+		// Fade back in, triggered by a fade out (below).
+		if(m_chan[offset].fade_enabled)
+		{
+			if(m_chan[offset].fade_step_idx <= i82801_ac97_base::AUDIO_FADE_WINDOW)
+			{
+				float volume = (float)m_chan[offset].fade_step_idx / i82801_ac97_base::AUDIO_FADE_WINDOW;
+				m_chan[offset].tx_sample.stereo.left = (int16_t)(m_chan[offset].tx_sample.stereo.left * volume);
+				m_chan[offset].tx_sample.stereo.right = (int16_t)(m_chan[offset].tx_sample.stereo.right * volume);
+				m_chan[offset].fade_step_idx++;
+			}
+			else
+			{
+				m_chan[offset].fade_step_idx = i82801_ac97_base::AUDIO_FADE_WINDOW;
+				m_chan[offset].fade_enabled = false;
+			}
+		}
+
 		m_chan[offset].tx_caddr += (i82801_ac97_base::SAMPLE_16BIT_SIZE * samples_in_read);
 		m_chan[offset].tx_cleft -= samples_in_read;
 
 		if(m_chan[offset].tx_cleft <= 0)
 			i82801_ac97_base::chan_transfer_end(offset);
+	}
+	else
+	{
+		// When the sample buffer isn't fully filled by the OS, we will apply a exponential fade on the last sample to smooth out audio and reduce abrupt clicking noise.
 
+		if(!m_chan[offset].fade_enabled)
+		{
+			m_chan[offset].f_sample.val = m_chan[offset].tx_sample.val;
+
+			m_chan[offset].fade_step_idx = i82801_ac97_base::AUDIO_FADE_WINDOW;
+			m_chan[offset].fade_enabled = true;
+		}
+
+		if(m_chan[offset].fade_step_idx > 0)
+		{
+			m_chan[offset].fade_step_idx--;
+			float volume = (float)m_chan[offset].fade_step_idx / i82801_ac97_base::AUDIO_FADE_WINDOW;
+			m_chan[offset].tx_sample.stereo.left = (int16_t)(m_chan[offset].f_sample.stereo.left * volume);
+			m_chan[offset].tx_sample.stereo.right = (int16_t)(m_chan[offset].f_sample.stereo.right * volume);
+		}
+		else
+		{
+			m_chan[offset].tx_sample.val = 0;
+		}
 	}
 
 	return m_chan[offset].tx_sample;

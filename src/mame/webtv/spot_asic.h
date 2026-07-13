@@ -153,6 +153,8 @@ class spot_asic_device : public device_t, public device_serial_interface, public
 
 public:
 
+	static constexpr uint32_t AUDIO_FADE_WINDOW = AUD_DEFAULT_CLK / 14;
+
 	spot_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t chip_id = 0, uint32_t sys_config = 0);
 
 	void map(address_map &map);
@@ -239,6 +241,12 @@ protected:
 	uint32_t m_vid_draw_vstart;
 	uint32_t m_vid_draw_vsize;
 	uint32_t m_vid_draw_blank_color;
+
+	int16_t m_aud_lsample;
+	int16_t m_aud_rsample;
+	uint32_t m_aud_max_sval;
+	uint32_t m_aud_fade_step_idx;
+	bool m_aud_fade_enabled;
 
 	uint8_t m_aud_clkdiv;
 	uint32_t m_aud_ocstart;
