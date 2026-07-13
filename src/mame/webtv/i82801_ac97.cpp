@@ -753,7 +753,7 @@ void i82801_ac97_base::chan_transfer_end(offs_t offset)
 		m_chan[offset].tx_status |= i82801_ac97_base::NABM_CHAN_STATUS_DMA_HALTED | i82801_ac97_base::NABM_CHAN_STATUS_EOL;
 
 		if(m_chan[offset].bdesc_cmd & i82801_ac97_base::BDESC_CMD_USE_BUP)
-			m_chan[offset].tx_sample = 0x00000000;
+			m_chan[offset].tx_sample.val = 0x00000000;
 	}
 	else
 	{
@@ -770,7 +770,7 @@ void i82801_ac97_base::chan_transfer_end(offs_t offset)
 		i82801_ac97_base::set_nabm_chan_irq(offset, int_mask, ASSERT_LINE);
 }
 
-uint32_t i82801_ac97_base::chan_sample_read32(offs_t offset)
+i82801_ac97_base::sample32_t i82801_ac97_base::chan_sample_read32(offs_t offset)
 {
 	if(i82801_ac97_base::chan_transfer_enabled(offset))
 	{
@@ -778,7 +778,7 @@ uint32_t i82801_ac97_base::chan_sample_read32(offs_t offset)
 
 		uint32_t samples_in_read = 2;
 
-		m_chan[offset].tx_sample = dma_space->read_dword(m_chan[offset].tx_caddr);
+		m_chan[offset].tx_sample.val = dma_space->read_dword(m_chan[offset].tx_caddr);
 
 		m_chan[offset].tx_caddr += (i82801_ac97_base::SAMPLE_16BIT_SIZE * samples_in_read);
 		m_chan[offset].tx_cleft -= samples_in_read;
@@ -791,7 +791,7 @@ uint32_t i82801_ac97_base::chan_sample_read32(offs_t offset)
 	return m_chan[offset].tx_sample;
 }
 
-void i82801_ac97_base::chan_sample_write32(offs_t offset, uint32_t sample)
+void i82801_ac97_base::chan_sample_write32(offs_t offset, i82801_ac97_base::sample32_t sample)
 {
 	m_chan[offset].tx_sample = sample;
 
@@ -801,8 +801,7 @@ void i82801_ac97_base::chan_sample_write32(offs_t offset, uint32_t sample)
 
 		uint32_t samples_in_read = 2;
 
-
-		dma_space->write_dword(m_chan[offset].tx_caddr, m_chan[offset].tx_sample);
+		dma_space->write_dword(m_chan[offset].tx_caddr, m_chan[offset].tx_sample.val);
 
 		m_chan[offset].tx_caddr += (i82801_ac97_base::SAMPLE_16BIT_SIZE * samples_in_read);
 		m_chan[offset].tx_cleft -= samples_in_read;

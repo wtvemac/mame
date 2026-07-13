@@ -102,18 +102,13 @@ void stac9767_codec::sound_stream_update(sound_stream &stream)
 
 	for(int i = 0; i < stream.samples(); i++)
 	{
-		int16_t lchannel_sample;
-		int16_t rchannel_sample;
 		uint32_t max_sample_value;
 
 		max_sample_value = 0x8000;
 
-		uint32_t sample = m_ac97->chan_sample_read32(m_ac97->m_pcm_out_offset);
+		i82801_ac97_base::sample32_t sample = m_ac97->chan_sample_read32(m_ac97->m_pcm_out_offset);
 
-		lchannel_sample = sample >> 0x00; // Slot 3
-		rchannel_sample = sample >> 0x10; // Slot 4
-
-		stream.put_int(0, i, lchannel_sample, max_sample_value);
-		stream.put_int(1, i, rchannel_sample, max_sample_value);
+		stream.put_int(0, i, sample.stereo.left, max_sample_value);
+		stream.put_int(1, i, sample.stereo.right, max_sample_value);
 	}
 }

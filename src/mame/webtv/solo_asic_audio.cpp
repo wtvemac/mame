@@ -875,17 +875,21 @@ void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 				int16_t rchannel_sample;
 				uint32_t max_sample_value;
 
+				solo_asic_audio_device::sample_t sample = {
+					.val = m_hostram[m_aud_occnt >> 0x02]
+				};
+
 				switch(m_aud_occonfig)
 				{
 					case AUD_CONFIG_16BIT_STEREO:
 					default:
-						lchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x10;
-						rchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x00;
+						lchannel_sample = sample.stereo16.left;
+						rchannel_sample = sample.stereo16.right;
 						max_sample_value = 0x8000;
 						break;
 
 					case AUD_CONFIG_16BIT_MONO:
-						lchannel_sample = m_hostram[m_aud_occnt >> 0x02] >> 0x10;
+						lchannel_sample = sample.stereo16.left;
 						rchannel_sample = lchannel_sample;
 						max_sample_value = 0x8000;
 						break;
@@ -893,13 +897,13 @@ void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 					// For 8-bit we're assuming left-aligned samples
 
 					case AUD_CONFIG_8BIT_STEREO:
-						lchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x18);
-						rchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x08);
+						lchannel_sample = sample.stereo8.left;
+						rchannel_sample = sample.stereo8.right;
 						max_sample_value = 0x80;
 						break;
 
 					case AUD_CONFIG_8BIT_MONO:
-						lchannel_sample = (int8_t)(m_hostram[m_aud_occnt >> 0x02] >> 0x18);
+						lchannel_sample = sample.stereo8.left;
 						rchannel_sample = lchannel_sample;
 						max_sample_value = 0x80;
 						break;

@@ -155,19 +155,27 @@ public:
 		NABM_CHAN_DIRECTION_NONE
 	};
 
+	typedef union {
+		uint32_t val;
+		struct {
+			int16_t left;  // Slot 3
+			int16_t right; // Slot 4
+		} stereo;
+	} sample32_t;
+
 	typedef struct
 	{
-		bool bdesc_valid;     // INTERNAL: if the buffer descriptor has been loaded
-		uint32_t bdesc_start; // BDBAR[0x00]: Physical address of buffer descriptor list
-		uint8_t bdesc_lidx;   // LVI  [0x05]: Last Valid Index; the index value of the last valid entry in the buffer descriptor list
-		uint8_t bdesc_cidx;   // CIV  [0x04]: Current Index Value; count of buffer descriptors processed
-		uint8_t bdesc_nidx;   // PIV  [0x0a]: Prefetched Index Value; index of the next buffer descriptor that will be processed
-		uint32_t bdesc_cmd;   // INTERNAL:    The buffer descriptor entry control bits
-		uint16_t tx_status;   // SR   [0x06]: tatus of data transfer
-		int16_t tx_cleft;     // PICB [0x08]: Position in Current Buffer; count of samples to be processed in current buffer descriptor
-		uint32_t tx_caddr;    // INTERNAL:    The address to the current position in the sample buffer.
-		uint8_t tx_cntl;      // CR   [0x0b]: Transfer control
-		uint32_t tx_sample;    // INTERNAL: last transferred sample
+		bool bdesc_valid;                       // INTERNAL: if the buffer descriptor has been loaded
+		uint32_t bdesc_start;                   // BDBAR[0x00]: Physical address of buffer descriptor list
+		uint8_t bdesc_lidx;                     // LVI  [0x05]: Last Valid Index; the index value of the last valid entry in the buffer descriptor list
+		uint8_t bdesc_cidx;                     // CIV  [0x04]: Current Index Value; count of buffer descriptors processed
+		uint8_t bdesc_nidx;                     // PIV  [0x0a]: Prefetched Index Value; index of the next buffer descriptor that will be processed
+		uint32_t bdesc_cmd;                     // INTERNAL:    The buffer descriptor entry control bits
+		uint16_t tx_status;                     // SR   [0x06]: tatus of data transfer
+		int16_t tx_cleft;                       // PICB [0x08]: Position in Current Buffer; count of samples to be processed in current buffer descriptor
+		uint32_t tx_caddr;                      // INTERNAL:    The address to the current position in the sample buffer.
+		uint8_t tx_cntl;                        // CR   [0x0b]: Transfer control
+		i82801_ac97_base::sample32_t tx_sample; // INTERNAL: last transferred sample
 	} nabm_channel_state;
 
 	static constexpr uint32_t AUD_DEFAULT_CLK = 48000;
@@ -321,7 +329,9 @@ public:
 		.tx_cleft = 0,
 		.tx_caddr = 0x00000000,
 		.tx_cntl = 0,
-		.tx_sample = 0x00000000
+		.tx_sample = {
+			.val = 0x00000000
+		}
 	};
 
 	uint8_t m_pcm1_in_offset;
@@ -343,8 +353,8 @@ public:
 	bool chan_transfer_enabled(offs_t offset);
 	void chan_transfer_fetch(offs_t offset);
 	void chan_transfer_end(offs_t offset);
-	uint32_t chan_sample_read32(offs_t offset);
-	void chan_sample_write32(offs_t offset, uint32_t sample);
+	i82801_ac97_base::sample32_t chan_sample_read32(offs_t offset);
+	void chan_sample_write32(offs_t offset, i82801_ac97_base::sample32_t sample);
 
 protected:
 
