@@ -32,7 +32,7 @@
 #define UML_BREAK(block)                                    do { using namespace uml; block.append().break_(); } while (0)
 #define UML_DEBUG(block, pc)                                do { using namespace uml; block.append().debug(pc); } while (0)
 #define UML_EXIT(block, param)                              do { using namespace uml; block.append().exit(param); } while (0)
-#define UML_EXITc(block, cond, param)                       do { using namespace uml; block.append().exit(param, cond); } while (0)
+#define UML_EXITc(block, cond, param)                       do { using namespace uml; block.append().exit(cond, param); } while (0)
 #define UML_HASHJMP(block, mode, pc, handle)                do { using namespace uml; block.append().hashjmp(mode, pc, handle); } while (0)
 #define UML_JMP(block, label)                               do { using namespace uml; block.append().jmp(label); } while (0)
 #define UML_JMPc(block, cond, label)                        do { using namespace uml; block.append().jmp(cond, label); } while (0)
