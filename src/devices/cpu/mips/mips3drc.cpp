@@ -1072,7 +1072,27 @@ void r4650_device::static_generate_memory_accessor(drcuml_block &block, int &lab
 		UML_ADD(block, I0, I0, CPR032(COP0_R4650_DBase));                           // add     i0,i0,CPR0[DBase]
 	}
 
+	// The R4640 and R4650 processors don't translate kernel segment aliases so the fastram accessor will often fall through.
+	// So we're saving the I0 address to I3, translate I0 to the physical address by removing the kseg bits then run I0 through the fastram accessor.
+	// kseg1 will still fall through but that's intentional, 0xaxxxxxxx is commonly used for I/O or slow memory access so not much point doing a fastram lookup.
+	// We return the original address (in I3) if we fall through so the slow path can resolve the address properly.
+
+	// This value is trashed in static_generate_fastram_accessor but it okay since it's only trashed if it doesn't fall through.
+	UML_MOV(block, I3, I0);                                                         // i3 = i0 (save original)
+
+	int after_fastram_check = label++;
+
+	UML_AND(block, I0, I0, 0xe0000000);                                             // and     i0,i0,0xe0000000    (isolate kseg bits)
+	UML_CMP(block, I0, 0xa0000000);                                                 // cmp     i3,0xa0000000       (if kseg bits equal kseg1 then we will skip)
+	UML_JMPc(block, COND_E, after_fastram_check);                                   // jl      after_fastram_check (skip directly to slow path)
+	UML_AND(block, I0, I3, 0x1fffffff);                                             // and     i0,i3,0x1fffffff    (remove kseg bits so its translated to the physical addr)
+
 	static_generate_fastram_accessor(block, label, size, iswrite, ismasked);
+
+	UML_LABEL(block, after_fastram_check);                                          // after_fastram_check:
+
+	UML_MOV(block, I0, I3);                                                         // i0 = i3 (restore original)
+
 	static_generate_memory_rw(block, size, iswrite, ismasked);
 }
 
