@@ -223,9 +223,6 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	m_flash_size = webtv2_state::MEM_0MB;
 	m_device_config = device_config;
 
-	//if (cpu == webtv2_state::MIPS_R4640_BE || cpu == webtv2_state::MIPS_R4640_LE)
-	//	m_maincpu->add_fastram(0x00000000, (m_ram_size - 1), false, m_mainram);
-
 	if (!(m_device_config & webtv2_state::CUSTOM_ADDRMAP))
 		m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::base_addrmap);
 
@@ -427,6 +424,22 @@ void webtv2_state::base_init()
 void webtv2_state::machine_start()
 {
 	m_reset_count = 0x00000000;
+
+	uint32_t usable_ram_size = std::min((uint32_t)m_ram_size, MAX_RAM_SIZE);
+	// FUD is mapped to RAM, so this walks around that address map. Used in the UTV
+	const uint32_t FUD_ADDRSPACE_START = 0x00800cf0;
+	const uint32_t FUD_ADDRSPACE_END   = 0x00800cff;
+	if ((m_device_config & webtv2_state::FUD) && usable_ram_size > FUD_ADDRSPACE_START)
+	{
+		m_maincpu->add_fastram(0x00000000, FUD_ADDRSPACE_START - 1, false, m_mainram);
+
+		if (usable_ram_size > FUD_ADDRSPACE_END)
+			m_maincpu->add_fastram(FUD_ADDRSPACE_END + 1, (usable_ram_size - 1), false, &m_mainram[(FUD_ADDRSPACE_END + 1) / 4]);
+	}
+	else
+	{
+		m_maincpu->add_fastram(0x00000000, (usable_ram_size - 1), false, m_mainram);
+	}
 }
 
 void webtv2_state::machine_reset()

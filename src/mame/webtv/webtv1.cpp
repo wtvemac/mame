@@ -159,9 +159,6 @@ void webtv1_state::build_webtv_device(machine_config &config, webtv1_state::cpu_
 	m_flash_size = webtv1_state::MEM_0MB;
 	m_device_config = device_config;
 
-	//if (cpu == webtv1_state::MIPS_R4640_BE || cpu == webtv1_state::MIPS_R4640_LE)
-	//	m_maincpu->add_fastram(0x00000000, (m_ram_size - 1), false, m_mainram);
-
 	if (!(m_device_config & webtv1_state::CUSTOM_ADDRMAP))
 		m_maincpu->set_addrmap(AS_PROGRAM, &webtv1_state::base_addrmap);
 
@@ -291,6 +288,9 @@ void webtv1_state::base_init()
 void webtv1_state::machine_start()
 {
 	m_reset_count = 0x00000000;
+
+	uint32_t usable_ram_size = std::min((uint32_t)m_ram_size, MAX_RAM_SIZE);
+	m_maincpu->add_fastram(0x00000000, (usable_ram_size - 1), false, m_mainram);
 }
 
 void webtv1_state::machine_reset()
