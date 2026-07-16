@@ -409,6 +409,8 @@ protected:
 		uint64_t        count_zero_time;
 		uint32_t        compare_armed;
 		uint32_t        jmpdest;                    /* destination jump target */
+
+		uint8_t         drc_cache_dirty;            /* true if we need to flush the cache */
 	};
 
 	/* core state */
@@ -497,7 +499,7 @@ protected:
 	uint32_t        m_drcoptions;               /* configurable DRC options */
 
 												/* internal stuff */
-	uint8_t         m_drc_cache_dirty;          /* true if we need to flush the cache */
+	std::vector<uint32_t> m_cacheinval_skip_pcs;       /* locations of cache instructions to skip */
 
 												/* tables */
 	uint8_t         m_fpmode[4];                /* FPU mode table */
@@ -535,6 +537,17 @@ protected:
 	}               m_hotspot[MIPS3_MAX_HOTSPOTS];
 	bool            m_isdrc;
 
+	/* internal compiler state */
+	struct compiler_state
+	{
+		compiler_state &operator=(compiler_state &) = delete;
+
+		uint32_t         cycles;                     /* accumulated cycles */
+		uint8_t          checkints;                  /* need to check interrupts before next instruction */
+		uint8_t          checksoftints;              /* need to check software interrupts before next instruction */
+		uml::code_label  labelnum;                   /* index for local labels */
+	};
+
 	void generate_exception(int exception, int backup);
 	void generate_tlb_exception(int exception, offs_t address);
 
@@ -555,6 +568,7 @@ public:
 	void mips3com_tlbwr();
 	void mips3com_tlbp();
 	void mark_cache_dirty();
+	void add_cacheinval_skipped_pc(uint32_t pc);
 	void code_flush_cache();
 private:
 	uint32_t compute_config_register();
@@ -629,17 +643,6 @@ public:
 	void func_debug_break();
 	void func_unimplemented();
 private:
-	/* internal compiler state */
-	struct compiler_state
-	{
-		compiler_state &operator=(compiler_state &) = delete;
-
-		uint32_t         cycles;                     /* accumulated cycles */
-		uint8_t          checkints;                  /* need to check interrupts before next instruction */
-		uint8_t          checksoftints;              /* need to check software interrupts before next instruction */
-		uml::code_label  labelnum;                   /* index for local labels */
-	};
-
 	void static_generate_entry_point(drcuml_block &block, int &label);
 	void static_generate_nocode_handler(drcuml_block &block, int &label);
 	void static_generate_out_of_cycles(drcuml_block &block, int &label);
@@ -795,6 +798,8 @@ protected:
 	virtual void WDOUBLE_MASKED(offs_t address, uint64_t data, uint64_t mem_mask) override;
 
 	virtual void set_cop0_reg(int idx, uint64_t val) override;
+
+	bool generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
 };
 
 class r4640be_device : public r4650_device {

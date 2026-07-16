@@ -167,8 +167,9 @@ uint32_t mips3_device::mips3drc_get_options()
 void mips3_device::clear_fastram(uint32_t select_start)
 {
 	m_fastram_select=select_start;
-	// Set cache to dirty so that re-mapping occurs
-	m_drc_cache_dirty = true;
+	// Set cache to dirty so that re-mapping occurs, if m_core=nullptr then this is before the cache is even created.
+	if (m_core != nullptr)
+		m_core->drc_cache_dirty = true;
 }
 
 /*-------------------------------------------------
@@ -188,8 +189,9 @@ void mips3_device::add_fastram(offs_t start, offs_t end, uint8_t readonly, void 
 		m_fastram[m_fastram_select].offset_base16 = (uint16_t*)((uint8_t*)base - start);
 		m_fastram[m_fastram_select].offset_base32 = (uint32_t*)((uint8_t*)base - start);
 		m_fastram_select++;
-		// Set cache to dirty so that re-mapping occurs
-		m_drc_cache_dirty = true;
+		// Set cache to dirty so that re-mapping occurs, if m_core=nullptr then this is before the cache is even created.
+		if (m_core != nullptr)
+			m_core->drc_cache_dirty = true;
 	}
 }
 
@@ -223,7 +225,12 @@ void mips3_device::mips3drc_add_hotspot(offs_t pc, uint32_t opcode, uint32_t cyc
 
 void mips3_device::mark_cache_dirty()
 {
-	m_drc_cache_dirty = true;
+	m_core->drc_cache_dirty = true;
+}
+
+void mips3_device::add_cacheinval_skipped_pc(uint32_t pc)
+{
+	m_cacheinval_skip_pcs.push_back(pc);
 }
 
 void mips3_device::code_flush_cache()
@@ -445,12 +452,6 @@ static void cfunc_mips3com_tlbp(void *param)
 {
 	((mips3_device *)param)->mips3com_tlbp();
 }
-
-static void cfunc_mips3com_flush_cache_hack(void *param)
-{
-	((mips3_device *)param)->mark_cache_dirty();
-}
-
 
 /*-------------------------------------------------
     cfunc_get_cycles - compute the total number
@@ -2615,13 +2616,21 @@ bool mips3_device::generate_idt(drcuml_block &block, compiler_state &compiler, c
 
 bool mips3_device::generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc)
 {
+	return true;
+}
+
+bool r4650_device::generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc)
+{
 	uint32_t op = desc->opptr;
 
 	// This doesn't cover everything but fixes an instruction cache issue with the WebTV driver
 
-	if (m_flavor == MIPS3_TYPE_R4640 && CACHE_TYPE == 0 && (CACHE_OP == 0 || CACHE_OP == 4)) // Primary Instruction Index Invalidate
+	if (CACHE_TYPE == 0 && (CACHE_OP == 0 || CACHE_OP == 4)) // Primary Instruction Index Invalidate
 	{
-		UML_CALLC(block, cfunc_mips3com_flush_cache_hack, this);
+		auto itr = std::find(m_cacheinval_skip_pcs.begin(), m_cacheinval_skip_pcs.end(), desc->pc);
+
+		if(itr == m_cacheinval_skip_pcs.end()) // current pc not found in skip list
+			UML_MOV(block, mem(&m_core->drc_cache_dirty), 1);                   // mov     [drc_cache_dirty],1
 	}
 
 	return true;

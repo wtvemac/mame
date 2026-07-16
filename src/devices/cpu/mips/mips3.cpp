@@ -177,7 +177,6 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 	, m_drcuml(nullptr)
 	, m_drcfe(nullptr)
 	, m_drcoptions(0)
-	, m_drc_cache_dirty(0)
 	, m_entry(nullptr)
 	, m_nocode(nullptr)
 	, m_out_of_cycles(nullptr)
@@ -217,6 +216,8 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 		set_vtlb_fixed_entries(2 * m_tlbentries + 4);
 	else
 		set_vtlb_fixed_entries(2 * m_tlbentries + 3);
+
+	m_cacheinval_skip_pcs.reserve(5);
 }
 
 mips3_device::~mips3_device()
@@ -497,7 +498,7 @@ void mips3_device::device_start()
 	}
 
 	/* mark the cache dirty so it is updated on next execute */
-	m_drc_cache_dirty = true;
+	m_core->drc_cache_dirty = true;
 
 
 	/* register for save states */
@@ -1122,7 +1123,7 @@ void mips3_device::device_reset()
 	m_tlb_seed = 0;
 
 	m_core->mode = (MODE_KERNEL << 1) | 0;
-	m_drc_cache_dirty = true;
+	m_core->drc_cache_dirty = true;
 	m_interrupt_cycles = 0;
 
 	m_core->vfr[0][3] = 1.0f;
@@ -5386,9 +5387,9 @@ void mips3_device::execute_run()
 		int execute_result;
 
 		/* reset the cache if dirty */
-		if (m_drc_cache_dirty)
+		if (m_core->drc_cache_dirty)
 			code_flush_cache();
-		m_drc_cache_dirty = false;
+		m_core->drc_cache_dirty = false;
 
 		/* execute */
 		do
