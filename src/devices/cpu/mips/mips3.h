@@ -412,6 +412,8 @@ protected:
 
 		/* XBurst MXU SIMD registers xr0-xr15 (xr0 reads as zero) and the control register xr16; only the moves and loads/stores are implemented */
 		uint32_t        mxu[32];
+
+		uint8_t         drc_cache_dirty;            /* true if we need to flush the cache */
 	};
 
 	/* core state */
@@ -527,7 +529,7 @@ protected:
 	uint32_t        m_drcoptions;               /* configurable DRC options */
 
 												/* internal stuff */
-	uint8_t         m_drc_cache_dirty;          /* true if we need to flush the cache */
+	std::vector<uint32_t> m_cacheinval_skip_pcs;       /* locations of cache instructions to skip */
 
 												/* tables */
 	uint8_t         m_fpmode[4];                /* FPU mode table */
@@ -589,6 +591,7 @@ public:
 	void mips3com_tlbwr();
 	void mips3com_tlbp();
 	void mark_cache_dirty();
+	void add_cacheinval_skipped_pc(uint32_t pc);
 	void code_flush_cache();
 private:
 	uint32_t compute_config_register();

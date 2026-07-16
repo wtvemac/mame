@@ -210,6 +210,14 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	m_maincpu->set_icache_size(0x2000);
 	m_maincpu->set_dcache_size(0x2000);
 
+	// Reduce DRC cache clears
+	// LC2 DOOM
+	m_maincpu->add_cacheinval_skipped_pc(0x806abc1c);
+	m_maincpu->add_cacheinval_skipped_pc(0x806abacc);
+	// Echostar DOOM (not used but added anyway)
+	m_maincpu->add_cacheinval_skipped_pc(0x80ebc5c8);
+	m_maincpu->add_cacheinval_skipped_pc(0x80ebc470);
+
 	m_ram_size = ram_size;
 	m_rom_size = rom_size;
 	m_flash_size = webtv2_state::MEM_0MB;
