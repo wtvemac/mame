@@ -349,9 +349,12 @@ uint32_t solo_asic_audio_device::reg_2014_r()
 
 void solo_asic_audio_device::reg_2014_w(uint32_t data)
 {
-	m_aud_onsize = data;
+	if (m_aud_onsize != data)
+	{
+		m_aud_onsize = data;
 
-	solo_asic_audio_device::adjust_audio_update_rate();
+		solo_asic_audio_device::adjust_audio_update_rate();
+	}
 }
 
 uint32_t solo_asic_audio_device::reg_2018_r()
@@ -420,9 +423,12 @@ uint32_t solo_asic_audio_device::reg_2034_r()
 
 void solo_asic_audio_device::reg_2034_w(uint32_t data)
 {
-	m_aud_insize = data;
+	if (m_aud_insize != data)
+	{
+		m_aud_insize = data;
 
-	solo_asic_audio_device::adjust_audio_update_rate();
+		solo_asic_audio_device::adjust_audio_update_rate();
+	}
 }
 
 uint32_t solo_asic_audio_device::reg_203c_r()

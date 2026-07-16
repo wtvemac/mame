@@ -633,9 +633,12 @@ uint32_t spot_asic_device::reg_2014_r()
 
 void spot_asic_device::reg_2014_w(uint32_t data)
 {
-	m_aud_onsize = data;
+	if (m_aud_onsize != data)
+	{
+		m_aud_onsize = data;
 
-	spot_asic_device::adjust_audio_update_rate();
+		spot_asic_device::adjust_audio_update_rate();
+	}
 }
 
 uint32_t spot_asic_device::reg_2018_r()
