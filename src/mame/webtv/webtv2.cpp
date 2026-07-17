@@ -190,6 +190,11 @@ private:
 
 void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_type_t cpu, XTAL cpu_clock, webtv2_state::mem_size_t ram_size, webtv2_state::mem_size_t rom_size, uint32_t chip_id, uint32_t sys_config, uint32_t device_config, XTAL aud_clock)
 {
+	m_ram_size = ram_size;
+	m_rom_size = rom_size;
+	m_flash_size = webtv2_state::MEM_0MB;
+	m_device_config = device_config;
+
 	config.set_default_layout(layout_webtv);
 
 	if (cpu == webtv2_state::MIPS_R4640_BE)
@@ -204,6 +209,13 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	m_maincpu->set_icache_size(0x2000);
 	m_maincpu->set_dcache_size(0x2000);
 
+	// Using a generous DRC cache for WinCE platforms.
+	if (m_device_config & webtv2_state::DTV01_SAT_TUNER || cpu == webtv2_state::MIPS_RM5230_LE || cpu == webtv2_state::MIPS_RM5231_LE)
+		m_maincpu->set_drc_cache_size(256 * 1024 * 1024);
+	// Using the default 32MB for other boxes.
+	else
+		m_maincpu->set_drc_cache_size(32 * 1024 * 1024);
+
 	// Reduce DRC cache clears
 	// LC2 DOOM
 	m_maincpu->add_cacheinval_skipped_pc(0x806abc1c);
@@ -211,11 +223,6 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	// Echostar DOOM (not used but added anyway)
 	m_maincpu->add_cacheinval_skipped_pc(0x80ebc5c8);
 	m_maincpu->add_cacheinval_skipped_pc(0x80ebc470);
-
-	m_ram_size = ram_size;
-	m_rom_size = rom_size;
-	m_flash_size = webtv2_state::MEM_0MB;
-	m_device_config = device_config;
 
 	if (!(m_device_config & webtv2_state::CUSTOM_ADDRMAP))
 		m_maincpu->set_addrmap(AS_PROGRAM, &webtv2_state::base_addrmap);
