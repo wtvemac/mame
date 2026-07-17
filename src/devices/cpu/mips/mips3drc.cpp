@@ -243,7 +243,7 @@ void mips3_device::code_flush_cache()
 	try
 	{
 		{
-			drcuml_block &block(m_drcuml->begin_block(1024));
+			drcuml_block &block(m_drcuml->begin_block(4096));
 			int label = 1;
 
 			/* generate the entry point and out-of-cycles handlers */
@@ -276,7 +276,7 @@ void mips3_device::code_flush_cache()
 		/* add subroutines for memory accesses */
 		for (mode = 0; mode < 3; mode++)
 		{
-			drcuml_block &block(m_drcuml->begin_block(1024));
+			drcuml_block &block(m_drcuml->begin_block(4096));
 			int label = 1;
 			static_generate_memory_accessor(block, label, mode, 1, false, false, "read8",       m_read8[mode]);
 			static_generate_memory_accessor(block, label, mode, 1, true,  false, "write8",      m_write8[mode]);
@@ -329,7 +329,7 @@ void mips3_device::code_compile_block(uint8_t mode, offs_t pc)
 		try
 		{
 			/* start the block */
-			drcuml_block &block(m_drcuml->begin_block(4096));
+			drcuml_block &block(m_drcuml->begin_block(16384));
 
 			/* loop until we get through all instruction sequences */
 			for (seqhead = desclist; seqhead != nullptr; seqhead = seqlast->next())
