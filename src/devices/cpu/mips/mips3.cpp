@@ -182,8 +182,11 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 	, m_out_of_cycles(nullptr)
 	, m_tlb_mismatch(nullptr)
 	, m_hotspot_select(0)
+	, m_diag_ramlog_epoch(0)
 	, m_diag_fastram_acnt(0)
+	, m_diag_fastram_adur(0)
 	, m_diag_slowram_acnt(0)
+	, m_diag_slowram_adur(0)
 {
 	memset(m_fpmode, 0, sizeof(m_fpmode));
 

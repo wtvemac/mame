@@ -42,8 +42,10 @@
 // Add extra diagnostic information about how memory is accessed.
 // Can be useful to see how often fastram is used and common hotspots when the slow path is used.
 #define DEBUG_MEMORY_ACCESS 0   // 1=enable, 0=disabled
+#define DEBUG_DIAGRAM_TSORT 1   // 1=sorts by access duration/time, 0=sorts by access count/hits
 #define DEBUG_DIAGRAM_FREQ  5.0 // How often to print memory access diagnostics in seconds, this is rough since it's dependant on mem accesses.
 #define DEBUG_DIAGRAM_ACNT  10  // How many slow addresses to print
+#include <chrono>
 
 /***************************************************************************
     MACROS
@@ -617,50 +619,73 @@ void mips3_device::func_printf_ramdiag()
 
 		std::nth_element(iterators.begin(), iterators.begin() + print_count, iterators.end(),
 			[](const MapIterator& a, const MapIterator& b) {
-				return a->second.acount > b->second.acount;
+	 			if(DEBUG_DIAGRAM_TSORT)
+					return a->second.adur > b->second.adur;
+				else
+					return a->second.acount > b->second.acount;
 			}
 		);
 
 		std::sort(iterators.begin(), iterators.begin() + print_count,
 			[](const MapIterator& a, const MapIterator& b) {
-				return a->second.acount > b->second.acount;
+				if(DEBUG_DIAGRAM_TSORT)
+					return a->second.adur > b->second.adur;
+				else
+					return a->second.acount > b->second.acount;
 			}
 		);
 
 		// Print out sorted addresses
 
-		// I may add access time in ns to identify slow implementations. Count is fine for me right now
-
 		printf("\n=== MEMORY ACCESS STATS ==\n\n");
 
-		uint64_t total = m_diag_slowram_acnt + m_diag_fastram_acnt;
-		if (total == 0)
-			total = 1;
+		uint64_t cnt_total = m_diag_slowram_acnt + m_diag_fastram_acnt;
+		if (cnt_total == 0)
+			cnt_total = 1;
+		double fastram_cntpct = ((double)m_diag_fastram_acnt / (double)cnt_total) * 100.0;
 
-		printf("Fastpath coverage: %.2f%%, popular slow addresses below:\n\n", ((double)m_diag_fastram_acnt / (double)total) * 100.0);
-		printf("%-22s | %-20s | %s\n", "Slow Address", "Last PC", "Access Count");
-		printf("------------------------------------------------------------\n");
+		uint64_t dur_total = m_diag_slowram_adur + m_diag_fastram_adur;
+		if (dur_total == 0)
+			dur_total = 1;
+		double fastram_durpct = ((double)m_diag_fastram_adur / (double)dur_total) * 100.0;
+
+		printf("Fastpath coverage: %.2f%% hits %.2f%% time, popular slow addresses below:\n\n", fastram_cntpct, fastram_durpct);
+		printf("%-22s | %-20s | %-18s | %s\n", "Slow Address", "Last PC", "Access Count", "Access Time");
+		printf("-----------------------------------------------------------------------------------------\n");
 		for (uint32_t i = 0; i < print_count; i++)
 		{
 			uint32_t mem_addr = iterators[i]->first;
 			uint32_t pc_val = iterators[i]->second.last_pc;
 			uint32_t hits = iterators[i]->second.acount;
+			uint32_t duration = iterators[i]->second.adur;
 
 			bool is_write = (mem_addr & 0x80000000);
 
 			mem_addr &= (~0x80000000);
 
-			printf("%c 0x%-18.8x | 0x%-18.8x | %u\n", ((is_write) ? 'W' : 'R'), mem_addr, pc_val, hits);
+			printf("%c 0x%-18.8x | 0x%-18.8x | %-18u | %-18uns\n", ((is_write) ? 'W' : 'R'), mem_addr, pc_val, hits, duration);
 		}
-		printf("============================================================\n\n");
+		printf("=========================================================================================\n\n");
 
 		m_last_ramdiag_print = now;
 	}
 }
 
+void mips3_device::func_ramlog_epoch()
+{
+	m_diag_ramlog_epoch = (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+							std::chrono::steady_clock::now().time_since_epoch()
+						).count();
+}
+
 void mips3_device::func_log_fastram()
 {
 	m_diag_fastram_acnt++;
+
+	uint64_t end = (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+						std::chrono::steady_clock::now().time_since_epoch()
+					).count();
+	m_diag_fastram_adur += (end - m_diag_ramlog_epoch);
 
 	mips3_device::func_printf_ramdiag();
 }
@@ -668,6 +693,12 @@ void mips3_device::func_log_fastram()
 void mips3_device::func_log_slowram()
 {
 	m_diag_slowram_acnt++;
+
+	uint64_t end = (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+						std::chrono::steady_clock::now().time_since_epoch()
+					).count();
+	uint64_t adur = (end - m_diag_ramlog_epoch);
+	m_diag_slowram_adur += adur;
 
 	// Using MSB (sign bit) as read/write indicator.
 	// Should be fine since that used for kseg indication which gets stripped for our use.
@@ -678,9 +709,16 @@ void mips3_device::func_log_slowram()
 		m_core->arg0 &= (~0x80000000);
 
 	m_diag_slowram_alog[m_core->arg0].acount++;
+	// This is just a general total time spend. Wont help in bursty situations, would need better diag for that.
+	m_diag_slowram_alog[m_core->arg0].adur += adur;
 	m_diag_slowram_alog[m_core->arg0].last_pc = m_core->pc;
 
 	mips3_device::func_printf_ramdiag();
+}
+
+static void cfunc_ramlog_epoch(void *param)
+{
+	((mips3_device *)param)->func_ramlog_epoch();
 }
 
 static void cfunc_log_fastram(void *param)
@@ -982,7 +1020,7 @@ void mips3_device::static_generate_fastram_accessor(drcuml_block &block, int &la
 				{
 					UML_MOV(block, mem(&m_core->arg0), I0);
 					UML_MOV(block, mem(&m_core->arg1), iswrite);
-					UML_CALLC(block, cfunc_log_fastram, this);
+					UML_CALLC(block, cfunc_ramlog_epoch, this);
 				}
 
 				if (!iswrite)
@@ -1008,6 +1046,11 @@ void mips3_device::static_generate_fastram_accessor(drcuml_block &block, int &la
 						UML_DLOAD(block, I0, fastbase, I0, SIZE_QWORD, SCALE_x1);   // dload   i0,fastbase,i0,qword_x1
 						UML_DROR(block, I0, I0, 32 * (m_bigendian ? BYTE_XOR_BE(0) : BYTE_XOR_LE(0)));
 																					// dror    i0,i0,32*bytexor
+					}
+
+					if (DEBUG_MEMORY_ACCESS)
+					{
+						UML_CALLC(block, cfunc_log_fastram, this);
 					}
 					UML_RET(block);                                                 // ret
 				}
@@ -1064,6 +1107,10 @@ void mips3_device::static_generate_fastram_accessor(drcuml_block &block, int &la
 						UML_LABEL(block, skip_cache_clear);                             // skip_cache_clear:
 					}
 
+					if (DEBUG_MEMORY_ACCESS)
+					{
+						UML_CALLC(block, cfunc_log_fastram, this);
+					}
 					UML_RET(block);                                                     // ret
 				}
 
@@ -1084,7 +1131,7 @@ void mips3_device::static_generate_memory_rw(drcuml_block &block, int &label, in
 	{
 		UML_MOV(block, mem(&m_core->arg0), I0);
 		UML_MOV(block, mem(&m_core->arg1), iswrite);
-		UML_CALLC(block, cfunc_log_slowram, this);
+		UML_CALLC(block, cfunc_ramlog_epoch, this);
 	}
 
 	switch (size)
@@ -1136,6 +1183,11 @@ void mips3_device::static_generate_memory_rw(drcuml_block &block, int &label, in
 					UML_DREADM(block, I0, I0, I2, SIZE_QWORD, SPACE_PROGRAM);       // dreadm  i0,i0,i2,program_qword
 			}
 			break;
+	}
+
+	if (DEBUG_MEMORY_ACCESS)
+	{
+		UML_CALLC(block, cfunc_log_slowram, this);
 	}
 
 	if (iswrite)
