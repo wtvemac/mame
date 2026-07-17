@@ -554,7 +554,7 @@ protected:
 	uint64_t m_diag_slowram_acnt;
 	uint64_t m_diag_slowram_adur;
 	struct diag_addr_entry {
-		uint64_t acount = 0;
+		uint64_t acnt = 0;
 		uint64_t adur = 0;
 		uint32_t last_pc = 0;
 	};

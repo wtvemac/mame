@@ -223,6 +223,8 @@ mips3_device::mips3_device(const machine_config &mconfig, device_type type, cons
 		set_vtlb_fixed_entries(2 * m_tlbentries + 3);
 
 	m_cacheinval_skip_pcs.reserve(5);
+
+	m_last_ramdiag_print = std::time(nullptr);
 }
 
 mips3_device::~mips3_device()

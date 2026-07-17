@@ -622,7 +622,7 @@ void mips3_device::func_printf_ramdiag()
 	 			if(DEBUG_DIAGRAM_TSORT)
 					return a->second.adur > b->second.adur;
 				else
-					return a->second.acount > b->second.acount;
+					return a->second.acnt > b->second.acnt;
 			}
 		);
 
@@ -631,7 +631,7 @@ void mips3_device::func_printf_ramdiag()
 				if(DEBUG_DIAGRAM_TSORT)
 					return a->second.adur > b->second.adur;
 				else
-					return a->second.acount > b->second.acount;
+					return a->second.acnt > b->second.acnt;
 			}
 		);
 
@@ -656,7 +656,7 @@ void mips3_device::func_printf_ramdiag()
 		{
 			uint32_t mem_addr = iterators[i]->first;
 			uint32_t pc_val = iterators[i]->second.last_pc;
-			uint32_t hits = iterators[i]->second.acount;
+			uint32_t hits = iterators[i]->second.acnt;
 			uint32_t duration = iterators[i]->second.adur;
 
 			bool is_write = (mem_addr & 0x80000000);
@@ -708,7 +708,7 @@ void mips3_device::func_log_slowram()
 	else
 		m_core->arg0 &= (~0x80000000);
 
-	m_diag_slowram_alog[m_core->arg0].acount++;
+	m_diag_slowram_alog[m_core->arg0].acnt++;
 	// This is just a general total time spend. Wont help in bursty situations, would need better diag for that.
 	m_diag_slowram_alog[m_core->arg0].adur += adur;
 	m_diag_slowram_alog[m_core->arg0].last_pc = m_core->pc;
