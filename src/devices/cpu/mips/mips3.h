@@ -575,7 +575,7 @@ protected:
 
 	void static_generate_memory_mode_checks(drcuml_block &block, uml::code_handle &exception_addrerr, uml::code_label &label, int mode);
 	void static_generate_fastram_accessor(drcuml_block &block, uml::code_label &label, int size, bool iswrite, bool ismasked);
-	void static_generate_memory_rw(drcuml_block &block, int size, bool iswrite, bool ismasked);
+	void static_generate_memory_rw(drcuml_block &block, uml::code_label &label, int size, bool iswrite, bool ismasked);
 	virtual void static_generate_memory_accessor(drcuml_block &block, uml::code_label &label, int mode, int size, bool iswrite, bool ismasked, const char *name, uml::code_handle *&handleptr);
 
 	virtual void check_irqs();

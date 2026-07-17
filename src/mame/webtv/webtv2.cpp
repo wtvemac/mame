@@ -60,8 +60,6 @@ public:
 	static constexpr uint32_t MAX_RAM_SIZE = mem_size_t::MEM_64MB;
 	static constexpr uint32_t MAX_ROM_SIZE = mem_size_t::MEM_8MB;
 
-	static constexpr uint16_t RAM_FLASHER_SIZE = 0x100;
-
 	enum device_t : uint32_t
 	{
 		NONE              = 0x00000000,
@@ -172,8 +170,6 @@ private:
 
  	uint32_t m_reset_count;
 
-	uint8_t ram_flasher[RAM_FLASHER_SIZE];
-
 	void build_webtv_device(machine_config &config, webtv2_state::cpu_type_t cpu, XTAL cpu_clock, webtv2_state::mem_size_t ram_size, webtv2_state::mem_size_t rom_size, uint32_t chip_id, uint32_t sys_config, uint32_t device_config, XTAL aud_clock = AUD_44kHZ);
 
 	void base_addrmap(address_map &map);
@@ -189,8 +185,6 @@ private:
 	uint32_t bank0_flash_r(offs_t offset);
 	void bank1_flash_w(offs_t offset, uint32_t data);
 	uint32_t bank1_flash_r(offs_t offset);
-	uint8_t ram_flasher_r(offs_t offset);
-	void ram_flasher_w(offs_t offset, uint8_t data);
 
 };
 
@@ -410,10 +404,6 @@ void webtv2_state::base_addrmap(address_map &map)
 		map(rom_adr_start, rom_adr_end).rw(FUNC(webtv2_state::bank1_flash_r), FUNC(webtv2_state::bank1_flash_w)).share("bank1");
 	else
 		map(rom_adr_start, 0x1fffffff).rw(FUNC(webtv2_state::bank1_flash_r), FUNC(webtv2_state::bank1_flash_w)).mask(usable_rom_size - 1).share("bank1");
-
-	// The RAM flash code gets mirrored across the entire RAM region.
-	for (uint32_t ram_flasher_base = 0x00000000; ram_flasher_base < MAX_RAM_SIZE; ram_flasher_base += m_ram_size)
-		map(ram_flasher_base, ram_flasher_base + (RAM_FLASHER_SIZE - 1)).rw(FUNC(webtv2_state::ram_flasher_r), FUNC(webtv2_state::ram_flasher_w));
 }
 
 void webtv2_state::base_init()
@@ -566,23 +556,6 @@ void webtv2_state::bank1_flash_w(offs_t offset, uint32_t data)
 		m_bank1_flash0->write(offset, lower_value & 0xffff);
 		m_bank1_flash1->write(offset, upper_value & 0xffff);
 	}
-}
-
-// WebTV's firmware writes the flashing code to the lower 256 bytes of RAM
-// The flash ID instructions are written first, then the flash erase instructions then the flash program instructions.
-// Since everything is written to the same place, the drc cache becomes out of sync and just re-executes the ID instructions.
-// This allows us to capture when new code is written and then clear the drc cache.
-uint8_t webtv2_state::ram_flasher_r(offs_t offset)
-{
-	return ram_flasher[offset & (RAM_FLASHER_SIZE - 1)];
-}
-void webtv2_state::ram_flasher_w(offs_t offset, uint8_t data)
-{
-	if (offset == 0)
-		// New code is being written, clear drc cache.
-		m_maincpu->code_flush_cache();
-
-	ram_flasher[offset & (RAM_FLASHER_SIZE - 1)] = data;
 }
 
 // There's a few known devices that can sit on this bus:
