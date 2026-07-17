@@ -547,6 +547,15 @@ protected:
 		uint8_t          checksoftints;              /* need to check software interrupts before next instruction */
 		uml::code_label  labelnum;                   /* index for local labels */
 	};
+	
+	uint64_t m_diag_fastram_acnt;
+	uint64_t m_diag_slowram_acnt;
+	struct diag_addr_entry {
+		uint64_t acount = 0;
+		uint32_t last_pc = 0;
+	};
+	std::unordered_map<uintptr_t, diag_addr_entry> m_diag_slowram_alog;
+	std::time_t m_last_ramdiag_print;
 
 	void generate_exception(int exception, int backup);
 	void generate_tlb_exception(int exception, offs_t address);
@@ -642,6 +651,9 @@ public:
 	void func_printf_probe();
 	void func_debug_break();
 	void func_unimplemented();
+	void func_printf_ramdiag();
+	void func_log_fastram();
+	void func_log_slowram();
 private:
 	void static_generate_entry_point(drcuml_block &block, int &label);
 	void static_generate_nocode_handler(drcuml_block &block, int &label);

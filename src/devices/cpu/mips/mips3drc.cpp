@@ -39,6 +39,11 @@
 /* Set to 1 to activate and use MIPS3DRC_STRICT_VERIFY in the drc options */
 #define DEBUG_STRICT_VERIFY 0
 
+// Add extra diagnostic information about how memory is accessed.
+// Can be useful to see how often fastram is used and common hotspots when the slow path is used.
+#define DEBUG_MEMORY_ACCESS 0   // 1=enable, 0=disabled
+#define DEBUG_DIAGRAM_FREQ  5.0 // How often to print memory access diagnostics in seconds, this is rough since it's dependant on mem accesses.
+#define DEBUG_DIAGRAM_ACNT  10  // How many slow addresses to print
 
 /***************************************************************************
     MACROS
@@ -588,6 +593,93 @@ static void cfunc_unimplemented(void *param)
 	((mips3_device *)param)->func_unimplemented();
 }
 
+/*-------------------------------------------------
+    cfunc_log_fastram+cfunc_log_slowram - handler for
+    ram access diagnostic information
+-------------------------------------------------*/
+void mips3_device::func_printf_ramdiag()
+{
+	std::time_t now = std::time(nullptr);
+
+	if(std::difftime(now, m_last_ramdiag_print) >= DEBUG_DIAGRAM_FREQ)
+	{
+		// Using fast top-k selection sort here
+
+		using MapIterator = decltype(m_diag_slowram_alog)::const_iterator;
+		std::vector<MapIterator> iterators;
+		iterators.reserve(m_diag_slowram_alog.size());
+
+		for (auto it = m_diag_slowram_alog.cbegin(); it != m_diag_slowram_alog.cend(); ++it)
+			iterators.push_back(it);
+
+		// The "k" value
+		uint32_t print_count = std::min(iterators.size(), size_t(DEBUG_DIAGRAM_ACNT));
+
+		std::nth_element(iterators.begin(), iterators.begin() + print_count, iterators.end(),
+			[](const MapIterator& a, const MapIterator& b) {
+				return a->second.acount > b->second.acount;
+			}
+		);
+
+		std::sort(iterators.begin(), iterators.begin() + print_count,
+			[](const MapIterator& a, const MapIterator& b) {
+				return a->second.acount > b->second.acount;
+			}
+		);
+
+		// Print out sorted addresses
+
+		// I may add access time in ns to identify slow implementations. Count is fine for me right now
+
+		printf("\n=== MEMORY ACCESS STATS ==\n\n");
+
+		uint64_t total = m_diag_slowram_acnt + m_diag_fastram_acnt;
+		if (total == 0)
+			total = 1;
+
+		printf("Fastpath coverage: %.2f%%, popular slow addresses below:\n\n", ((double)m_diag_fastram_acnt / (double)total) * 100.0);
+		printf("%-20s | %-20s | %s\n", "Slow Address", "Last PC", "Access Count");
+		printf("------------------------------------------------------------\n");
+		for (uint32_t i = 0; i < print_count; i++)
+		{
+			uint32_t mem_addr = iterators[i]->first;
+			uint32_t pc_val = iterators[i]->second.last_pc;
+			uint32_t hits = iterators[i]->second.acount;
+
+			printf("0x%-18.8x | 0x%-18.8x | %u\n", mem_addr, pc_val, hits);
+		}
+		printf("============================================================\n\n");
+
+		m_last_ramdiag_print = now;
+	}
+}
+
+void mips3_device::func_log_fastram()
+{
+	m_diag_fastram_acnt++;
+
+	mips3_device::func_printf_ramdiag();
+}
+
+void mips3_device::func_log_slowram()
+{
+	m_diag_slowram_acnt++;
+
+	m_diag_slowram_alog[m_core->arg0].acount++;
+	m_diag_slowram_alog[m_core->arg0].last_pc = m_core->pc;
+
+	mips3_device::func_printf_ramdiag();
+}
+
+static void cfunc_log_fastram(void *param)
+{
+	((mips3_device *)param)->func_log_fastram();
+}
+
+static void cfunc_log_slowram(void *param)
+{
+	((mips3_device *)param)->func_log_slowram();
+}
 
 /***************************************************************************
     STATIC CODEGEN
@@ -873,6 +965,14 @@ void mips3_device::static_generate_fastram_accessor(drcuml_block &block, int &la
 					UML_CMP(block, I0, m_fastram[ramnum].start);                    // cmp     i0,fastram_start
 					UML_JMPc(block, COND_B, skip);                                  // jb      skip
 				}
+				
+				if (DEBUG_MEMORY_ACCESS)
+				{
+					UML_MOV(block, mem(&m_core->arg0), I0);
+					UML_MOV(block, mem(&m_core->arg1), iswrite);
+					UML_CALLC(block, cfunc_log_fastram, this);
+				}
+
 				if (!iswrite)
 				{
 					if (size == 1)
@@ -968,6 +1068,13 @@ void mips3_device::static_generate_fastram_accessor(drcuml_block &block, int &la
 
 void mips3_device::static_generate_memory_rw(drcuml_block &block, int &label, int size, bool iswrite, bool ismasked)
 {
+	if (DEBUG_MEMORY_ACCESS)
+	{
+		UML_MOV(block, mem(&m_core->arg0), I0);
+		UML_MOV(block, mem(&m_core->arg1), iswrite);
+		UML_CALLC(block, cfunc_log_slowram, this);
+	}
+
 	switch (size)
 	{
 		case 1:
