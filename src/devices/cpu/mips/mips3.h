@@ -567,10 +567,14 @@ protected:
 	}               m_hotspot[MIPS3_MAX_HOTSPOTS];
 	bool            m_isdrc;
 
+	uint64_t m_diag_ramlog_epoch;
 	uint64_t m_diag_fastram_acnt;
+	uint64_t m_diag_fastram_adur;
 	uint64_t m_diag_slowram_acnt;
+	uint64_t m_diag_slowram_adur;
 	struct diag_addr_entry {
 		uint64_t acount = 0;
+		uint64_t adur = 0;
 		uint32_t last_pc = 0;
 	};
 	std::unordered_map<uintptr_t, diag_addr_entry> m_diag_slowram_alog;
@@ -687,6 +691,7 @@ public:
 	void func_debug_break();
 	void func_unimplemented();
 	void func_printf_ramdiag();
+	void func_ramlog_epoch();
 	void func_log_fastram();
 	void func_log_slowram();
 private:
