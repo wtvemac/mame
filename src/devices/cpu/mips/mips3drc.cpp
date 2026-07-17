@@ -638,7 +638,7 @@ void mips3_device::func_printf_ramdiag()
 			total = 1;
 
 		printf("Fastpath coverage: %.2f%%, popular slow addresses below:\n\n", ((double)m_diag_fastram_acnt / (double)total) * 100.0);
-		printf("%-20s | %-20s | %s\n", "Slow Address", "Last PC", "Access Count");
+		printf("%-22s | %-20s | %s\n", "Slow Address", "Last PC", "Access Count");
 		printf("------------------------------------------------------------\n");
 		for (uint32_t i = 0; i < print_count; i++)
 		{
@@ -646,7 +646,11 @@ void mips3_device::func_printf_ramdiag()
 			uint32_t pc_val = iterators[i]->second.last_pc;
 			uint32_t hits = iterators[i]->second.acount;
 
-			printf("0x%-18.8x | 0x%-18.8x | %u\n", mem_addr, pc_val, hits);
+			bool is_write = (mem_addr & 0x80000000);
+
+			mem_addr &= (~0x80000000);
+
+			printf("%c 0x%-18.8x | 0x%-18.8x | %u\n", ((is_write) ? 'W' : 'R'), mem_addr, pc_val, hits);
 		}
 		printf("============================================================\n\n");
 
@@ -664,6 +668,14 @@ void mips3_device::func_log_fastram()
 void mips3_device::func_log_slowram()
 {
 	m_diag_slowram_acnt++;
+
+	// Using MSB (sign bit) as read/write indicator.
+	// Should be fine since that used for kseg indication which gets stripped for our use.
+
+	if(m_core->arg1 == 1)
+		m_core->arg0 |= 0x80000000;
+	else
+		m_core->arg0 &= (~0x80000000);
 
 	m_diag_slowram_alog[m_core->arg0].acount++;
 	m_diag_slowram_alog[m_core->arg0].last_pc = m_core->pc;
