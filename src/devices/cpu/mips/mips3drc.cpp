@@ -939,6 +939,19 @@ void mips3_device::static_generate_fastram_accessor(drcuml_block &block, int &la
 						else
 							UML_DSTORE(block, fastbase, I0, I1, SIZE_QWORD, SCALE_x1);  // dstore  fastbase,i0,i1,qword_x1
 					}
+
+					if (m_flavor != MIPS3_TYPE_R4640 && m_flavor != MIPS3_TYPE_R4650)
+					{
+						// When the OS writes to addr 0x00000000 then clear DRC cache. The DRC SMC hash check isn't fired (may look into why) but this is a good workaround.
+						// This is usually the TLB exception handler code written to the exception vector @ 0x80000000. For R4640 and R4650 this is handled in the slow memory path.
+						// This was handled by a slower RAM_FLASHER memory map in the WebTV driver but this should be faster.
+						int skip_cache_clear = label++;
+						UML_CMP(block, I0, 0x00000000);                                 // cmp     i0,0x00000000
+						UML_JMPc(block, COND_NE, skip_cache_clear);                     // jne     skip_cache_clear
+						UML_MOV(block, mem(&m_core->drc_cache_dirty), 1);               // mov     [drc_cache_dirty],1
+						UML_LABEL(block, skip_cache_clear);                             // skip_cache_clear:
+					}
+
 					UML_RET(block);                                                     // ret
 				}
 
@@ -953,7 +966,7 @@ void mips3_device::static_generate_fastram_accessor(drcuml_block &block, int &la
     static_generate_memory_rw
 ------------------------------------------------------------------*/
 
-void mips3_device::static_generate_memory_rw(drcuml_block &block, int size, bool iswrite, bool ismasked)
+void mips3_device::static_generate_memory_rw(drcuml_block &block, int &label, int size, bool iswrite, bool ismasked)
 {
 	switch (size)
 	{
@@ -1005,6 +1018,24 @@ void mips3_device::static_generate_memory_rw(drcuml_block &block, int size, bool
 			}
 			break;
 	}
+
+	if (iswrite)
+	{
+		// Clear DRC cache when something is written to 0xa0000000. The DRC SMC hash check isn't fired (may look into why) but this is a good workaround.
+		// In the WebTV OS this is usually RAM flasher code or saved registers during an interrupt.
+		// This was handled by a RAM_FLASHER memory map in the WebTV driver but this should work similarly but directly in the DRC.
+		// Reason behind the RAM_FLASHER memory map:
+		// The WebTV OS writes the flashing code to the lower 256 bytes of RAM
+		// The flash ID instructions are written first, then the flash erase instructions then the flash program instructions.
+		// Since everything is written to the same place (self-modified code), the drc cache becomes out of sync and just re-executes the ID instructions.
+		// This allows us to capture when new code is written and then clear the drc cache.
+		uint32_t skip_cache_clear = label++;
+		UML_CMP(block, I0, 0xa0000000);                                             // cmp     i0,0xa0000000
+		UML_JMPc(block, COND_NE, skip_cache_clear);                                 // jne     skip_cache_clear
+		UML_MOV(block, mem(&m_core->drc_cache_dirty), 1);                           // mov     [drc_cache_dirty],1
+		UML_LABEL(block, skip_cache_clear);                                         // skip_cache_clear:
+	}
+
 	UML_RET(block);                                                                 // ret
 }
 
@@ -1037,7 +1068,7 @@ void mips3_device::static_generate_memory_accessor(drcuml_block &block, int &lab
 	UML_ROLINS(block, I0, I3, 0, 0xfffff000);                                       // rolins  i0,i3,0,0xfffff000
 
 	static_generate_fastram_accessor(block, label, size, iswrite, ismasked);
-	static_generate_memory_rw(block, size, iswrite, ismasked);
+	static_generate_memory_rw(block, label, size, iswrite, ismasked);
 
 	UML_LABEL(block, tlbmiss);                                                      // tlbmiss:
 	if (iswrite)
@@ -1094,7 +1125,7 @@ void r4650_device::static_generate_memory_accessor(drcuml_block &block, int &lab
 
 	UML_MOV(block, I0, I3);                                                         // i0 = i3 (restore original)
 
-	static_generate_memory_rw(block, size, iswrite, ismasked);
+	static_generate_memory_rw(block, label, size, iswrite, ismasked);
 }
 
 /***************************************************************************
