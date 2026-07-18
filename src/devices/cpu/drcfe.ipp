@@ -87,60 +87,73 @@ const Desc *drc_frontend_base<Desc>::do_describe_code(T &&describe, offs_t start
 	// loop while we still have a stack
 	offs_t const minpc = startpc - (std::min)(m_window_start, startpc);
 	offs_t const maxpc = startpc + (std::min)(m_window_end, 0xffffffff - startpc);
-	while (pcstackptr != &pcstack[0])
+	try
 	{
-		// if we've already hit this PC, just mark it a branch target and continue
-		pc_stack_entry *const curstack = --pcstackptr;
-		Desc *curdesc = m_desc_array[curstack->targetpc - minpc];
-		if (curdesc != nullptr)
+		while (pcstackptr != &pcstack[0])
 		{
-			curdesc->set_is_branch_target();
-
-			// if the branch crosses a page boundary, mark the target as needing to revalidate
-			if (m_pageshift != 0 && ((curstack->srcpc ^ curdesc->pc) >> m_pageshift) != 0)
+			// if we've already hit this PC, just mark it a branch target and continue
+			pc_stack_entry *const curstack = --pcstackptr;
+			Desc *curdesc = m_desc_array[curstack->targetpc - minpc];
+			if (curdesc != nullptr)
 			{
-				curdesc->set_validate_tlb();
-				curdesc->set_can_cause_exception();
-			}
-
-			// continue processing
-			continue;
-		}
-
-		// loop until we exit the block
-		for (offs_t curpc = curstack->targetpc; curpc >= minpc && curpc < maxpc && m_desc_array[curpc - minpc] == nullptr; curpc += m_desc_array[curpc - minpc]->length)
-		{
-			// allocate a new description and describe this instruction
-			m_desc_array[curpc - minpc] = curdesc = describe_one(describe, curpc, curdesc);
-
-			// first instruction in a sequence is always a branch target
-			if (curpc == curstack->targetpc)
 				curdesc->set_is_branch_target();
 
-			// stop if we hit a page fault
-			if (curdesc->compiler_page_fault())
-				break;
+				// if the branch crosses a page boundary, mark the target as needing to revalidate
+				if (m_pageshift != 0 && ((curstack->srcpc ^ curdesc->pc) >> m_pageshift) != 0)
+				{
+					curdesc->set_validate_tlb();
+					curdesc->set_can_cause_exception();
+				}
 
-			// if we are the first instruction in the whole window, we must validate the TLB
-			if (curpc == startpc && m_pageshift != 0)
-			{
-				curdesc->set_validate_tlb();
-				curdesc->set_can_cause_exception();
+				// continue processing
+				continue;
 			}
 
-			// if we are a branch within the block range, add the branch target to our stack
-			if (curdesc->is_branch() && (curdesc->targetpc >= minpc) && (curdesc->targetpc < maxpc) && (pcstackptr < &pcstack[MAX_STACK_DEPTH]))
+			// loop until we exit the block
+			for (offs_t curpc = curstack->targetpc; curpc >= minpc && curpc < maxpc && m_desc_array[curpc - minpc] == nullptr; curpc += m_desc_array[curpc - minpc]->length)
 			{
-				curdesc->set_intrablock_branch();
-				pcstackptr->srcpc = curdesc->pc;
-				pcstackptr->targetpc = curdesc->targetpc;
-				pcstackptr++;
-			}
+				// allocate a new description and describe this instruction
+				m_desc_array[curpc - minpc] = curdesc = describe_one(describe, curpc, curdesc);
 
-			// if we're done, we're done
-			if (curdesc->end_sequence())
-				break;
+				// first instruction in a sequence is always a branch target
+				if (curpc == curstack->targetpc)
+					curdesc->set_is_branch_target();
+
+				// stop if we hit a page fault
+				if (curdesc->compiler_page_fault())
+					break;
+
+				// if we are the first instruction in the whole window, we must validate the TLB
+				if (curpc == startpc && m_pageshift != 0)
+				{
+					curdesc->set_validate_tlb();
+					curdesc->set_can_cause_exception();
+				}
+
+				// if we are a branch within the block range, add the branch target to our stack
+				if (curdesc->is_branch() && (curdesc->targetpc >= minpc) && (curdesc->targetpc < maxpc) && (pcstackptr < &pcstack[MAX_STACK_DEPTH]))
+				{
+					curdesc->set_intrablock_branch();
+					pcstackptr->srcpc = curdesc->pc;
+					pcstackptr->targetpc = curdesc->targetpc;
+					pcstackptr++;
+				}
+
+				// if we're done, we're done
+				if (curdesc->end_sequence())
+					break;
+			}
 		}
+	}
+	catch (...)
+	{
+		// This fixes an issue discovered while building the i386 DRC
+		// Sometimes an error can be thrown while filling m_desc_array
+		// and it exits this function without clearing m_desc_array.
+		// The next time this is called the curdesc != nullptr (above) 
+		// will evaluate as true causing an error.
+		std::fill_n(&m_desc_array[0], maxpc - minpc, nullptr);
+		throw;
 	}
 
 	// now build the list of descriptions in order
