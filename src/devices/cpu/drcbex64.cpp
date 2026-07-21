@@ -640,6 +640,8 @@ private:
 
 	near_state &            m_near;
 
+	uintptr_t               m_linemask;             // cache line size mask
+
 	bool                    m_invariant_block;      // are we generating an invariant block?
 
 	resolved_member_function m_debug_cpu_instruction_hook;
@@ -1033,6 +1035,7 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	, m_nocode(nullptr)
 	, m_endofblock(nullptr)
 	, m_near(*cache.alloc_near<near_state>())
+	, m_linemask(0)
 	, m_invariant_block(false)
 {
 	// check for optional CPU features
@@ -1334,24 +1337,28 @@ void drcbe_x64::generate(drcuml_block &block, const instruction *instlist, u32 n
 	m_invariant_block = block.invariant();
 
 	// compute the base by aligning the cache top to a cache line
-	auto [err, linesize] = osd_get_cache_line_size();
+	if (!m_linemask)
+	{
+		auto [err, m_linemask] = osd_get_cache_line_size();
 #ifdef __cpp_lib_hardware_interference_size
-	uintptr_t linemask = (std::hardware_destructive_interference_size - 1);
+		m_linemask = (std::hardware_destructive_interference_size - 1);
 #else
-	uintptr_t linemask = 63;
+		m_linemask = 63;
 #endif
-	if (err)
-	{
-		osd_printf_verbose("drcbe_x64(%s): Error getting cache line size (%s:%d %s), assuming 64 bytes\n", m_device.tag(), err.category().name(), err.value(), err.message());
+		if (err)
+		{
+			osd_printf_verbose("drcbe_x64(%s): Error getting cache line size (%s:%d %s), assuming 64 bytes\n", m_device.tag(), err.category().name(), err.value(), err.message());
+		}
+		else
+		{
+			assert(m_linemask);
+			m_linemask = m_linemask - 1;
+			for (unsigned shift = 1; m_linemask & (m_linemask + 1); ++shift)
+				m_linemask |= m_linemask >> shift;
+		}
 	}
-	else
-	{
-		assert(linesize);
-		linemask = linesize - 1;
-		for (unsigned shift = 1; linemask & (linemask + 1); ++shift)
-			linemask |= linemask >> shift;
-	}
-	x86code *dst = (x86code *)(uintptr_t(m_cache.top() + linemask) & ~linemask);
+
+	x86code *dst = (x86code *)(uintptr_t(m_cache.top() + m_linemask) & ~m_linemask);
 
 	CodeHolder ch;
 	ch.init(Environment::host(), u64(dst));
