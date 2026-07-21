@@ -1759,7 +1759,11 @@ void drcbe_arm64::generate(drcuml_block &block, const instruction *instlist, uin
 
 	// compute the base by aligning the cache top to a cache line
 	auto [err, linesize] = osd_get_cache_line_size();
+#ifdef __cpp_lib_hardware_interference_size
+	uintptr_t linemask = (std::hardware_destructive_interference_size - 1);
+#else
 	uintptr_t linemask = 63;
+#endif
 	if (err)
 	{
 		osd_printf_verbose("drcbe_arm64(%s): Error getting cache line size (%s:%d %s), assuming 64 bytes\n", m_device.tag(), err.category().name(), err.value(), err.message());
