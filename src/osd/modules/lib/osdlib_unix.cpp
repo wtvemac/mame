@@ -121,7 +121,13 @@ void osd_break_into_debugger(const char *message)
 
 std::pair<std::error_condition, unsigned> osd_get_cache_line_size() noexcept
 {
-#if defined(__linux__)
+#if defined(_SC_LEVEL1_DCACHE_LINESIZE)
+    long size = sysconf(_SC_LEVEL1_DCACHE_LINESIZE);
+    if (size > 0)
+        return std::make_pair(std::error_condition(), static_cast<unsigned>(size));
+	else
+		return std::make_pair(std::errc::not_supported, 0U);
+#elif defined(__linux__)
 	FILE *const f = std::fopen("/sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size", "r");
 	if (!f)
 		return std::make_pair(std::error_condition(errno, std::generic_category()), 0U);
