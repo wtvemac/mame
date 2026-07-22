@@ -169,6 +169,10 @@
 #define OPTION_DRC_USE_C            "drc_use_c"
 #define OPTION_DRC_LOG_UML          "drc_log_uml"
 #define OPTION_DRC_LOG_NATIVE       "drc_log_native"
+#if defined(__linux__)
+#define OPTION_DRC_PERFMAP          "drc_perfmap"
+#define OPTION_DRC_JITDUMP          "drc_jitdump"
+#endif
 #define OPTION_BIOS                 "bios"
 #define OPTION_CHEAT                "cheat"
 #define OPTION_SKIP_GAMEINFO        "skip_gameinfo"
@@ -453,6 +457,10 @@ public:
 	bool drc_use_c() const { return bool_value(OPTION_DRC_USE_C); }
 	bool drc_log_uml() const { return bool_value(OPTION_DRC_LOG_UML); }
 	bool drc_log_native() const { return bool_value(OPTION_DRC_LOG_NATIVE); }
+#if defined(__linux__)
+	bool drc_perfmap() const { return bool_value(OPTION_DRC_PERFMAP); }
+	bool drc_jitdump() const { return bool_value(OPTION_DRC_JITDUMP); }
+#endif
 	const char *bios() const { return value(OPTION_BIOS); }
 	bool cheat() const { return bool_value(OPTION_CHEAT); }
 	bool skip_gameinfo() const { return bool_value(OPTION_SKIP_GAMEINFO); }

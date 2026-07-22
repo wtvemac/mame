@@ -201,6 +201,10 @@ const options_entry emu_options::s_option_entries[] =
 	{ OPTION_DRC_USE_C,                                  "0",         core_options::option_type::BOOLEAN,    "force DRC to use C backend" },
 	{ OPTION_DRC_LOG_UML,                                "0",         core_options::option_type::BOOLEAN,    "write DRC UML disassembly log" },
 	{ OPTION_DRC_LOG_NATIVE,                             "0",         core_options::option_type::BOOLEAN,    "write DRC native disassembly log" },
+#if defined(__linux__)
+	{ OPTION_DRC_PERFMAP,                                "0",         core_options::option_type::BOOLEAN,    "write /tmp/jit-<pid>.map for symbolicating DRC-generated code with 'perf'" },
+	{ OPTION_DRC_JITDUMP,                                "0",         core_options::option_type::BOOLEAN,    "write /tmp/jit-<pid>.dump (perf jitdump format) so 'perf inject --jit' can disassemble/annotate DRC-generated code" },
+#endif
 	{ OPTION_BIOS,                                       nullptr,     core_options::option_type::STRING,     "select the system BIOS to use" },
 	{ OPTION_CHEAT ";c",                                 "0",         core_options::option_type::BOOLEAN,    "enable cheat subsystem" },
 	{ OPTION_SKIP_GAMEINFO,                              "0",         core_options::option_type::BOOLEAN,    "skip displaying the system information screen at startup" },

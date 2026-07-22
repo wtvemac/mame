@@ -428,6 +428,9 @@ inline void get_carry(a64::Assembler &a, const a64::Gp &reg, bool inverted = fal
 		a.eor(reg.x(), reg.x(), 1);
 }
 
+#if defined(__linux__)
+constexpr u32 JITDUMP_ELF_MACH_AARCH64 = 183;
+#endif
 
 class drcbe_arm64 : public drcbe_interface
 {
@@ -667,6 +670,9 @@ private:
 	drc_hash_table m_hash;
 	drc_map_variables m_map;
 	FILE *m_log_asmjit;
+#if defined(__linux__)
+	FILE * m_perfmap;
+#endif
 	carry_state m_carry_state;
 	bool m_invariant_block;
 
@@ -1564,6 +1570,9 @@ drcbe_arm64::drcbe_arm64(drcuml_state &drcuml, device_t &device, drc_cache &cach
 	, m_hash(cache, modes, addrbits, ignorebits, drcuml.max_sequence_length(), std::align_val_t(1 << 12), std::align_val_t(1 << 12))
 	, m_map(cache, 0xaaaaaaaa5555)
 	, m_log_asmjit(nullptr)
+#if defined(__linux__)
+	, m_perfmap(nullptr)
+#endif
 	, m_carry_state(carry_state::POISON)
 	, m_invariant_block(false)
 	, m_entry(nullptr)
@@ -1591,6 +1600,17 @@ drcbe_arm64::drcbe_arm64(drcuml_state &drcuml, device_t &device, drc_cache &cach
 		str << tag << ".asm";
 		m_log_asmjit = fopen(std::move(str).str().c_str(), "w");
 	}
+
+#if defined(__linux__)
+	if (device.machine().options().drc_perfmap())
+	{
+		std::string const perfmap_filename = string_format("/tmp/perf-%d.map", osd_getpid());
+		m_perfmap = fopen(perfmap_filename.c_str(), "a");
+	}
+
+	if (device.machine().options().drc_jitdump())
+		jitdump_create(JITDUMP_ELF_MACH_AARCH64);
+#endif
 
 	// resolve the actual addresses of member functions we need to call
 	m_drcmap_get_value.set(m_map, &drc_map_variables::get_value);
@@ -1696,7 +1716,27 @@ drcbe_arm64::drcbe_arm64(drcuml_state &drcuml, device_t &device, drc_cache &cach
 	call_arm_addr(a, (const void *)entrypoint);
 
 	// emit the generated code
+#if defined(__linux__)
+	const size_t bytes = emit(ch, true);
+	if (m_perfmap)
+	{
+		fprintf(m_perfmap, "%lx %lx entry_point\n", (unsigned long)(uintptr_t)dst, (unsigned long)(m_exit - dst));
+		fprintf(m_perfmap, "%lx %lx exit_point\n", (unsigned long)(uintptr_t)m_exit, (unsigned long)(m_nocode - m_exit));
+		fprintf(m_perfmap, "%lx %lx nocode_point\n", (unsigned long)(uintptr_t)m_nocode, (unsigned long)(m_endofblock - m_nocode));
+		fprintf(m_perfmap, "%lx %lx end_of_block\n", (unsigned long)(uintptr_t)m_endofblock, (unsigned long)((dst + bytes) - m_endofblock));
+		fflush(m_perfmap);
+	}
+
+	if (m_jitdump)
+	{
+		jitdump_write_code_load(dst, m_exit - dst, "entry_point");
+		jitdump_write_code_load(m_exit, m_nocode - m_exit, "exit_point");
+		jitdump_write_code_load(m_nocode, m_endofblock - m_nocode, "nocode_point");
+		jitdump_write_code_load(m_endofblock, (dst + bytes) - m_endofblock, "end_of_block");
+	}
+#else
 	emit(ch, true);
+#endif
 
 	// set the "no code" pointer
 	m_hash.set_default_codeptr(m_nocode);
@@ -1706,6 +1746,14 @@ drcbe_arm64::~drcbe_arm64()
 {
 	if (m_log_asmjit)
 		fclose(m_log_asmjit);
+
+#if defined(__linux__)
+	if (m_perfmap)
+		fclose(m_perfmap);
+
+	if (m_jitdump)
+		jitdump_close();
+#endif
 }
 
 size_t drcbe_arm64::emit(CodeHolder &ch, bool invariant)
@@ -1802,6 +1850,7 @@ void drcbe_arm64::generate(drcuml_block &block, const instruction *instlist, uin
 		a.add_diagnostic_options(DiagnosticOptions::kValidateIntermediate);
 
 	// generate code
+	std::string blockname;
 	for (int inum = 0; inum < numinst; inum++)
 	{
 		const instruction &inst = instlist[inum];
@@ -1816,6 +1865,15 @@ void drcbe_arm64::generate(drcuml_block &block, const instruction *instlist, uin
 			a.set_inline_comment(dasm.c_str());
 		}
 
+		// extract a blockname
+		if (blockname.empty())
+		{
+			if (inst.opcode() == OP_HANDLE)
+				blockname = inst.param(0).handle().string();
+			else if (inst.opcode() == OP_HASH)
+				blockname = string_format("Code: mode=%d PC=%08X", (u32)inst.param(0).immediate(), (offs_t)inst.param(1).immediate());
+		}
+
 		// generate code
 		generate_one(a, inst);
 	}
@@ -1826,8 +1884,20 @@ void drcbe_arm64::generate(drcuml_block &block, const instruction *instlist, uin
 	a.b(m_endofblock);
 
 	// emit the generated code
-	if (!emit(ch, block.invariant()))
+	size_t const bytes = emit(ch, block.invariant());
+	if (!bytes)
 		block.abort();
+
+#if defined(__linux__)
+	if (m_perfmap && bytes)
+	{
+		fprintf(m_perfmap, "%lx %lx %s\n", (unsigned long)(uintptr_t)dst, (unsigned long)bytes, blockname.empty() ? "Unknown block" : blockname.c_str());
+		fflush(m_perfmap);
+	}
+
+	if (m_jitdump)
+		jitdump_write_code_load(dst, bytes, blockname.empty() ? "Unknown block" : blockname);
+#endif
 
 	// tell all of our utility objects that the block is finished
 	m_hash.block_end(block);

@@ -365,7 +365,9 @@ inline bool is_nonvolatile_register(Gp reg)
 #endif
 }
 
-
+#if defined(__linux__)
+constexpr u32 JITDUMP_ELF_MACH_X86_64 = 62;
+#endif
 
 //**************************************************************************
 //  TYPE DEFINITIONS
@@ -626,6 +628,9 @@ private:
 	drc_map_variables       m_map;                  // code map
 	x86log_context::ptr     m_log;                  // logging
 	FILE *                  m_log_asmjit;
+#if defined(__linux__)
+	FILE *                  m_perfmap;              // /tmp/perf-<pid>.map for 'perf'
+#endif
 	bool                    m_lzcnt;                // do we have lzcnt support?
 	bool                    m_bmi;                  // do we have BMI support?
 
@@ -1025,6 +1030,9 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	, m_hash(cache, modes, addrbits, ignorebits, drcuml.max_sequence_length())
 	, m_map(cache, 0xaaaaaaaa5555)
 	, m_log_asmjit(nullptr)
+#if defined(__linux__)
+	, m_perfmap(nullptr)
+#endif
 	, m_lzcnt(false)
 	, m_bmi(false)
 	, m_absmask32((u32 *)cache.alloc_near(16*2 + 15, std::align_val_t(alignof(u32))))
@@ -1131,6 +1139,17 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 		m_log_asmjit = fopen(("drcbex64_asmjit_" + filename).c_str(), "w");
 	}
 
+#if defined(__linux__)
+	if (device.machine().options().drc_perfmap())
+	{
+		std::string const perfmap_filename = string_format("/tmp/perf-%d.map", osd_getpid());
+		m_perfmap = fopen(perfmap_filename.c_str(), "a");		
+	}
+
+	if (device.machine().options().drc_jitdump())
+		jitdump_create(JITDUMP_ELF_MACH_X86_64);
+#endif
+
 	// generate a little bit of glue code to set up the environment
 	x86code *dst = (x86code *)m_cache.top();
 
@@ -1230,6 +1249,25 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 		m_log->disasm_code_range("end_of_block", m_endofblock, dst + bytes);
 	}
 
+#if defined(__linux__)
+	if (m_perfmap)
+	{
+		fprintf(m_perfmap, "%lx %lx entry_point\n", (unsigned long)(uintptr_t)dst, (unsigned long)(m_exit - dst));
+		fprintf(m_perfmap, "%lx %lx exit_point\n", (unsigned long)(uintptr_t)m_exit, (unsigned long)(m_nocode - m_exit));
+		fprintf(m_perfmap, "%lx %lx nocode_point\n", (unsigned long)(uintptr_t)m_nocode, (unsigned long)(m_endofblock - m_nocode));
+		fprintf(m_perfmap, "%lx %lx end_of_block\n", (unsigned long)(uintptr_t)m_endofblock, (unsigned long)((dst + bytes) - m_endofblock));
+		fflush(m_perfmap);
+	}
+
+	if (m_jitdump)
+	{
+		jitdump_write_code_load(dst, m_exit - dst, "entry_point");
+		jitdump_write_code_load(m_exit, m_nocode - m_exit, "exit_point");
+		jitdump_write_code_load(m_nocode, m_endofblock - m_nocode, "nocode_point");
+		jitdump_write_code_load(m_endofblock, (dst + bytes) - m_endofblock, "end_of_block");
+	}
+#endif
+
 	// set the "no code" pointer
 	m_hash.set_default_codeptr(m_nocode);
 }
@@ -1246,6 +1284,14 @@ drcbe_x64::~drcbe_x64()
 
 	if (m_log_asmjit)
 		fclose(m_log_asmjit);
+
+#if defined(__linux__)
+	if (m_perfmap)
+		fclose(m_perfmap);
+
+	if (m_jitdump)
+		jitdump_close();
+#endif
 }
 
 size_t drcbe_x64::emit(CodeHolder &ch, bool invariant)
@@ -1425,6 +1471,17 @@ void drcbe_x64::generate(drcuml_block &block, const instruction *instlist, u32 n
 	// log it
 	if (m_log)
 		m_log->disasm_code_range(blockname.empty() ? "Unknown block" : blockname.c_str(), dst, dst + bytes);
+
+#if defined(__linux__)
+	if (m_perfmap && bytes)
+	{
+		fprintf(m_perfmap, "%lx %lx %s\n", (unsigned long)(uintptr_t)dst, (unsigned long)bytes, blockname.empty() ? "Unknown block" : blockname.c_str());
+		fflush(m_perfmap);
+	}
+
+	if (m_jitdump)
+		jitdump_write_code_load(dst, bytes, blockname.empty() ? "Unknown block" : blockname);
+#endif
 
 	// tell all of our utility objects that the block is finished
 	m_hash.block_end(block);

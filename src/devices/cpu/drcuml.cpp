@@ -45,6 +45,12 @@
 #include <locale>
 #include <sstream>
 
+#if defined(__linux__)
+#include <ctime>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 
 //**************************************************************************
@@ -113,6 +119,12 @@ drcbe_interface::drcbe_interface(drcuml_state &drcuml, drc_cache &cache, device_
 	, m_device(device)
 	, m_space()
 	, m_state(*cache.alloc_near<drcuml_machine_state>())
+#if defined(__linux__)
+	, m_jitdump(nullptr)
+	, m_jitdump_marker(nullptr)
+	, m_jitdump_marker_size(0)
+	, m_jitdump_code_index(0)
+#endif
 {
 	// reset the machine state
 	memset(&m_state, 0, sizeof(m_state));
@@ -141,7 +153,128 @@ drcbe_interface::~drcbe_interface()
 {
 }
 
+#if defined(__linux__)
+//-------------------------------------------------
+//  jitdump_timestamp - get timestamp compatible
+//  with jitdump (CLOCK_MONOTONIC per spec)
+//-------------------------------------------------
+u64 drcbe_interface::jitdump_timestamp()
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (u64(ts.tv_sec) * 1000000000ULL) + u64(ts.tv_nsec);
+}
 
+//-------------------------------------------------
+//  jitdump_create - created jitdump file and write
+//  file header record
+//-------------------------------------------------
+
+bool drcbe_interface::jitdump_create(u32 elf_mach)
+{
+	std::string const jitdump_filename = string_format("/tmp/jit-%d.dump", osd_getpid());
+	int const fd = open(jitdump_filename.c_str(), O_CREAT | O_TRUNC | O_RDWR, 0644);
+	if (fd >= 0)
+	{
+		long const pagesize = sysconf(_SC_PAGESIZE);
+		void *const marker = (pagesize > 0)
+			? mmap(nullptr, size_t(pagesize), PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0)
+			: MAP_FAILED;
+
+		if (marker != MAP_FAILED)
+		{
+			m_jitdump_marker = marker;
+			m_jitdump_marker_size = size_t(pagesize);
+			m_jitdump = fdopen(fd, "w");
+			if (m_jitdump)
+			{
+				jitdump_header header = {
+					.magic      = JITDUMP_MAGIC,
+					.version    = JITDUMP_VERSION,
+					.total_size = sizeof(jitdump_header),
+					.elf_mach   = elf_mach,
+					.pad1       = 0,
+					.pid        = u32(osd_getpid()),
+					.timestamp  = jitdump_timestamp(),
+					.flags      = 0
+				};
+
+				fwrite(&header, sizeof(jitdump_header), 1, m_jitdump);
+				fflush(m_jitdump);
+
+				return true;
+			}
+			else
+			{
+				munmap(marker, m_jitdump_marker_size);
+				m_jitdump_marker = nullptr;
+				close(fd);
+			}
+		}
+		else
+		{
+			close(fd);
+		}
+	}
+
+	return false;
+}
+
+//-------------------------------------------------
+//  jitdump_write_code_load - writes a JIT_CODE_LOAD
+//  record
+//-------------------------------------------------
+
+void drcbe_interface::jitdump_write_code_load(void const *code, size_t code_size, std::string const &name)
+{
+	if (!m_jitdump || !code_size)
+		return;
+
+	jitdump_record_code_load record = {
+		.prefix = {
+			.id            = JITDUMP_CODE_LOAD,
+			.total_size    = u32(sizeof(jitdump_record_code_load) + name.size() + 1 + code_size),
+			.timestamp     = jitdump_timestamp(),
+		},
+		.pid               = u32(osd_getpid()),
+		.tid               = u32(osd_getpid()), // DRC compiles only ever happen in the emulation thread
+		.vma               = u64(uintptr_t(code)),
+		.code_addr         = u64(uintptr_t(code)),
+		.code_size         = u64(code_size),
+		.code_index        = m_jitdump_code_index++
+	};
+
+	fwrite(&record, sizeof(jitdump_record_code_load), 1, m_jitdump);
+	fwrite(name.c_str(), name.size() + 1, 1, m_jitdump);
+	fwrite(code, code_size, 1, m_jitdump);
+	fflush(m_jitdump);
+}
+
+//-------------------------------------------------
+//  jitdump_write_code_load - writes a close record
+// to the jitdump file and then closes the file stream
+//-------------------------------------------------
+
+bool drcbe_interface::jitdump_close()
+{
+	if (!m_jitdump)
+		return false;
+
+	jitdump_record_prefix record = {
+		.id         = JITDUMP_CODE_CLOSE,
+		.total_size = sizeof(jitdump_record_prefix),
+		.timestamp  = jitdump_timestamp(),
+	};
+
+	fwrite(&record, sizeof(jitdump_record_prefix), 1, m_jitdump);
+	fclose(m_jitdump);
+
+	if (m_jitdump_marker)
+		munmap(m_jitdump_marker, m_jitdump_marker_size);
+
+	return true;
+}
+#endif
 
 //**************************************************************************
 //  DRCUML STATE

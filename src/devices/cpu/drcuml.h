@@ -163,9 +163,63 @@ public:
 	virtual drccodeptr hash_get_codeptr(u32 mode, u32 pc) const noexcept { return nullptr; }
 	virtual bool hash_set_codeptr(u32 mode, u32 pc, drccodeptr code) noexcept { return false; }
 
+private:
+
+
 protected:
+#if defined(__linux__)
+	static constexpr u32 JITDUMP_MAGIC   = 0x4a695444; // "JiTD", native-endian per spec
+	static constexpr u32 JITDUMP_VERSION = 1;
+
+	enum jitdump_record_type
+	{
+		JITDUMP_CODE_LOAD           = 0, // describing a jitted function
+		JITDUMP_CODE_MOVE           = 1, // describing an already jitted function which is moved
+		JITDUMP_CODE_DEBUG_INFO     = 2, // describing the debug information for a jitted function
+		JITDUMP_CODE_CLOSE          = 3, // marking the end of the jit runtime (optional)
+		JITDUMP_CODE_UNWINDING_INFO = 4  // describing a function unwinding information
+	};
+
+	struct jitdump_header
+	{
+		u32 magic;
+		u32 version;
+		u32 total_size;
+		u32 elf_mach;
+		u32 pad1;
+		u32 pid;
+		u64 timestamp;
+		u64 flags;
+	};
+
+	struct jitdump_record_prefix
+	{
+		u32 id;
+		u32 total_size;
+		u64 timestamp;
+	};
+
+	struct jitdump_record_code_load
+	{
+		jitdump_record_prefix prefix;
+		u32 pid;
+		u32 tid;
+		u64 vma;
+		u64 code_addr;
+		u64 code_size;
+		u64 code_index;
+	};
+#endif
+
 	// base constructor
 	drcbe_interface(drcuml_state &drcuml, drc_cache &cache, device_t &device);
+
+	#if defined(__linux__)
+	u64 jitdump_timestamp();
+	bool jitdump_create(u32 elf_mach);
+	void jitdump_write_code_load(void const *code, size_t code_size, std::string const &name);
+	bool jitdump_close();
+#endif
 
 	// internal state
 	drcuml_state &                  m_drcuml;      // pointer back to our owner
@@ -173,6 +227,13 @@ protected:
 	device_t &                      m_device;      // CPU device we are associated with
 	std::vector<address_space *>    m_space;       // pointers to CPU's address space
 	drcuml_machine_state &          m_state;       // state of the machine (in near cache)
+
+#if defined(__linux__)
+	FILE *                  m_jitdump;              // /tmp/jit-<pid>.dump for 'perf inject --jit'
+	void *                  m_jitdump_marker;       // dummy mapping of the dump file so perf's mmap scan can find it
+	size_t                  m_jitdump_marker_size;
+	u64                     m_jitdump_code_index;
+#endif
 };
 
 
