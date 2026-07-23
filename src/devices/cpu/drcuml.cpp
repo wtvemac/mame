@@ -44,6 +44,7 @@
 #include <fstream>
 #include <locale>
 #include <sstream>
+#include <vector>
 
 #if defined(__linux__)
 #include <ctime>
@@ -533,29 +534,33 @@ void drcuml_block::overrun()
 
 void drcuml_block::optimize()
 {
-	u32 mapvar[uml::MAPVAR_COUNT] = { 0 };
+	std::vector<u8> required(m_nextinst);
+	u8 bitwindow[uml::FLAG_BIT_U + 1] = { 0 };
+	for (int instnum = m_nextinst - 1; instnum >= 0; instnum--)
+	{
+		uml::instruction const &inst(m_inst[instnum]);
 
+		// first compute what flags we need
+		u8 accumflags(0);
+		u8 const outflags(inst.output_flags());
+		for (unsigned bit = 0; bit <= uml::FLAG_BIT_U; bit++)
+			if (outflags & (1U << bit))
+				accumflags |= bitwindow[bit];
+		required[instnum] = accumflags;
+
+		// any input flags are required
+		u8 const inflags(inst.input_flags());
+		u8 const modflags((inst.condition() == uml::COND_ALWAYS) ? inst.modified_flags() : 0);
+		for (unsigned bit = 0; bit <= uml::FLAG_BIT_U; bit++)
+			bitwindow[bit] = (modflags & (1U << bit)) ? inflags : (bitwindow[bit] | inflags);
+	}
+
+	u32 mapvar[uml::MAPVAR_COUNT] = { 0 };
 	// iterate over instructions
 	for (int instnum = 0; instnum < m_nextinst; instnum++)
 	{
 		uml::instruction &inst(m_inst[instnum]);
-
-		// first compute what flags we need
-		u8 accumflags(0);
-		u8 remainingflags(inst.output_flags());
-
-		// scan ahead until we run out of possible remaining flags
-		for (int scannum = instnum + 1; remainingflags != 0 && scannum < m_nextinst; scannum++)
-		{
-			// any input flags are required
-			uml::instruction const &scan(m_inst[scannum]);
-			accumflags |= scan.input_flags();
-
-			// if the scanahead instruction is unconditional, assume his flags are modified
-			if (scan.condition() == uml::COND_ALWAYS)
-				remainingflags &= ~scan.modified_flags();
-		}
-		inst.set_flags(accumflags);
+		inst.set_flags(required[instnum]);
 
 		if (inst.opcode() == uml::OP_MAPVAR)
 		{
