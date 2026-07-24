@@ -175,6 +175,9 @@ uint32_t mips3_device::mips3drc_get_options()
 -------------------------------------------------*/
 void mips3_device::clear_fastram(uint32_t select_start)
 {
+	if ((m_core != nullptr && m_core->drc_cached_invariant) && m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM)
+		fatalerror("Invariant fastram accessor cannot be modified after start\n");
+
 	m_fastram_select=select_start;
 	// Set cache to dirty so that re-mapping occurs, if m_core=nullptr then this is before the cache is even created.
 	if (m_core != nullptr)
@@ -188,6 +191,9 @@ void mips3_device::clear_fastram(uint32_t select_start)
 
 void mips3_device::add_fastram(offs_t start, offs_t end, uint8_t readonly, void *base)
 {
+	if ((m_core != nullptr && m_core->drc_cached_invariant) && m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM)
+		fatalerror("Invariant fastram accessor cannot be modified after start\n");
+
 	if (m_fastram_select < std::size(m_fastram))
 	{
 		m_fastram[m_fastram_select].start = start;
@@ -229,7 +235,7 @@ void mips3_device::mips3drc_add_hotspot(offs_t pc, uint32_t opcode, uint32_t cyc
 
 /*-------------------------------------------------
     code_flush_cache - flush the cache and
-    regenerate static code
+    regenerate transient static code
 -------------------------------------------------*/
 
 void mips3_device::mark_cache_dirty()
@@ -250,61 +256,101 @@ void mips3_device::code_flush_cache()
 
 	try
 	{
+		if (!(m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM))
 		{
-			drcuml_block &block(m_drcuml.begin_block(4096));
-			uml::code_label label = 1;
-
-			/* generate the entry point and out-of-cycles handlers */
-			static_generate_entry_point(block, label);
-			static_generate_nocode_handler(block, label);
-			static_generate_out_of_cycles(block, label);
-			static_generate_tlb_mismatch(block, label);
-
-			/* append exception handlers for various types */
-			static_generate_exception(block, label, EXCEPTION_INTERRUPT,     true,  "exception_interrupt");
-			static_generate_exception(block, label, EXCEPTION_INTERRUPT,     false, "exception_interrupt_norecover");
-			static_generate_exception(block, label, EXCEPTION_TLBMOD,        true,  "exception_tlbmod");
-			static_generate_exception(block, label, EXCEPTION_TLBLOAD,       true,  "exception_tlbload");
-			static_generate_exception(block, label, EXCEPTION_TLBSTORE,      true,  "exception_tlbstore");
-			static_generate_exception(block, label, EXCEPTION_TLBLOAD_FILL,  true,  "exception_tlbload_fill");
-			static_generate_exception(block, label, EXCEPTION_TLBSTORE_FILL, true,  "exception_tlbstore_fill");
-			static_generate_exception(block, label, EXCEPTION_ADDRLOAD,      true,  "exception_addrload");
-			static_generate_exception(block, label, EXCEPTION_ADDRSTORE,     true,  "exception_addrstore");
-			static_generate_exception(block, label, EXCEPTION_SYSCALL,       true,  "exception_syscall");
-			static_generate_exception(block, label, EXCEPTION_BREAK,         true,  "exception_break");
-			static_generate_exception(block, label, EXCEPTION_INVALIDOP,     true,  "exception_invalidop");
-			static_generate_exception(block, label, EXCEPTION_BADCOP,        true,  "exception_badcop");
-			static_generate_exception(block, label, EXCEPTION_OVERFLOW,      true,  "exception_overflow");
-			static_generate_exception(block, label, EXCEPTION_TRAP,          true,  "exception_trap");
-			static_generate_exception(block, label, EXCEPTION_FPE,           true,  "exception_fpe");
-
-			block.end();
-		}
-
-		/* add subroutines for memory accesses */
-		for (int mode = 0; mode < 3; mode++)
-		{
-			drcuml_block &block(m_drcuml.begin_block(4096));
-			uml::code_label label = 1;
-			static_generate_memory_accessor(block, label, mode, 1, false, false, "read8",       m_read8[mode]);
-			static_generate_memory_accessor(block, label, mode, 1, true,  false, "write8",      m_write8[mode]);
-			static_generate_memory_accessor(block, label, mode, 2, false, false, "read16",      m_read16[mode]);
-			static_generate_memory_accessor(block, label, mode, 2, true,  false, "write16",     m_write16[mode]);
-			static_generate_memory_accessor(block, label, mode, 4, false, false, "read32",      m_read32[mode]);
-			static_generate_memory_accessor(block, label, mode, 4, false, true,  "read32mask",  m_read32mask[mode]);
-			static_generate_memory_accessor(block, label, mode, 4, true,  false, "write32",     m_write32[mode]);
-			static_generate_memory_accessor(block, label, mode, 4, true,  true,  "write32mask", m_write32mask[mode]);
-			static_generate_memory_accessor(block, label, mode, 8, false, false, "read64",      m_read64[mode]);
-			static_generate_memory_accessor(block, label, mode, 8, false, true,  "read64mask",  m_read64mask[mode]);
-			static_generate_memory_accessor(block, label, mode, 8, true,  false, "write64",     m_write64[mode]);
-			static_generate_memory_accessor(block, label, mode, 8, true,  true,  "write64mask", m_write64mask[mode]);
-			block.end();
+			// add subroutines for memory accesses
+			for (int mode = 0; mode < 3; mode++)
+			{
+				drcuml_block &block(m_drcuml.begin_block(4096));
+				uml::code_label label = 1;
+				static_generate_memory_accessor(block, label, mode, 1, false, false, "read8",       m_read8[mode]);
+				static_generate_memory_accessor(block, label, mode, 1, true,  false, "write8",      m_write8[mode]);
+				static_generate_memory_accessor(block, label, mode, 2, false, false, "read16",      m_read16[mode]);
+				static_generate_memory_accessor(block, label, mode, 2, true,  false, "write16",     m_write16[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, false, false, "read32",      m_read32[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, false, true,  "read32mask",  m_read32mask[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, true,  false, "write32",     m_write32[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, true,  true,  "write32mask", m_write32mask[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, false, false, "read64",      m_read64[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, false, true,  "read64mask",  m_read64mask[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, true,  false, "write64",     m_write64[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, true,  true,  "write64mask", m_write64mask[mode]);
+				block.end();
+			}
 		}
 	}
 	catch (drcuml_block::abort_compilation const &)
 	{
-		fatalerror("Unrecoverable error generating static code\n");
+		fatalerror("Unrecoverable error generating transient static code\n");
 	}
+}
+
+/*-------------------------------------------------
+    code_flush_cache - generate invariant static code
+-------------------------------------------------*/
+
+void mips3_device::generate_invariant()
+{
+	try
+	{
+		drcuml_block &block(m_drcuml.begin_invariant_block(4096));
+		uml::code_label label = 1;
+
+		// generate the entry point, out-of-cycles, tlb mismatch etc... handlers
+		static_generate_entry_point(block, label);
+		static_generate_nocode_handler(block, label);
+		static_generate_out_of_cycles(block, label);
+		static_generate_tlb_mismatch(block, label);
+
+		// append exception handlers for various types
+		static_generate_exception(block, label, EXCEPTION_INTERRUPT,     true,  "exception_interrupt");
+		static_generate_exception(block, label, EXCEPTION_INTERRUPT,     false, "exception_interrupt_norecover");
+		static_generate_exception(block, label, EXCEPTION_TLBMOD,        true,  "exception_tlbmod");
+		static_generate_exception(block, label, EXCEPTION_TLBLOAD,       true,  "exception_tlbload");
+		static_generate_exception(block, label, EXCEPTION_TLBSTORE,      true,  "exception_tlbstore");
+		static_generate_exception(block, label, EXCEPTION_TLBLOAD_FILL,  true,  "exception_tlbload_fill");
+		static_generate_exception(block, label, EXCEPTION_TLBSTORE_FILL, true,  "exception_tlbstore_fill");
+		static_generate_exception(block, label, EXCEPTION_ADDRLOAD,      true,  "exception_addrload");
+		static_generate_exception(block, label, EXCEPTION_ADDRSTORE,     true,  "exception_addrstore");
+		static_generate_exception(block, label, EXCEPTION_SYSCALL,       true,  "exception_syscall");
+		static_generate_exception(block, label, EXCEPTION_BREAK,         true,  "exception_break");
+		static_generate_exception(block, label, EXCEPTION_INVALIDOP,     true,  "exception_invalidop");
+		static_generate_exception(block, label, EXCEPTION_BADCOP,        true,  "exception_badcop");
+		static_generate_exception(block, label, EXCEPTION_OVERFLOW,      true,  "exception_overflow");
+		static_generate_exception(block, label, EXCEPTION_TRAP,          true,  "exception_trap");
+		static_generate_exception(block, label, EXCEPTION_FPE,           true,  "exception_fpe");
+
+		block.end();
+
+		if (m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM)
+		{
+			// add subroutines for memory accesses
+			for (int mode = 0; mode < 3; mode++)
+			{
+				drcuml_block &block(m_drcuml.begin_invariant_block(4096));
+				uml::code_label label = 1;
+				static_generate_memory_accessor(block, label, mode, 1, false, false, "read8",       m_read8[mode]);
+				static_generate_memory_accessor(block, label, mode, 1, true,  false, "write8",      m_write8[mode]);
+				static_generate_memory_accessor(block, label, mode, 2, false, false, "read16",      m_read16[mode]);
+				static_generate_memory_accessor(block, label, mode, 2, true,  false, "write16",     m_write16[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, false, false, "read32",      m_read32[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, false, true,  "read32mask",  m_read32mask[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, true,  false, "write32",     m_write32[mode]);
+				static_generate_memory_accessor(block, label, mode, 4, true,  true,  "write32mask", m_write32mask[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, false, false, "read64",      m_read64[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, false, true,  "read64mask",  m_read64mask[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, true,  false, "write64",     m_write64[mode]);
+				static_generate_memory_accessor(block, label, mode, 8, true,  true,  "write64mask", m_write64mask[mode]);
+				block.end();
+			}
+		}
+	}
+	catch (drcuml_block::abort_compilation &)
+	{
+		fatalerror("Unrecoverable error generating invariant static code\n");
+	}
+
+	m_core->drc_cached_invariant = true;
 }
 
 
@@ -924,10 +970,6 @@ void mips3_device::static_generate_exception(drcuml_block &block, uml::code_labe
 		offset = 0x000;
 		exception = (exception - EXCEPTION_TLBLOAD_FILL) + EXCEPTION_TLBLOAD;
 	}
-	else if (exception == EXCEPTION_INTERRUPT && (m_core->cpr[0][COP0_Cause] & CAUSE_IV))
-	{
-		offset = 0x200;
-	}
 
 	/* add a global entry for this */
 	alloc_handle(m_drcuml, exception_handle, name);
@@ -974,11 +1016,10 @@ void mips3_device::static_generate_exception(drcuml_block &block, uml::code_labe
 	UML_LABEL(block, next);                                                     // <next>:
 	UML_MOV(block, CPR032(COP0_EPC), I0);                                       // mov     [EPC],i0
 	UML_MOV(block, I3, offset);                                                 // mov     i3,offset
-	if (exception == EXCEPTION_INTERRUPT && m_flavor == MIPS3_TYPE_XBURST)
+	if (exception == EXCEPTION_INTERRUPT)
 	{
-		/* MIPS32 takes interrupts through the 0x200 vector when Cause.IV is set */
-		UML_TEST(block, CPR032(COP0_Cause), 0x00800000);                        // test    [Cause],IV
-		UML_MOVc(block, COND_NZ, I3, 0x200);                                    // mov     i3,0x200,nz
+		UML_TEST(block, CPR032(COP0_Cause), CAUSE_IV);                          // test    [Cause],CAUSE_IV
+		UML_MOVc(block, COND_NZ, I3, 0x200);                                    // mov     i3,0x200,NZ
 	}
 	UML_JMP(block, causeok);                                                    // jmp     <causeok>
 	UML_LABEL(block, nested);                                                   // <nested>:

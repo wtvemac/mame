@@ -130,6 +130,7 @@ public:
 
 protected:
 
+	virtual void device_resolve_objects() override;
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
@@ -415,12 +416,18 @@ void webtv2_state::base_addrmap(address_map &map)
 
 void webtv2_state::base_init()
 {
-	m_maincpu->mips3drc_set_options(MIPS3DRC_FASTEST_OPTIONS);
+	//
 }
 
-void webtv2_state::machine_start()
+void webtv2_state::device_resolve_objects()
 {
-	m_reset_count = 0x00000000;
+	game_driver driver = machine().system();
+
+	uint32_t drcopts = MIPS3DRC_FASTEST_OPTIONS;
+	if(strcmp(driver.name, "wtv2utv") != 0)
+		drcopts |= MIPS3DRC_INVARIANT_FASTRAM;
+
+	m_maincpu->mips3drc_set_options(drcopts);
 
 	uint32_t usable_ram_size = std::min((uint32_t)m_ram_size, MAX_RAM_SIZE);
 	// FUD is mapped to RAM, so this walks around that address map. Used in the UTV
@@ -437,6 +444,11 @@ void webtv2_state::machine_start()
 	{
 		m_maincpu->add_fastram(0x00000000, (usable_ram_size - 1), false, m_mainram);
 	}
+}
+
+void webtv2_state::machine_start()
+{
+	m_reset_count = 0x00000000;
 }
 
 void webtv2_state::machine_reset()
