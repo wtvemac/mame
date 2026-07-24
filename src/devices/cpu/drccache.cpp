@@ -39,7 +39,7 @@ constexpr bool is_ptr_aligned(T *p, U align)
 {
 	return !(align & (align - 1))
 			? !(uintptr_t(p) & (uintptr_t(align) - 1))
-			: !(uintptr_t(p) % uintptr_t(p));
+			: !(uintptr_t(p) % uintptr_t(align));
 }
 
 } // anonymous namespace
