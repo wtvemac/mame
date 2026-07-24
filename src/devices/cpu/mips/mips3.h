@@ -411,6 +411,7 @@ protected:
 		uint32_t        jmpdest;                    /* destination jump target */
 
 		uint8_t         drc_cache_dirty;            /* true if we need to flush the cache */
+		uint8_t         drc_cached_invariant;       // true if we cached invariant code
 	};
 
 	/* core state */
@@ -648,6 +649,7 @@ private:
 	void load_fast_iregs(drcuml_block &block);
 	void save_fast_iregs(drcuml_block &block);
 	void code_compile_block(uint8_t mode, offs_t pc);
+	void generate_invariant();
 public:
 	void func_get_cycles();
 	void func_printf_exception();
@@ -1095,6 +1097,7 @@ COMPILER-SPECIFIC OPTIONS
 #define MIPS3DRC_CHECK_OVERFLOWS    0x0020          /* actually check overflows on add/sub instructions */
 #define MIPS3DRC_ACCURATE_DIVZERO   0x0040          /* load correct values into HI/LO on integer divide-by-zero */
 #define MIPS3DRC_EXTRA_INSTR_CHECK  0x0080          /* adds the last instruction value to all validation entry locations, used with STRICT_VERIFY */
+#define MIPS3DRC_INVARIANT_FASTRAM  0x0100          /* causes memory accessor blocks only to be cached once but prevents fastram modification after start */
 
 #define MIPS3DRC_COMPATIBLE_OPTIONS (MIPS3DRC_STRICT_VERIFY | MIPS3DRC_STRICT_COP1 | MIPS3DRC_STRICT_COP0 | MIPS3DRC_STRICT_COP2)
 #define MIPS3DRC_FASTEST_OPTIONS    (0)

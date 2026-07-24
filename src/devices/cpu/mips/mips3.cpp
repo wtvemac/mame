@@ -504,6 +504,9 @@ void mips3_device::device_start()
 		}
 	}
 
+	// Cache invariant blocks
+	generate_invariant();
+
 	/* mark the cache dirty so it is updated on next execute */
 	m_core->drc_cache_dirty = true;
 

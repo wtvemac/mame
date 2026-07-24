@@ -92,6 +92,7 @@ public:
 
 protected:
 
+	virtual void device_resolve_objects() override;
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
@@ -273,15 +274,21 @@ void webtv1_state::base_addrmap(address_map &map)
 
 void webtv1_state::base_init()
 {
-	m_maincpu->mips3drc_set_options(MIPS3DRC_FASTEST_OPTIONS);
+	//
+}
+
+void webtv1_state::device_resolve_objects()
+{
+	m_maincpu->mips3drc_set_options(MIPS3DRC_FASTEST_OPTIONS | MIPS3DRC_INVARIANT_FASTRAM);
+
+	uint32_t usable_ram_size = std::min((uint32_t)m_ram_size, MAX_RAM_SIZE);
+	m_maincpu->add_fastram(0x00000000, (usable_ram_size - 1), false, m_mainram);
 }
 
 void webtv1_state::machine_start()
 {
 	m_reset_count = 0x00000000;
 
-	uint32_t usable_ram_size = std::min((uint32_t)m_ram_size, MAX_RAM_SIZE);
-	m_maincpu->add_fastram(0x00000000, (usable_ram_size - 1), false, m_mainram);
 }
 
 void webtv1_state::machine_reset()
