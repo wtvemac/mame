@@ -177,6 +177,8 @@ public:
 
 	i82801_lpc_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	virtual bool remap_scope_is_local() const override { return true; }
+
 	template <typename T> void set_cpu_tag(T &&tag) { m_hostcpu.set_tag(std::forward<T>(tag)); }
 
 	void line_reset_w(int state) { m_hostcpu->set_input_line(INPUT_LINE_RESET, state); }

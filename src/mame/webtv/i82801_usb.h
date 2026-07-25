@@ -25,6 +25,8 @@ public:
 
 	i82801_usb_uhci_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t main_id = 0x808624c2, uint32_t revision = 0x00);
 
+	virtual bool remap_scope_is_local() const override { return true; }
+
 	void set_connected_pirq(uint8_t legacy_interrupt_pin, uint8_t pirq_pin);
 
 	void set_subsystem_id(uint32_t _subsystem_id);
@@ -169,6 +171,8 @@ public:
 	static constexpr uint32_t USB_EHCI_PORT_WMASK = 0x7fe1c4;
 
 	i82801_usb_ehci_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t main_id = 0x808624cd, uint32_t revision = 0x00);
+
+	virtual bool remap_scope_is_local() const override { return true; }
 
 	auto pirq_callback() { return m_pirq_w_cb.bind(); }
 

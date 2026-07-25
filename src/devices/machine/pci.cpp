@@ -94,9 +94,16 @@ pci_device::pci_device(const machine_config &mconfig, device_type type, const ch
 		bank_infos[i].adr = -1;
 		bank_infos[i].size = 0;
 		bank_infos[i].flags = 0;
+		bank_infos[i].mapped = false;
+		bank_infos[i].mapped_start = 0;
+		bank_infos[i].mapped_end = 0;
+		bank_infos[i].mapped_space = nullptr;
 		bank_reg_infos[i].bank = -1;
 		bank_reg_infos[i].hi = 0;
 	}
+	expansion_rom_mapped = false;
+	expansion_rom_mapped_start = 0;
+	expansion_rom_mapped_end = 0;
 }
 
 // main_id << 16 = vendor ID ($00-$01)
@@ -348,6 +355,12 @@ void pci_device::set_remap_cb(mapper_cb _remap_cb)
 
 void pci_device::reset_all_mappings()
 {
+	for (int i=0; i<6; i++)
+	{
+		bank_infos[i].mapped = false;
+		bank_infos[i].mapped_space = nullptr;
+	}
+	expansion_rom_mapped = false;
 }
 
 void pci_device::map_device(uint64_t memory_window_start, uint64_t memory_window_end, uint64_t memory_offset, address_space *memory_space,
@@ -355,6 +368,13 @@ void pci_device::map_device(uint64_t memory_window_start, uint64_t memory_window
 {
 	for(int i=0; i<bank_count; i++) {
 		bank_info &bi = bank_infos[i];
+
+		if (bi.mapped)
+		{
+			bi.mapped_space->unmap_readwrite(bi.mapped_start, bi.mapped_end);
+			bi.mapped = false;
+		}
+
 		if(uint32_t(bi.adr) >= 0xfffffffc)
 			continue;
 		if (bi.flags & M_IO) {
@@ -389,10 +409,21 @@ void pci_device::map_device(uint64_t memory_window_start, uint64_t memory_window
 
 		space->install_device_delegate(start, end, *bi.device, bi.map);
 		logerror("map %s at %0*x-%0*x\n", bi.map.name(), bi.flags & M_IO ? 4 : 8, uint32_t(start), bi.flags & M_IO ? 4 : 8, uint32_t(end));
+
+		bi.mapped = true;
+		bi.mapped_start = start;
+		bi.mapped_end = end;
+		bi.mapped_space = space;
 	}
 
 	map_extra(memory_window_start, memory_window_end, memory_offset, memory_space,
 				io_window_start, io_window_end, io_offset, io_space);
+
+	if (expansion_rom_mapped) 
+	{
+		memory_space->unmap_read(expansion_rom_mapped_start, expansion_rom_mapped_end);
+		expansion_rom_mapped = false;
+	}
 
 	if(expansion_rom_base & 1) {
 		logerror("map expansion rom at %08x-%08x\n", expansion_rom_base & ~1, (expansion_rom_base & ~1) + expansion_rom_size - 1);
@@ -401,6 +432,10 @@ void pci_device::map_device(uint64_t memory_window_start, uint64_t memory_window
 		if(end > memory_window_end)
 			end = memory_window_end;
 		memory_space->install_rom(start, end, (void *)expansion_rom);
+
+		expansion_rom_mapped = true;
+		expansion_rom_mapped_start = start;
+		expansion_rom_mapped_end = end;
 	}
 }
 
@@ -529,8 +564,19 @@ void pci_bridge_device::set_remap_cb(mapper_cb _remap_cb)
 {
 	remap_cb = _remap_cb;
 	for(unsigned int i=0; i != all_devices.size(); i++)
-		if(all_devices[i] != this)
-			all_devices[i]->set_remap_cb(_remap_cb);
+		if (all_devices[i] != this)
+		{
+			pci_device *dev = all_devices[i];
+			if(dev->remap_scope_is_local())
+				dev->set_remap_cb(mapper_cb([this, dev] () { remap_single_device(dev); }));
+			else
+				dev->set_remap_cb(_remap_cb);
+		}
+}
+
+void pci_bridge_device::remap_single_device(pci_device *dev)
+{
+	remap_cb();
 }
 
 void pci_bridge_device::device_start()
@@ -571,9 +617,14 @@ void pci_bridge_device::device_start()
 				sub_devices[i & ~7]->set_multifunction_device(true);
 
 			all_devices.push_back(sub_devices[i]);
-			if(sub_devices[i] != this) {
-				sub_devices[i]->remap_config_cb = cf_cb;
-				sub_devices[i]->set_remap_cb(remap_cb);
+			if (sub_devices[i] != this)
+			{
+				pci_device *dev = sub_devices[i];
+				dev->remap_config_cb = cf_cb;
+				if(dev->remap_scope_is_local())
+					dev->set_remap_cb(mapper_cb([this, dev] () { remap_single_device(dev); }));
+				else
+					dev->set_remap_cb(remap_cb);
 				pci_bridge_device *bridge = dynamic_cast<pci_bridge_device *>(sub_devices[i]);
 				if(bridge)
 					all_bridges.push_back(bridge);
@@ -966,6 +1017,13 @@ void pci_host_device::regenerate_mapping()
 
 	map_device(memory_window_start, memory_window_end, memory_offset, memory_space,
 				io_window_start, io_window_end, io_offset, io_space);
+}
+
+void pci_host_device::remap_single_device(pci_device *dev)
+{
+	logerror("Remapping %s only\n", dev->tag());
+	dev->map_device(memory_window_start, memory_window_end, memory_offset, memory_space,
+					io_window_start, io_window_end, io_offset, io_space);
 }
 
 uint32_t pci_host_device::config_address_r(offs_t offset, uint32_t mem_mask)

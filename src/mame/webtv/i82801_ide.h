@@ -164,6 +164,8 @@ public:
 
 	i82801_ide_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	virtual bool remap_scope_is_local() const override { return true; }
+
 	template <typename T> void set_busmaster_tag(T &&tag, uint32_t space) { m_bus_master_space.set_tag(std::forward<T>(tag), space); }
 
 	auto pirq_callback() { return m_pirq_cb.bind(); }

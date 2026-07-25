@@ -27,6 +27,8 @@ public:
 	// Specify if this device must be mapped before all the others on the pci bus
 	virtual bool map_first() const { return false; }
 
+	virtual bool remap_scope_is_local() const { return false; }
+
 	void map_config(uint8_t device, address_space *config_space);
 
 	virtual void config_map(address_map &map) ATTR_COLD;
@@ -93,6 +95,10 @@ protected:
 		uint64_t adr;
 		uint32_t size;
 		int flags;
+
+		bool mapped;
+		uint64_t mapped_start, mapped_end;
+		address_space *mapped_space;
 	};
 
 	struct bank_reg_info {
@@ -112,6 +118,8 @@ protected:
 	const uint8_t *expansion_rom;
 	uint32_t expansion_rom_size;
 	uint32_t expansion_rom_base;
+	bool expansion_rom_mapped;
+	uint64_t expansion_rom_mapped_start, expansion_rom_mapped_end;
 	bool is_multifunction_device;
 	uint8_t intr_line, intr_pin;
 	uint8_t minimum_grant, maximum_latency;
@@ -217,6 +225,8 @@ protected:
 	virtual device_t *bus_root();
 	virtual void regenerate_config_mapping();
 
+	virtual void remap_single_device(pci_device *dev);
+
 	uint32_t do_config_read(uint8_t bus, uint8_t device, uint16_t reg, uint32_t mem_mask);
 	uint32_t propagate_config_read(uint8_t bus, uint8_t device, uint16_t reg, uint32_t mem_mask);
 	uint32_t config_read(uint8_t bus, uint8_t device, uint16_t reg, uint32_t mem_mask);
@@ -271,6 +281,7 @@ protected:
 	void root_config_write(uint8_t bus, uint8_t device, uint16_t reg, uint32_t data, uint32_t mem_mask);
 
 	void regenerate_mapping();
+	virtual void remap_single_device(pci_device *dev) override;
 
 	uint64_t memory_window_start, memory_window_end, memory_offset;
 	uint64_t io_window_start, io_window_end, io_offset;
