@@ -897,30 +897,37 @@ void i82801_ac97_base::set_nabm_glob_irq(uint32_t mask, int state)
 
 	bool irq_enabled = false;
 
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SDIN2_INT)
-		irq_enabled |= (m_glob_cntl & NABM_GLOB_CNTL_CODEC2_RSM_INT);
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SPDIF_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_PCM_IN2_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MIC_IN2_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SDIN1_INT)
-		irq_enabled |= (m_glob_cntl & NABM_GLOB_CNTL_CODEC1_RSM_INT);
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SDIN0_INT)
-		irq_enabled |= (m_glob_cntl & NABM_GLOB_CNTL_CODEC0_RSM_INT);
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MIC_IN1_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_PCM_OUT_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_PCM_IN1_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MDM_OUT_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MDM_IN_INT)
-		irq_enabled |= true;
-	if(mask & i82801_ac97_base::NABM_GLOB_STATUS_GSCI_INT)
-		irq_enabled |= true;
+	if(state == ASSERT_LINE)
+	{
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SDIN2_INT)
+			irq_enabled |= (m_glob_cntl & NABM_GLOB_CNTL_CODEC2_RSM_INT);
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SPDIF_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_PCM_IN2_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MIC_IN2_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SDIN1_INT)
+			irq_enabled |= (m_glob_cntl & NABM_GLOB_CNTL_CODEC1_RSM_INT);
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_SDIN0_INT)
+			irq_enabled |= (m_glob_cntl & NABM_GLOB_CNTL_CODEC0_RSM_INT);
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MIC_IN1_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_PCM_OUT_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_PCM_IN1_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MDM_OUT_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_MDM_IN_INT)
+			irq_enabled |= true;
+		if(mask & i82801_ac97_base::NABM_GLOB_STATUS_GSCI_INT)
+			irq_enabled |= true;
+	}
+	else
+	{
+		irq_enabled = true;
+	}
 
 	if (irq_enabled)
 		m_pirq_cb(m_pirq_pin, state);
