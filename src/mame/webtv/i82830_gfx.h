@@ -262,6 +262,8 @@ public:
 
 	i82830_graphics_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	virtual bool remap_scope_is_local() const override { return true; }
+
 	template <typename T> void set_mcu_tag(T &&tag) { m_mcu.set_tag(std::forward<T>(tag)); }
 
 	auto pirq_callback() { return m_pirq_w_cb.bind(); }

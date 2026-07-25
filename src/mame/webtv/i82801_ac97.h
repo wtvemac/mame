@@ -355,6 +355,8 @@ public:
 
 	i82801_ac97_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, std::function<void (aclink_connection_interface &, machine_config &)> setup_codecs_func = nullptr, uint32_t main_id = 0x808624c5, uint32_t revision = 0x00);
 
+	virtual bool remap_scope_is_local() const override { return true; }
+
 	auto pirq_callback() { return m_pirq_cb.bind(); }
 
 	void set_connected_pirq(uint8_t legacy_interrupt_pin, uint8_t pirq_pin);
