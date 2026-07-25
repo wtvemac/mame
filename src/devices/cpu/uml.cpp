@@ -224,6 +224,11 @@ opcode_info const instruction::s_opcode_info_table[OP_MAX] =
 	OPINFO2(FRSQRT,  "f#rsqrt",  4|8, false, NONE, NONE, ALL,  PINFO(OUT, OP, FRM), PINFO(IN, OP, FANY))
 	OPINFO2(FCOPYI,  "f#copyi",  4|8, false, NONE, NONE, NONE, PINFO(OUT, OP, FRM), PINFO(IN, OP, IRM)) // Load float/double value from integer representation (e.g. 0x3f800000 -> 1.0f)
 	OPINFO2(ICOPYF,  "icopyf#",  4|8, false, NONE, NONE, NONE, PINFO(OUT, OP, IRM), PINFO(IN, OP, FRM)) // Store float/double value as integer representation (e.g. 1.0f -> 0x3f800000)
+
+	// Vector Operations
+	OPINFO3(VLOAD,   "vload",    4,   false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, PTR), PINFO(IN, 4, IANY)) // Load 128-bit vector from base+index (byte-addressed, unaligned)
+	OPINFO3(VSTORE,  "vstore",   4,   false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, 4, IANY), PINFO(IN, OP, FREG)) // Store 128-bit vector to base+index (byte-addressed, unaligned)
+	OPINFO2(VBCASTB, "vbcastb",  4,   false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, IANY)) // Broadcast low 8 bits of src to all 16 bytes of dst
 };
 
 

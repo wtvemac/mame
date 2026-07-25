@@ -194,4 +194,10 @@
 #define UML_ICOPYFD(block, dst, src)                        do { using namespace uml; block.append().icopyfd(dst, src); } while (0)
 
 
+/* ----- Vector Operations ----- */
+#define UML_VLOAD(block, dst, base, index)                  do { using namespace uml; block.append().vload(dst, base, index); } while (0)
+#define UML_VSTORE(block, base, index, src)                 do { using namespace uml; block.append().vstore(base, index, src); } while (0)
+#define UML_VBCASTB(block, dst, src)                        do { using namespace uml; block.append().vbcastb(dst, src); } while (0)
+
+
 #endif // MAME_CPU_DRCUMLSH_H

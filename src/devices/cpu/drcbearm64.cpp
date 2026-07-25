@@ -519,6 +519,8 @@ private:
 		uint64_t saved_fpcr;
 		uint8_t nominal_fmod;
 		uint8_t fmod_changed;
+
+		uint8_t vecspill[uml::REG_F_COUNT][16];
 	};
 
 	struct memory_accessors
@@ -609,6 +611,10 @@ private:
 	void op_fcmp(a64::Assembler &a, const uml::instruction &inst);
 	void op_fcopyi(a64::Assembler &a, const uml::instruction &inst);
 	void op_icopyf(a64::Assembler &a, const uml::instruction &inst);
+
+	void op_vload(a64::Assembler &a, const uml::instruction &inst);
+	void op_vstore(a64::Assembler &a, const uml::instruction &inst);
+	void op_vbcastb(a64::Assembler &a, const uml::instruction &inst);
 
 	template <a64::Inst::Id Opcode> void op_float_alu(a64::Assembler &a, const uml::instruction &inst);
 	template <a64::Inst::Id Opcode> void op_float_alu2(a64::Assembler &a, const uml::instruction &inst);
@@ -790,6 +796,11 @@ inline void drcbe_arm64::generate_one(a64::Assembler &a, const uml::instruction 
 	case uml::OP_FRSQRT:  op_float_alu2<a64::Inst::kIdFrsqrte_v>(a, inst);  break; // FRSQRT  dst,src1
 	case uml::OP_FCOPYI:  op_fcopyi(a, inst);                               break; // FCOPYI  dst,src
 	case uml::OP_ICOPYF:  op_icopyf(a, inst);                               break; // ICOPYF  dst,src
+
+	// Vector Operations
+	case uml::OP_VLOAD:   op_vload(a, inst);                                break; // VLOAD   dst,base,index
+	case uml::OP_VSTORE:  op_vstore(a, inst);                               break; // VSTORE  base,index,src
+	case uml::OP_VBCASTB: op_vbcastb(a, inst);                              break; // VBCASTB dst,src
 
 	default: throw emu_fatalerror("drcbe_arm64(%s): unhandled opcode %u\n", m_device.tag(), inst.opcode());
 	}
@@ -5811,6 +5822,112 @@ void drcbe_arm64::op_icopyf(a64::Assembler &a, const uml::instruction &inst)
 	mov_float_reg_param(a, inst.size(), srcreg, srcp);
 	a.fmov(dstreg, srcreg);
 	mov_param_reg(a, inst.size(), dstp, dstreg);
+}
+
+void drcbe_arm64::op_vload(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	uml::parameter const &dstp = inst.param(0);
+	be_parameter basep(*this, inst.param(1), PTYPE_M);
+	be_parameter indp(*this, inst.param(2), PTYPE_MRI);
+	assert(dstp.is_float_register());
+
+	uint32_t const fregnum = dstp.freg() - uml::REG_F0;
+	uint32_t const physreg = float_register_map[fregnum];
+	const a64::Vec dstreg = (physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+
+	const a64::Gp basereg = TEMP_REG1;
+	get_imm_relative(a, basereg, uint64_t(basep.memory()));
+
+	const a64::Gp indreg = TEMP_REG2;
+	if (indp.is_immediate())
+		get_imm_relative(a, indreg, uint64_t(int64_t(int32_t(uint32_t(indp.immediate())))));
+	else if (indp.is_int_register())
+		a.sxtw(indreg, indp.get_register_int(4));
+	else if ((std::endian::native == std::endian::big) && indp.is_cold_register())
+		emit_ldrsw_mem(a, indreg, reinterpret_cast<uint8_t *>(indp.memory()) + 4);
+	else
+		emit_ldrsw_mem(a, indreg, indp.memory());
+
+	a.ldr(dstreg, a64::Mem(basereg, indreg));
+
+	if (physreg == 0)
+	{
+		const a64::Gp addrreg = TEMP_REG3;
+		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
+		a.str(dstreg, a64::Mem(addrreg));
+	}
+}
+
+void drcbe_arm64::op_vstore(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter basep(*this, inst.param(0), PTYPE_M);
+	be_parameter indp(*this, inst.param(1), PTYPE_MRI);
+	uml::parameter const &srcp = inst.param(2);
+	assert(srcp.is_float_register());
+
+	uint32_t const fregnum = srcp.freg() - uml::REG_F0;
+	uint32_t const physreg = float_register_map[fregnum];
+	const a64::Vec srcreg = (physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+
+	if (physreg == 0)
+	{
+		const a64::Gp addrreg = TEMP_REG3;
+		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
+		a.ldr(srcreg, a64::Mem(addrreg));
+	}
+
+	const a64::Gp basereg = TEMP_REG1;
+	get_imm_relative(a, basereg, uint64_t(basep.memory()));
+
+	const a64::Gp indreg = TEMP_REG2;
+	if (indp.is_immediate())
+		get_imm_relative(a, indreg, static_cast<uint64_t>(static_cast<int64_t>(indp.immediate())));
+	else if (indp.is_int_register())
+		a.sxtw(indreg, indp.get_register_int(4));
+	else if ((std::endian::native == std::endian::big) && indp.is_cold_register())
+		emit_ldrsw_mem(a, indreg, reinterpret_cast<uint8_t *>(indp.memory()) + 4);
+	else
+		emit_ldrsw_mem(a, indreg, indp.memory());
+
+	a.str(srcreg, a64::Mem(basereg, indreg));
+}
+
+void drcbe_arm64::op_vbcastb(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	uml::parameter const &dstp = inst.param(0);
+	be_parameter srcp(*this, inst.param(1), PTYPE_MRI);
+	assert(dstp.is_float_register());
+
+	uint32_t const fregnum = dstp.freg() - uml::REG_F0;
+	uint32_t const physreg = float_register_map[fregnum];
+	const a64::Vec dstreg = (physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+
+	const a64::Gp tmp = TEMP_REG1.w();
+	mov_reg_param(a, 4, tmp, srcp);
+
+	a.dup(dstreg.b16(), tmp);
+
+	if (physreg == 0)
+	{
+		const a64::Gp addrreg = TEMP_REG3;
+		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
+		a.str(dstreg, a64::Mem(addrreg));
+	}
 }
 
 } // anonymous namespace

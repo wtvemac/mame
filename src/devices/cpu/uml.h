@@ -234,6 +234,11 @@ namespace uml {
 		OP_FCOPYI,                  // FCOPYI  dst,src
 		OP_ICOPYF,                  // ICOPYF  dst,src
 
+		// vector operations
+		OP_VLOAD,                   // VLOAD   dst,base,index
+		OP_VSTORE,                  // VSTORE  base,index,src
+		OP_VBCASTB,                 // VBCASTB dst,src
+
 		OP_MAX
 	};
 
@@ -611,6 +616,11 @@ namespace uml {
 		void fdrsqrt(parameter dst, parameter src1) { configure(OP_FRSQRT, 8, dst, src1); }
 		void fdcopyi(parameter dst, parameter src) { configure(OP_FCOPYI, 8, dst, src); }
 		void icopyfd(parameter dst, parameter src) { configure(OP_ICOPYF, 8, dst, src); }
+
+		// 128-bit vector operations
+		void vload(parameter dst, void const *base, parameter index) { configure(OP_VLOAD, 4, dst, parameter::make_memory(base), index); }
+		void vstore(void *base, parameter index, parameter src1) { configure(OP_VSTORE, 4, parameter::make_memory(base), index, src1); }
+		void vbcastb(parameter dst, parameter src1) { configure(OP_VBCASTB, 4, dst, src1); }
 
 	private:
 		// internal configuration

@@ -276,6 +276,7 @@ const Gp::Id REG_PARAM4    = Gp::kIdCx;
 
 const Vec REG_FSCRATCH1 = xmm0;
 const Vec REG_FSCRATCH2 = xmm1;
+const Vec REG_VSCRATCH = xmm2;
 
 // register mapping tables
 const Gp::Id int_register_map[REG_I_COUNT] =
@@ -596,6 +597,10 @@ private:
 	void op_fcopyi(Assembler &a, const uml::instruction &inst);
 	void op_icopyf(Assembler &a, const uml::instruction &inst);
 
+	void op_vload(Assembler &a, const uml::instruction &inst);
+	void op_vstore(Assembler &a, const uml::instruction &inst);
+	void op_vbcastb(Assembler &a, const uml::instruction &inst);
+
 	// alu and shift operation helpers
 	static bool ones(u64 const value, unsigned const size) noexcept { return (size == 4) ? u32(value) == 0xffffffffU : value == 0xffffffff'ffffffffULL; }
 	template <typename T>
@@ -633,6 +638,8 @@ private:
 #endif
 	bool                    m_lzcnt;                // do we have lzcnt support?
 	bool                    m_bmi;                  // do we have BMI support?
+	bool                    m_sse4_1;               // do we have SSE4.1 support?
+	bool                    m_avx2;                 // do we have AVX2 support?
 
 	u32 *                   m_absmask32;            // absolute value mask (32-bit)
 	u64 *                   m_absmask64;            // absolute value mask (32-bit)
@@ -757,6 +764,11 @@ inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst)
 	case uml::OP_FRSQRT:  op_frsqrt(a, inst);     break; // FRSQRT  dst,src1
 	case uml::OP_FCOPYI:  op_fcopyi(a, inst);     break; // FCOPYI  dst,src
 	case uml::OP_ICOPYF:  op_icopyf(a, inst);     break; // ICOPYF  dst,src
+
+	// Vector Operations
+	case uml::OP_VLOAD:   op_vload(a, inst);      break; // VLOAD   dst,base,index
+	case uml::OP_VSTORE:  op_vstore(a, inst);     break; // VSTORE  base,index,src
+	case uml::OP_VBCASTB: op_vbcastb(a, inst);    break; // VBCASTB dst,src
 
 	default: throw emu_fatalerror("drcbe_x64(%s): unhandled opcode %u\n", m_device.tag(), inst.opcode());
 	}
@@ -1035,6 +1047,8 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 #endif
 	, m_lzcnt(false)
 	, m_bmi(false)
+	, m_sse4_1(false)
+	, m_avx2(false)
 	, m_absmask32((u32 *)cache.alloc_near(16*2 + 15, std::align_val_t(alignof(u32))))
 	, m_absmask64(nullptr)
 	, m_rbpvalue(cache.near() + 0x80)
@@ -1050,6 +1064,8 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	const auto &x86_features = CpuInfo::host().features().x86();
 	m_lzcnt = x86_features.has_lzcnt();
 	m_bmi = x86_features.has_bmi();
+	m_sse4_1 = x86_features.has_sse4_1();
+	m_avx2 = x86_features.has_avx2();
 
 	// build up necessary arrays
 	constexpr u32 sse_control[4] =
@@ -6665,6 +6681,123 @@ void drcbe_x64::op_icopyf(Assembler &a, const instruction &inst)
 		{
 			a.movq(gpq(dstp.ireg()), xmm(srcp.freg()));
 		}
+	}
+}
+
+
+//-------------------------------------------------
+//  op_vload - process a VLOAD opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vload(Assembler &a, const instruction &inst)
+{
+	// validate instruction
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter basep(*this, inst.param(1), PTYPE_M);
+	be_parameter indp(*this, inst.param(2), PTYPE_MRI);
+	[[maybe_unused]] parameter const &dstp = inst.param(0);
+	assert(dstp.is_float_register());
+
+	Vec const dstreg = REG_VSCRATCH;
+
+	// determine the pointer base
+	s32 baseoffs;
+	Gp const basereg = get_base_register_and_offset(a, basep.memory(), rdx, baseoffs);
+
+	if (indp.is_immediate())
+	{
+		ptrdiff_t const offset = ptrdiff_t(s32(u32(indp.immediate())));
+		a.movdqu(dstreg, ptr(basereg, baseoffs + offset));                             // movdqu dstreg,[basep + indp]
+	}
+	else
+	{
+		const Gp indreg = rcx;
+		movsx_r64_p32(a, indreg, indp);                                                 // mov    indreg,indp
+		a.movdqu(dstreg, ptr(basereg, indreg, 0, baseoffs));                            // movdqu dstreg,[basep + indp]
+	}
+}
+
+
+//-------------------------------------------------
+//  op_vstore - process a VSTORE opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vstore(Assembler &a, const instruction &inst)
+{
+	// validate instruction
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter basep(*this, inst.param(0), PTYPE_M);
+	be_parameter indp(*this, inst.param(1), PTYPE_MRI);
+	[[maybe_unused]] parameter const &srcp = inst.param(2);
+	assert(srcp.is_float_register());
+
+	Vec const srcreg = REG_VSCRATCH;
+
+	// determine the pointer base
+	s32 baseoffs;
+	Gp const basereg = get_base_register_and_offset(a, basep.memory(), rdx, baseoffs);
+
+	if (indp.is_immediate())
+	{
+		ptrdiff_t const offset = ptrdiff_t(s32(u32(indp.immediate())));
+		a.movdqu(ptr(basereg, baseoffs + offset), srcreg);                             // movdqu [basep + indp],srcreg
+	}
+	else
+	{
+		const Gp indreg = rcx;
+		movsx_r64_p32(a, indreg, indp);                                                 // mov    indreg,indp
+		a.movdqu(ptr(basereg, indreg, 0, baseoffs), srcreg);                            // movdqu [basep + indp],srcreg
+	}
+}
+
+
+//-------------------------------------------------
+//  op_vbcastb - process a VBCASTB opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vbcastb(Assembler &a, const instruction &inst)
+{
+	// validate instruction
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter srcp(*this, inst.param(1), PTYPE_MRI);
+	[[maybe_unused]] parameter const &dstp = inst.param(0);
+	assert(dstp.is_float_register());
+
+	Vec const dstreg = REG_VSCRATCH;
+
+	Gp const tmp = eax;
+	mov_reg_param(a, tmp, srcp);
+
+	if (m_avx2)
+	{
+		a.vmovd(dstreg, tmp);
+		a.vpbroadcastb(dstreg, dstreg);
+	}
+	else if (m_sse4_1)
+	{
+		a.movd(dstreg, tmp);
+		a.pxor(REG_FSCRATCH2, REG_FSCRATCH2);
+		a.pshufb(dstreg, REG_FSCRATCH2);
+	}
+	else
+	{
+		// default SSE2 optimized steps
+		a.movd(dstreg, tmp);
+		a.punpcklbw(dstreg, dstreg);
+		a.punpcklwd(dstreg, dstreg);
+		a.pshufd(dstreg, dstreg, 0);
 	}
 }
 
