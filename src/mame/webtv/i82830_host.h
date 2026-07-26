@@ -16,6 +16,7 @@ class i82830_host_device : public pci_host_device
 public:
 
 	static constexpr uint32_t MIN_RAM_SIZE = 1 * 1024 * 1024;
+	static constexpr uint32_t MAX_RAM_SIZE = 1 * 1024 * 1024 * 1024;
 
 	static constexpr uint8_t PAM_REG_COUNT = 7;
 	static constexpr uint8_t PAM_30_SHIFT  = 0;
@@ -107,12 +108,12 @@ public:
 	static constexpr uint16_t GMCH_CNTL1_IGD_GM_64MB = 1 << 0; // Otherwise 128MB
 
 	template <typename T>
-	i82830_host_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, T &&cpu_tag, uint32_t max_ram_size, bool allocate_max_ram = false, uint32_t main_id = 0x80863575, uint8_t revision = 0x04, uint32_t subdevice_id = 0x00000000)
+	i82830_host_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, T &&cpu_tag, uint32_t max_ram_size, uint32_t main_id = 0x80863575, uint8_t revision = 0x04, uint32_t subdevice_id = 0x00000000)
 		: i82830_host_device(mconfig, tag, owner, clock)
 	{
 		set_ids_host(main_id, revision, subdevice_id);
 		set_cpu_tag(std::forward<T>(cpu_tag));
-		set_max_ram_size(max_ram_size, allocate_max_ram);
+		set_ram_size(max_ram_size);
 	}
 
 	i82830_host_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
@@ -128,38 +129,27 @@ public:
 	uint16_t get_gcc0() { return m_gcc0; }
 	uint16_t get_gcc1() { return m_gcc1; }
 
-	void set_max_ram_size(uint32_t max_ram_size, bool allocate_max_ram = false)
+	void set_ram_size(uint32_t max_ram_size, bool allocate_max_ram = false)
 	{
-		m_max_ram_size = max_ram_size;
-		m_allocate_max_ram = allocate_max_ram;
+		m_ram_size = std::min(std::max(max_ram_size, i82830_host_device::MIN_RAM_SIZE), i82830_host_device::MAX_RAM_SIZE);
+
+		if ((m_ram_size >> 2) > m_ram.size())
+			m_ram.resize((m_ram_size >> 2), 0x00000000);
 	}
 	inline uint32_t get_ram_size()
 	{
-		if(m_allocate_max_ram)
+		uint32_t ram_size = 0;
+
+		uint32_t drb_result = 0;
+		for(int idx = 0; idx < i82830_host_device::DRB_REG_COUNT; idx++)
 		{
-			return m_max_ram_size;
+			if(m_drb[idx] > drb_result)
+				drb_result = m_drb[idx];
 		}
-		else
-		{
-			uint32_t ram_size = 0;
 
-			uint32_t drb_result = 0;
-			for(int idx = 0; idx < i82830_host_device::DRB_REG_COUNT; idx++)
-			{
-				if(m_drb[idx] > drb_result)
-					drb_result = m_drb[idx];
-			}
+		ram_size = drb_result * DRB_GRANULARITY;
 
-			ram_size = drb_result * DRB_GRANULARITY;
-
-			if(ram_size > m_max_ram_size)
-				ram_size = m_max_ram_size;
-
-			if(ram_size < i82830_host_device::MIN_RAM_SIZE)
-				ram_size = i82830_host_device::MIN_RAM_SIZE;
-
-			return std::min(m_max_ram_size, ram_size);
-		}
+		return std::min(std::max(ram_size, i82830_host_device::MIN_RAM_SIZE), m_ram_size);
 	}
 	template <typename T> inline T* get_ram_pointer()
 	{
@@ -220,8 +210,7 @@ private:
 	required_device<device_memory_interface> m_hostcpumem;
 	required_device<i386_device> m_hostcpu;
 
-	uint32_t m_max_ram_size;
-	bool m_allocate_max_ram;
+	uint32_t m_ram_size;
 	std::vector<uint32_t> m_ram;
 
 	uint32_t m_rrbar;

@@ -15,6 +15,9 @@ i82830_host_device::i82830_host_device(const machine_config &mconfig, const char
 	m_hostcpumem(*this, finder_base::DUMMY_TAG),
 	m_hostcpu(*this, finder_base::DUMMY_TAG)
 {
+	m_ram_size = i82830_host_device::MIN_RAM_SIZE;
+	m_ram.reserve(m_ram_size >> 2);
+	m_agp_enabled = false;
 }
 
 void i82830_host_device::device_start()
@@ -93,11 +96,6 @@ void i82830_host_device::map_extra(uint64_t memory_window_start, uint64_t memory
 	io_space->install_device(0x0000, 0xffff, *static_cast<pci_host_device *>(this), &pci_host_device::io_configuration_access_map);
 
 	uint32_t ram_size = i82830_host_device::get_ram_size();
-	const size_t ram_dword_size = ram_size >> 2;
-	if(ram_dword_size > m_ram.max_size())
-		assert(!"Couldn't allocate RAM! ram_size > max_size");
-	if(m_ram.size() < ram_dword_size)
-		m_ram.resize(ram_dword_size, 0x00000000);
 
 	//
 	// DOS Application Area
@@ -151,7 +149,6 @@ void i82830_host_device::map_extra(uint64_t memory_window_start, uint64_t memory
 	if(ram_size > 0x00100000)
 	{
 		memory_space->install_ram(0x00100000, (ram_size - 1), &m_ram[0x00100000 >> 2]);
-
 	}
 
 	if(m_smram_cntl & i82830_host_device::SMRAM_CNTL_G_EN)
