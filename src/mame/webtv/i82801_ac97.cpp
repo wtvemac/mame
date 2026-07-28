@@ -751,9 +751,6 @@ void i82801_ac97_base::chan_transfer_end(offs_t offset)
 		int_mask |= i82801_ac97_base::NABM_CHAN_STATUS_LAST_BUFF_INT;
 
 		m_chan[offset].tx_status |= i82801_ac97_base::NABM_CHAN_STATUS_DMA_HALTED | i82801_ac97_base::NABM_CHAN_STATUS_EOL;
-
-		if(m_chan[offset].bdesc_cmd & i82801_ac97_base::BDESC_CMD_USE_BUP)
-			m_chan[offset].tx_sample.val = 0x00000000;
 	}
 	else
 	{
