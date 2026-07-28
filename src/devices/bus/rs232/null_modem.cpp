@@ -158,8 +158,7 @@ TIMER_CALLBACK_MEMBER(null_modem_device::update_queue)
 			}
 		}
 
-		int const txbaud = convert_baud(m_rs232_txbaud->read());
-		m_timer_poll->adjust(attotime::from_hz(txbaud));
+		m_timer_poll->adjust(attotime::from_hz(IDLE_POLL_RATE));
 	}
 }
 

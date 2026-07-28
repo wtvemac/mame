@@ -33,6 +33,9 @@ protected:
 	virtual void rcv_complete() override;
 
 private:
+	// The rate to poll for a new byte once idle.
+	static constexpr int IDLE_POLL_RATE = 1000;
+
 	TIMER_CALLBACK_MEMBER(update_queue);
 	void update_input_buffer();
 
