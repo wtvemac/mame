@@ -733,18 +733,23 @@ void i82801_ac97_base::chan_transfer_fetch(offs_t offset)
 	uint16_t bdesc_cmd = dma_space->read_word(cur_bdbase + i82801_ac97_base::BDESC_CMD_OFFSET);
 	uint16_t tx_csize = dma_space->read_word(cur_bdbase + i82801_ac97_base::BDESC_SIZE_OFFSET);
 
-	m_chan[offset].tx_caddr = tx_start_addr;
-	m_chan[offset].tx_cleft = tx_csize;
-	m_chan[offset].bdesc_cmd = bdesc_cmd;
+	if(tx_csize == 0x0000)
+	{
+		i82801_ac97_base::chan_transfer_end(offset);
+	}
+	else
+	{
+		m_chan[offset].tx_caddr = tx_start_addr;
+		m_chan[offset].tx_cleft = tx_csize;
+		m_chan[offset].bdesc_cmd = bdesc_cmd;
 
-	m_chan[offset].bdesc_valid = true;
-
+		m_chan[offset].bdesc_valid = true;
+	}
 }
 
 void i82801_ac97_base::chan_transfer_end(offs_t offset)
 {
 	uint16_t int_mask = 0x0000;
-
 
 	if(m_chan[offset].bdesc_cidx == m_chan[offset].bdesc_lidx)
 	{
