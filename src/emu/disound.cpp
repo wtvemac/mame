@@ -546,7 +546,8 @@ void sound_stream::init()
 
 u64 sound_stream::get_current_sample_index() const
 {
-	attotime now = m_device.machine().time();
+	sound_manager &sound = m_device.machine().sound();
+	attotime now = sound.using_decoupled_timer() ? sound.decoupled_time() : m_device.machine().time();
 	return now.m_seconds * m_sample_rate + muldivu_64(now.m_attoseconds, m_sample_rate, ATTOSECONDS_PER_SECOND);
 }
 

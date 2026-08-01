@@ -27,6 +27,7 @@ void stac9767_codec::device_start()
 
 	m_aud_stream = stream_alloc(stac9767_codec::AUD_IN_CHAN_COUNT, stac9767_codec::AUD_OUT_CHAN_COUNT, m_aud_clk);
 
+	machine().sound().using_decoupled_timer(true);
 	machine().sound().set_update_interval(attotime::from_hz(m_aud_clk / m_samples_per_block));
 }
 
