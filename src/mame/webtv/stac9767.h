@@ -19,7 +19,7 @@ public:
 	static constexpr uint32_t AUD_IN_CHAN_COUNT     = 0;
 	static constexpr uint32_t AUD_OUT_CHAN_COUNT    = 2;
 	static constexpr float    AUD_OUTPUT_GAIN       = 1.0;
-	static constexpr uint32_t AUD_SAMPLES_PER_BLOCK = 0x100;
+	static constexpr uint32_t AUD_SAMPLES_PER_BLOCK = 960;
 
 	stac9767_codec(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 

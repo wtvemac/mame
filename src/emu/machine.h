@@ -18,6 +18,7 @@
 #define MAME_EMU_MACHINE_H
 
 #include <functional>
+#include <list>
 
 #include <ctime>
 
@@ -169,6 +170,8 @@ public:
 	void toggle_pause();
 	void add_notifier(machine_notification event, machine_notify_delegate callback, bool first = false);
 	void call_notifiers(machine_notification which);
+	void *add_realtime_periodic_callback(double hz, std::function<void ()> callback);
+	void remove_realtime_periodic_callback(void *token);
 	void add_logerror_callback(logerror_callback callback);
 	void debug_break();
 	void export_http_api();
@@ -266,6 +269,16 @@ private:
 	const machine_config &  m_config;               // reference to the constructed machine_config
 	const game_driver &     m_system;               // reference to the definition of the game machine
 	machine_manager &       m_manager;              // reference to machine manager system
+
+	struct realtime_callback
+	{
+		std::function<void ()> callback;
+		osd_ticks_t interval_ticks;
+		osd_ticks_t next_fire_ticks;
+		bool removed = false;
+	};
+	std::list<realtime_callback> m_realtime_callbacks; // std::list: element addresses are stable, used as tokens
+
 	// managers
 	std::unique_ptr<render_manager> m_render;          // internal data from render.cpp
 	std::unique_ptr<input_manager> m_input;            // internal data from input.cpp
@@ -341,6 +354,7 @@ private:
 	ioport_manager          m_ioport;               // I/O port manager
 	parameters_manager      m_parameters;           // parameters manager
 	device_scheduler        m_scheduler;            // scheduler object
+	void pump_realtime_callbacks();
 
 	// string formatting buffer
 	mutable util::ovectorstream m_string_buffer;

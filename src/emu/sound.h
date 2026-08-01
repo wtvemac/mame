@@ -209,6 +209,10 @@ public:
 	void set_resampler_hq_phases(u32 phases);
 	void set_update_interval(attotime update_attotime);
 
+	void using_decoupled_timer(bool enable);
+	bool using_decoupled_timer() const { return m_update_timer->decoupled(); }
+	attotime decoupled_time() const { return m_decoupled_time; }
+
 private:
 	struct effect_step {
 		std::unique_ptr<audio_effect> m_effect;
@@ -355,6 +359,7 @@ private:
 	// internal state
 	running_machine &m_machine;            // reference to the running machine
 	emu_timer *m_update_timer;             // timer that runs the update function
+	attotime m_decoupled_time;
 	attotime m_last_sync_time;
 	std::vector<speaker_info> m_speakers;
 	std::vector<microphone_info> m_microphones;

@@ -53,7 +53,9 @@ inline emu_timer::emu_timer() noexcept :
 	m_temporary(false),
 	m_period(attotime::zero),
 	m_start(attotime::zero),
-	m_expire(attotime::never)
+	m_expire(attotime::never),
+	m_decoupled(false),
+	m_decoupled_token(nullptr)
 {
 }
 
@@ -64,6 +66,7 @@ inline emu_timer::emu_timer() noexcept :
 
 emu_timer::~emu_timer()
 {
+	decoupled_unregister();
 }
 
 
@@ -77,7 +80,8 @@ inline emu_timer &emu_timer::init(
 		timer_expired_delegate &&callback,
 		attotime start_delay,
 		s32 param,
-		bool temporary)
+		bool temporary,
+		bool decoupled)
 {
 	// ensure the entire timer state is clean
 	m_scheduler = &machine.scheduler();
@@ -87,6 +91,8 @@ inline emu_timer &emu_timer::init(
 	m_param = param;
 	m_temporary = temporary;
 	m_period = attotime::never;
+	m_decoupled = decoupled;
+	m_decoupled_token = nullptr;
 
 	m_start = m_scheduler->time();
 	m_expire = m_start + start_delay;
@@ -142,26 +148,83 @@ void emu_timer::adjust(attotime start_delay, s32 param, const attotime &period) 
 	if (m_scheduler->m_callback_timer == this)
 		m_scheduler->m_callback_timer_modified = true;
 
-	// compute the time of the next firing and insert into the list
 	m_param = param;
-	m_enabled = true;
 
 	// clamp negative times to 0
 	if (start_delay.seconds() < 0)
 		start_delay = attotime::zero;
 
-	// set the start and expire times
 	m_start = m_scheduler->time();
-	m_expire = m_start + start_delay;
 	m_period = period;
 
-	// remove and re-insert the timer in its new order
-	m_scheduler->timer_list_remove(*this);
-	m_scheduler->timer_list_insert(*this);
+	if (m_decoupled)
+	{
+		if (!m_expire.is_never())
+		{
+			m_expire = attotime::never;
+			m_scheduler->timer_list_remove(*this);
+			m_scheduler->timer_list_insert(*this);
+		}
 
-	// if this was inserted as the head, abort the current timeslice and resync
-	if (this == m_scheduler->first_timer())
-		m_scheduler->abort_timeslice();
+		decoupled_unregister();
+
+		if (!period.is_never() && !period.is_zero())
+		{
+			decoupled_register();
+			m_enabled = true;
+		}
+		else
+		{
+			m_enabled = false;
+		}
+	}
+	else
+	{
+		m_enabled = true;
+		m_expire = m_start + start_delay;
+
+		// remove and re-insert the timer in its new order
+		m_scheduler->timer_list_remove(*this);
+		m_scheduler->timer_list_insert(*this);
+
+		// if this was inserted as the head, abort the current timeslice and resync
+		if (this == m_scheduler->first_timer())
+			m_scheduler->abort_timeslice();
+	}
+}
+
+void emu_timer::set_decoupled(bool decoupled) noexcept
+{
+	assert(m_scheduler);
+	if (decoupled == m_decoupled)
+		return;
+
+	if (m_decoupled)
+		decoupled_unregister();
+
+	m_decoupled = decoupled;
+
+	// re-arm under the newly selected mechanism, at the same period as before
+	adjust(m_period, m_param, m_period);
+}
+
+void emu_timer::decoupled_register() noexcept
+{
+	m_decoupled_token = m_scheduler->machine().add_realtime_periodic_callback(m_period.as_hz(), [this] () { decoupled_fired(); });
+}
+
+void emu_timer::decoupled_unregister() noexcept
+{
+	if (m_decoupled_token)
+	{
+		m_scheduler->machine().remove_realtime_periodic_callback(m_decoupled_token);
+		m_decoupled_token = nullptr;
+	}
+}
+
+void emu_timer::decoupled_fired() noexcept
+{
+	m_callback(m_param);
 }
 
 
@@ -602,9 +665,9 @@ void device_scheduler::perfect_quantum(const attotime &duration)
 //  timer and return a pointer
 //-------------------------------------------------
 
-emu_timer *device_scheduler::timer_alloc(timer_expired_delegate callback)
+emu_timer *device_scheduler::timer_alloc(timer_expired_delegate callback, bool decoupled)
 {
-	return &m_timer_allocator.alloc()->init(machine(), std::move(callback), attotime::never, 0, false);
+	return &m_timer_allocator.alloc()->init(machine(), std::move(callback), attotime::never, 0, false, decoupled);
 }
 
 

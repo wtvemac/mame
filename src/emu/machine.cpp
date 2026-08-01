@@ -10,6 +10,8 @@
 
 #include "emu.h"
 
+#include <iterator>
+
 #include "config.h"
 #include "crsshair.h"
 #include "debug/debugcpu.h"
@@ -414,7 +416,10 @@ int running_machine::run(bool quiet)
 
 			// execute CPUs if not paused
 			if (!m_paused)
+			{
 				m_scheduler.timeslice();
+				pump_realtime_callbacks();
+			}
 			// otherwise, just pump video updates and sound mapping updates through
 			else
 			{
@@ -938,6 +943,55 @@ void running_machine::call_notifiers(machine_notification which)
 		cb->m_func();
 }
 
+void *running_machine::add_realtime_periodic_callback(double hz, std::function<void ()> callback)
+{
+	osd_ticks_t const now = osd_ticks();
+	osd_ticks_t const interval = osd_ticks_t(double(osd_ticks_per_second()) / hz);
+	m_realtime_callbacks.push_back(realtime_callback{ std::move(callback), interval, now + interval });
+	return &m_realtime_callbacks.back();
+}
+
+void running_machine::remove_realtime_periodic_callback(void *token)
+{
+	for (auto &cb : m_realtime_callbacks)
+	{
+		if (&cb == token)
+		{
+			cb.removed = true;
+			return;
+		}
+	}
+}
+
+void running_machine::pump_realtime_callbacks()
+{
+	if (m_realtime_callbacks.empty())
+		return;
+
+	osd_ticks_t const now = osd_ticks();
+
+	auto const last = std::prev(m_realtime_callbacks.end());
+	for (auto it = m_realtime_callbacks.begin(); ; ++it)
+	{
+		realtime_callback &cb = *it;
+		if (!cb.removed && now >= cb.next_fire_ticks)
+		{
+			int fired = 0;
+			while (!cb.removed && now >= cb.next_fire_ticks && fired < 4)
+			{
+				cb.callback();
+				cb.next_fire_ticks += cb.interval_ticks;
+				fired++;
+			}
+			if (!cb.removed && now >= cb.next_fire_ticks)
+				cb.next_fire_ticks = now + cb.interval_ticks;
+		}
+		if (it == last)
+			break;
+	}
+
+	m_realtime_callbacks.remove_if([] (const realtime_callback &cb) { return cb.removed; });
+}
 
 //-------------------------------------------------
 //  handle_saveload - attempt to perform a save

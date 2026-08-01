@@ -60,6 +60,7 @@ sound_manager::effect_step::effect_step(u32 buffer_size, u32 channels) : m_buffe
 sound_manager::sound_manager(running_machine &machine) :
 	m_machine(machine),
 	m_update_timer(nullptr),
+	m_decoupled_time(attotime::zero),
 	m_last_sync_time(attotime::zero),
 #ifndef SOUND_DISABLE_THREADING
 	m_effects_thread(nullptr),
@@ -1994,6 +1995,9 @@ void sound_manager::update(s32)
 {
 	auto profile = g_profiler.start(PROFILER_SOUND);
 
+	if (m_update_timer->decoupled())
+		m_decoupled_time += m_update_timer->period();
+
 	mapping_update();
 	streams_update();
 
@@ -2166,6 +2170,17 @@ void sound_manager::set_resampler_hq_phases(u32 phases)
 void sound_manager::set_update_interval(attotime update_attotime)
 {
 	m_update_timer->adjust(update_attotime, 0, update_attotime);
+}
+
+void sound_manager::using_decoupled_timer(bool enable)
+{
+	if (enable == m_update_timer->decoupled())
+		return;
+
+	if (enable)
+		m_decoupled_time = machine().time();
+
+	m_update_timer->set_decoupled(enable);
 }
 
 const char *sound_manager::resampler_type_names(u32 type) const

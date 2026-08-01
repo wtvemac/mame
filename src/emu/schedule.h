@@ -56,6 +56,9 @@ public:
 	attotime expire() const noexcept { return m_expire; }
 	attotime period() const noexcept { return m_period; }
 
+	bool decoupled() const noexcept { return m_decoupled; }
+	void set_decoupled(bool decoupled) noexcept;
+
 private:
 	// construction/destruction
 	emu_timer() noexcept;
@@ -67,12 +70,16 @@ private:
 			timer_expired_delegate &&callback,
 			attotime start_delay,
 			s32 param,
-			bool temporary);
+			bool temporary,
+			bool decoupled = false);
 
 	// internal helpers
 	void register_save(save_manager &manager) ATTR_COLD;
 	void schedule_next_period() noexcept;
 	void dump() const;
+	void decoupled_register() noexcept;
+	void decoupled_unregister() noexcept;
+	void decoupled_fired() noexcept;
 
 	// internal state
 	device_scheduler *  m_scheduler;    // reference to the owning machine
@@ -86,6 +93,9 @@ private:
 	attotime            m_start;        // time when the timer was started
 	attotime            m_expire;       // time when the timer will expire
 	u32                 m_index;        // needed to restore timers scheduled at the same time in correct order
+
+	bool                 m_decoupled;         // true: timer driven by running_machine's real-time callback, not m_expire
+	void *               m_decoupled_token;   // token from add_realtime_periodic_callback(), valid only when m_decoupled is true
 
 	friend class device_scheduler;
 	friend class fixed_allocator<emu_timer>;
@@ -121,7 +131,7 @@ public:
 	void suspend_resume_changed() { m_suspend_changes_pending = true; }
 
 	// timers, specified by callback/name
-	emu_timer *timer_alloc(timer_expired_delegate callback);
+	emu_timer *timer_alloc(timer_expired_delegate callback, bool decoupled = false);
 	[[deprecated("timer_set is deprecated; please avoid anonymous timers. Use an allocated emu_timer instead.")]]
 	void timer_set(const attotime &duration, timer_expired_delegate callback, s32 param = 0);
 	void synchronize(timer_expired_delegate callback = timer_expired_delegate(), s32 param = 0);
