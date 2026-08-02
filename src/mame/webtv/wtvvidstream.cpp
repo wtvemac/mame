@@ -143,7 +143,7 @@ void cx25873_encoder_device::device_start()
 
 void cx25873_encoder_device::device_reset()
 {
-	//
+	std::fill(std::begin(m_reg), std::end(m_reg), 0x00);
 }
 
 u8 cx25873_encoder_device::read_data(u16 offset)
