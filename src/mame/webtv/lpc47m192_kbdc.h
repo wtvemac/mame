@@ -16,7 +16,7 @@ class lpc47m192_kbdc_device : public device_t
 public:
 
 	static constexpr uint8_t KBDC_RAM_SIZE     = 0x20;
-	static constexpr uint8_t DEVOUT_QUEUE_SIZE = 8;
+	static constexpr uint8_t DEVOUT_QUEUE_SIZE = 32;
 
 	static constexpr uint8_t KBDC_FIRMWARE_VERSION = 0x35;
 

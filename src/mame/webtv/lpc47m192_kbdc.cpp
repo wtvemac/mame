@@ -285,10 +285,7 @@ void lpc47m192_kbdc_device::reset_config_flags()
 
 uint8_t lpc47m192_kbdc_device::queue_size()
 {
-	if(m_devout_tail > m_devout_head)
-		return (lpc47m192_kbdc_device::DEVOUT_QUEUE_SIZE - (m_devout_tail - m_devout_head));
-	else
-		return (m_devout_head - m_devout_tail);
+	return (uint8_t)(m_devout_head - m_devout_tail);
 }
 
 bool lpc47m192_kbdc_device::queue_empty()
@@ -298,16 +295,22 @@ bool lpc47m192_kbdc_device::queue_empty()
 
 void lpc47m192_kbdc_device::enqueue_output(uint8_t data, bool mouse)
 {
+	if(lpc47m192_kbdc_device::queue_size() < lpc47m192_kbdc_device::DEVOUT_QUEUE_SIZE)
+	{
+		queue_item_t item = {
+			.scancode = data,
+			.mouse = mouse
+		};
 
-	queue_item_t item = {
-		.scancode = data,
-		.mouse = mouse
-	};
+		m_devout_queue[m_devout_head++ & (lpc47m192_kbdc_device::DEVOUT_QUEUE_SIZE - 1)] = item;
+		m_status |= lpc47m192_kbdc_device::KBDC_STATUS_OUTPUT_FULL;
 
-	m_devout_queue[m_devout_head++ & (lpc47m192_kbdc_device::DEVOUT_QUEUE_SIZE - 1)] = item;
-	m_status |= lpc47m192_kbdc_device::KBDC_STATUS_OUTPUT_FULL;
-
-	lpc47m192_kbdc_device::set_output_irq(item, ASSERT_LINE);
+		lpc47m192_kbdc_device::set_output_irq(item, ASSERT_LINE);
+	}
+	else
+	{
+		logerror("%s: queue full, dropping scancode 0x%02x\n", tag(), data);
+	}
 }
 
 uint8_t lpc47m192_kbdc_device::dequeue_output()
