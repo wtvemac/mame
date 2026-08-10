@@ -242,6 +242,8 @@ using namespace asmjit::x86;
 #define USE_RCPSS_FOR_DOUBLES   (0)
 #define USE_RSQRTSS_FOR_DOUBLES (0)
 
+// EMAC TEST: clear all bits of the register to reduce partial-register false dependency stall on Intel processors
+#define EMAC_FDEP_STALL_FIX     (0)
 
 
 //**************************************************************************
@@ -512,7 +514,7 @@ private:
 	static void debug_log_hashjmp(char const *tag, offs_t pc, int mode);
 	static void debug_log_hashjmp_fail();
 
-	void generate_one(Assembler &a, const uml::instruction &inst);
+	void generate_one(Assembler &a, const uml::instruction &inst, const uml::instruction *instlist, u32 inum, u32 numinst);
 
 	// code generators
 	void op_handle(Assembler &a, const uml::instruction &inst);
@@ -544,10 +546,10 @@ private:
 	void op_load(Assembler &a, const uml::instruction &inst);
 	void op_loads(Assembler &a, const uml::instruction &inst);
 	void op_store(Assembler &a, const uml::instruction &inst);
-	void op_read(Assembler &a, const uml::instruction &inst);
-	void op_readm(Assembler &a, const uml::instruction &inst);
-	void op_write(Assembler &a, const uml::instruction &inst);
-	void op_writem(Assembler &a, const uml::instruction &inst);
+	void op_read(Assembler &a, const uml::instruction &inst, bool no_pfx_mxcsr = false, bool no_sfx_mxcsr = false);
+	void op_readm(Assembler &a, const uml::instruction &inst, bool no_pfx_mxcsr = false, bool no_sfx_mxcsr = false);
+	void op_write(Assembler &a, const uml::instruction &inst, bool no_pfx_mxcsr = false, bool no_sfx_mxcsr = false);
+	void op_writem(Assembler &a, const uml::instruction &inst, bool no_pfx_mxcsr = false, bool no_sfx_mxcsr = false);
 	void op_carry(Assembler &a, const uml::instruction &inst);
 	void op_set(Assembler &a, const uml::instruction &inst);
 	void op_mov(Assembler &a, const uml::instruction &inst);
@@ -577,8 +579,8 @@ private:
 
 	void op_fload(Assembler &a, const uml::instruction &inst);
 	void op_fstore(Assembler &a, const uml::instruction &inst);
-	void op_fread(Assembler &a, const uml::instruction &inst);
-	void op_fwrite(Assembler &a, const uml::instruction &inst);
+	void op_fread(Assembler &a, const uml::instruction &inst, bool no_pfx_mxcsr = false, bool no_sfx_mxcsr = false);
+	void op_fwrite(Assembler &a, const uml::instruction &inst, bool no_pfx_mxcsr = false, bool no_sfx_mxcsr = false);
 	void op_fmov(Assembler &a, const uml::instruction &inst);
 	void op_ftoint(Assembler &a, const uml::instruction &inst);
 	void op_ffrint(Assembler &a, const uml::instruction &inst);
@@ -637,7 +639,8 @@ private:
 	FILE *                  m_perfmap;              // /tmp/perf-<pid>.map for 'perf'
 #endif
 	bool                    m_lzcnt;                // do we have lzcnt support?
-	bool                    m_bmi;                  // do we have BMI support?
+	bool                    m_bmi;                  // do we have BMI1 support?
+	bool                    m_bmi2;                 // do we have BMI2 support?
 	bool                    m_sse4_1;               // do we have SSE4.1 support?
 	bool                    m_avx2;                 // do we have AVX2 support?
 
@@ -667,8 +670,35 @@ private:
 //  TABLES
 //**************************************************************************
 
-inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst)
+//-------------------------------------------------
+//  is_mxcsr_roundtrip_op - true for opcodes that
+//  unconditionally switch MXCSR to the default
+//  rounding mode around an external call and then
+//  back to the guest's configured mode afterward
+//-------------------------------------------------
+
+constexpr bool is_mxcsr_roundtrip_op(uml::opcode_t op) noexcept
 {
+	switch (op)
+	{
+	case uml::OP_READ:
+	case uml::OP_READM:
+	case uml::OP_WRITE:
+	case uml::OP_WRITEM:
+	case uml::OP_FREAD:
+	case uml::OP_FWRITE:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst, const uml::instruction *instlist, u32 inum, u32 numinst)
+{
+	bool const no_pfx_mxcsr = (inum > 0)             && is_mxcsr_roundtrip_op(instlist[inum - 1].opcode());
+	bool const no_sfx_mxcsr = ((inum + 1) < numinst) && is_mxcsr_roundtrip_op(instlist[inum + 1].opcode());
+
 	switch (inst.opcode())
 	{
 	// Compile-time opcodes
@@ -701,69 +731,69 @@ inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst)
 	case uml::OP_RESTORE: op_restore(a, inst);    break; // RESTORE dst
 
 	// Integer Operations
-	case uml::OP_LOAD:    op_load(a, inst);                 break; // LOAD    dst,base,index,size
-	case uml::OP_LOADS:   op_loads(a, inst);                break; // LOADS   dst,base,index,size
-	case uml::OP_STORE:   op_store(a, inst);                break; // STORE   base,index,src,size
-	case uml::OP_READ:    op_read(a, inst);                 break; // READ    dst,src1,spacesize
-	case uml::OP_READM:   op_readm(a, inst);                break; // READM   dst,src1,mask,spacesize
-	case uml::OP_WRITE:   op_write(a, inst);                break; // WRITE   dst,src1,spacesize
-	case uml::OP_WRITEM:  op_writem(a, inst);               break; // WRITEM  dst,src1,spacesize
-	case uml::OP_CARRY:   op_carry(a, inst);                break; // CARRY   src,bitnum
-	case uml::OP_SET:     op_set(a, inst);                  break; // SET     dst,c
-	case uml::OP_MOV:     op_mov(a, inst);                  break; // MOV     dst,src[,c]
-	case uml::OP_SEXT:    op_sext(a, inst);                 break; // SEXT    dst,src
-	case uml::OP_BFXU:    op_bfxu(a, inst);                 break; // BFXU    dst,src1,src2,src3
-	case uml::OP_BFXS:    op_bfxs(a, inst);                 break; // BFXS    dst,src1,src2,src3
-	case uml::OP_ROLAND:  op_roland(a, inst);               break; // ROLAND  dst,src1,src2,src3
-	case uml::OP_ROLINS:  op_rolins(a, inst);               break; // ROLINS  dst,src1,src2,src3
-	case uml::OP_ADD:     op_add(a, inst);                  break; // ADD     dst,src1,src2[,f]
-	case uml::OP_ADDC:    op_addc(a, inst);                 break; // ADDC    dst,src1,src2[,f]
-	case uml::OP_SUB:     op_sub(a, inst);                  break; // SUB     dst,src1,src2[,f]
-	case uml::OP_SUBB:    op_subc(a, inst);                 break; // SUBB    dst,src1,src2[,f]
-	case uml::OP_CMP:     op_cmp(a, inst);                  break; // CMP     src1,src2[,f]
-	case uml::OP_MULU:    op_mul<Inst::kIdMul>(a, inst);    break; // MULU    dst,edst,src1,src2[,f]
-	case uml::OP_MULULW:  op_mululw(a, inst);               break; // MULULW  dst,src1,src2[,f]
-	case uml::OP_MULS:    op_mul<Inst::kIdImul>(a, inst);   break; // MULS    dst,edst,src1,src2[,f]
-	case uml::OP_MULSLW:  op_mulslw(a, inst);               break; // MULSLW  dst,src1,src2[,f]
-	case uml::OP_DIVU:    op_divu(a, inst);                 break; // DIVU    dst,edst,src1,src2[,f]
-	case uml::OP_DIVS:    op_divs(a, inst);                 break; // DIVS    dst,edst,src1,src2[,f]
-	case uml::OP_AND:     op_and(a, inst);                  break; // AND     dst,src1,src2[,f]
-	case uml::OP_TEST:    op_test(a, inst);                 break; // TEST    src1,src2[,f]
-	case uml::OP_OR:      op_or(a, inst);                   break; // OR      dst,src1,src2[,f]
-	case uml::OP_XOR:     op_xor(a, inst);                  break; // XOR     dst,src1,src2[,f]
-	case uml::OP_LZCNT:   op_lzcnt(a, inst);                break; // LZCNT   dst,src[,f]
-	case uml::OP_TZCNT:   op_tzcnt(a, inst);                break; // TZCNT   dst,src[,f]
-	case uml::OP_BSWAP:   op_bswap(a, inst);                break; // BSWAP   dst,src
-	case uml::OP_SHL:     op_shift<Inst::kIdShl>(a, inst);  break; // SHL     dst,src,count[,f]
-	case uml::OP_SHR:     op_shift<Inst::kIdShr>(a, inst);  break; // SHR     dst,src,count[,f]
-	case uml::OP_SAR:     op_shift<Inst::kIdSar>(a, inst);  break; // SAR     dst,src,count[,f]
-	case uml::OP_ROL:     op_shift<Inst::kIdRol>(a, inst);  break; // ROL     dst,src,count[,f]
-	case uml::OP_ROLC:    op_shift<Inst::kIdRcl>(a, inst);  break; // ROLC    dst,src,count[,f]
-	case uml::OP_ROR:     op_shift<Inst::kIdRor>(a, inst);  break; // ROR     dst,src,count[,f]
-	case uml::OP_RORC:    op_shift<Inst::kIdRcr>(a, inst);  break; // RORC    dst,src,count[,f]
+	case uml::OP_LOAD:    op_load(a, inst);                               break; // LOAD    dst,base,index,size
+	case uml::OP_LOADS:   op_loads(a, inst);                              break; // LOADS   dst,base,index,size
+	case uml::OP_STORE:   op_store(a, inst);                              break; // STORE   base,index,src,size
+	case uml::OP_READ:    op_read(a, inst, no_pfx_mxcsr, no_sfx_mxcsr);   break; // READ    dst,src1,spacesize
+	case uml::OP_READM:   op_readm(a, inst, no_pfx_mxcsr, no_sfx_mxcsr);  break; // READM   dst,src1,mask,spacesize
+	case uml::OP_WRITE:   op_write(a, inst, no_pfx_mxcsr, no_sfx_mxcsr);  break; // WRITE   dst,src1,spacesize
+	case uml::OP_WRITEM:  op_writem(a, inst, no_pfx_mxcsr, no_sfx_mxcsr); break; // WRITEM  dst,src1,spacesize
+	case uml::OP_CARRY:   op_carry(a, inst);                              break; // CARRY   src,bitnum
+	case uml::OP_SET:     op_set(a, inst);                                break; // SET     dst,c
+	case uml::OP_MOV:     op_mov(a, inst);                                break; // MOV     dst,src[,c]
+	case uml::OP_SEXT:    op_sext(a, inst);                               break; // SEXT    dst,src
+	case uml::OP_BFXU:    op_bfxu(a, inst);                               break; // BFXU    dst,src1,src2,src3
+	case uml::OP_BFXS:    op_bfxs(a, inst);                               break; // BFXS    dst,src1,src2,src3
+	case uml::OP_ROLAND:  op_roland(a, inst);                             break; // ROLAND  dst,src1,src2,src3
+	case uml::OP_ROLINS:  op_rolins(a, inst);                             break; // ROLINS  dst,src1,src2,src3
+	case uml::OP_ADD:     op_add(a, inst);                                break; // ADD     dst,src1,src2[,f]
+	case uml::OP_ADDC:    op_addc(a, inst);                               break; // ADDC    dst,src1,src2[,f]
+	case uml::OP_SUB:     op_sub(a, inst);                                break; // SUB     dst,src1,src2[,f]
+	case uml::OP_SUBB:    op_subc(a, inst);                               break; // SUBB    dst,src1,src2[,f]
+	case uml::OP_CMP:     op_cmp(a, inst);                                break; // CMP     src1,src2[,f]
+	case uml::OP_MULU:    op_mul<Inst::kIdMul>(a, inst);                  break; // MULU    dst,edst,src1,src2[,f]
+	case uml::OP_MULULW:  op_mululw(a, inst);                             break; // MULULW  dst,src1,src2[,f]
+	case uml::OP_MULS:    op_mul<Inst::kIdImul>(a, inst);                 break; // MULS    dst,edst,src1,src2[,f]
+	case uml::OP_MULSLW:  op_mulslw(a, inst);                             break; // MULSLW  dst,src1,src2[,f]
+	case uml::OP_DIVU:    op_divu(a, inst);                               break; // DIVU    dst,edst,src1,src2[,f]
+	case uml::OP_DIVS:    op_divs(a, inst);                               break; // DIVS    dst,edst,src1,src2[,f]
+	case uml::OP_AND:     op_and(a, inst);                                break; // AND     dst,src1,src2[,f]
+	case uml::OP_TEST:    op_test(a, inst);                               break; // TEST    src1,src2[,f]
+	case uml::OP_OR:      op_or(a, inst);                                 break; // OR      dst,src1,src2[,f]
+	case uml::OP_XOR:     op_xor(a, inst);                                break; // XOR     dst,src1,src2[,f]
+	case uml::OP_LZCNT:   op_lzcnt(a, inst);                              break; // LZCNT   dst,src[,f]
+	case uml::OP_TZCNT:   op_tzcnt(a, inst);                              break; // TZCNT   dst,src[,f]
+	case uml::OP_BSWAP:   op_bswap(a, inst);                              break; // BSWAP   dst,src
+	case uml::OP_SHL:     op_shift<Inst::kIdShl>(a, inst);                break; // SHL     dst,src,count[,f]
+	case uml::OP_SHR:     op_shift<Inst::kIdShr>(a, inst);                break; // SHR     dst,src,count[,f]
+	case uml::OP_SAR:     op_shift<Inst::kIdSar>(a, inst);                break; // SAR     dst,src,count[,f]
+	case uml::OP_ROL:     op_shift<Inst::kIdRol>(a, inst);                break; // ROL     dst,src,count[,f]
+	case uml::OP_ROLC:    op_shift<Inst::kIdRcl>(a, inst);                break; // ROLC    dst,src,count[,f]
+	case uml::OP_ROR:     op_shift<Inst::kIdRor>(a, inst);                break; // ROR     dst,src,count[,f]
+	case uml::OP_RORC:    op_shift<Inst::kIdRcr>(a, inst);                break; // RORC    dst,src,count[,f]
 
 	// Floating Point Operations
-	case uml::OP_FLOAD:   op_fload(a, inst);      break; // FLOAD   dst,base,index
-	case uml::OP_FSTORE:  op_fstore(a, inst);     break; // FSTORE  base,index,src
-	case uml::OP_FREAD:   op_fread(a, inst);      break; // FREAD   dst,space,src1
-	case uml::OP_FWRITE:  op_fwrite(a, inst);     break; // FWRITE  space,dst,src1
-	case uml::OP_FMOV:    op_fmov(a, inst);       break; // FMOV    dst,src1[,c]
-	case uml::OP_FTOINT:  op_ftoint(a, inst);     break; // FTOINT  dst,src1,size,round
-	case uml::OP_FFRINT:  op_ffrint(a, inst);     break; // FFRINT  dst,src1,size
-	case uml::OP_FFRFLT:  op_ffrflt(a, inst);     break; // FFRFLT  dst,src1,size
-	case uml::OP_FRNDS:   op_frnds(a, inst);      break; // FRNDS   dst,src1
-	case uml::OP_FADD:    op_fadd(a, inst);       break; // FADD    dst,src1,src2
-	case uml::OP_FSUB:    op_fsub(a, inst);       break; // FSUB    dst,src1,src2
-	case uml::OP_FCMP:    op_fcmp(a, inst);       break; // FCMP    src1,src2
-	case uml::OP_FMUL:    op_fmul(a, inst);       break; // FMUL    dst,src1,src2
-	case uml::OP_FDIV:    op_fdiv(a, inst);       break; // FDIV    dst,src1,src2
-	case uml::OP_FNEG:    op_fneg(a, inst);       break; // FNEG    dst,src1
-	case uml::OP_FABS:    op_fabs(a, inst);       break; // FABS    dst,src1
-	case uml::OP_FSQRT:   op_fsqrt(a, inst);      break; // FSQRT   dst,src1
-	case uml::OP_FRECIP:  op_frecip(a, inst);     break; // FRECIP  dst,src1
-	case uml::OP_FRSQRT:  op_frsqrt(a, inst);     break; // FRSQRT  dst,src1
-	case uml::OP_FCOPYI:  op_fcopyi(a, inst);     break; // FCOPYI  dst,src
-	case uml::OP_ICOPYF:  op_icopyf(a, inst);     break; // ICOPYF  dst,src
+	case uml::OP_FLOAD:   op_fload(a, inst);                              break; // FLOAD   dst,base,index
+	case uml::OP_FSTORE:  op_fstore(a, inst);                             break; // FSTORE  base,index,src
+	case uml::OP_FREAD:   op_fread(a, inst, no_pfx_mxcsr, no_sfx_mxcsr);  break; // FREAD   dst,space,src1
+	case uml::OP_FWRITE:  op_fwrite(a, inst, no_pfx_mxcsr, no_sfx_mxcsr); break; // FWRITE  space,dst,src1
+	case uml::OP_FMOV:    op_fmov(a, inst);                               break; // FMOV    dst,src1[,c]
+	case uml::OP_FTOINT:  op_ftoint(a, inst);                             break; // FTOINT  dst,src1,size,round
+	case uml::OP_FFRINT:  op_ffrint(a, inst);                             break; // FFRINT  dst,src1,size
+	case uml::OP_FFRFLT:  op_ffrflt(a, inst);                             break; // FFRFLT  dst,src1,size
+	case uml::OP_FRNDS:   op_frnds(a, inst);                              break; // FRNDS   dst,src1
+	case uml::OP_FADD:    op_fadd(a, inst);                               break; // FADD    dst,src1,src2
+	case uml::OP_FSUB:    op_fsub(a, inst);                               break; // FSUB    dst,src1,src2
+	case uml::OP_FCMP:    op_fcmp(a, inst);                               break; // FCMP    src1,src2
+	case uml::OP_FMUL:    op_fmul(a, inst);                               break; // FMUL    dst,src1,src2
+	case uml::OP_FDIV:    op_fdiv(a, inst);                               break; // FDIV    dst,src1,src2
+	case uml::OP_FNEG:    op_fneg(a, inst);                               break; // FNEG    dst,src1
+	case uml::OP_FABS:    op_fabs(a, inst);                               break; // FABS    dst,src1
+	case uml::OP_FSQRT:   op_fsqrt(a, inst);                              break; // FSQRT   dst,src1
+	case uml::OP_FRECIP:  op_frecip(a, inst);                             break; // FRECIP  dst,src1
+	case uml::OP_FRSQRT:  op_frsqrt(a, inst);                             break; // FRSQRT  dst,src1
+	case uml::OP_FCOPYI:  op_fcopyi(a, inst);                             break; // FCOPYI  dst,src
+	case uml::OP_ICOPYF:  op_icopyf(a, inst);                             break; // ICOPYF  dst,src
 
 	// Vector Operations
 	case uml::OP_VLOAD:   op_vload(a, inst);      break; // VLOAD   dst,base,index
@@ -1047,6 +1077,7 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 #endif
 	, m_lzcnt(false)
 	, m_bmi(false)
+	, m_bmi2(false)
 	, m_sse4_1(false)
 	, m_avx2(false)
 	, m_absmask32((u32 *)cache.alloc_near(16*2 + 15, std::align_val_t(alignof(u32))))
@@ -1064,6 +1095,7 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	const auto &x86_features = CpuInfo::host().features().x86();
 	m_lzcnt = x86_features.has_lzcnt();
 	m_bmi = x86_features.has_bmi();
+	m_bmi2 = x86_features.has_bmi2();
 	m_sse4_1 = x86_features.has_sse4_1();
 	m_avx2 = x86_features.has_avx2();
 
@@ -1468,7 +1500,7 @@ void drcbe_x64::generate(drcuml_block &block, const instruction *instlist, u32 n
 		}
 
 		// generate code
-		generate_one(a, inst);
+		generate_one(a, inst, instlist, inum, numinst);
 	}
 
 	// catch falling off the end of a block
@@ -1774,6 +1806,19 @@ void drcbe_x64::shift_op_param(Assembler &a, Inst::Id const opcode, size_t opsiz
 		if ((update_flags & FLAG_C) || carryin)
 			a.bind(end);
 	}
+	else if (m_bmi2 && !rotate && dst.is_gp() &&
+			((opcode == Inst::kIdShl) || (opcode == Inst::kIdShr) || (opcode == Inst::kIdSar)))
+	{
+		Gp const dstreg = dst.as<Gp>();
+		Gp const countreg = (opsize == 8) ? rcx : ecx;
+
+		if (opcode == Inst::kIdShl)
+			a.shlx(dstreg, dstreg, countreg);
+		else if (opcode == Inst::kIdShr)
+			a.shrx(dstreg, dstreg, countreg);
+		else
+			a.sarx(dstreg, dstreg, countreg);
+	}
 	else
 	{
 		a.emit(opcode, dst, cl);
@@ -1899,7 +1944,11 @@ void drcbe_x64::movss_r128_p32(Assembler &a, Vec const &reg, be_parameter const 
 	else if (param.is_float_register())
 	{
 		if (reg.id() != param.freg())
+		{
+			if (EMAC_FDEP_STALL_FIX)
+				a.xorps(reg, reg);
 			a.movss(reg, xmm(param.freg()));                                            // movss reg,param
+		}
 	}
 }
 
@@ -1935,7 +1984,11 @@ void drcbe_x64::movsd_r128_p64(Assembler &a, Vec const &reg, be_parameter const 
 	else if (param.is_float_register())
 	{
 		if (reg.id() != param.freg())
+		{
+			if (EMAC_FDEP_STALL_FIX)
+				a.xorps(reg, reg);
 			a.movsd(reg, xmm(param.freg()));                                            // movsd reg,param
+		}
 	}
 }
 
@@ -3168,7 +3221,7 @@ void drcbe_x64::op_store(Assembler &a, const instruction &inst)
 //  op_read - process a READ opcode
 //-------------------------------------------------
 
-void drcbe_x64::op_read(Assembler &a, const instruction &inst)
+void drcbe_x64::op_read(Assembler &a, const instruction &inst, bool no_pfx_mxcsr, bool no_sfx_mxcsr)
 {
 	// validate instruction
 	assert(inst.size() == 4 || inst.size() == 8);
@@ -3185,7 +3238,8 @@ void drcbe_x64::op_read(Assembler &a, const instruction &inst)
 	Gp dstreg = dstp.select_register(eax);
 
 	// restore caller's floating point environment
-	a.ldmxcsr(MABS(&m_near.ssemode));
+	if (!no_pfx_mxcsr)
+		a.ldmxcsr(MABS(&m_near.ssemode));
 
 	// set up a call to the read handler
 	auto const &accessors = m_memory_accessors[spacesizep.space()];
@@ -3308,8 +3362,11 @@ void drcbe_x64::op_read(Assembler &a, const instruction &inst)
 	}
 
 	// restore our rounding mode
-	a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
-	a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	if (!no_sfx_mxcsr)
+	{
+		a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
+		a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	}
 
 	// move or zero-extend result if necessary
 	if (spacesizep.size() == SIZE_BYTE)
@@ -3343,7 +3400,7 @@ void drcbe_x64::op_read(Assembler &a, const instruction &inst)
 //  op_readm - process a READM opcode
 //-------------------------------------------------
 
-void drcbe_x64::op_readm(Assembler &a, const instruction &inst)
+void drcbe_x64::op_readm(Assembler &a, const instruction &inst, bool no_pfx_mxcsr, bool no_sfx_mxcsr)
 {
 	// validate instruction
 	assert(inst.size() == 4 || inst.size() == 8);
@@ -3361,7 +3418,8 @@ void drcbe_x64::op_readm(Assembler &a, const instruction &inst)
 	Gp dstreg = dstp.select_register(eax);
 
 	// restore caller's floating point environment
-	a.ldmxcsr(MABS(&m_near.ssemode));
+	if (!no_pfx_mxcsr)
+		a.ldmxcsr(MABS(&m_near.ssemode));
 
 	// set up a call to the read handler
 	auto const &accessors = m_memory_accessors[spacesizep.space()];
@@ -3477,8 +3535,11 @@ void drcbe_x64::op_readm(Assembler &a, const instruction &inst)
 	}
 
 	// restore our rounding mode
-	a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
-	a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	if (!no_sfx_mxcsr)
+	{
+		a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
+		a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	}
 
 	// move or zero-extend result if necessary
 	if (spacesizep.size() == SIZE_BYTE)
@@ -3512,7 +3573,7 @@ void drcbe_x64::op_readm(Assembler &a, const instruction &inst)
 //  op_write - process a WRITE opcode
 //-------------------------------------------------
 
-void drcbe_x64::op_write(Assembler &a, const instruction &inst)
+void drcbe_x64::op_write(Assembler &a, const instruction &inst, bool no_pfx_mxcsr, bool no_sfx_mxcsr)
 {
 	// validate instruction
 	assert(inst.size() == 4 || inst.size() == 8);
@@ -3526,7 +3587,8 @@ void drcbe_x64::op_write(Assembler &a, const instruction &inst)
 	assert(spacesizep.is_size_space());
 
 	// restore caller's floating point environment
-	a.ldmxcsr(MABS(&m_near.ssemode));
+	if (!no_pfx_mxcsr)
+		a.ldmxcsr(MABS(&m_near.ssemode));
 
 	// set up a call to the write handler
 	auto const &accessors = m_memory_accessors[spacesizep.space()];
@@ -3639,8 +3701,11 @@ void drcbe_x64::op_write(Assembler &a, const instruction &inst)
 	}
 
 	// restore our rounding mode
-	a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
-	a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	if (!no_sfx_mxcsr)
+	{
+		a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
+		a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	}
 }
 
 
@@ -3648,7 +3713,7 @@ void drcbe_x64::op_write(Assembler &a, const instruction &inst)
 //  op_writem - process a WRITEM opcode
 //-------------------------------------------------
 
-void drcbe_x64::op_writem(Assembler &a, const instruction &inst)
+void drcbe_x64::op_writem(Assembler &a, const instruction &inst, bool no_pfx_mxcsr, bool no_sfx_mxcsr)
 {
 	// validate instruction
 	assert(inst.size() == 4 || inst.size() == 8);
@@ -3663,7 +3728,8 @@ void drcbe_x64::op_writem(Assembler &a, const instruction &inst)
 	assert(spacesizep.is_size_space());
 
 	// restore caller's floating point environment
-	a.ldmxcsr(MABS(&m_near.ssemode));
+	if (!no_pfx_mxcsr)
+		a.ldmxcsr(MABS(&m_near.ssemode));
 
 	// set up a call to the write handler
 	auto const &accessors = m_memory_accessors[spacesizep.space()];
@@ -3779,8 +3845,11 @@ void drcbe_x64::op_writem(Assembler &a, const instruction &inst)
 	}
 
 	// restore our rounding mode
-	a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
-	a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	if (!no_sfx_mxcsr)
+	{
+		a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
+		a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	}
 }
 
 
@@ -4464,17 +4533,27 @@ void drcbe_x64::op_rolins(Assembler &a, const instruction &inst)
 					if ((bits == 32) || (util::sext(src, 32) == src))
 					{
 						a.mov(srcreg, maskreg);
-						a.not_(maskreg);
+						if (!m_bmi)
+							a.not_(maskreg);
 						a.and_(srcreg, src);
 					}
 					else
 					{
 						a.mov(srcreg, src);
 						a.and_(srcreg, maskreg);
-						a.not_(maskreg);
+						if (!m_bmi)
+							a.not_(maskreg);
 					}
-					a.and_(dstreg, maskreg);
+
+					if (m_bmi)
+						a.andn(dstreg, maskreg, dstreg); // dstreg = ~maskreg & dstreg
+					else
+						a.and_(dstreg, maskreg);
 					a.or_(dstreg, srcreg);
+				}
+				else if (m_bmi)
+				{
+					a.andn(dstreg, maskreg, dstreg); // dstreg = ~maskreg & dstreg
 				}
 				else
 				{
@@ -4571,6 +4650,10 @@ void drcbe_x64::op_rolins(Assembler &a, const instruction &inst)
 			{
 				a.and_(dstreg, ~mask & sizemask);
 			}
+			else if (maskloaded && m_bmi)
+			{
+				a.andn(dstreg, maskreg, dstreg); // dstreg = ~maskreg & dstreg
+			}
 			else
 			{
 				if (maskloaded)
@@ -4611,7 +4694,12 @@ void drcbe_x64::op_rolins(Assembler &a, const instruction &inst)
 		shift_op_param(a, Inst::kIdRol, inst.size(), srcreg, shiftp, 0);
 		mov_reg_param(a, dstreg, dstp);
 
-		if (!maskimm)
+		if (!maskimm && m_bmi)
+		{
+			a.and_(srcreg, maskreg);
+			a.andn(dstreg, maskreg, dstreg); // dstreg = ~maskreg & dstreg
+		}
+		else if (!maskimm)
 		{
 			a.and_(srcreg, maskreg);
 			a.not_(maskreg);
@@ -4901,26 +4989,60 @@ void drcbe_x64::op_mul(Assembler &a, const instruction &inst)
 	}
 	const bool compute_hi = (dstp != edstp);
 
-	const Gp dstreg = (inst.size() == 4) ? eax : rax;
-	const Gp edstreg = (inst.size() == 4) ? edx : rdx;
-
-	// general case
-	mov_reg_param(a, dstreg, src1p);
-	if (src2p.is_memory())
+	if (m_bmi2 && Opcode == Inst::kIdMul && !(inst.flags() & FLAG_V))
 	{
-		a.emit(Opcode, MABS(src2p.memory(), inst.size()));
+		auto const is_rdx = [] (be_parameter const &p)
+		{
+			return p.is_int_register() && (p.ireg() == Gp::kIdDx);
+		};
+
+		const Gp rdxreg = (inst.size() == 4) ? edx : rdx;
+		const Gp lo = !is_rdx(dstp) ? dstp.select_register((inst.size() == 4) ? eax : rax, edstp)
+									: ((inst.size() == 4) ? eax : rax);
+		const Gp hi = (compute_hi && !is_rdx(edstp)) ? edstp.select_register((inst.size() == 4) ? ecx : rcx, dstp)
+									: ((inst.size() == 4) ? ecx : rcx);
+
+		mov_reg_param(a, rdxreg, src1p);
+		if (src2p.is_memory())
+		{
+			a.mulx(hi, lo, MABS(src2p.memory(), inst.size()));
+		}
+		else
+		{
+			const Gp srcreg = src2p.select_register((inst.size() == 4) ? r11d : r11, dstp, edstp);
+			mov_reg_param(a, srcreg, src2p);
+			a.mulx(hi, lo, srcreg);
+		}
+
+		mov_param_reg(a, dstp, lo);
+		if (compute_hi)
+			mov_param_reg(a, edstp, hi);
+
+		calculate_status_flags_mul(a, inst, lo, hi);
 	}
 	else
 	{
-		const Gp srcreg = src2p.select_register(edstreg);
-		mov_reg_param(a, srcreg, src2p);
-		a.emit(Opcode, srcreg);
-	}
-	mov_param_reg(a, dstp, dstreg);
-	if (compute_hi)
-		mov_param_reg(a, edstp, edstreg);
+		const Gp dstreg = (inst.size() == 4) ? eax : rax;
+		const Gp edstreg = (inst.size() == 4) ? edx : rdx;
 
-	calculate_status_flags_mul(a, inst, dstreg, edstreg);
+		// general case
+		mov_reg_param(a, dstreg, src1p);
+		if (src2p.is_memory())
+		{
+			a.emit(Opcode, MABS(src2p.memory(), inst.size()));
+		}
+		else
+		{
+			const Gp srcreg = src2p.select_register(edstreg);
+			mov_reg_param(a, srcreg, src2p);
+			a.emit(Opcode, srcreg);
+		}
+		mov_param_reg(a, dstp, dstreg);
+		if (compute_hi)
+			mov_param_reg(a, edstp, edstreg);
+
+		calculate_status_flags_mul(a, inst, dstreg, edstreg);
+	}
 }
 
 
@@ -5520,34 +5642,60 @@ void drcbe_x64::op_tzcnt(Assembler &a, const instruction &inst)
 	be_parameter dstp(*this, inst.param(0), PTYPE_MR);
 	be_parameter srcp(*this, inst.param(1), PTYPE_MRI);
 
-	if (inst.flags())
+	if (m_bmi2)
 	{
-		a.xor_(eax, eax); // reset status flags
-		a.test(eax, eax);
-	}
+		Gp dstreg = dstp.select_register((inst.size() == 4) ? eax : rax);
 
-	// 32-bit form
-	if (inst.size() == 4)
-	{
-		Gp dstreg = dstp.select_register(eax);
+		if (srcp.is_immediate())
+		{
+			mov_reg_param(a, dstreg, srcp);
+			a.tzcnt(dstreg, dstreg);
+		}
+		else if (srcp.is_int_register())
+		{
+			a.tzcnt(dstreg, srcp.select_register((inst.size() == 4) ? eax : rax));
+		}
+		else if (srcp.is_memory())
+		{
+			a.tzcnt(dstreg, MABS(srcp.memory()));
+		}
 
-		mov_reg_param(a, dstreg, srcp);
-		a.mov(ecx, 32);
-		a.bsf(dstreg, dstreg);
-		a.cmovz(dstreg, ecx);
 		mov_param_reg(a, dstp, dstreg);
+
+		if (inst.flags())
+			a.test(dstreg, dstreg);
 	}
-
-	// 64-bit form
-	else if (inst.size() == 8)
+	else
 	{
-		Gp dstreg = dstp.select_register(rax);
+		if (inst.flags())
+		{
+			a.xor_(eax, eax); // reset status flags
+			a.test(eax, eax);
+		}
 
-		mov_reg_param(a, dstreg, srcp);
-		a.mov(rcx, 64);
-		a.bsf(dstreg, dstreg);
-		a.cmovz(dstreg, rcx);
-		mov_param_reg(a, dstp, dstreg);
+		// 32-bit form
+		if (inst.size() == 4)
+		{
+			Gp dstreg = dstp.select_register(eax);
+
+			mov_reg_param(a, dstreg, srcp);
+			a.mov(ecx, 32);
+			a.bsf(dstreg, dstreg);
+			a.cmovz(dstreg, ecx);
+			mov_param_reg(a, dstp, dstreg);
+		}
+
+		// 64-bit form
+		else if (inst.size() == 8)
+		{
+			Gp dstreg = dstp.select_register(rax);
+
+			mov_reg_param(a, dstreg, srcp);
+			a.mov(rcx, 64);
+			a.bsf(dstreg, dstreg);
+			a.cmovz(dstreg, rcx);
+			mov_param_reg(a, dstp, dstreg);
+		}
 	}
 }
 
@@ -5713,7 +5861,7 @@ void drcbe_x64::op_fstore(Assembler &a, const instruction &inst)
 //  op_fread - process a FREAD opcode
 //-------------------------------------------------
 
-void drcbe_x64::op_fread(Assembler &a, const instruction &inst)
+void drcbe_x64::op_fread(Assembler &a, const instruction &inst, bool no_pfx_mxcsr, bool no_sfx_mxcsr)
 {
 	// validate instruction
 	assert(inst.size() == 4 || inst.size() == 8);
@@ -5728,7 +5876,8 @@ void drcbe_x64::op_fread(Assembler &a, const instruction &inst)
 	assert((1 << spacep.size()) == inst.size());
 
 	// restore caller's floating point environment
-	a.ldmxcsr(MABS(&m_near.ssemode));
+	if (!no_pfx_mxcsr)
+		a.ldmxcsr(MABS(&m_near.ssemode));
 
 	// set up a call to the read dword/qword handler
 	auto const &accessors = m_memory_accessors[spacep.space()];
@@ -5738,8 +5887,11 @@ void drcbe_x64::op_fread(Assembler &a, const instruction &inst)
 	smart_call_r64(a, accessor.func, rax);
 
 	// restore our rounding mode
-	a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
-	a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	if (!no_sfx_mxcsr)
+	{
+		a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
+		a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	}
 
 	// store result
 	if (inst.size() == 4)
@@ -5763,7 +5915,7 @@ void drcbe_x64::op_fread(Assembler &a, const instruction &inst)
 //  op_fwrite - process a FWRITE opcode
 //-------------------------------------------------
 
-void drcbe_x64::op_fwrite(Assembler &a, const instruction &inst)
+void drcbe_x64::op_fwrite(Assembler &a, const instruction &inst, bool no_pfx_mxcsr, bool no_sfx_mxcsr)
 {
 	// validate instruction
 	assert(inst.size() == 4 || inst.size() == 8);
@@ -5778,7 +5930,8 @@ void drcbe_x64::op_fwrite(Assembler &a, const instruction &inst)
 	assert((1 << spacep.size()) == inst.size());
 
 	// restore caller's floating point environment
-	a.ldmxcsr(MABS(&m_near.ssemode));
+	if (!no_pfx_mxcsr)
+		a.ldmxcsr(MABS(&m_near.ssemode));
 
 	// general case
 	auto const &accessors = m_memory_accessors[spacep.space()];
@@ -5805,8 +5958,11 @@ void drcbe_x64::op_fwrite(Assembler &a, const instruction &inst)
 	smart_call_r64(a, accessor.func, rax);
 
 	// restore our rounding mode
-	a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
-	a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	if (!no_sfx_mxcsr)
+	{
+		a.movzx(ecx, byte_ptr(rbp, offset_from_rbp(&m_state.fmod)));
+		a.ldmxcsr(ptr(rbp, rcx, 2, offset_from_rbp(&m_near.ssecontrol[0])));
+	}
 }
 
 
@@ -5963,6 +6119,9 @@ void drcbe_x64::op_ffrint(Assembler &a, const instruction &inst)
 	// pick a target register for the general case
 	Vec const dstreg = dstp.select_register(REG_FSCRATCH1);
 
+	if (EMAC_FDEP_STALL_FIX)
+		a.xorps(dstreg, dstreg);
+
 	if (inst.size() == 4)
 	{
 		// 32-bit form
@@ -6044,6 +6203,9 @@ void drcbe_x64::op_ffrflt(Assembler &a, const instruction &inst)
 	// pick a target register for the general case
 	Vec const dstreg = dstp.select_register(REG_FSCRATCH1);
 
+	if (EMAC_FDEP_STALL_FIX && (!srcp.is_float_register() || (srcp.freg() != dstreg.id())))
+		a.xorps(dstreg, dstreg);
+
 	if (inst.size() == 8 && sizep.size() == SIZE_DWORD)
 	{
 		// single-to-double
@@ -6083,6 +6245,9 @@ void drcbe_x64::op_frnds(Assembler &a, const instruction &inst)
 	// pick a target register for the general case
 	Vec const dstreg = dstp.select_register(REG_FSCRATCH1);
 
+	if (EMAC_FDEP_STALL_FIX && (!srcp.is_float_register() || (srcp.freg() != dstreg.id())))
+		a.xorps(dstreg, dstreg);
+
 	// 64-bit form
 	if (srcp.is_memory())
 		a.cvtsd2ss(dstreg, MABS(srcp.memory(), 8));                                     // cvtsd2ss dstreg,[srcp]
@@ -6115,21 +6280,41 @@ void drcbe_x64::op_fadd(Assembler &a, const instruction &inst)
 	if (inst.size() == 4)
 	{
 		// 32-bit form
-		movss_r128_p32(a, dstreg, src1p);                                               // movss dstreg,src1p
-		if (src2p.is_memory())
-			a.addss(dstreg, MABS(src2p.memory()));                                      // addss dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.addss(dstreg, xmm(src2p.freg()));                                         // addss dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vaddss(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vaddss dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vaddss(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vaddss dstreg,src1p,src2p
+		}
+		else
+		{
+			movss_r128_p32(a, dstreg, src1p);                                           // movss dstreg,src1p
+			if (src2p.is_memory())
+				a.addss(dstreg, MABS(src2p.memory()));                                  // addss dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.addss(dstreg, xmm(src2p.freg()));                                     // addss dstreg,src2p
+		}
 		movss_p32_r128(a, dstp, dstreg);                                                // movss dstp,dstreg
 	}
 	else if (inst.size() == 8)
 	{
 		// 64-bit form
-		movsd_r128_p64(a, dstreg, src1p);                                               // movsd dstreg,src1p
-		if (src2p.is_memory())
-			a.addsd(dstreg, MABS(src2p.memory()));                                      // addsd dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.addsd(dstreg, xmm(src2p.freg()));                                         // addsd dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vaddsd(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vaddsd dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vaddsd(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vaddsd dstreg,src1p,src2p
+		}
+		else
+		{
+			movsd_r128_p64(a, dstreg, src1p);                                           // movsd dstreg,src1p
+			if (src2p.is_memory())
+				a.addsd(dstreg, MABS(src2p.memory()));                                  // addsd dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.addsd(dstreg, xmm(src2p.freg()));                                     // addsd dstreg,src2p
+		}
 		movsd_p64_r128(a, dstp, dstreg);                                                // movsd dstp,dstreg
 	}
 }
@@ -6157,21 +6342,41 @@ void drcbe_x64::op_fsub(Assembler &a, const instruction &inst)
 	if (inst.size() == 4)
 	{
 		// 32-bit form
-		movss_r128_p32(a, dstreg, src1p);                                               // movss dstreg,src1p
-		if (src2p.is_memory())
-			a.subss(dstreg, MABS(src2p.memory()));                                      // subss dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.subss(dstreg, xmm(src2p.freg()));                                         // subss dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vsubss(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vsubss dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vsubss(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vsubss dstreg,src1p,src2p
+		}
+		else
+		{
+			movss_r128_p32(a, dstreg, src1p);                                           // movss dstreg,src1p
+			if (src2p.is_memory())
+				a.subss(dstreg, MABS(src2p.memory()));                                  // subss dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.subss(dstreg, xmm(src2p.freg()));                                     // subss dstreg,src2p
+		}
 		movss_p32_r128(a, dstp, dstreg);                                                // movss dstp,dstreg
 	}
 	else if (inst.size() == 8)
 	{
 		// 64-bit form
-		movsd_r128_p64(a, dstreg, src1p);                                               // movsd dstreg,src1p
-		if (src2p.is_memory())
-			a.subsd(dstreg, MABS(src2p.memory()));                                      // subsd dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.subsd(dstreg, xmm(src2p.freg()));                                         // subsd dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vsubsd(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vsubsd dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vsubsd(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vsubsd dstreg,src1p,src2p
+		}
+		else
+		{
+			movsd_r128_p64(a, dstreg, src1p);                                           // movsd dstreg,src1p
+			if (src2p.is_memory())
+				a.subsd(dstreg, MABS(src2p.memory()));                                  // subsd dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.subsd(dstreg, xmm(src2p.freg()));                                     // subsd dstreg,src2p
+		}
 		movsd_p64_r128(a, dstp, dstreg);                                                // movsd dstp,dstreg
 	}
 }
@@ -6251,21 +6456,41 @@ void drcbe_x64::op_fmul(Assembler &a, const instruction &inst)
 	if (inst.size() == 4)
 	{
 		// 32-bit form
-		movss_r128_p32(a, dstreg, src1p);                                               // movss dstreg,src1p
-		if (src2p.is_memory())
-			a.mulss(dstreg, MABS(src2p.memory()));                                      // mulss dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.mulss(dstreg, xmm(src2p.freg()));                                         // mulss dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vmulss(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vmulss dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vmulss(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vmulss dstreg,src1p,src2p
+		}
+		else
+		{
+			movss_r128_p32(a, dstreg, src1p);                                           // movss dstreg,src1p
+			if (src2p.is_memory())
+				a.mulss(dstreg, MABS(src2p.memory()));                                  // mulss dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.mulss(dstreg, xmm(src2p.freg()));                                     // mulss dstreg,src2p
+		}
 		movss_p32_r128(a, dstp, dstreg);                                                // movss dstp,dstreg
 	}
 	else if (inst.size() == 8)
 	{
 		// 64-bit form
-		movsd_r128_p64(a, dstreg, src1p);                                               // movsd dstreg,src1p
-		if (src2p.is_memory())
-			a.mulsd(dstreg, MABS(src2p.memory()));                                      // mulsd dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.mulsd(dstreg, xmm(src2p.freg()));                                         // mulsd dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vmulsd(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vmulsd dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vmulsd(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vmulsd dstreg,src1p,src2p
+		}
+		else
+		{
+			movsd_r128_p64(a, dstreg, src1p);                                           // movsd dstreg,src1p
+			if (src2p.is_memory())
+				a.mulsd(dstreg, MABS(src2p.memory()));                                  // mulsd dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.mulsd(dstreg, xmm(src2p.freg()));                                     // mulsd dstreg,src2p
+		}
 		movsd_p64_r128(a, dstp, dstreg);                                                // movsd dstp,dstreg
 	}
 }
@@ -6293,21 +6518,41 @@ void drcbe_x64::op_fdiv(Assembler &a, const instruction &inst)
 	if (inst.size() == 4)
 	{
 		// 32-bit form
-		movss_r128_p32(a, dstreg, src1p);                                               // movss dstreg,src1p
-		if (src2p.is_memory())
-			a.divss(dstreg, MABS(src2p.memory()));                                      // divss dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.divss(dstreg, xmm(src2p.freg()));                                         // divss dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vdivss(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vdivss dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vdivss(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vdivss dstreg,src1p,src2p
+		}
+		else
+		{
+			movss_r128_p32(a, dstreg, src1p);                                           // movss dstreg,src1p
+			if (src2p.is_memory())
+				a.divss(dstreg, MABS(src2p.memory()));                                  // divss dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.divss(dstreg, xmm(src2p.freg()));                                     // divss dstreg,src2p
+		}
 		movss_p32_r128(a, dstp, dstreg);                                                // movss dstp,dstreg
 	}
 	else if (inst.size() == 8)
 	{
 		// 64-bit form
-		movsd_r128_p64(a, dstreg, src1p);                                               // movsd dstreg,src1p
-		if (src2p.is_memory())
-			a.divsd(dstreg, MABS(src2p.memory()));                                      // divsd dstreg,[src2p]
-		else if (src2p.is_float_register())
-			a.divsd(dstreg, xmm(src2p.freg()));                                         // divsd dstreg,src2p
+		if (m_avx2 && src1p.is_float_register())
+		{
+			if (src2p.is_memory())
+				a.vdivsd(dstreg, xmm(src1p.freg()), MABS(src2p.memory()));              // vdivsd dstreg,src1p,[src2p]
+			else if (src2p.is_float_register())
+				a.vdivsd(dstreg, xmm(src1p.freg()), xmm(src2p.freg()));                 // vdivsd dstreg,src1p,src2p
+		}
+		else
+		{
+			movsd_r128_p64(a, dstreg, src1p);                                           // movsd dstreg,src1p
+			if (src2p.is_memory())
+				a.divsd(dstreg, MABS(src2p.memory()));                                  // divsd dstreg,[src2p]
+			else if (src2p.is_float_register())
+				a.divsd(dstreg, xmm(src2p.freg()));                                     // divsd dstreg,src2p
+		}
 		movsd_p64_r128(a, dstp, dstreg);                                                // movsd dstp,dstreg
 	}
 }
@@ -6422,6 +6667,9 @@ void drcbe_x64::op_fsqrt(Assembler &a, const instruction &inst)
 
 	// pick a target register for the general case
 	Vec const dstreg = dstp.select_register(REG_FSCRATCH1);
+
+	if (EMAC_FDEP_STALL_FIX && (!srcp.is_float_register() || (srcp.freg() != dstreg.id())))
+		a.xorps(dstreg, dstreg);
 
 	if (inst.size() == 4)
 	{
@@ -6539,6 +6787,9 @@ void drcbe_x64::op_frsqrt(Assembler &a, const instruction &inst)
 		}
 		else
 		{
+			if (EMAC_FDEP_STALL_FIX)
+				a.xorps(REG_FSCRATCH2, REG_FSCRATCH2);
+
 			if (srcp.is_memory())
 				a.sqrtss(REG_FSCRATCH2, MABS(srcp.memory()));                           // sqrtss xmm1,[srcp]
 			else if (srcp.is_float_register())
@@ -6562,6 +6813,9 @@ void drcbe_x64::op_frsqrt(Assembler &a, const instruction &inst)
 		}
 		else
 		{
+			if (EMAC_FDEP_STALL_FIX)
+				a.xorps(REG_FSCRATCH2, REG_FSCRATCH2);
+
 			if (srcp.is_memory())
 				a.sqrtsd(REG_FSCRATCH2, MABS(srcp.memory()));                           // sqrtsd xmm1,[srcp]
 			else if (srcp.is_float_register())
