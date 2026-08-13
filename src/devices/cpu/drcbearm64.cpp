@@ -615,6 +615,23 @@ private:
 	void op_vload(a64::Assembler &a, const uml::instruction &inst);
 	void op_vstore(a64::Assembler &a, const uml::instruction &inst);
 	void op_vbcastb(a64::Assembler &a, const uml::instruction &inst);
+	void op_viadd(a64::Assembler &a, const uml::instruction &inst);
+	void op_visub(a64::Assembler &a, const uml::instruction &inst);
+	void op_viadds(a64::Assembler &a, const uml::instruction &inst);
+	void op_visubs(a64::Assembler &a, const uml::instruction &inst);
+	void op_viaddus(a64::Assembler &a, const uml::instruction &inst);
+	void op_visubus(a64::Assembler &a, const uml::instruction &inst);
+	void op_viand(a64::Assembler &a, const uml::instruction &inst);
+	void op_vior(a64::Assembler &a, const uml::instruction &inst);
+	void op_vixor(a64::Assembler &a, const uml::instruction &inst);
+	void op_viandn(a64::Assembler &a, const uml::instruction &inst);
+	void op_vimul(a64::Assembler &a, const uml::instruction &inst);
+	void op_vipackus(a64::Assembler &a, const uml::instruction &inst);
+	void op_viunpckl(a64::Assembler &a, const uml::instruction &inst);
+	void op_viunpckh(a64::Assembler &a, const uml::instruction &inst);
+	void op_vishl(a64::Assembler &a, const uml::instruction &inst);
+	void op_vishr(a64::Assembler &a, const uml::instruction &inst);
+	void op_visar(a64::Assembler &a, const uml::instruction &inst);
 
 	template <a64::Inst::Id Opcode> void op_float_alu(a64::Assembler &a, const uml::instruction &inst);
 	template <a64::Inst::Id Opcode> void op_float_alu2(a64::Assembler &a, const uml::instruction &inst);
@@ -801,6 +818,23 @@ inline void drcbe_arm64::generate_one(a64::Assembler &a, const uml::instruction 
 	case uml::OP_VLOAD:   op_vload(a, inst);                                break; // VLOAD   dst,base,index
 	case uml::OP_VSTORE:  op_vstore(a, inst);                               break; // VSTORE  base,index,src
 	case uml::OP_VBCASTB: op_vbcastb(a, inst);                              break; // VBCASTB dst,src
+	case uml::OP_VIADD:    op_viadd(a, inst);                               break; // VIADD    dst,src1,src2,size
+	case uml::OP_VISUB:    op_visub(a, inst);                               break; // VISUB    dst,src1,src2,size
+	case uml::OP_VIADDS:   op_viadds(a, inst);                              break; // VIADDS   dst,src1,src2,size
+	case uml::OP_VISUBS:   op_visubs(a, inst);                              break; // VISUBS   dst,src1,src2,size
+	case uml::OP_VIADDUS:  op_viaddus(a, inst);                             break; // VIADDUS  dst,src1,src2,size
+	case uml::OP_VISUBUS:  op_visubus(a, inst);                             break; // VISUBUS  dst,src1,src2,size
+	case uml::OP_VIAND:    op_viand(a, inst);                               break; // VIAND    dst,src1,src2
+	case uml::OP_VIOR:     op_vior(a, inst);                                break; // VIOR     dst,src1,src2
+	case uml::OP_VIXOR:    op_vixor(a, inst);                               break; // VIXOR    dst,src1,src2
+	case uml::OP_VIANDN:   op_viandn(a, inst);                              break; // VIANDN   dst,src1,src2
+	case uml::OP_VIMUL:    op_vimul(a, inst);                               break; // VIMUL    dst,src1,src2,size
+	case uml::OP_VIPACKUS: op_vipackus(a, inst);                            break; // VIPACKUS dst,src1,src2,size
+	case uml::OP_VIUNPCKL: op_viunpckl(a, inst);                            break; // VIUNPCKL dst,src1,src2,size
+	case uml::OP_VIUNPCKH: op_viunpckh(a, inst);                            break; // VIUNPCKH dst,src1,src2,size
+	case uml::OP_VISHL:    op_vishl(a, inst);                               break; // VISHL    dst,src1,count,size
+	case uml::OP_VISHR:    op_vishr(a, inst);                               break; // VISHR    dst,src1,count,size
+	case uml::OP_VISAR:    op_visar(a, inst);                               break; // VISAR    dst,src1,count,size
 
 	default: throw emu_fatalerror("drcbe_arm64(%s): unhandled opcode %u\n", m_device.tag(), inst.opcode());
 	}
@@ -5928,6 +5962,555 @@ void drcbe_arm64::op_vbcastb(a64::Assembler &a, const uml::instruction &inst)
 		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
 		a.str(dstreg, a64::Mem(addrreg));
 	}
+}
+
+void drcbe_arm64::op_viadd(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	if (sizep.size() == SIZE_QWORD)
+	{
+		const a64::Gp t1 = TEMP_REG1;
+		const a64::Gp t2 = TEMP_REG2;
+		get_imm_relative(a, t1, uint64_t(src1p.memory()));
+		a.ldr(t1, a64::Mem(t1));
+		get_imm_relative(a, t2, uint64_t(src2p.memory()));
+		a.ldr(t2, a64::Mem(t2));
+		a.add(t1, t1, t2);
+		get_imm_relative(a, t2, uint64_t(dstp.memory()));
+		a.str(t1, a64::Mem(t2));
+	}
+	else
+	{
+		const a64::Vec tmp1 = TEMPF_REG1;
+		const a64::Vec tmp2 = TEMPF_REG2;
+		const a64::Gp addr = TEMP_REG1;
+
+		get_imm_relative(a, addr, uint64_t(src1p.memory()));
+		a.ldr(tmp1, a64::Mem(addr));
+		get_imm_relative(a, addr, uint64_t(src2p.memory()));
+		a.ldr(tmp2, a64::Mem(addr));
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.add(tmp1.b8(), tmp1.b8(), tmp2.b8());
+				break;
+			case SIZE_WORD:
+				a.add(tmp1.h4(), tmp1.h4(), tmp2.h4());
+				break;
+			case SIZE_DWORD:
+				a.add(tmp1.s2(), tmp1.s2(), tmp2.s2());
+				break;
+			default:
+				break;
+		}
+		get_imm_relative(a, addr, uint64_t(dstp.memory()));
+		a.str(tmp1, a64::Mem(addr));
+	}
+}
+
+void drcbe_arm64::op_visub(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	switch (sizep.size())
+	{
+		case SIZE_BYTE:
+			a.sub(tmp1.b8(), tmp1.b8(), tmp2.b8());
+			break;
+		case SIZE_WORD:
+			a.sub(tmp1.h4(), tmp1.h4(), tmp2.h4());
+			break;
+		case SIZE_DWORD:
+			a.sub(tmp1.s2(), tmp1.s2(), tmp2.s2());
+			break;
+		default:
+			break;
+	}
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_viadds(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	if (sizep.size() == SIZE_BYTE)
+		a.sqadd(tmp1.b8(), tmp1.b8(), tmp2.b8());
+	else
+		a.sqadd(tmp1.h4(), tmp1.h4(), tmp2.h4());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_visubs(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	if (sizep.size() == SIZE_BYTE)
+		a.sqsub(tmp1.b8(), tmp1.b8(), tmp2.b8());
+	else
+		a.sqsub(tmp1.h4(), tmp1.h4(), tmp2.h4());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_viaddus(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	if (sizep.size() == SIZE_BYTE)
+		a.uqadd(tmp1.b8(), tmp1.b8(), tmp2.b8());
+	else
+		a.uqadd(tmp1.h4(), tmp1.h4(), tmp2.h4());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_visubus(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	if (sizep.size() == SIZE_BYTE)
+		a.uqsub(tmp1.b8(), tmp1.b8(), tmp2.b8());
+	else
+		a.uqsub(tmp1.h4(), tmp1.h4(), tmp2.h4());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_viand(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	a.and_(tmp1.b8(), tmp1.b8(), tmp2.b8());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_vior(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	a.orr(tmp1.b8(), tmp1.b8(), tmp2.b8());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_vixor(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	a.eor(tmp1.b8(), tmp1.b8(), tmp2.b8());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_viandn(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	a.bic(tmp1.b8(), tmp2.b8(), tmp1.b8());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_vimul(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	a.mul(tmp1.h4(), tmp1.h4(), tmp2.h4());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_vipackus(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	a.ins(tmp1.d(1), tmp2.d(0));
+	a.uqxtn(tmp1.b8(), tmp1.h8());
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_viunpckl(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	switch (sizep.size())
+	{
+		case SIZE_BYTE:
+			a.zip1(tmp1.b8(), tmp1.b8(), tmp2.b8());
+			break;
+		case SIZE_WORD:
+			a.zip1(tmp1.h4(), tmp1.h4(), tmp2.h4());
+			break;
+		case SIZE_DWORD:
+			a.zip1(tmp1.s2(), tmp1.s2(), tmp2.s2());
+			break;
+		default:
+			break;
+	}
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_viunpckh(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Vec tmp2 = TEMPF_REG2;
+	const a64::Gp addr = TEMP_REG1;
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	get_imm_relative(a, addr, uint64_t(src2p.memory()));
+	a.ldr(tmp2, a64::Mem(addr));
+	a.ext(tmp1.b8(), tmp1.b8(), tmp1.b8(), 4);
+	a.ext(tmp2.b8(), tmp2.b8(), tmp2.b8(), 4);
+	switch (sizep.size())
+	{
+		case SIZE_BYTE:
+			a.zip1(tmp1.b8(), tmp1.b8(), tmp2.b8());
+			break;
+		case SIZE_WORD:
+			a.zip1(tmp1.h4(), tmp1.h4(), tmp2.h4());
+			break;
+		case SIZE_DWORD:
+			a.zip1(tmp1.s2(), tmp1.s2(), tmp2.s2());
+			break;
+		default:
+			break;
+	}
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_vishl(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	const parameter &countp = inst.param(2);
+	assert(countp.is_immediate());
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Gp addr = TEMP_REG1;
+	uint32_t const count = uint32_t(countp.immediate());
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	if (count != 0)
+	{
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.shl(tmp1.h4(), tmp1.h4(), count);
+				break;
+			case SIZE_DWORD:
+				a.shl(tmp1.s2(), tmp1.s2(), count);
+				break;
+			default:
+				break;
+		}
+	}
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_vishr(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	const parameter &countp = inst.param(2);
+	assert(countp.is_immediate());
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Gp addr = TEMP_REG1;
+	uint32_t const count = uint32_t(countp.immediate());
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	if (count != 0)
+	{
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.ushr(tmp1.h4(), tmp1.h4(), count);
+				break;
+			case SIZE_DWORD:
+				a.ushr(tmp1.s2(), tmp1.s2(), count);
+				break;
+			default:
+				break;
+		}
+	}
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
+}
+
+void drcbe_arm64::op_visar(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	const parameter &countp = inst.param(2);
+	assert(countp.is_immediate());
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	const a64::Vec tmp1 = TEMPF_REG1;
+	const a64::Gp addr = TEMP_REG1;
+	uint32_t const count = uint32_t(countp.immediate());
+
+	get_imm_relative(a, addr, uint64_t(src1p.memory()));
+	a.ldr(tmp1, a64::Mem(addr));
+	if (count != 0)
+	{
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.sshr(tmp1.h4(), tmp1.h4(), count);
+				break;
+			case SIZE_DWORD:
+				a.sshr(tmp1.s2(), tmp1.s2(), count);
+				break;
+			default:
+				break;
+		}
+	}
+	get_imm_relative(a, addr, uint64_t(dstp.memory()));
+	a.str(tmp1, a64::Mem(addr));
 }
 
 } // anonymous namespace

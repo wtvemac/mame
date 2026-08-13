@@ -279,6 +279,7 @@ const Gp::Id REG_PARAM4    = Gp::kIdCx;
 const Vec REG_FSCRATCH1 = xmm0;
 const Vec REG_FSCRATCH2 = xmm1;
 const Vec REG_VSCRATCH = xmm2;
+const Vec REG_VSCRATCH2 = xmm3;
 
 // register mapping tables
 const Gp::Id int_register_map[REG_I_COUNT] =
@@ -602,6 +603,23 @@ private:
 	void op_vload(Assembler &a, const uml::instruction &inst);
 	void op_vstore(Assembler &a, const uml::instruction &inst);
 	void op_vbcastb(Assembler &a, const uml::instruction &inst);
+	void op_viadd(Assembler &a, const uml::instruction &inst);
+	void op_visub(Assembler &a, const uml::instruction &inst);
+	void op_viadds(Assembler &a, const uml::instruction &inst);
+	void op_visubs(Assembler &a, const uml::instruction &inst);
+	void op_viaddus(Assembler &a, const uml::instruction &inst);
+	void op_visubus(Assembler &a, const uml::instruction &inst);
+	void op_viand(Assembler &a, const uml::instruction &inst);
+	void op_vior(Assembler &a, const uml::instruction &inst);
+	void op_vixor(Assembler &a, const uml::instruction &inst);
+	void op_viandn(Assembler &a, const uml::instruction &inst);
+	void op_vimul(Assembler &a, const uml::instruction &inst);
+	void op_vipackus(Assembler &a, const uml::instruction &inst);
+	void op_viunpckl(Assembler &a, const uml::instruction &inst);
+	void op_viunpckh(Assembler &a, const uml::instruction &inst);
+	void op_vishl(Assembler &a, const uml::instruction &inst);
+	void op_vishr(Assembler &a, const uml::instruction &inst);
+	void op_visar(Assembler &a, const uml::instruction &inst);
 
 	// alu and shift operation helpers
 	static bool ones(u64 const value, unsigned const size) noexcept { return (size == 4) ? u32(value) == 0xffffffffU : value == 0xffffffff'ffffffffULL; }
@@ -799,6 +817,23 @@ inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst, 
 	case uml::OP_VLOAD:   op_vload(a, inst);      break; // VLOAD   dst,base,index
 	case uml::OP_VSTORE:  op_vstore(a, inst);     break; // VSTORE  base,index,src
 	case uml::OP_VBCASTB: op_vbcastb(a, inst);    break; // VBCASTB dst,src
+	case uml::OP_VIADD:    op_viadd(a, inst);     break; // VIADD    dst,src1,src2,size
+	case uml::OP_VISUB:    op_visub(a, inst);     break; // VISUB    dst,src1,src2,size
+	case uml::OP_VIADDS:   op_viadds(a, inst);    break; // VIADDS   dst,src1,src2,size
+	case uml::OP_VISUBS:   op_visubs(a, inst);    break; // VISUBS   dst,src1,src2,size
+	case uml::OP_VIADDUS:  op_viaddus(a, inst);   break; // VIADDUS  dst,src1,src2,size
+	case uml::OP_VISUBUS:  op_visubus(a, inst);   break; // VISUBUS  dst,src1,src2,size
+	case uml::OP_VIAND:    op_viand(a, inst);     break; // VIAND    dst,src1,src2
+	case uml::OP_VIOR:     op_vior(a, inst);      break; // VIOR     dst,src1,src2
+	case uml::OP_VIXOR:    op_vixor(a, inst);     break; // VIXOR    dst,src1,src2
+	case uml::OP_VIANDN:   op_viandn(a, inst);    break; // VIANDN   dst,src1,src2
+	case uml::OP_VIMUL:    op_vimul(a, inst);     break; // VIMUL    dst,src1,src2,size
+	case uml::OP_VIPACKUS: op_vipackus(a, inst);  break; // VIPACKUS dst,src1,src2,size
+	case uml::OP_VIUNPCKL: op_viunpckl(a, inst);  break; // VIUNPCKL dst,src1,src2,size
+	case uml::OP_VIUNPCKH: op_viunpckh(a, inst);  break; // VIUNPCKH dst,src1,src2,size
+	case uml::OP_VISHL:    op_vishl(a, inst);     break; // VISHL    dst,src1,count,size
+	case uml::OP_VISHR:    op_vishr(a, inst);     break; // VISHR    dst,src1,count,size
+	case uml::OP_VISAR:    op_visar(a, inst);     break; // VISAR    dst,src1,count,size
 
 	default: throw emu_fatalerror("drcbe_x64(%s): unhandled opcode %u\n", m_device.tag(), inst.opcode());
 	}
@@ -7052,6 +7087,787 @@ void drcbe_x64::op_vbcastb(Assembler &a, const instruction &inst)
 		a.punpcklbw(dstreg, dstreg);
 		a.punpcklwd(dstreg, dstreg);
 		a.pshufd(dstreg, dstreg, 0);
+	}
+}
+
+//-------------------------------------------------
+//  op_viadd - process a VIADD opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_viadd(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.vpaddb(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_WORD:
+				a.vpaddw(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_DWORD:
+				a.vpaddd(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_QWORD:
+				a.vpaddq(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+		}
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.paddb(tmp1, tmp2);
+				break;
+			case SIZE_WORD:
+				a.paddw(tmp1, tmp2);
+				break;
+			case SIZE_DWORD:
+				a.paddd(tmp1, tmp2);
+				break;
+			case SIZE_QWORD:
+				a.paddq(tmp1, tmp2);
+				break;
+		}
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_visub - process a VISUB opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_visub(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.vpsubb(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_WORD:
+				a.vpsubw(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_DWORD:
+				a.vpsubd(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_QWORD:
+				a.vpsubq(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+		}
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.psubb(tmp1, tmp2);
+				break;
+			case SIZE_WORD:
+				a.psubw(tmp1, tmp2);
+				break;
+			case SIZE_DWORD:
+				a.psubd(tmp1, tmp2);
+				break;
+			case SIZE_QWORD:
+				a.psubq(tmp1, tmp2);
+				break;
+		}
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_viadds - process a VIADDS opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_viadds(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.vpaddsb(tmp1, tmp1, MABS(src2p.memory()));
+		else
+			a.vpaddsw(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.paddsb(tmp1, tmp2);
+		else
+			a.paddsw(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_visubs - process a VISUBS opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_visubs(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.vpsubsb(tmp1, tmp1, MABS(src2p.memory()));
+		else
+			a.vpsubsw(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.psubsb(tmp1, tmp2);
+		else
+			a.psubsw(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_viaddus - process a VIADDUS opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_viaddus(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.vpaddusb(tmp1, tmp1, MABS(src2p.memory()));
+		else
+			a.vpaddusw(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.paddusb(tmp1, tmp2);
+		else
+			a.paddusw(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_visubus - process a VISUBUS opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_visubus(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+	assert(sizep.size() == SIZE_BYTE || sizep.size() == SIZE_WORD);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.vpsubusb(tmp1, tmp1, MABS(src2p.memory()));
+		else
+			a.vpsubusw(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		if (sizep.size() == SIZE_BYTE)
+			a.psubusb(tmp1, tmp2);
+		else
+			a.psubusw(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_viand - process a VIAND opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_viand(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		a.vpand(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		a.pand(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_vior - process a VIOR opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vior(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		a.vpor(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		a.por(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_vixor - process a VIXOR opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vixor(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		a.vpxor(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		a.pxor(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_viandn - process a VIANDN opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_viandn(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		a.vpandn(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		a.pandn(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_vimul - process a VIMUL opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vimul(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		a.vpmullw(tmp1, tmp1, MABS(src2p.memory()));
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		a.pmullw(tmp1, tmp2);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_vipackus - process a VIPACKUS opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vipackus(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		a.vpunpcklqdq(tmp1, tmp1, MABS(src2p.memory()));
+		a.vpackuswb(tmp1, tmp1, tmp1);
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		a.punpcklqdq(tmp1, tmp2);
+		a.packuswb(tmp1, tmp1);
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_viunpckl - process a VIUNPCKL opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_viunpckl(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	Vec const tmp1 = REG_VSCRATCH;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.vpunpcklbw(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_WORD:
+				a.vpunpcklwd(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			case SIZE_DWORD:
+				a.vpunpckldq(tmp1, tmp1, MABS(src2p.memory()));
+				break;
+			default:
+				break;
+		}
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		Vec const tmp2 = REG_VSCRATCH2;
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.punpcklbw(tmp1, tmp2);
+				break;
+			case SIZE_WORD:
+				a.punpcklwd(tmp1, tmp2);
+				break;
+			case SIZE_DWORD:
+				a.punpckldq(tmp1, tmp2);
+				break;
+			default:
+				break;
+		}
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_viunpckh - process a VIUNPCKH opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_viunpckh(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	be_parameter src2p(*this, inst.param(2), PTYPE_M);
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	Vec const tmp1 = REG_VSCRATCH;
+	Vec const tmp2 = REG_VSCRATCH2;
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		a.vmovq(tmp2, MABS(src2p.memory()));
+		a.vpunpcklqdq(tmp1, tmp1, tmp1);
+		a.vpunpcklqdq(tmp2, tmp2, tmp2);
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.vpunpckhbw(tmp1, tmp1, tmp2);
+				break;
+			case SIZE_WORD:
+				a.vpunpckhwd(tmp1, tmp1, tmp2);
+				break;
+			case SIZE_DWORD:
+				a.vpunpckhdq(tmp1, tmp1, tmp2);
+				break;
+			default:
+				break;
+		}
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		a.movq(tmp1, MABS(src1p.memory()));
+		a.movq(tmp2, MABS(src2p.memory()));
+		a.punpcklqdq(tmp1, tmp1);
+		a.punpcklqdq(tmp2, tmp2);
+		switch (sizep.size())
+		{
+			case SIZE_BYTE:
+				a.punpckhbw(tmp1, tmp2);
+				break;
+			case SIZE_WORD:
+				a.punpckhwd(tmp1, tmp2);
+				break;
+			case SIZE_DWORD:
+				a.punpckhdq(tmp1, tmp2);
+				break;
+			default:
+				break;
+		}
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_vishl - process a VISHL opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vishl(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	const parameter &countp = inst.param(2);
+	assert(countp.is_immediate());
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	Vec const tmp1 = REG_VSCRATCH;
+	uint32_t const count = uint32_t(countp.immediate());
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.vpsllw(tmp1, tmp1, count);
+				break;
+			case SIZE_DWORD:
+				a.vpslld(tmp1, tmp1, count);
+				break;
+			case SIZE_QWORD:
+				a.vpsllq(tmp1, tmp1, count);
+				break;
+			default:
+				break;
+		}
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		a.movq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.psllw(tmp1, count);
+				break;
+			case SIZE_DWORD:
+				a.pslld(tmp1, count);
+				break;
+			case SIZE_QWORD:
+				a.psllq(tmp1, count);
+				break;
+			default:
+				break;
+		}
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_vishr - process a VISHR opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_vishr(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	const parameter &countp = inst.param(2);
+	assert(countp.is_immediate());
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	Vec const tmp1 = REG_VSCRATCH;
+	uint32_t const count = uint32_t(countp.immediate());
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.vpsrlw(tmp1, tmp1, count);
+				break;
+			case SIZE_DWORD:
+				a.vpsrld(tmp1, tmp1, count);
+				break;
+			case SIZE_QWORD:
+				a.vpsrlq(tmp1, tmp1, count);
+				break;
+			default:
+				break;
+		}
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		a.movq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.psrlw(tmp1, count);
+				break;
+			case SIZE_DWORD:
+				a.psrld(tmp1, count);
+				break;
+			case SIZE_QWORD:
+				a.psrlq(tmp1, count);
+				break;
+			default:
+				break;
+		}
+		a.movq(MABS(dstp.memory()), tmp1);
+	}
+}
+
+//-------------------------------------------------
+//  op_visar - process a VISAR opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_visar(Assembler &a, const instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	be_parameter dstp(*this, inst.param(0), PTYPE_M);
+	be_parameter src1p(*this, inst.param(1), PTYPE_M);
+	const parameter &countp = inst.param(2);
+	assert(countp.is_immediate());
+	const parameter &sizep = inst.param(3);
+	assert(sizep.is_size());
+
+	Vec const tmp1 = REG_VSCRATCH;
+	uint32_t const count = uint32_t(countp.immediate());
+
+	if (m_avx2)
+	{
+		a.vmovq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.vpsraw(tmp1, tmp1, count);
+				break;
+			case SIZE_DWORD:
+				a.vpsrad(tmp1, tmp1, count);
+				break;
+			default:
+				break;
+		}
+		a.vmovq(MABS(dstp.memory()), tmp1);
+	}
+	else
+	{
+		a.movq(tmp1, MABS(src1p.memory()));
+		switch (sizep.size())
+		{
+			case SIZE_WORD:
+				a.psraw(tmp1, count);
+				break;
+			case SIZE_DWORD:
+				a.psrad(tmp1, count);
+				break;
+			default:
+				break;
+		}
+		a.movq(MABS(dstp.memory()), tmp1);
 	}
 }
 

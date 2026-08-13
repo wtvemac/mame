@@ -238,6 +238,23 @@ namespace uml {
 		OP_VLOAD,                   // VLOAD   dst,base,index
 		OP_VSTORE,                  // VSTORE  base,index,src
 		OP_VBCASTB,                 // VBCASTB dst,src
+		OP_VIADD,                   // VIADD   dst,src1,src2,size
+		OP_VISUB,                   // VISUB   dst,src1,src2,size
+		OP_VIADDS,                  // VIADDS  dst,src1,src2,size
+		OP_VISUBS,                  // VISUBS  dst,src1,src2,size
+		OP_VIADDUS,                 // VIADDUS dst,src1,src2,size
+		OP_VISUBUS,                 // VISUBUS dst,src1,src2,size
+		OP_VIAND,                   // VIAND   dst,src1,src2
+		OP_VIOR,                    // VIOR    dst,src1,src2
+		OP_VIXOR,                   // VIXOR   dst,src1,src2
+		OP_VIANDN,                  // VIANDN  dst,src1,src2
+		OP_VIMUL,                   // VIMUL   dst,src1,src2,size
+		OP_VIPACKUS,                // VIPACKUS dst,src1,src2,size
+		OP_VIUNPCKL,                // VIUNPCKL dst,src1,src2,size
+		OP_VIUNPCKH,                // VIUNPCKH dst,src1,src2,size
+		OP_VISHL,                   // VISHL   dst,src1,count,size
+		OP_VISHR,                   // VISHR   dst,src1,count,size
+		OP_VISAR,                   // VISAR   dst,src1,count,size
 
 		OP_MAX
 	};
@@ -617,10 +634,27 @@ namespace uml {
 		void fdcopyi(parameter dst, parameter src) { configure(OP_FCOPYI, 8, dst, src); }
 		void icopyfd(parameter dst, parameter src) { configure(OP_ICOPYF, 8, dst, src); }
 
-		// 128-bit vector operations
+		// vector operations
 		void vload(parameter dst, void const *base, parameter index) { configure(OP_VLOAD, 4, dst, parameter::make_memory(base), index); }
 		void vstore(void *base, parameter index, parameter src1) { configure(OP_VSTORE, 4, parameter::make_memory(base), index, src1); }
 		void vbcastb(parameter dst, parameter src1) { configure(OP_VBCASTB, 4, dst, src1); }
+		void viadd    (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIADD,    4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void visub    (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VISUB,    4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void viadds   (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIADDS,   4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void visubs   (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VISUBS,   4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void viaddus  (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIADDUS,  4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void visubus  (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VISUBUS,  4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void viand    (void *dst, void const *src1, void const *src2) { configure(OP_VIAND,  4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2)); }
+		void vior     (void *dst, void const *src1, void const *src2) { configure(OP_VIOR,   4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2)); }
+		void vixor    (void *dst, void const *src1, void const *src2) { configure(OP_VIXOR,  4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2)); }
+		void viandn   (void *dst, void const *src1, void const *src2) { configure(OP_VIANDN, 4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2)); }
+		void vimul    (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIMUL,    4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void vipackus (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIPACKUS, 4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void viunpckl (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIUNPCKL, 4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void viunpckh (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIUNPCKH, 4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
+		void vishl    (void *dst, void const *src1, parameter count, operand_size elemsize) { configure(OP_VISHL, 4, parameter::make_memory(dst), parameter::make_memory(src1), count, parameter::make_size(elemsize)); }
+		void vishr    (void *dst, void const *src1, parameter count, operand_size elemsize) { configure(OP_VISHR, 4, parameter::make_memory(dst), parameter::make_memory(src1), count, parameter::make_size(elemsize)); }
+		void visar    (void *dst, void const *src1, parameter count, operand_size elemsize) { configure(OP_VISAR, 4, parameter::make_memory(dst), parameter::make_memory(src1), count, parameter::make_size(elemsize)); }
 
 	private:
 		// internal configuration

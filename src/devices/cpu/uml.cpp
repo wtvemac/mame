@@ -229,6 +229,23 @@ opcode_info const instruction::s_opcode_info_table[OP_MAX] =
 	OPINFO3(VLOAD,   "vload",    4,   false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, PTR), PINFO(IN, 4, IANY)) // Load 128-bit vector from base+index (byte-addressed, unaligned)
 	OPINFO3(VSTORE,  "vstore",   4,   false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, 4, IANY), PINFO(IN, OP, FREG)) // Store 128-bit vector to base+index (byte-addressed, unaligned)
 	OPINFO2(VBCASTB, "vbcastb",  4,   false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, IANY)) // Broadcast low 8 bits of src to all 16 bytes of dst
+	OPINFO4(VIADD,    "viadd",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed wraparound add
+	OPINFO4(VISUB,    "visub",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed wraparound sub
+	OPINFO4(VIADDS,   "viadds",   4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed signed saturating add
+	OPINFO4(VISUBS,   "visubs",   4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed signed saturating sub
+	OPINFO4(VIADDUS,  "viaddus",  4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed unsigned saturating add
+	OPINFO4(VISUBUS,  "visubus",  4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed unsigned saturating sub
+	OPINFO3(VIAND,    "viand",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR)) // Whole-register bitwise and
+	OPINFO3(VIOR,     "vior",     4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR)) // Whole-register bitwise or
+	OPINFO3(VIXOR,    "vixor",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR)) // Whole-register bitwise xor
+	OPINFO3(VIANDN,   "viandn",   4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR)) // dst = ~src1 & src2
+	OPINFO4(VIMUL,    "vimul",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed low-half multiply
+	OPINFO4(VIPACKUS, "vipackus", 4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE))
+	OPINFO4(VIUNPCKL, "viunpckl", 4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE))
+	OPINFO4(VIUNPCKH, "viunpckh", 4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE))
+	OPINFO4(VISHL,    "vishl",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY), PINFO(IN, OP, SIZE)) // Packed logical shift left, uniform count
+	OPINFO4(VISHR,    "vishr",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY), PINFO(IN, OP, SIZE)) // Packed logical shift right, uniform count
+	OPINFO4(VISAR,    "visar",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY), PINFO(IN, OP, SIZE)) // Packed arithmetic shift right, uniform count
 };
 
 
