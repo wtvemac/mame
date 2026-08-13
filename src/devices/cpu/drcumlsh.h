@@ -198,6 +198,23 @@
 #define UML_VLOAD(block, dst, base, index)                  do { using namespace uml; block.append().vload(dst, base, index); } while (0)
 #define UML_VSTORE(block, base, index, src)                 do { using namespace uml; block.append().vstore(base, index, src); } while (0)
 #define UML_VBCASTB(block, dst, src)                        do { using namespace uml; block.append().vbcastb(dst, src); } while (0)
+#define UML_VIADD(block, dst, src1, src2, size)             do { using namespace uml; block.append().viadd(dst, src1, src2, size); } while (0)
+#define UML_VISUB(block, dst, src1, src2, size)             do { using namespace uml; block.append().visub(dst, src1, src2, size); } while (0)
+#define UML_VIADDS(block, dst, src1, src2, size)            do { using namespace uml; block.append().viadds(dst, src1, src2, size); } while (0)
+#define UML_VISUBS(block, dst, src1, src2, size)            do { using namespace uml; block.append().visubs(dst, src1, src2, size); } while (0)
+#define UML_VIADDUS(block, dst, src1, src2, size)           do { using namespace uml; block.append().viaddus(dst, src1, src2, size); } while (0)
+#define UML_VISUBUS(block, dst, src1, src2, size)           do { using namespace uml; block.append().visubus(dst, src1, src2, size); } while (0)
+#define UML_VIAND(block, dst, src1, src2)                   do { using namespace uml; block.append().viand(dst, src1, src2); } while (0)
+#define UML_VIOR(block, dst, src1, src2)                    do { using namespace uml; block.append().vior(dst, src1, src2); } while (0)
+#define UML_VIXOR(block, dst, src1, src2)                   do { using namespace uml; block.append().vixor(dst, src1, src2); } while (0)
+#define UML_VIANDN(block, dst, src1, src2)                  do { using namespace uml; block.append().viandn(dst, src1, src2); } while (0)
+#define UML_VIMUL(block, dst, src1, src2, size)             do { using namespace uml; block.append().vimul(dst, src1, src2, size); } while (0)
+#define UML_VIPACKUS(block, dst, src1, src2, size)          do { using namespace uml; block.append().vipackus(dst, src1, src2, size); } while (0)
+#define UML_VIUNPCKL(block, dst, src1, src2, size)          do { using namespace uml; block.append().viunpckl(dst, src1, src2, size); } while (0)
+#define UML_VIUNPCKH(block, dst, src1, src2, size)          do { using namespace uml; block.append().viunpckh(dst, src1, src2, size); } while (0)
+#define UML_VISHL(block, dst, src1, count, size)            do { using namespace uml; block.append().vishl(dst, src1, count, size); } while (0)
+#define UML_VISHR(block, dst, src1, count, size)            do { using namespace uml; block.append().vishr(dst, src1, count, size); } while (0)
+#define UML_VISAR(block, dst, src1, count, size)            do { using namespace uml; block.append().visar(dst, src1, count, size); } while (0)
 
 
 #endif // MAME_CPU_DRCUMLSH_H
