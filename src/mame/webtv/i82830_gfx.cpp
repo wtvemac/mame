@@ -51,7 +51,7 @@ void i82830_graphics_device::device_reset()
 void i82830_graphics_device::device_add_mconfig(machine_config &config)
 {
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_raw(XTAL(25'174'800), 640, 0, 640, 480, 0, 480);
+	screen.set_raw(XTAL(18'432'000), 640, 0, 640, 480, 0, 480);
 	screen.screen_vblank().set(FUNC(i82830_graphics_device::vblank_irq));
 	screen.set_screen_update(FUNC(i82830_graphics_device::screen_update));
 
