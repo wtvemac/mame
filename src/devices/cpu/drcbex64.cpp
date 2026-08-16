@@ -530,6 +530,7 @@ private:
 	void op_exit(Assembler &a, const uml::instruction &inst);
 	void op_hashjmp(Assembler &a, const uml::instruction &inst);
 	void op_jmp(Assembler &a, const uml::instruction &inst);
+	void op_jmpt(Assembler &a, const uml::instruction &inst);
 	void op_exh(Assembler &a, const uml::instruction &inst);
 	void op_callh(Assembler &a, const uml::instruction &inst);
 	void op_ret(Assembler &a, const uml::instruction &inst);
@@ -733,6 +734,7 @@ inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst, 
 	case uml::OP_EXIT:    op_exit(a, inst);       break; // EXIT    src1[,c]
 	case uml::OP_HASHJMP: op_hashjmp(a, inst);    break; // HASHJMP mode,pc,handle
 	case uml::OP_JMP:     op_jmp(a, inst);        break; // JMP     imm[,c]
+	case uml::OP_JMPT:    op_jmpt(a, inst);       break; // JMPT    index,table,count
 	case uml::OP_EXH:     op_exh(a, inst);        break; // EXH     handle,param[,c]
 	case uml::OP_CALLH:   op_callh(a, inst);      break; // CALLH   handle[,c]
 	case uml::OP_RET:     op_ret(a, inst);        break; // RET     [c]
@@ -2388,6 +2390,53 @@ void drcbe_x64::op_jmp(Assembler &a, const instruction &inst)
 		a.jmp(jmptarget);                                                               // jmp   target
 	else
 		a.j(X86_CONDITION(inst.condition()), jmptarget);                                // jcc   target
+}
+
+
+//-------------------------------------------------
+//  op_jmpt - process a JMPT opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_jmpt(Assembler &a, const instruction &inst)
+{
+	// validate instruction
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter indexp(*this, inst.param(0), PTYPE_MRI);
+	const parameter &tablep = inst.param(1);
+	assert(tablep.is_memory());
+	const parameter &countp = inst.param(2);
+	assert(countp.is_immediate());
+
+	const u32 *const table = reinterpret_cast<const u32 *>(tablep.memory());
+	const u32 count = u32(countp.immediate());
+	assert(count > 0);
+
+	std::vector<Label> targets;
+	targets.reserve(count);
+	for (u32 i = 0; i < count; i++)
+	{
+		std::string labelName = util::string_format("PC$%x", table[i]);
+		Label lab = a.label_by_name(labelName.c_str());
+		if (!lab.is_valid())
+			lab = a.new_named_label(labelName.c_str());
+		targets.push_back(lab);
+	}
+
+	mov_reg_param(a, eax, indexp);
+
+	Label tablebase = a.new_label();
+	a.lea(rcx, ptr(tablebase));
+	a.movsxd(rax, dword_ptr(rcx, rax, 2));
+	a.add(rax, rcx);
+	a.jmp(rax);
+
+	a.bind(tablebase);
+	for (u32 i = 0; i < count; i++)
+		a.embed_label_delta(targets[i], tablebase, 4);
 }
 
 
