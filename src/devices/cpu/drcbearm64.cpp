@@ -1805,6 +1805,23 @@ drcbe_arm64::~drcbe_arm64()
 
 size_t drcbe_arm64::emit(CodeHolder &ch, bool invariant)
 {
+	Error err;
+
+	if (ch.has_reloc_entries())
+	{
+		err = ch.flatten();
+		if (err != kErrorOk)
+			throw emu_fatalerror("CodeHolder::flatten() error %u", std::underlying_type_t<Error>(err));
+
+		err = ch.resolve_cross_section_fixups();
+		if (err != kErrorOk)
+			throw emu_fatalerror("CodeHolder::resolve_cross_section_fixups() error %u", std::underlying_type_t<Error>(err));
+
+		err = ch.relocate_to_base(ch.base_address());
+		if (err != kErrorOk)
+			throw emu_fatalerror("CodeHolder::relocate_to_base() error %u", std::underlying_type_t<Error>(err));
+	}
+
 	size_t const alignment = ch.base_address() - uint64_t(m_cache.top());
 	size_t const code_size = ch.code_size();
 
@@ -1816,7 +1833,7 @@ size_t drcbe_arm64::emit(CodeHolder &ch, bool invariant)
 		return 0;
 
 	assert(uintptr_t(space) <= ch.base_address());
-	Error const err = ch.copy_flattened_data(drccodeptr(ch.base_address()), code_size, CopySectionFlags::kPadTargetBuffer);
+	err = ch.copy_flattened_data(drccodeptr(ch.base_address()), code_size, CopySectionFlags::kPadTargetBuffer);
 	if (err != kErrorOk)
 		throw emu_fatalerror("CodeHolder::copy_flattened_data() error %u", std::underlying_type_t<Error>(err));
 

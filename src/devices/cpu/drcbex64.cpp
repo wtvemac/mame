@@ -1383,9 +1383,7 @@ size_t drcbe_x64::emit(CodeHolder &ch, bool invariant)
 {
 	Error err;
 
-	// the following three calls aren't currently required, but may be if
-	// other asmjit features are used in future
-	if (false)
+	if (ch.has_reloc_entries())
 	{
 		err = ch.flatten();
 		if (err != kErrorOk)
