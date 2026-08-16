@@ -734,7 +734,7 @@ inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst, 
 	case uml::OP_EXIT:    op_exit(a, inst);       break; // EXIT    src1[,c]
 	case uml::OP_HASHJMP: op_hashjmp(a, inst);    break; // HASHJMP mode,pc,handle
 	case uml::OP_JMP:     op_jmp(a, inst);        break; // JMP     imm[,c]
-	case uml::OP_JMPT:    op_jmpt(a, inst);       break; // JMPT    index,table,count
+	case uml::OP_JMPT:    op_jmpt(a, inst);       break; // JMPT    index,table,count,out_of_range
 	case uml::OP_EXH:     op_exh(a, inst);        break; // EXH     handle,param[,c]
 	case uml::OP_CALLH:   op_callh(a, inst);      break; // CALLH   handle[,c]
 	case uml::OP_RET:     op_ret(a, inst);        break; // RET     [c]
@@ -2410,6 +2410,8 @@ void drcbe_x64::op_jmpt(Assembler &a, const instruction &inst)
 	assert(tablep.is_memory());
 	const parameter &countp = inst.param(2);
 	assert(countp.is_immediate());
+	const parameter &oorp = inst.param(3);
+	assert(oorp.is_code_label());
 
 	const u32 *const table = reinterpret_cast<const u32 *>(tablep.memory());
 	const u32 count = u32(countp.immediate());
@@ -2426,7 +2428,15 @@ void drcbe_x64::op_jmpt(Assembler &a, const instruction &inst)
 		targets.push_back(lab);
 	}
 
+	std::string oorName = util::string_format("PC$%x", oorp.label());
+	Label out_of_range = a.label_by_name(oorName.c_str());
+	if (!out_of_range.is_valid())
+		out_of_range = a.new_named_label(oorName.c_str());
+
 	mov_reg_param(a, eax, indexp);
+
+	a.cmp(eax, count);
+	a.j(CondCode::kUnsignedGE, out_of_range);
 
 	Label tablebase = a.new_label();
 	a.lea(rcx, ptr(tablebase));
