@@ -145,7 +145,7 @@ opcode_info const instruction::s_opcode_info_table[OP_MAX] =
 	OPINFO1(EXIT,    "exit",     4,   true,  NONE, NONE, ALL,  PINFO(IN, OP, IANY))
 	OPINFO3(HASHJMP, "hashjmp",  4,   false, NONE, NONE, ALL,  PINFO(IN, OP, IANY), PINFO(IN, OP, IANY), PINFO(IN, OP, HANDLE))
 	OPINFO1(JMP,     "jmp",      4,   true,  NONE, NONE, NONE, PINFO(IN, OP, LABEL))
-	OPINFO3(JMPT,    "jmpt",     4,   false, NONE, NONE, ALL,  PINFO(IN, OP, IANY), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY)) // indexed jump
+	OPINFO4(JMPT,    "jmpt",     4,   false, NONE, NONE, ALL,  PINFO(IN, OP, IANY), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY), PINFO(IN, OP, LABEL)) // indexed jump
 	OPINFO2(EXH,     "exh",      4,   true,  NONE, NONE, ALL,  PINFO(IN, OP, HANDLE), PINFO(IN, OP, IANY)) // Call exception handler
 	OPINFO1(CALLH,   "callh",    4,   true,  NONE, NONE, ALL,  PINFO(IN, OP, HANDLE)) // Call handle
 	OPINFO0(RET,     "ret",      4,   true,  NONE, NONE, NONE)
