@@ -154,7 +154,7 @@ namespace uml {
 		OP_EXIT,                    // EXIT    src1[,c]
 		OP_HASHJMP,                 // HASHJMP mode,pc,handle
 		OP_JMP,                     // JMP     imm[,c]
-		OP_JMPT,                    // JMPT    index,table,count,out_of_range
+		OP_JMPT,                    // JMPT    index,table,count,chain_count
 		OP_EXH,                     // EXH     handle,param[,c]
 		OP_CALLH,                   // CALLH   handle[,c]
 		OP_RET,                     // RET     [c]
@@ -483,7 +483,7 @@ namespace uml {
 		void hashjmp(parameter mode, parameter pc, code_handle &handle) { configure(OP_HASHJMP, 4, mode, pc, handle); }
 		void jmp(code_label label) { configure(OP_JMP, 4, label); }
 		void jmp(condition_t cond, code_label label) { configure(OP_JMP, 4, label, cond); }
-		void jmpt(parameter index, const u32 *table, u32 count, code_label out_of_range) { configure(OP_JMPT, 4, index, parameter::make_memory(const_cast<u32 *>(table)), parameter(u64(count)), out_of_range); }
+		void jmpt(parameter index, const u32 *table, u32 count, u32 chain_count = 0) { configure(OP_JMPT, 4, index, parameter::make_memory(const_cast<u32 *>(table)), parameter(count), parameter(chain_count)); }
 		void exh(code_handle &handle, parameter param) { configure(OP_EXH, 4, handle, param); }
 		void exh(condition_t cond, code_handle &handle, parameter param) { configure(OP_EXH, 4, handle, param, cond); }
 		void callh(code_handle &handle) { configure(OP_CALLH, 4, handle); }

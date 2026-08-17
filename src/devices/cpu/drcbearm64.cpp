@@ -131,6 +131,7 @@ TODO:
 #include <string>
 #include <sstream>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -634,6 +635,8 @@ private:
 	void op_vishr(a64::Assembler &a, const uml::instruction &inst);
 	void op_visar(a64::Assembler &a, const uml::instruction &inst);
 
+	Label get_pc_label(a64::Assembler &a, u32 pc);
+
 	template <a64::Inst::Id Opcode> void op_float_alu(a64::Assembler &a, const uml::instruction &inst);
 	template <a64::Inst::Id Opcode> void op_float_alu2(a64::Assembler &a, const uml::instruction &inst);
 
@@ -710,6 +713,8 @@ private:
 	near_state &m_near;
 
 	uintptr_t m_linemask;
+
+	std::unordered_map<uint32_t, Label> m_pc_labels;
 
 	resolved_member_function m_debug_cpu_instruction_hook;
 	resolved_member_function m_drcmap_get_value;
@@ -1871,6 +1876,7 @@ void drcbe_arm64::generate(drcuml_block &block, const instruction *instlist, uin
 	m_map.block_begin(block);
 	m_carry_state = carry_state::POISON;
 	m_invariant_block = block.invariant();
+	m_pc_labels.clear();
 
 	// compute the base by aligning the cache top to a cache line
 	if (!m_linemask)
@@ -2003,6 +2009,18 @@ void drcbe_arm64::get_info(drcbe_info &info) const noexcept
 	}
 }
 
+Label drcbe_arm64::get_pc_label(a64::Assembler &a, uint32_t pc)
+{
+	auto const it = m_pc_labels.find(pc);
+	if (it != m_pc_labels.end())
+		return it->second;
+
+	Label const label = a.code()->logger()
+			? a.new_named_label(util::string_format("PC$%x", pc).c_str())
+			: a.new_label();
+	m_pc_labels.emplace(pc, label);
+	return label;
+}
 
 [[noreturn]] void drcbe_arm64::end_of_block() const
 {
@@ -2063,10 +2081,7 @@ void drcbe_arm64::op_label(a64::Assembler &a, const uml::instruction &inst)
 
 	m_carry_state = carry_state::POISON;
 
-	std::string labelName = util::string_format("PC$%x", inst.param(0).label());
-	Label label = a.label_by_name(labelName.c_str());
-	if (!label.is_valid())
-		label = a.new_named_label(labelName.c_str());
+	Label label = get_pc_label(a, inst.param(0).label());
 
 	a.bind(label);
 }
@@ -2275,10 +2290,7 @@ void drcbe_arm64::op_jmp(a64::Assembler &a, const uml::instruction &inst)
 	const parameter &labelp = inst.param(0);
 	assert(labelp.is_code_label());
 
-	std::string labelName = util::string_format("PC$%x", labelp.label());
-	Label jmptarget = a.label_by_name(labelName.c_str());
-	if (!jmptarget.is_valid())
-		jmptarget = a.new_named_label(labelName.c_str());
+	Label jmptarget = get_pc_label(a, labelp.label());
 
 	if (inst.condition() == uml::COND_ALWAYS)
 	{
@@ -2351,33 +2363,27 @@ void drcbe_arm64::op_jmpt(a64::Assembler &a, const uml::instruction &inst)
 	assert(tablep.is_memory());
 	const parameter &countp = inst.param(2);
 	assert(countp.is_immediate());
-	const parameter &oorp = inst.param(3);
-	assert(oorp.is_code_label());
+	const parameter &chain_countp = inst.param(3);
+	assert(chain_countp.is_immediate());
 
 	const u32 *const table = reinterpret_cast<const u32 *>(tablep.memory());
 	const u32 count = u32(countp.immediate());
+	const u32 chain_count = u32(chain_countp.immediate());
 	assert(count > 0);
+	assert(chain_count < count);
 
 	std::vector<Label> targets;
 	targets.reserve(count);
 	for (u32 i = 0; i < count; i++)
-	{
-		std::string labelName = util::string_format("PC$%x", table[i]);
-		Label lab = a.label_by_name(labelName.c_str());
-		if (!lab.is_valid())
-			lab = a.new_named_label(labelName.c_str());
-		targets.push_back(lab);
-	}
-
-	std::string oorName = util::string_format("PC$%x", oorp.label());
-	Label out_of_range = a.label_by_name(oorName.c_str());
-	if (!out_of_range.is_valid())
-		out_of_range = a.new_named_label(oorName.c_str());
+		targets.push_back(get_pc_label(a, table[i]));
 
 	mov_reg_param(a, 4, TEMP_REG2.w(), indexp);
 
-	a.cmp(TEMP_REG2.w(), count);
-	a.b(a64::CondCode::kHS, out_of_range);
+	for (u32 i = 1; i <= chain_count; i++)
+	{
+		a.cmp(TEMP_REG2.w(), i);
+		a.b(a64::CondCode::kEQ, targets[i]);
+	}
 
 	Label tablebase = a.new_label();
 	a.adr(TEMP_REG1, tablebase);

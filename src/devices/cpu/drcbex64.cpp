@@ -215,6 +215,7 @@
 #include <string>
 #include <sstream>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -622,6 +623,9 @@ private:
 	void op_vishr(Assembler &a, const uml::instruction &inst);
 	void op_visar(Assembler &a, const uml::instruction &inst);
 
+	// control flow helpers
+	Label get_pc_label(Assembler &a, u32 pc);
+
 	// alu and shift operation helpers
 	static bool ones(u64 const value, unsigned const size) noexcept { return (size == 4) ? u32(value) == 0xffffffffU : value == 0xffffffff'ffffffffULL; }
 	template <typename T>
@@ -677,6 +681,8 @@ private:
 	uintptr_t               m_linemask;             // cache line size mask
 
 	bool                    m_invariant_block;      // are we generating an invariant block?
+
+	std::unordered_map<u32, Label> m_pc_labels;
 
 	resolved_member_function m_debug_cpu_instruction_hook;
 	resolved_member_function m_drcmap_get_value;
@@ -1464,6 +1470,7 @@ void drcbe_x64::generate(drcuml_block &block, const instruction *instlist, u32 n
 	m_hash.block_begin(block, instlist, numinst);
 	m_map.block_begin(block);
 	m_invariant_block = block.invariant();
+	m_pc_labels.clear();
 
 	// compute the base by aligning the cache top to a cache line
 	if (!m_linemask)
@@ -1624,6 +1631,23 @@ void drcbe_x64::get_info(drcbe_info &info) const noexcept
 	for (info.direct_fregs = 0; info.direct_fregs < REG_F_COUNT; info.direct_fregs++)
 		if (float_register_map[info.direct_fregs] == 0)
 			break;
+}
+
+//-------------------------------------------------
+//  get_pc_label - resolve asmjit label to PC value
+//-------------------------------------------------
+
+Label drcbe_x64::get_pc_label(Assembler &a, u32 pc)
+{
+	auto const it = m_pc_labels.find(pc);
+	if (it != m_pc_labels.end())
+		return it->second;
+
+	Label const label = a.code()->logger()
+			? a.new_named_label(util::string_format("PC$%x", pc).c_str())
+			: a.new_label();
+	m_pc_labels.emplace(pc, label);
+	return label;
 }
 
 template <typename T>
@@ -2147,10 +2171,7 @@ void drcbe_x64::op_label(Assembler &a, const instruction &inst)
 	assert(inst.numparams() == 1);
 	assert(inst.param(0).is_code_label());
 
-	std::string labelName = util::string_format("PC$%x", inst.param(0).label());
-	Label label = a.label_by_name(labelName.c_str());
-	if (!label.is_valid())
-		label = a.new_named_label(labelName.c_str());
+	Label label = get_pc_label(a, inst.param(0).label());
 
 	// register the current pointer for the label
 	a.bind(label);
@@ -2379,10 +2400,7 @@ void drcbe_x64::op_jmp(Assembler &a, const instruction &inst)
 	const parameter &labelp = inst.param(0);
 	assert(labelp.is_code_label());
 
-	std::string labelName = util::string_format("PC$%x", labelp.label());
-	Label jmptarget = a.label_by_name(labelName.c_str());
-	if (!jmptarget.is_valid())
-		jmptarget = a.new_named_label(labelName.c_str());
+	Label jmptarget = get_pc_label(a, labelp.label());
 
 	if (inst.condition() == uml::COND_ALWAYS)
 		a.jmp(jmptarget);                                                               // jmp   target
@@ -2408,33 +2426,27 @@ void drcbe_x64::op_jmpt(Assembler &a, const instruction &inst)
 	assert(tablep.is_memory());
 	const parameter &countp = inst.param(2);
 	assert(countp.is_immediate());
-	const parameter &oorp = inst.param(3);
-	assert(oorp.is_code_label());
+	const parameter &chain_countp = inst.param(3);
+	assert(chain_countp.is_immediate());
 
 	const u32 *const table = reinterpret_cast<const u32 *>(tablep.memory());
 	const u32 count = u32(countp.immediate());
+	const u32 chain_count = u32(chain_countp.immediate());
 	assert(count > 0);
+	assert(chain_count < count);
 
 	std::vector<Label> targets;
 	targets.reserve(count);
 	for (u32 i = 0; i < count; i++)
-	{
-		std::string labelName = util::string_format("PC$%x", table[i]);
-		Label lab = a.label_by_name(labelName.c_str());
-		if (!lab.is_valid())
-			lab = a.new_named_label(labelName.c_str());
-		targets.push_back(lab);
-	}
-
-	std::string oorName = util::string_format("PC$%x", oorp.label());
-	Label out_of_range = a.label_by_name(oorName.c_str());
-	if (!out_of_range.is_valid())
-		out_of_range = a.new_named_label(oorName.c_str());
+		targets.push_back(get_pc_label(a, table[i]));
 
 	mov_reg_param(a, eax, indexp);
 
-	a.cmp(eax, count);
-	a.j(CondCode::kUnsignedGE, out_of_range);
+	for (u32 i = 1; i <= chain_count; i++)
+	{
+		a.cmp(eax, i);
+		a.je(targets[i]);
+	}
 
 	Label tablebase = a.new_label();
 	a.lea(rcx, ptr(tablebase));
