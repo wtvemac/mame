@@ -36,7 +36,7 @@
 #define UML_HASHJMP(block, mode, pc, handle)                do { using namespace uml; block.append().hashjmp(mode, pc, handle); } while (0)
 #define UML_JMP(block, label)                               do { using namespace uml; block.append().jmp(label); } while (0)
 #define UML_JMPc(block, cond, label)                        do { using namespace uml; block.append().jmp(cond, label); } while (0)
-#define UML_JMPT(block, index, table, count, out_of_range)  do { using namespace uml; block.append().jmpt(index, table, count, out_of_range); } while (0)
+#define UML_JMPT(block, index, table, count, chain_count)   do { using namespace uml; block.append().jmpt(index, table, count, chain_count); } while (0)
 #define UML_EXH(block, handle, param)                       do { using namespace uml; block.append().exh(handle, param); } while (0)
 #define UML_EXHc(block, cond, handle, param)                do { using namespace uml; block.append().exh(cond, handle, param); } while (0)
 #define UML_CALLH(block, handle)                            do { using namespace uml; block.append().callh(handle); } while (0)
