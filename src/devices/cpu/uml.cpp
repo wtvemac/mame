@@ -247,6 +247,9 @@ opcode_info const instruction::s_opcode_info_table[OP_MAX] =
 	OPINFO4(VISHL,    "vishl",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY), PINFO(IN, OP, SIZE)) // Packed logical shift left, uniform count
 	OPINFO4(VISHR,    "vishr",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY), PINFO(IN, OP, SIZE)) // Packed logical shift right, uniform count
 	OPINFO4(VISAR,    "visar",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, IANY), PINFO(IN, OP, SIZE)) // Packed arithmetic shift right, uniform count
+
+	// Cache Operations
+	OPINFO4(PREFETCH, "prefetch", 4,  false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, 4, IANY), PINFO(IN, OP, IMV), PINFO(IN, OP, IMV)) // Give CPU hints about what/how to cache
 };
 
 

@@ -218,4 +218,8 @@
 #define UML_VISAR(block, dst, src1, count, size)            do { using namespace uml; block.append().visar(dst, src1, count, size); } while (0)
 
 
+/* ----- Cache Operations ----- */
+#define UML_PREFETCH(block, base, index, lines_ahead, hint) do { using namespace uml; block.append().prefetch(base, index, lines_ahead, hint); } while (0)
+
+
 #endif // MAME_CPU_DRCUMLSH_H
