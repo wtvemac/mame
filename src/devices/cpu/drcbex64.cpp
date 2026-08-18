@@ -1483,23 +1483,21 @@ void drcbe_x64::generate(drcuml_block &block, const instruction *instlist, u32 n
 	// compute the base by aligning the cache top to a cache line
 	if (!m_linemask)
 	{
-		auto [err, m_linemask] = osd_get_cache_line_size();
-#ifdef __cpp_lib_hardware_interference_size
-		m_linemask = (std::hardware_destructive_interference_size - 1);
-#else
-		m_linemask = 63;
-#endif
+		auto [err, line_size] = osd_get_cache_line_size();
 		if (err)
 		{
 			osd_printf_verbose("drcbe_x64(%s): Error getting cache line size (%s:%d %s), assuming 64 bytes\n", m_device.tag(), err.category().name(), err.value(), err.message());
+#ifdef __cpp_lib_hardware_interference_size
+			line_size = std::hardware_destructive_interference_size;
+#else
+			line_size = 64;
+#endif
 		}
-		else
-		{
-			assert(m_linemask);
-			m_linemask = m_linemask - 1;
-			for (unsigned shift = 1; m_linemask & (m_linemask + 1); ++shift)
-				m_linemask |= m_linemask >> shift;
-		}
+		assert(line_size);
+		line_size = line_size - 1;
+		for (unsigned shift = 1; line_size & (line_size + 1); ++shift)
+			line_size |= line_size >> shift;
+		m_linemask = line_size;
 	}
 
 	x86code *dst = (x86code *)(uintptr_t(m_cache.top() + m_linemask) & ~m_linemask);
