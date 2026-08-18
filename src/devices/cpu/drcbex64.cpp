@@ -623,6 +623,8 @@ private:
 	void op_vishr(Assembler &a, const uml::instruction &inst);
 	void op_visar(Assembler &a, const uml::instruction &inst);
 
+	void op_prefetch(Assembler &a, const uml::instruction &inst);
+
 	// control flow helpers
 	Label get_pc_label(Assembler &a, u32 pc);
 
@@ -666,6 +668,7 @@ private:
 	bool                    m_bmi2;                 // do we have BMI2 support?
 	bool                    m_sse4_1;               // do we have SSE4.1 support?
 	bool                    m_avx2;                 // do we have AVX2 support?
+	bool                    m_prefetchw;            // do we have PREFETCHW support?
 
 	u32 *                   m_absmask32;            // absolute value mask (32-bit)
 	u64 *                   m_absmask64;            // absolute value mask (32-bit)
@@ -842,6 +845,9 @@ inline void drcbe_x64::generate_one(Assembler &a, const uml::instruction &inst, 
 	case uml::OP_VISHL:    op_vishl(a, inst);     break; // VISHL    dst,src1,count,size
 	case uml::OP_VISHR:    op_vishr(a, inst);     break; // VISHR    dst,src1,count,size
 	case uml::OP_VISAR:    op_visar(a, inst);     break; // VISAR    dst,src1,count,size
+
+	// Cache Operations
+	case uml::OP_PREFETCH: op_prefetch(a, inst);  break; // PREFETCH base,index,lines_ahead,hint
 
 	default: throw emu_fatalerror("drcbe_x64(%s): unhandled opcode %u\n", m_device.tag(), inst.opcode());
 	}
@@ -1123,6 +1129,7 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	, m_bmi2(false)
 	, m_sse4_1(false)
 	, m_avx2(false)
+	, m_prefetchw(false)
 	, m_absmask32((u32 *)cache.alloc_near(16*2 + 15, std::align_val_t(alignof(u32))))
 	, m_absmask64(nullptr)
 	, m_rbpvalue(cache.near() + 0x80)
@@ -1141,6 +1148,7 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	m_bmi2 = x86_features.has_bmi2();
 	m_sse4_1 = x86_features.has_sse4_1();
 	m_avx2 = x86_features.has_avx2();
+	m_prefetchw = x86_features.has_prefetchw();
 
 	// build up necessary arrays
 	constexpr u32 sse_control[4] =
@@ -7039,6 +7047,56 @@ void drcbe_x64::op_icopyf(Assembler &a, const instruction &inst)
 		{
 			a.movq(gpq(dstp.ireg()), xmm(srcp.freg()));
 		}
+	}
+}
+
+
+//-------------------------------------------------
+//  op_prefetch - process a PREFETCH opcode
+//-------------------------------------------------
+
+void drcbe_x64::op_prefetch(Assembler &a, const instruction &inst)
+{
+	// validate instruction
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter basep(*this, inst.param(0), PTYPE_M);
+	be_parameter indp(*this, inst.param(1), PTYPE_MRI);
+	const parameter &lines_aheadp = inst.param(2);
+	assert(lines_aheadp.is_immediate());
+	const parameter &hintp = inst.param(3);
+	assert(hintp.is_immediate());
+	bool const for_write = uml::prefetch_hint(hintp.immediate()) == uml::FOR_WRITE;
+
+	if (for_write && !m_prefetchw)
+		return;
+
+	assert(m_linemask);
+	s32 const extra_offset = s32(u32(lines_aheadp.immediate())) * s32(m_linemask + 1);
+
+	s32 baseoffs;
+	const Gp basereg = get_base_register_and_offset(a, basep.memory(), rdx, baseoffs);
+	baseoffs += extra_offset;
+
+	if (indp.is_immediate())
+	{
+		ptrdiff_t const offset = baseoffs + ptrdiff_t(s32(u32(indp.immediate())));
+		if (for_write)
+			a.prefetchw(byte_ptr(basereg, offset));
+		else
+			a.prefetchnta(byte_ptr(basereg, offset));
+	}
+	else
+	{
+		const Gp indreg = rcx;
+		movsx_r64_p32(a, indreg, indp);
+		if (for_write)
+			a.prefetchw(byte_ptr(basereg, indreg, 0, baseoffs));
+		else
+			a.prefetchnta(byte_ptr(basereg, indreg, 0, baseoffs));
 	}
 }
 

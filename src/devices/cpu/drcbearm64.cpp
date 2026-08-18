@@ -635,6 +635,8 @@ private:
 	void op_vishr(a64::Assembler &a, const uml::instruction &inst);
 	void op_visar(a64::Assembler &a, const uml::instruction &inst);
 
+	void op_prefetch(a64::Assembler &a, const uml::instruction &inst);
+
 	Label get_pc_label(a64::Assembler &a, u32 pc);
 
 	template <a64::Inst::Id Opcode> void op_float_alu(a64::Assembler &a, const uml::instruction &inst);
@@ -842,6 +844,9 @@ inline void drcbe_arm64::generate_one(a64::Assembler &a, const uml::instruction 
 	case uml::OP_VISHL:    op_vishl(a, inst);                               break; // VISHL    dst,src1,count,size
 	case uml::OP_VISHR:    op_vishr(a, inst);                               break; // VISHR    dst,src1,count,size
 	case uml::OP_VISAR:    op_visar(a, inst);                               break; // VISAR    dst,src1,count,size
+
+	// Cache Operations
+	case uml::OP_PREFETCH: op_prefetch(a, inst);                            break; // PREFETCH base,index,lines_ahead,hint
 
 	default: throw emu_fatalerror("drcbe_arm64(%s): unhandled opcode %u\n", m_device.tag(), inst.opcode());
 	}
@@ -5932,6 +5937,52 @@ void drcbe_arm64::op_icopyf(a64::Assembler &a, const uml::instruction &inst)
 	mov_float_reg_param(a, inst.size(), srcreg, srcp);
 	a.fmov(dstreg, srcreg);
 	mov_param_reg(a, inst.size(), dstp, dstreg);
+}
+
+void drcbe_arm64::op_prefetch(a64::Assembler &a, const uml::instruction &inst)
+{
+	assert(inst.size() == 4);
+	assert_no_condition(inst);
+	assert_no_flags(inst);
+
+	// normalize parameters
+	be_parameter basep(*this, inst.param(0), PTYPE_M);
+	be_parameter indp(*this, inst.param(1), PTYPE_MRI);
+	const uml::parameter &lines_aheadp = inst.param(2);
+	assert(lines_aheadp.is_immediate());
+	const uml::parameter &hintp = inst.param(3);
+	assert(hintp.is_immediate());
+	bool const for_write = uml::prefetch_hint(hintp.immediate()) == uml::FOR_WRITE;
+
+	assert(m_linemask);
+	int32_t const extra_offset = int32_t(uint32_t(lines_aheadp.immediate())) * int32_t(m_linemask + 1);
+
+	const a64::Gp basereg = TEMP_REG1;
+	get_imm_relative(a, basereg, uint64_t(basep.memory()));
+
+	const a64::Gp indreg = TEMP_REG2;
+	if (indp.is_immediate())
+		get_imm_relative(a, indreg, uint64_t(int64_t(int32_t(uint32_t(indp.immediate()))) + extra_offset));
+	else if (indp.is_int_register())
+	{
+		a.sxtw(indreg, indp.get_register_int(4));
+		if (extra_offset)
+			a.add(indreg, indreg, extra_offset);
+	}
+	else if ((std::endian::native == std::endian::big) && indp.is_cold_register())
+	{
+		emit_ldrsw_mem(a, indreg, reinterpret_cast<uint8_t *>(indp.memory()) + 4);
+		if (extra_offset)
+			a.add(indreg, indreg, extra_offset);
+	}
+	else
+	{
+		emit_ldrsw_mem(a, indreg, indp.memory());
+		if (extra_offset)
+			a.add(indreg, indreg, extra_offset);
+	}
+
+	a.prfm(for_write ? a64::Predicate::PRFOp::kPSTL1STRM : a64::Predicate::PRFOp::kPLDL1STRM, a64::Mem(basereg, indreg));
 }
 
 void drcbe_arm64::op_vload(a64::Assembler &a, const uml::instruction &inst)

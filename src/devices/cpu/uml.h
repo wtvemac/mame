@@ -126,6 +126,12 @@ namespace uml {
 		SCALE_x8                    // index * 8
 	};
 
+	enum prefetch_hint
+	{
+		FOR_READ = 0,
+		FOR_WRITE
+	};
+
 	// spaces
 	enum memory_space
 	{
@@ -256,6 +262,9 @@ namespace uml {
 		OP_VISHL,                   // VISHL   dst,src1,count,size
 		OP_VISHR,                   // VISHR   dst,src1,count,size
 		OP_VISAR,                   // VISAR   dst,src1,count,size
+
+		// cache operations
+		OP_PREFETCH,                // PREFETCH base,index,lines_ahead,hint
 
 		OP_MAX
 	};
@@ -657,6 +666,9 @@ namespace uml {
 		void vishl    (void *dst, void const *src1, parameter count, operand_size elemsize) { configure(OP_VISHL, 4, parameter::make_memory(dst), parameter::make_memory(src1), count, parameter::make_size(elemsize)); }
 		void vishr    (void *dst, void const *src1, parameter count, operand_size elemsize) { configure(OP_VISHR, 4, parameter::make_memory(dst), parameter::make_memory(src1), count, parameter::make_size(elemsize)); }
 		void visar    (void *dst, void const *src1, parameter count, operand_size elemsize) { configure(OP_VISAR, 4, parameter::make_memory(dst), parameter::make_memory(src1), count, parameter::make_size(elemsize)); }
+
+		// cache operations
+		void prefetch(void const *base, parameter index, u32 lines_ahead, u32 hint) { configure(OP_PREFETCH, 4, parameter::make_memory(base), index, parameter(u64(lines_ahead)), parameter(u64(hint))); }
 
 	private:
 		// internal configuration
