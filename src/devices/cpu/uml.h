@@ -347,6 +347,7 @@ namespace uml {
 		constexpr parameter(u64 val) : m_type(PTYPE_IMMEDIATE), m_value(val) { }
 		parameter(operand_size size, memory_scale scale) : m_type(PTYPE_SIZE_SCALE), m_value((scale << 4) | size) { assert(size >= SIZE_BYTE && size <= SIZE_QWORD); assert(scale >= SCALE_x1 && scale <= SCALE_x8); }
 		parameter(operand_size size, memory_space space) : m_type(PTYPE_SIZE_SPACE), m_value((space << 4) | size) { assert(size >= SIZE_BYTE && size <= SIZE_QWORD); }
+		parameter(operand_size size, memory_space space, bool no_fp_side_effects) : m_type(PTYPE_SIZE_SPACE), m_value((u64(no_fp_side_effects) << 8) | (space << 4) | size) { assert(size >= SIZE_BYTE && size <= SIZE_QWORD); }
 		parameter(code_handle &handle) : m_type(PTYPE_CODE_HANDLE), m_value(reinterpret_cast<parameter_value>(&handle)) { }
 		constexpr parameter(code_label const &label) : m_type(PTYPE_CODE_LABEL), m_value(label) { }
 
@@ -375,7 +376,8 @@ namespace uml {
 		void *memory() const { assert(m_type == PTYPE_MEMORY); return reinterpret_cast<void *>(m_value); }
 		operand_size size() const { assert(m_type == PTYPE_SIZE || m_type == PTYPE_SIZE_SCALE || m_type == PTYPE_SIZE_SPACE); return operand_size(m_value & 15); }
 		memory_scale scale() const { assert(m_type == PTYPE_SIZE_SCALE); return memory_scale(m_value >> 4); }
-		memory_space space() const { assert(m_type == PTYPE_SIZE_SPACE); return memory_space(m_value >> 4); }
+		memory_space space() const { assert(m_type == PTYPE_SIZE_SPACE); return memory_space((m_value >> 4) & 15); }
+		bool no_fp_side_effects() const { assert(m_type == PTYPE_SIZE_SPACE); return (m_value >> 8) & 1; }
 		code_handle &handle() const { assert(m_type == PTYPE_CODE_HANDLE); return *reinterpret_cast<code_handle *>(m_value); }
 		code_label label() const { assert(m_type == PTYPE_CODE_LABEL); return code_label(m_value); }
 		c_function cfunc() const { assert(m_type == PTYPE_C_FUNCTION); return reinterpret_cast<c_function>(uintptr_t(m_value)); }
@@ -516,10 +518,10 @@ namespace uml {
 		void load(parameter dst, void const *base, parameter index, operand_size size, memory_scale scale) { configure(OP_LOAD, 4, dst, parameter::make_memory(base), index, parameter(size, scale)); }
 		void loads(parameter dst, void const *base, parameter index, operand_size size, memory_scale scale) { configure(OP_LOADS, 4, dst, parameter::make_memory(base), index, parameter(size, scale)); }
 		void store(void *base, parameter index, parameter src1, operand_size size, memory_scale scale) { configure(OP_STORE, 4, parameter::make_memory(base), index, src1, parameter(size, scale)); }
-		void read(parameter dst, parameter addr, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_READ, 4, dst, addr, parameter(size, space)); }
-		void readm(parameter dst, parameter addr, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_READM, 4, dst, addr, mask, parameter(size, space)); }
-		void write(parameter addr, parameter src1, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_WRITE, 4, addr, src1, parameter(size, space)); }
-		void writem(parameter addr, parameter src1, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_WRITEM, 4, addr, src1, mask, parameter(size, space)); }
+		void read(parameter dst, parameter addr, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_READ, 4, dst, addr, parameter(size, space, no_fp_side_effects)); }
+		void readm(parameter dst, parameter addr, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_READM, 4, dst, addr, mask, parameter(size, space, no_fp_side_effects)); }
+		void write(parameter addr, parameter src1, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_WRITE, 4, addr, src1, parameter(size, space, no_fp_side_effects)); }
+		void writem(parameter addr, parameter src1, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_WRITEM, 4, addr, src1, mask, parameter(size, space, no_fp_side_effects)); }
 		void carry(parameter src, parameter bitnum) { configure(OP_CARRY, 4, src, bitnum); }
 		void set(condition_t cond, parameter dst) { configure(OP_SET, 4, dst, cond); }
 		void mov(parameter dst, parameter src1) { configure(OP_MOV, 4, dst, src1); }
