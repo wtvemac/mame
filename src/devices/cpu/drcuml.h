@@ -172,6 +172,8 @@ public:
 	virtual hash_codeptr hash_get_codeptr(u32 mode, u32 pc) const noexcept;
 	virtual bool hash_set_codeptr(u32 mode, u32 pc, hash_codeptr code) noexcept;
 
+	virtual u32 max_supported_vector_bytes() const noexcept { return 16; }
+
 private:
 
 
@@ -287,6 +289,8 @@ public:
 	void hash_invalidate_range(u32 pcstart, u32 pcend) { m_beintf->hash_invalidate_range(pcstart, pcend); }
 	hash_codeptr hash_get_codeptr(u32 mode, u32 pc) const { return m_beintf->hash_get_codeptr(mode, pc); }
 	bool hash_set_codeptr(u32 mode, u32 pc, hash_codeptr code) { return m_beintf->hash_set_codeptr(mode, pc, code); }
+	u32 max_supported_vector_bytes() const { return m_beintf->max_supported_vector_bytes(); }
+	void generate(drcuml_block &block, uml::instruction *instructions, u32 count) { m_beintf->generate(block, instructions, count); }
 
 	// handle management
 	uml::code_handle *handle_alloc(char const *name);

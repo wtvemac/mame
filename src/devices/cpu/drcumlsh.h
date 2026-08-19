@@ -202,6 +202,9 @@
 /* ----- Vector Operations ----- */
 #define UML_VLOAD(block, dst, base, index)                  do { using namespace uml; block.append().vload(dst, base, index); } while (0)
 #define UML_VSTORE(block, base, index, src)                 do { using namespace uml; block.append().vstore(base, index, src); } while (0)
+#define UML_VLOADW(block, dst, base, index, width)          do { using namespace uml; block.append().vload(dst, base, index, width); } while (0)
+#define UML_VSTOREW(block, base, index, src, width)         do { using namespace uml; block.append().vstore(base, index, src, width); } while (0)
+#define UML_VZEROU(block)                                   do { using namespace uml; block.append().vzerou(); } while (0)
 #define UML_VBCASTB(block, dst, src)                        do { using namespace uml; block.append().vbcastb(dst, src); } while (0)
 #define UML_VIADD(block, dst, src1, src2, size)             do { using namespace uml; block.append().viadd(dst, src1, src2, size); } while (0)
 #define UML_VISUB(block, dst, src1, src2, size)             do { using namespace uml; block.append().visub(dst, src1, src2, size); } while (0)
