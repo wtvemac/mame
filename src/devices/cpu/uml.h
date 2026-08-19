@@ -117,6 +117,13 @@ namespace uml {
 		SIZE_DOUBLE = SIZE_QWORD    // 8-byte (float)
 	};
 
+	enum vector_width : u32
+	{
+		VECTOR_WIDTH_128 = 16,
+		VECTOR_WIDTH_256 = 32,
+		VECTOR_WIDTH_512 = 64,
+	};
+
 	// memory scale factors
 	enum memory_scale
 	{
@@ -242,8 +249,9 @@ namespace uml {
 		OP_ICOPYF,                  // ICOPYF  dst,src
 
 		// vector operations
-		OP_VLOAD,                   // VLOAD   dst,base,index
-		OP_VSTORE,                  // VSTORE  base,index,src
+		OP_VLOAD,                   // VLOAD   dst,base,index[,width]
+		OP_VSTORE,                  // VSTORE  base,index,src[,width]
+		OP_VZEROU,                  // VZEROU
 		OP_VBCASTB,                 // VBCASTB dst,src
 		OP_VIADD,                   // VIADD   dst,src1,src2,size
 		OP_VISUB,                   // VISUB   dst,src1,src2,size
@@ -648,8 +656,9 @@ namespace uml {
 		void icopyfd(parameter dst, parameter src) { configure(OP_ICOPYF, 8, dst, src); }
 
 		// vector operations
-		void vload(parameter dst, void const *base, parameter index) { configure(OP_VLOAD, 4, dst, parameter::make_memory(base), index); }
-		void vstore(void *base, parameter index, parameter src1) { configure(OP_VSTORE, 4, parameter::make_memory(base), index, src1); }
+		void vload(parameter dst, void const *base, parameter index, u32 width_bytes = VECTOR_WIDTH_128) { configure(OP_VLOAD, 4, dst, parameter::make_memory(base), index, parameter(u64(width_bytes))); }
+		void vstore(void *base, parameter index, parameter src1, u32 width_bytes = VECTOR_WIDTH_128) { configure(OP_VSTORE, 4, parameter::make_memory(base), index, src1, parameter(u64(width_bytes))); }
+		void vzerou() { configure(OP_VZEROU, 4); }
 		void vbcastb(parameter dst, parameter src1) { configure(OP_VBCASTB, 4, dst, src1); }
 		void viadd    (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VIADD,    4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
 		void visub    (void *dst, void const *src1, void const *src2, operand_size elemsize) { configure(OP_VISUB,    4, parameter::make_memory(dst), parameter::make_memory(src1), parameter::make_memory(src2), parameter::make_size(elemsize)); }
