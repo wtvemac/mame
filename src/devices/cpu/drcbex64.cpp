@@ -3361,6 +3361,8 @@ void drcbe_x64::op_read(Assembler &a, const instruction &inst, bool no_pfx_mxcsr
 	be_parameter addrp(*this, inst.param(1), PTYPE_MRI);
 	const parameter &spacesizep = inst.param(2);
 	assert(spacesizep.is_size_space());
+	no_pfx_mxcsr = no_pfx_mxcsr || spacesizep.no_fp_side_effects();
+	no_sfx_mxcsr = no_sfx_mxcsr || spacesizep.no_fp_side_effects();
 
 	// pick a target register for the general case
 	Gp dstreg = dstp.select_register(eax);
@@ -3541,6 +3543,8 @@ void drcbe_x64::op_readm(Assembler &a, const instruction &inst, bool no_pfx_mxcs
 	be_parameter maskp(*this, inst.param(2), PTYPE_MRI);
 	const parameter &spacesizep = inst.param(3);
 	assert(spacesizep.is_size_space());
+	no_pfx_mxcsr = no_pfx_mxcsr || spacesizep.no_fp_side_effects();
+	no_sfx_mxcsr = no_sfx_mxcsr || spacesizep.no_fp_side_effects();
 
 	// pick a target register for the general case
 	Gp dstreg = dstp.select_register(eax);
@@ -3713,6 +3717,8 @@ void drcbe_x64::op_write(Assembler &a, const instruction &inst, bool no_pfx_mxcs
 	be_parameter srcp(*this, inst.param(1), PTYPE_MRI);
 	const parameter &spacesizep = inst.param(2);
 	assert(spacesizep.is_size_space());
+	no_pfx_mxcsr = no_pfx_mxcsr || spacesizep.no_fp_side_effects();
+	no_sfx_mxcsr = no_sfx_mxcsr || spacesizep.no_fp_side_effects();
 
 	// restore caller's floating point environment
 	if (!no_pfx_mxcsr)
@@ -3854,6 +3860,8 @@ void drcbe_x64::op_writem(Assembler &a, const instruction &inst, bool no_pfx_mxc
 	be_parameter maskp(*this, inst.param(2), PTYPE_MRI);
 	const parameter &spacesizep = inst.param(3);
 	assert(spacesizep.is_size_space());
+	no_pfx_mxcsr = no_pfx_mxcsr || spacesizep.no_fp_side_effects();
+	no_sfx_mxcsr = no_sfx_mxcsr || spacesizep.no_fp_side_effects();
 
 	// restore caller's floating point environment
 	if (!no_pfx_mxcsr)
