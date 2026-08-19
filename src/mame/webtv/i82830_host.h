@@ -136,6 +136,10 @@ public:
 		if ((m_ram_size >> 2) > m_ram.size())
 			m_ram.resize((m_ram_size >> 2), 0x00000000);
 	}
+	inline uint32_t get_allocated_ram_size()
+	{
+		return m_ram.size() << 2;
+	}
 	inline uint32_t get_ram_size()
 	{
 		uint32_t ram_size = 0;
