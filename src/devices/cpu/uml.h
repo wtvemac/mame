@@ -569,10 +569,10 @@ namespace uml {
 		void dload(parameter dst, void const *base, parameter index, operand_size size, memory_scale scale) { configure(OP_LOAD, 8, dst, parameter::make_memory(base), index, parameter(size, scale)); }
 		void dloads(parameter dst, void const *base, parameter index, operand_size size, memory_scale scale) { configure(OP_LOADS, 8, dst, parameter::make_memory(base), index, parameter(size, scale)); }
 		void dstore(void *base, parameter index, parameter src1, operand_size size, memory_scale scale) { configure(OP_STORE, 8, parameter::make_memory(base), index, src1, parameter(size, scale)); }
-		void dread(parameter dst, parameter addr, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_READ, 8, dst, addr, parameter(size, space)); }
-		void dreadm(parameter dst, parameter addr, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_READM, 8, dst, addr, mask, parameter(size, space)); }
-		void dwrite(parameter addr, parameter src1, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_WRITE, 8, addr, src1, parameter(size, space)); }
-		void dwritem(parameter addr, parameter src1, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM) { configure(OP_WRITEM, 8, addr, src1, mask, parameter(size, space)); }
+		void dread(parameter dst, parameter addr, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_READ, 8, dst, addr, parameter(size, space, no_fp_side_effects)); }
+		void dreadm(parameter dst, parameter addr, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_READM, 8, dst, addr, mask, parameter(size, space, no_fp_side_effects)); }
+		void dwrite(parameter addr, parameter src1, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_WRITE, 8, addr, src1, parameter(size, space, no_fp_side_effects)); }
+		void dwritem(parameter addr, parameter src1, parameter mask, operand_size size, memory_space space = SPACE_PROGRAM, bool no_fp_side_effects = false) { configure(OP_WRITEM, 8, addr, src1, mask, parameter(size, space, no_fp_side_effects)); }
 		void dcarry(parameter src, parameter bitnum) { configure(OP_CARRY, 8, src, bitnum); }
 		void dset(condition_t cond, parameter dst) { configure(OP_SET, 8, dst, cond); }
 		void dmov(parameter dst, parameter src1) { configure(OP_MOV, 8, dst, src1); }
