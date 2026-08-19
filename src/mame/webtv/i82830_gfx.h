@@ -273,6 +273,14 @@ public:
 	auto gpio_read_callback() { return m_gpio_r_cb.bind(); }
 	auto gpio_write_callback() { return m_gpio_w_cb.bind(); }
 
+	template <typename T> inline T* get_mm_block_pointer()
+	{
+		static_assert(std::is_integral_v<T>);
+
+		return reinterpret_cast<T *>(&m_mm_block[0]);
+	}
+	inline uint32_t* get_mm_block_pointer() { return i82830_graphics_device::get_mm_block_pointer<uint32_t>(); }
+
 protected:
 
 	virtual void device_start() override ATTR_COLD;
