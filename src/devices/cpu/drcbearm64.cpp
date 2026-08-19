@@ -449,7 +449,7 @@ public:
 	virtual bool hash_set_codeptr(uint32_t mode, uint32_t pc, drccodeptr code) noexcept override;
 	virtual void get_info(drcbe_info &info) const noexcept override;
 	virtual bool logging() const noexcept override { return false; }
-	virtual u32 max_supported_vector_bytes() const noexcept override { return 64; }
+	virtual u32 max_supported_vector_bytes(bool require_avx512bw) const noexcept override { return 64; }
 
 private:
 	enum class carry_state
@@ -6160,22 +6160,36 @@ void drcbe_arm64::op_vbcastb(a64::Assembler &a, const uml::instruction &inst)
 	uml::parameter const &dstp = inst.param(0);
 	be_parameter srcp(*this, inst.param(1), PTYPE_MRI);
 	assert(dstp.is_float_register());
-
-	uint32_t const fregnum = dstp.freg() - uml::REG_F0;
-	uint32_t const physreg = float_register_map[fregnum];
-	const a64::Vec dstreg = (physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+	assert(inst.param(2).is_immediate());
+	u32 const width_bytes = u32(inst.param(2).immediate());
+	assert(width_bytes > 0 && (width_bytes % 16) == 0 && width_bytes <= 64);
 
 	const a64::Gp tmp = TEMP_REG1.w();
 	mov_reg_param(a, 4, tmp, srcp);
 
-	a.dup(dstreg.b16(), tmp);
-
-	if (physreg == 0)
+	if (width_bytes == 16)
 	{
-		const a64::Gp addrreg = TEMP_REG3;
-		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
-		a.str(dstreg, a64::Mem(addrreg));
+		uint32_t const fregnum = dstp.freg() - uml::REG_F0;
+		uint32_t const physreg = float_register_map[fregnum];
+		const a64::Vec dstreg = (physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+
+		a.dup(dstreg.b16(), tmp);
+
+		if (physreg == 0)
+		{
+			const a64::Gp addrreg = TEMP_REG3;
+			get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
+			a.str(dstreg, a64::Mem(addrreg));
+		}
 	}
+	else
+	{
+		static const a64::Vec wide_scratch[4] = { TEMPF_REG1.q(), TEMPF_REG2.q(), TEMPF_REG3.q(), TEMPF_REG4.q() };
+		int const nchunks = int(width_bytes / 16);
+		for (int i = 0; i < nchunks; i++)
+			a.dup(wide_scratch[i].b16(), tmp);
+	}
+
 }
 
 void drcbe_arm64::op_viadd(a64::Assembler &a, const uml::instruction &inst)

@@ -227,10 +227,10 @@ opcode_info const instruction::s_opcode_info_table[OP_MAX] =
 	OPINFO2(ICOPYF,  "icopyf#",  4|8, false, NONE, NONE, NONE, PINFO(OUT, OP, IRM), PINFO(IN, OP, FRM)) // Store float/double value as integer representation (e.g. 1.0f -> 0x3f800000)
 
 	// Vector Operations
-	OPINFO4(VLOAD,    "vload",    4,   false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, PTR), PINFO(IN, 4, IANY), PINFO(IN, OP, IMV)) // Load vector from base+index (byte-addressed, unaligned)
-	OPINFO4(VSTORE,   "vstore",   4,   false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, 4, IANY), PINFO(IN, OP, FREG), PINFO(IN, OP, IMV)) // Store vector to base+index (byte-addressed, unaligned)
+	OPINFO4(VLOAD,    "vload",    4, false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, PTR), PINFO(IN, 4, IANY), PINFO(IN, OP, IMV)) // Load vector from base+index (byte-addressed, unaligned)
+	OPINFO4(VSTORE,   "vstore",   4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, 4, IANY), PINFO(IN, OP, FREG), PINFO(IN, OP, IMV)) // Store vector to base+index (byte-addressed, unaligned)
 	OPINFO0(VZEROU,   "vzerou",   4, false, NONE, NONE, NONE) // Reset AVX/SSE upper register state
-	OPINFO2(VBCASTB,  "vbcastb",  4,   false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, IANY)) // Broadcast low 8 bits of src to all 16 bytes of dst
+	OPINFO3(VBCASTB,  "vbcastb",  4, false, NONE, NONE, NONE, PINFO(OUT, OP, FREG), PINFO(IN, OP, IANY), PINFO(IN, OP, IMV)) // Broadcast low 8 bits of src to dst
 	OPINFO4(VIADD,    "viadd",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed wraparound add
 	OPINFO4(VISUB,    "visub",    4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed wraparound sub
 	OPINFO4(VIADDS,   "viadds",   4, false, NONE, NONE, NONE, PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, PTR), PINFO(IN, OP, SIZE)) // Packed signed saturating add

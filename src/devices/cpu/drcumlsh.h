@@ -206,6 +206,7 @@
 #define UML_VSTOREW(block, base, index, src, width)         do { using namespace uml; block.append().vstore(base, index, src, width); } while (0)
 #define UML_VZEROU(block)                                   do { using namespace uml; block.append().vzerou(); } while (0)
 #define UML_VBCASTB(block, dst, src)                        do { using namespace uml; block.append().vbcastb(dst, src); } while (0)
+#define UML_VBCASTBW(block, dst, src, width)                do { using namespace uml; block.append().vbcastb(dst, src, width); } while (0)
 #define UML_VIADD(block, dst, src1, src2, size)             do { using namespace uml; block.append().viadd(dst, src1, src2, size); } while (0)
 #define UML_VISUB(block, dst, src1, src2, size)             do { using namespace uml; block.append().visub(dst, src1, src2, size); } while (0)
 #define UML_VIADDS(block, dst, src1, src2, size)            do { using namespace uml; block.append().viadds(dst, src1, src2, size); } while (0)

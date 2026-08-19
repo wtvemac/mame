@@ -399,7 +399,7 @@ public:
 	virtual bool hash_set_codeptr(u32 mode, u32 pc, drccodeptr code) noexcept override;
 	virtual void get_info(drcbe_info &info) const noexcept override;
 	virtual bool logging() const noexcept override { return bool(m_log); }
-	virtual u32 max_supported_vector_bytes() const noexcept override { return m_avx512 ? 64 : (m_avx2 ? 32 : 16); }
+	virtual u32 max_supported_vector_bytes(bool require_avx512bw) const noexcept override { return (m_avx512 && (!require_avx512bw || m_avx512bw)) ? 64 : (m_avx2 ? 32 : 16); }
 
 private:
 	// a be_parameter is similar to a uml::parameter but maps to native registers/memory
@@ -521,7 +521,7 @@ private:
 	void smart_call_r64(Assembler &a, x86code *target, Gp const &reg) const;
 	void smart_call_m64(Assembler &a, x86code **target) const;
 	void emit_memaccess_setup(Assembler &a, const memory_accessors &accessors, const address_space::specific_access_info::side &side) const;
-	int get_vector_chunks(u32 width_bytes, vec_chunk (&chunks)[4]) const;
+	int get_vector_chunks(u32 width_bytes, vec_chunk (&chunks)[4], bool require_avx512bw = false) const;
 
 	[[noreturn]] void end_of_block() const;
 	static void debug_log_hashjmp(char const *tag, offs_t pc, int mode);
@@ -681,6 +681,7 @@ private:
 	bool                    m_sse4_1;               // do we have SSE4.1 support?
 	bool                    m_avx2;                 // do we have AVX2 support?
 	bool                    m_avx512;               // do we have AVX512 support?
+	bool                    m_avx512bw;             // do we have AVX512BW support?
 	bool                    m_prefetchw;            // do we have PREFETCHW support?
 
 	u32 *                   m_absmask32;            // absolute value mask (32-bit)
@@ -1126,10 +1127,11 @@ void drcbe_x64::emit_memaccess_setup(Assembler &a, const memory_accessors &acces
 //  on native support
 //-------------------------------------------------
 
-int drcbe_x64::get_vector_chunks(u32 width_bytes, vec_chunk (&chunks)[4]) const
+int drcbe_x64::get_vector_chunks(u32 width_bytes, vec_chunk (&chunks)[4], bool require_avx512bw) const
 {
 	assert(width_bytes > 0 && (width_bytes % 16) == 0 && width_bytes <= 64);
 	Vec const scratch[4] = { REG_VSCRATCH, REG_VSCRATCH2, REG_VSCRATCH3, REG_VSCRATCH4 };
+	bool const zmm_ok = m_avx512 && (!require_avx512bw || m_avx512bw);
 
 	int n = 0;
 	u32 offset = 0;
@@ -1140,7 +1142,7 @@ int drcbe_x64::get_vector_chunks(u32 width_bytes, vec_chunk (&chunks)[4]) const
 
 		u32 bytes;
 		Vec reg;
-		if (m_avx512 && remain >= 64)
+		if (zmm_ok && remain >= 64)
 		{
 			bytes = 64;
 			reg = scratch[n].zmm();
@@ -1186,6 +1188,7 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	, m_sse4_1(false)
 	, m_avx2(false)
 	, m_avx512(false)
+	, m_avx512bw(false)
 	, m_prefetchw(false)
 	, m_absmask32((u32 *)cache.alloc_near(16*2 + 15, std::align_val_t(alignof(u32))))
 	, m_absmask64(nullptr)
@@ -1206,6 +1209,7 @@ drcbe_x64::drcbe_x64(drcuml_state &drcuml, device_t &device, drc_cache &cache, u
 	m_sse4_1 = x86_features.has_sse4_1();
 	m_avx2 = x86_features.has_avx2();
 	m_avx512 = x86_features.has_avx512_f();
+	m_avx512bw = x86_features.has_avx512_bw();
 	m_prefetchw = x86_features.has_prefetchw();
 
 	// build up necessary arrays
@@ -7316,13 +7320,24 @@ void drcbe_x64::op_vbcastb(Assembler &a, const instruction &inst)
 	be_parameter srcp(*this, inst.param(1), PTYPE_MRI);
 	[[maybe_unused]] parameter const &dstp = inst.param(0);
 	assert(dstp.is_float_register());
+	assert(inst.param(2).is_immediate());
+	u32 const width_bytes = u32(inst.param(2).immediate());
+	assert(width_bytes > 0 && (width_bytes % 16) == 0 && width_bytes <= 64);
 
 	Vec const dstreg = REG_VSCRATCH;
 
 	Gp const tmp = eax;
 	mov_reg_param(a, tmp, srcp);
 
-	if (m_avx2)
+	vec_chunk chunks[4];
+	int const nchunks = get_vector_chunks(width_bytes, chunks, true);
+
+	if (chunks[0].bytes > 16)
+	{
+		a.vmovd(dstreg, tmp);
+		a.vpbroadcastb(chunks[0].reg, dstreg);
+	}
+	else if (m_avx2)
 	{
 		a.vmovd(dstreg, tmp);
 		a.vpbroadcastb(dstreg, dstreg);
@@ -7340,6 +7355,15 @@ void drcbe_x64::op_vbcastb(Assembler &a, const instruction &inst)
 		a.punpcklbw(dstreg, dstreg);
 		a.punpcklwd(dstreg, dstreg);
 		a.pshufd(dstreg, dstreg, 0);
+	}
+
+	for (int i = 1; i < nchunks; i++)
+	{
+		vec_chunk const &c = chunks[i];
+		if (c.bytes >= 32)
+			a.vpbroadcastb(c.reg, dstreg);
+		else
+			a.movdqu(c.reg, dstreg);
 	}
 }
 
