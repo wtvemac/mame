@@ -7133,7 +7133,7 @@ void drcbe_x64::op_prefetch(Assembler &a, const instruction &inst)
 	assert(lines_aheadp.is_immediate());
 	const parameter &hintp = inst.param(3);
 	assert(hintp.is_immediate());
-	bool const for_write = uml::prefetch_hint(hintp.immediate()) == uml::FOR_WRITE;
+	bool const for_write = uml::prefetch_hint(hintp.immediate()) == uml::HINT_WRITE;
 
 	if (for_write && !m_prefetchw)
 		return;

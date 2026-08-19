@@ -5977,7 +5977,7 @@ void drcbe_arm64::op_prefetch(a64::Assembler &a, const uml::instruction &inst)
 	assert(lines_aheadp.is_immediate());
 	const uml::parameter &hintp = inst.param(3);
 	assert(hintp.is_immediate());
-	bool const for_write = uml::prefetch_hint(hintp.immediate()) == uml::FOR_WRITE;
+	bool const for_write = uml::prefetch_hint(hintp.immediate()) == uml::HINT_WRITE;
 
 	assert(m_linemask);
 	int32_t const extra_offset = int32_t(uint32_t(lines_aheadp.immediate())) * int32_t(m_linemask + 1);
