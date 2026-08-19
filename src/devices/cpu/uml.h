@@ -137,8 +137,8 @@ namespace uml {
 
 	enum prefetch_hint
 	{
-		FOR_READ = 0,
-		FOR_WRITE
+		HINT_READ = 0,
+		HINT_WRITE
 	};
 
 	// spaces
