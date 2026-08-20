@@ -2005,7 +2005,7 @@ void sound_manager::update(s32)
 
 void sound_manager::streams_update()
 {
-	attotime now = machine().time();
+	attotime now = m_update_timer->decoupled() ? m_decoupled_time : machine().time();
 	{
 #ifndef SOUND_DISABLE_THREADING
 		std::unique_lock<std::mutex> dlock(m_effects_data_mutex);
