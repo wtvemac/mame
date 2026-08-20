@@ -97,8 +97,8 @@ public:
 
 	ac97_codec_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 	
-	virtual uint16_t nam_reg_r(offs_t offset);
-	virtual void nam_reg_w(offs_t offset, uint16_t data);
+	virtual uint16_t nam_reg_r(offs_t index);
+	virtual void nam_reg_w(offs_t index, uint16_t data);
 
 protected:
 

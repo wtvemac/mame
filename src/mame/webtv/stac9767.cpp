@@ -45,19 +45,19 @@ void stac9767_codec::device_add_mconfig(machine_config &config)
 	add_route(1, m_rspeaker, stac9767_codec::AUD_OUTPUT_GAIN);
 }
 
-void stac9767_codec::nam_reg_w(offs_t offset, uint16_t data)
+void stac9767_codec::nam_reg_w(offs_t index, uint16_t data)
 {
-	ac97_codec_device::nam_reg_w(offset, data);
+	ac97_codec_device::nam_reg_w(index, data);
 
-	if(offset == ac97_codec_device::NAM_REG_MASTER_VOL)
+	if(index == ac97_codec_device::NAM_REG_MASTER_VOL)
 	{
-		stac9767_codec::sync_volume(offset);
+		stac9767_codec::sync_volume(index);
 	}
 }
 
-void stac9767_codec::sync_volume(offs_t offset)
+void stac9767_codec::sync_volume(offs_t index)
 {
-	if(offset == ac97_codec_device::NAM_REG_MASTER_VOL)
+	if(index == ac97_codec_device::NAM_REG_MASTER_VOL)
 	{
 		bool master_muted = m_nam_regs[ac97_codec_device::NAM_REG_MASTER_VOL] & ac97_codec_device::SOUND_MUTED;
 

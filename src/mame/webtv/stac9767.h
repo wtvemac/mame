@@ -23,7 +23,7 @@ public:
 
 	stac9767_codec(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
-	virtual void nam_reg_w(offs_t offset, uint16_t data) override;
+	virtual void nam_reg_w(offs_t index, uint16_t data) override;
 
 protected:
 
@@ -45,7 +45,7 @@ private:
 
 	uint32_t m_samples_per_block;
 
-	void sync_volume(offs_t offset);
+	void sync_volume(offs_t index);
 
 };
 

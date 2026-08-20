@@ -64,22 +64,22 @@ void ac97_codec_device::nam_reset()
 	// Vendor and reserved registers
 }
 
-uint16_t ac97_codec_device::nam_reg_r(offs_t offset)
+uint16_t ac97_codec_device::nam_reg_r(offs_t index)
 {
-	offset &= (ac97_codec_device::NAM_REG_CNT - 1);
+	index &= (ac97_codec_device::NAM_REG_CNT - 1);
 
-	return m_nam_regs[offset];
+	return m_nam_regs[index];
 }
 
-void ac97_codec_device::nam_reg_w(offs_t offset, uint16_t data)
+void ac97_codec_device::nam_reg_w(offs_t index, uint16_t data)
 {
-	offset &= (ac97_codec_device::NAM_REG_CNT - 1);
+	index &= (ac97_codec_device::NAM_REG_CNT - 1);
 
 
-	if(offset == ac97_codec_device::NAM_REG_RESET)
+	if(index == ac97_codec_device::NAM_REG_RESET)
 		nam_reset();
 	else
-		m_nam_regs[offset] = data;
+		m_nam_regs[index] = data;
 }
 
 aclink_connection_interface::aclink_connection_interface(const machine_config &mconfig, device_t &device, std::function<void (aclink_connection_interface &, machine_config &)> setup_codecs_func)
@@ -206,16 +206,16 @@ uint16_t i82801_ac97_base::nam_reg_r(offs_t offset)
 	uint16_t codec_id = offset & CODEC_ID_MASK;
 
 
-	offset &= (ac97_codec_device::NAM_REG_CNT - 1);
+	offs_t reg_index = offset & (ac97_codec_device::NAM_REG_CNT - 1);
 
 	uint16_t data = 0xffff;
 
 	if((m_codec_enabled & i82801_ac97_base::CODEC_EN0) && codec_id == i82801_ac97_base::CODEC_ID0)
-		data = m_codec[0]->nam_reg_r(offset);
+		data = m_codec[0]->nam_reg_r(reg_index);
 	else if((m_codec_enabled & i82801_ac97_base::CODEC_EN1) && codec_id == i82801_ac97_base::CODEC_ID1)
-		data = m_codec[1]->nam_reg_r(offset);
+		data = m_codec[1]->nam_reg_r(reg_index);
 	else if((m_codec_enabled & i82801_ac97_base::CODEC_EN2) && codec_id == i82801_ac97_base::CODEC_ID2)
-		data = m_codec[2]->nam_reg_r(offset);
+		data = m_codec[2]->nam_reg_r(reg_index);
 	else
 		data = 0xffff;
 
@@ -229,14 +229,14 @@ void i82801_ac97_base::nam_reg_w(offs_t offset, uint16_t data)
 	uint16_t codec_id = offset & CODEC_ID_MASK;
 
 
-	offset &= (ac97_codec_device::NAM_REG_CNT - 1);
+	offs_t reg_index = offset & (ac97_codec_device::NAM_REG_CNT - 1);
 
 	if((m_codec_enabled & i82801_ac97_base::CODEC_EN0) && codec_id == CODEC_ID0)
-		m_codec[0]->nam_reg_w(offset, data);
+		m_codec[0]->nam_reg_w(reg_index, data);
 	else if((m_codec_enabled & i82801_ac97_base::CODEC_EN1) && codec_id == CODEC_ID1)
-		m_codec[1]->nam_reg_w(offset, data);
+		m_codec[1]->nam_reg_w(reg_index, data);
 	else if((m_codec_enabled & i82801_ac97_base::CODEC_EN2) && codec_id == CODEC_ID2)
-		m_codec[2]->nam_reg_w(offset, data);
+		m_codec[2]->nam_reg_w(reg_index, data);
 
 	m_cas &= (~i82801_ac97_base::NABM_CAS_SET);
 }
