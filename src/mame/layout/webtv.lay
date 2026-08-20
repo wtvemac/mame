@@ -9,6 +9,9 @@
 		<rect state="0"><color red="0.20" green="0.15" blue="0.0" /></rect>
 	</element>
 	<element name="message_led" defstate="0">
+		<rect state="3"><color red="0.00" green="0.0" blue="0.75" /></rect>
+		<rect state="2"><color red="0.00" green="0.0" blue="0.20" /></rect>
+
 		<rect state="1"><color red="0.75" green="0.0" blue="0.0" /></rect>
 		<rect state="0"><color red="0.20" green="0.0" blue="0.0" /></rect>
 	</element>

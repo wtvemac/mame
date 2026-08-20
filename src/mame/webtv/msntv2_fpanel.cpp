@@ -845,7 +845,7 @@ void msntv2_fpanel_device::device_reset()
 
 	m_power_led = 0;
 	m_connect_led = 0;
-	m_message_led = 0;
+	m_message_led = 2;
 }
 
 void msntv2_fpanel_device::device_add_mconfig(machine_config &config)
@@ -872,7 +872,7 @@ void msntv2_fpanel_device::input_data2(int state)
 {
 	ecp_lpt_device::change_bit(state, 2, &m_pdata);
 
-	m_message_led = !state;
+	m_message_led = 2 + (!state);
 }
 
 void msntv2_fpanel_device::input_data3(int state)
