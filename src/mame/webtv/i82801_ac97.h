@@ -30,42 +30,42 @@ public:
 
 	static constexpr uint8_t NAM_REG_CNT                = 64;
 	static constexpr uint16_t NAM_REGS_SIZE             = ac97_codec_device::NAM_REG_CNT * sizeof(uint16_t);
-	static constexpr uint8_t NAM_REG_RESET              = 0x00 >> 1;
-	static constexpr uint8_t NAM_REG_CAPABILITIES       = 0x00 >> 1;
-	static constexpr uint8_t NAM_REG_MASTER_VOL         = 0x02 >> 1;
-	static constexpr uint8_t NAM_REG_AUX_OUT_VOL        = 0x04 >> 1;
-	static constexpr uint8_t NAM_REG_MONO_VOL           = 0x06 >> 1;
-	static constexpr uint8_t NAM_REG_MASTER_TONE        = 0x08 >> 1;
-	static constexpr uint8_t NAM_REG_PCBEEP_VOL         = 0x0a >> 1;
-	static constexpr uint8_t NAM_REG_PHONE_VOL          = 0x0c >> 1;
-	static constexpr uint8_t NAM_REG_MIC_VOL            = 0x0e >> 1;
-	static constexpr uint8_t NAM_REG_LINE_IN_VOL        = 0x10 >> 1;
-	static constexpr uint8_t NAM_REG_CD_VOL             = 0x12 >> 1;
-	static constexpr uint8_t NAM_REG_VID_VOL            = 0x14 >> 1;
-	static constexpr uint8_t NAM_REG_AUX_IN_VOL         = 0x16 >> 1;
-	static constexpr uint8_t NAM_REG_PCM_OUT_VOL        = 0x18 >> 1;
-	static constexpr uint8_t NAM_REG_RECORD_SEL         = 0x1a >> 1;
-	static constexpr uint8_t NAM_REG_RECORD_GAIN        = 0x1c >> 1;
-	static constexpr uint8_t NAM_REG_RECORD_GAIN_MIC    = 0x1e >> 1;
-	static constexpr uint8_t NAM_REG_GEN_PURPOSE        = 0x20 >> 1;
-	static constexpr uint8_t NAM_REG_3D_CNTL            = 0x22 >> 1;
+	static constexpr uint8_t NAM_REG_RESET              = 0x00 >> 1; // 0x00
+	static constexpr uint8_t NAM_REG_CAPABILITIES       = 0x00 >> 1; // 0x00
+	static constexpr uint8_t NAM_REG_MASTER_VOL         = 0x02 >> 1; // 0x01
+	static constexpr uint8_t NAM_REG_AUX_OUT_VOL        = 0x04 >> 1; // 0x02
+	static constexpr uint8_t NAM_REG_MONO_VOL           = 0x06 >> 1; // 0x03
+	static constexpr uint8_t NAM_REG_MASTER_TONE        = 0x08 >> 1; // 0x04
+	static constexpr uint8_t NAM_REG_PCBEEP_VOL         = 0x0a >> 1; // 0x05
+	static constexpr uint8_t NAM_REG_PHONE_VOL          = 0x0c >> 1; // 0x06
+	static constexpr uint8_t NAM_REG_MIC_VOL            = 0x0e >> 1; // 0x07
+	static constexpr uint8_t NAM_REG_LINE_IN_VOL        = 0x10 >> 1; // 0x08
+	static constexpr uint8_t NAM_REG_CD_VOL             = 0x12 >> 1; // 0x09
+	static constexpr uint8_t NAM_REG_VID_VOL            = 0x14 >> 1; // 0x0a
+	static constexpr uint8_t NAM_REG_AUX_IN_VOL         = 0x16 >> 1; // 0x0b
+	static constexpr uint8_t NAM_REG_PCM_OUT_VOL        = 0x18 >> 1; // 0x0c
+	static constexpr uint8_t NAM_REG_RECORD_SEL         = 0x1a >> 1; // 0x0d
+	static constexpr uint8_t NAM_REG_RECORD_GAIN        = 0x1c >> 1; // 0x0e
+	static constexpr uint8_t NAM_REG_RECORD_GAIN_MIC    = 0x1e >> 1; // 0x0f
+	static constexpr uint8_t NAM_REG_GEN_PURPOSE        = 0x20 >> 1; // 0x10
+	static constexpr uint8_t NAM_REG_3D_CNTL            = 0x22 >> 1; // 0x11
 	// AC97 Reserved: 0x24 (modem sample rate/audio interrupt and paging mechanism register)
-	static constexpr uint8_t NAM_REG_PWRDOWN_CNTLSTAT   = 0x26 >> 1;
-	static constexpr uint8_t NAM_REG_EX_CAPABILITIES    = 0x28 >> 1;
-	static constexpr uint8_t NAM_REG_EX_CNTLSTAT        = 0x2a >> 1;
-	static constexpr uint8_t NAM_REG_PCM_FRONT_DAC_RATE = 0x2c >> 1;
-	static constexpr uint8_t NAM_REG_PCM_SURND_DAC_RATE = 0x2e >> 1;
-	static constexpr uint8_t NAM_REG_PCM_LFE_DAC_RATE   = 0x30 >> 1;
-	static constexpr uint8_t NAM_REG_PCM_LR_ADC_RATE    = 0x32 >> 1;
-	static constexpr uint8_t NAM_REG_MIC_ADC_RATE       = 0x34 >> 1;
-	static constexpr uint8_t NAM_REG_6CH_VOL_CLFE       = 0x36 >> 1;
-	static constexpr uint8_t NAM_REG_6CH_VOL_LRSUR      = 0x38 >> 1;
-	static constexpr uint8_t NAM_REG_SPDIF_CNTL         = 0x3a >> 1;
+	static constexpr uint8_t NAM_REG_PWRDOWN_CNTLSTAT   = 0x26 >> 1; // 0x13
+	static constexpr uint8_t NAM_REG_EX_CAPABILITIES    = 0x28 >> 1; // 0x14
+	static constexpr uint8_t NAM_REG_EX_CNTLSTAT        = 0x2a >> 1; // 0x15
+	static constexpr uint8_t NAM_REG_PCM_FRONT_DAC_RATE = 0x2c >> 1; // 0x16
+	static constexpr uint8_t NAM_REG_PCM_SURND_DAC_RATE = 0x2e >> 1; // 0x17
+	static constexpr uint8_t NAM_REG_PCM_LFE_DAC_RATE   = 0x30 >> 1; // 0x18
+	static constexpr uint8_t NAM_REG_PCM_LR_ADC_RATE    = 0x32 >> 1; // 0x19
+	static constexpr uint8_t NAM_REG_MIC_ADC_RATE       = 0x34 >> 1; // 0x1a
+	static constexpr uint8_t NAM_REG_6CH_VOL_CLFE       = 0x36 >> 1; // 0x1b
+	static constexpr uint8_t NAM_REG_6CH_VOL_LRSUR      = 0x38 >> 1; // 0x1c
+	static constexpr uint8_t NAM_REG_SPDIF_CNTL         = 0x3a >> 1; // 0x1d
 	// Intel Reserved: 0x3c–0x56 / Modem registers
 	// AC92 Reserved: 0x58
 	// Vencor Reserved: 0x5a
-	static constexpr uint8_t NAM_REG_VENDOR_ID1         = 0x7c >> 1;
-	static constexpr uint8_t NAM_REG_VENDOR_ID2         = 0x7e >> 1;
+	static constexpr uint8_t NAM_REG_VENDOR_ID1         = 0x7c >> 1; // 0x3e
+	static constexpr uint8_t NAM_REG_VENDOR_ID2         = 0x7e >> 1; // 0x3f
 
 	static constexpr uint16_t SOUND_MUTED      = 0x8000;
 	// General volume values, used to help interpret most of the volume registers
