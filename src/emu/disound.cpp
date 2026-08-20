@@ -460,7 +460,9 @@ void sound_stream::internal_set_sample_rate(u32 new_rate)
 			fatalerror("Error: set_sample_rate called while in stream_update\n");
 
 		update();
-		m_output_buffer.resample(m_sample_rate, new_rate, m_sync_time, m_device.machine().time());
+		sound_manager &sound = m_device.machine().sound();
+		attotime now = sound.using_decoupled_timer() ? sound.decoupled_time() : m_device.machine().time();
+		m_output_buffer.resample(m_sample_rate, new_rate, m_sync_time, now);
 		m_sample_rate = new_rate;
 		for(const route_fw &r : m_fw_routes)
 			r.m_target->create_resamplers();
