@@ -18,7 +18,7 @@ stac9767_codec::stac9767_codec(const machine_config &mconfig, const char *tag, d
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker")
 {
-	m_samples_per_block = stac9767_codec::AUD_SAMPLES_PER_BLOCK;
+	m_aud_blk_rate = stac9767_codec::AUD_DEFAULT_BLK_RATE;
 }
 
 void stac9767_codec::device_start()
@@ -28,7 +28,8 @@ void stac9767_codec::device_start()
 	m_aud_stream = stream_alloc(stac9767_codec::AUD_IN_CHAN_COUNT, stac9767_codec::AUD_OUT_CHAN_COUNT, m_aud_clk);
 
 	machine().sound().using_decoupled_timer(true);
-	machine().sound().set_update_interval(attotime::from_hz(m_aud_clk / m_samples_per_block));
+
+	stac9767_codec::sync_audio_update_rate();
 }
 
 void stac9767_codec::device_reset()
@@ -49,35 +50,120 @@ void stac9767_codec::nam_reg_w(offs_t index, uint16_t data)
 {
 	ac97_codec_device::nam_reg_w(index, data);
 
-	if(index == ac97_codec_device::NAM_REG_MASTER_VOL)
+	switch(index)
 	{
-		stac9767_codec::sync_volume(index);
+		case ac97_codec_device::NAM_REG_MASTER_VOL:
+		case ac97_codec_device::NAM_REG_AUX_OUT_VOL:
+		case ac97_codec_device::NAM_REG_MONO_VOL:
+		case ac97_codec_device::NAM_REG_MASTER_TONE:
+		case ac97_codec_device::NAM_REG_PCBEEP_VOL:
+		case ac97_codec_device::NAM_REG_PHONE_VOL:
+		case ac97_codec_device::NAM_REG_MIC_VOL:
+		case ac97_codec_device::NAM_REG_LINE_IN_VOL:
+		case ac97_codec_device::NAM_REG_CD_VOL:
+		case ac97_codec_device::NAM_REG_VID_VOL:
+		case ac97_codec_device::NAM_REG_AUX_IN_VOL:
+		case ac97_codec_device::NAM_REG_PCM_OUT_VOL:
+			stac9767_codec::sync_volume(index);
+			break;
+
+		case ac97_codec_device::NAM_REG_PCM_FRONT_DAC_RATE:
+		case ac97_codec_device::NAM_REG_PCM_SURND_DAC_RATE:
+		case ac97_codec_device::NAM_REG_PCM_LFE_DAC_RATE:
+		case ac97_codec_device::NAM_REG_PCM_LR_ADC_RATE:
+		case ac97_codec_device::NAM_REG_MIC_ADC_RATE:
+			stac9767_codec::sync_rate(index);
+			break;
+
+		default:
+			break;
 	}
 }
 
 void stac9767_codec::sync_volume(offs_t index)
 {
-	if(index == ac97_codec_device::NAM_REG_MASTER_VOL)
+	uint16_t volume = m_nam_regs[index];
+
+	switch(index)
 	{
-		bool master_muted = m_nam_regs[ac97_codec_device::NAM_REG_MASTER_VOL] & ac97_codec_device::SOUND_MUTED;
-
-		if(master_muted)
+		case ac97_codec_device::NAM_REG_MASTER_VOL:
 		{
-			m_rspeaker->set_input_gain(0, 0.0);
-			m_lspeaker->set_input_gain(0, 0.0);
+			bool master_muted = volume & ac97_codec_device::SOUND_MUTED;
+
+			if(master_muted)
+			{
+				m_rspeaker->set_input_gain(0, 0.0);
+				m_lspeaker->set_input_gain(0, 0.0);
+			}
+			else
+			{
+				float lmaster_vol = (float)((volume & ac97_codec_device::CH1_GENVOL_MASK) >> ac97_codec_device::CH1_GENVOL_SHIFT);
+				float rmaster_vol = (float)((volume & ac97_codec_device::CH2_GENVOL_MASK) >> ac97_codec_device::CH2_GENVOL_SHIFT);
+
+				float lmaster_gain = std::pow(2.0, -1 * (lmaster_vol * ac97_codec_device::GENVOL_DB_INCREMENT) / 10.0);
+				float rmaster_gain = std::pow(2.0, -1 * (rmaster_vol * ac97_codec_device::GENVOL_DB_INCREMENT) / 10.0);
+
+				m_lspeaker->set_input_gain(0, lmaster_gain);
+				m_rspeaker->set_input_gain(0, rmaster_gain);
+			}
+			break;
 		}
-		else
+
+		default:
+			break;
+	}
+}
+
+void stac9767_codec::sync_rate(offs_t index)
+{
+	uint16_t rate = m_nam_regs[index];
+
+	uint32_t new_clock_rate = m_aud_clk;
+	uint32_t new_block_rate = m_aud_blk_rate;
+
+	switch(index)
+	{
+		case ac97_codec_device::NAM_REG_PCM_FRONT_DAC_RATE:
 		{
-			float lmaster_vol = (float)((m_nam_regs[ac97_codec_device::NAM_REG_MASTER_VOL] & ac97_codec_device::CH1_GENVOL_MASK) >> ac97_codec_device::CH1_GENVOL_SHIFT);
-			float rmaster_vol = (float)((m_nam_regs[ac97_codec_device::NAM_REG_MASTER_VOL] & ac97_codec_device::CH2_GENVOL_MASK) >> ac97_codec_device::CH2_GENVOL_SHIFT);
+			switch(rate)
+			{
+				case 8000:
+				case 16000:
+				case 22050:
+				case 32000:
+				case 44100:
+				case 48000:
+					new_clock_rate = rate;
+					new_block_rate = stac9767_codec::AUD_DEFAULT_BLK_RATE;
+					break;
 
-			float lmaster_gain = std::pow(2.0, -1 * (lmaster_vol * ac97_codec_device::GENVOL_DB_INCREMENT) / 10.0);
-			float rmaster_gain = std::pow(2.0, -1 * (rmaster_vol * ac97_codec_device::GENVOL_DB_INCREMENT) / 10.0);
+				case 11025:
+					new_clock_rate = rate;
+					new_block_rate = 25;
+					break;
 
-			m_lspeaker->set_input_gain(0, lmaster_gain);
-			m_rspeaker->set_input_gain(0, rmaster_gain);
+				default:
+					new_clock_rate = i82801_ac97_base::AUD_DEFAULT_CLK;
+					new_block_rate = stac9767_codec::AUD_DEFAULT_BLK_RATE;
+					break;
+			}
 		}
 	}
+
+	if(m_aud_clk != new_clock_rate || m_aud_blk_rate != new_block_rate)
+	{
+		m_aud_clk = new_clock_rate;
+		m_aud_blk_rate = new_block_rate;
+
+		stac9767_codec::sync_audio_update_rate();
+	}
+}
+
+void stac9767_codec::sync_audio_update_rate()
+{
+	m_aud_stream->set_sample_rate(m_aud_clk);
+
+	machine().sound().set_update_interval(attotime::from_hz(m_aud_blk_rate));
 }
 
 void stac9767_codec::nam_reset()
