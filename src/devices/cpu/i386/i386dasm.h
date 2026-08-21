@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <sstream>
+
 class i386_disassembler : public util::disasm_interface
 {
 public:
@@ -177,6 +179,7 @@ private:
 	uint32_t segment;
 	offs_t dasm_flags;
 	std::string modrm_string;
+	std::stringstream m_modrm_buf;
 	uint8_t rex, regex, sibex, rmex;
 	uint8_t pre0f;
 
