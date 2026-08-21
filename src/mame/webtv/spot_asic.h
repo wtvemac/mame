@@ -95,7 +95,7 @@ constexpr uint16_t VID_Y_WHITE         = 0xeb;
 constexpr uint16_t VID_Y_RANGE         = (VID_Y_WHITE - VID_Y_BLACK);
 constexpr uint16_t VID_UV_OFFSET       = 0x80;
 constexpr uint8_t  VID_BYTES_PER_PIXEL = 2;
-constexpr uint32_t VID_DEFAULT_COLOR   = (VID_UV_OFFSET << 0x10) | (VID_Y_BLACK << 0x08) | VID_UV_OFFSET;
+constexpr uint32_t VID_DEFAULT_COLOR   = (VID_Y_BLACK << 0x10) | (VID_UV_OFFSET << 0x08) | VID_UV_OFFSET;
 
 constexpr uint32_t VID_INT_FIDO   = 1 << 6; // TODO: docs don't have info on FIDO mode! figure this out!
 constexpr uint32_t VID_INT_VSYNCE = 1 << 5; // even field VSYNC
@@ -240,7 +240,7 @@ protected:
 	uint32_t m_vid_draw_hsize;
 	uint32_t m_vid_draw_vstart;
 	uint32_t m_vid_draw_vsize;
-	uint32_t m_vid_draw_blank_color;
+	uint32_t m_cached_blank_rgb32[2];
 
 	int16_t m_aud_lsample;
 	int16_t m_aud_rsample;
@@ -332,6 +332,10 @@ private:
 	void set_aout_clock(uint32_t clock);
 	void spot_update_cycle_counting();
 	void watchdog_enable(int state);
+
+	void cache_blank_rgb32();
+	void blank_fill(uint32_t **dest, uint32_t count, bool update_cursor = false);
+	void draw422(uint32_t in, uint32_t **out);
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
