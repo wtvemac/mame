@@ -83,7 +83,7 @@ constexpr uint32_t POT_DEFAULT_VSIZE   = NTSC_SCREEN_VSIZE;
 constexpr uint32_t POT_HSTART_OFFSET  = 0x77;
 constexpr uint32_t POT_VSTART_OFFSET  = 0x23;
 
-constexpr uint32_t POT_DEFAULT_COLOR   = (UV_OFFSET << 0x10) | (Y_BLACK << 0x08) | UV_OFFSET;
+constexpr uint32_t POT_DEFAULT_COLOR   = (Y_BLACK << 0x10) | (UV_OFFSET << 0x08) | UV_OFFSET;
 
 constexpr uint32_t POT_FCNTL_USEGFX444    = 1 << 11; // Use 4:4:4 data from gfxUnit when source from dveUnit
 constexpr uint32_t POT_FCNTL_DVECCS       = 1 << 10; // Select wich edge of CrCbSel used to latch GFX->DVE interp
@@ -181,6 +181,31 @@ typedef struct gfx_ymap // 32 bits / 4 bytes
 	uint16_t             celblk_ptr() const {                       return ((data[0x0] >> 0x00) & 0x0003ff); } // 10 bits
 } gfx_ymap_t;
 
+typedef struct gfx_cache
+{
+	uint32_t texdata_base;
+
+	float    dux;
+	float    dvx;
+
+	float    durow_adjust;
+	float    dvrow_adjust;
+
+	float    ustart;
+	float    vstart;
+
+	int32_t  rowbytes;
+
+	uint8_t  umask;
+	uint8_t  vmask;
+
+	double   xleftstart;
+	double   xrightstart;
+
+	double   dx_left;
+	double   dx_right;
+} gfx_cache_t;
+
 typedef struct gfx_cel // 384 bits / 48 bytes
 {
 	uint32_t data[12];
@@ -252,37 +277,57 @@ typedef struct gfx_cel // 384 bits / 48 bytes
 	float u;
 	float v;
 
-	void dux_to_dvrow_adjust()
+	gfx_cache_t c;
+
+	void cache_values()
+	{
+		c.dux          = dux();
+		c.dvx          = dvx();
+		c.durow_adjust = durow_adjust();
+		c.dvrow_adjust = dvrow_adjust();
+		c.ustart       = ustart();
+		c.vstart       = vstart();
+		c.texdata_base = texdata_base() << 0x02;
+		c.rowbytes     = (int32_t)rowbytes();
+		c.umask        = umask();
+		c.vmask        = vmask();
+		c.xleftstart   = xleftstart();
+		c.xrightstart  = xrightstart();
+		c.dx_left      = dx_left();
+		c.dx_right     = dx_right();
+	}
+
+	inline void dux_to_dvrow_adjust()
 	{
 		data[6] = (data[6] & 0xffff0000) | (((data[2] >> 0x10) & 0xff) << 0x4);
 	}
 
-	uint32_t texdata_index()
+	inline uint32_t texdata_index()
 	{
 		int32_t base = -1;
 
 		switch (texdata_type())
 		{
 			case TEXDATA_TYPE_VQ8_422:
-				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) / 0x02) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
+				base = ((int32_t)c.texdata_base + (((MASKED_INTF_TRUNC(v, c.vmask) / 0x02) * c.rowbytes) + (MASKED_INTF_TRUNC(u, c.umask) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_422O:
 			case TEXDATA_TYPE_DIR_422A:
 			case TEXDATA_TYPE_DIR_422:
-				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x02)));
+				base = ((int32_t)c.texdata_base + (((MASKED_INTF_TRUNC(v, c.vmask) * 0x01) * c.rowbytes) + (MASKED_INTF_TRUNC(u, c.umask) * 0x02)));
 				break;
 
 			case TEXDATA_TYPE_VQ8_444:
-				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x01)));
+				base = ((int32_t)c.texdata_base + (((MASKED_INTF_TRUNC(v, c.vmask) * 0x01) * c.rowbytes) + (MASKED_INTF_TRUNC(u, c.umask) * 0x01)));
 				break;
 
 			case TEXDATA_TYPE_VQ4_444:
-				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) / 0x02)));
+				base = ((int32_t)c.texdata_base + (((MASKED_INTF_TRUNC(v, c.vmask) * 0x01) * c.rowbytes) + (MASKED_INTF_TRUNC(u, c.umask) / 0x02)));
 				break;
 
 			case TEXDATA_TYPE_DIR_444:
-				base = ((int32_t)(texdata_base() << 0x02) + (((MASKED_INTF_TRUNC(v, vmask()) * 0x01) * (int32_t)rowbytes()) + (MASKED_INTF_TRUNC(u, umask()) * 0x04)));
+				base = ((int32_t)c.texdata_base + (((MASKED_INTF_TRUNC(v, c.vmask) * 0x01) * c.rowbytes) + (MASKED_INTF_TRUNC(u, c.umask) * 0x04)));
 				break;
 
 			default:
@@ -291,40 +336,42 @@ typedef struct gfx_cel // 384 bits / 48 bytes
 		}
 
 		if (base < 0)
-			return (texdata_base() << 0x02);
+			return c.texdata_base;
 		else
 			return (uint32_t)base;
 	}
-	void texdata_start()
+	inline void texdata_start()
 	{
+		cache_values();
+
 		y_offset = 0.00;
 
-		u = ustart();
-		v = vstart();
+		u = c.ustart;
+		v = c.vstart;
 	}
-	void advance_x()
+	inline void advance_x()
 	{
-		u += dux();
-		v += dvx();
+		u += c.dux;
+		v += c.dvx;
 	}
-	void advance_x_by(uint8_t amount)
+	inline void advance_x_by(uint8_t amount)
 	{
-		u += dux() * amount;
-		v += dvx() * amount;
+		u += c.dux * amount;
+		v += c.dvx * amount;
 	}
-	void advance_y()
+	inline void advance_y()
 	{
 		y_offset++;
 
-		u = ustart() + (y_offset * durow_adjust());
-		v = vstart() + (y_offset * dvrow_adjust());
+		u = c.ustart + (y_offset * c.durow_adjust);
+		v = c.vstart + (y_offset * c.dvrow_adjust);
 	}
-	void advance_y_by(uint8_t amount)
+	inline void advance_y_by(uint8_t amount)
 	{
 		y_offset += amount;
 
-		u = ustart() + (y_offset * durow_adjust() * amount);
-		v = vstart() + (y_offset * dvrow_adjust() * amount);
+		u = c.ustart + (y_offset * c.durow_adjust * amount);
+		v = c.vstart + (y_offset * c.dvrow_adjust * amount);
 	}
 } gfx_cel_t;
 
@@ -450,7 +497,7 @@ protected:
 	uint32_t m_pot_draw_hsize;
 	uint32_t m_pot_draw_vstart;
 	uint32_t m_pot_draw_vsize;
-	uint32_t m_pot_draw_blank_color;
+	uint32_t m_cached_blank_rgb32[2];
 	uint32_t m_pot_draw_hintline;
 
 private:
@@ -467,6 +514,9 @@ private:
 	inline void draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out);
 	inline void draw444(gfx_cel_t *cel, int8_t offset, uint32_t in0, uint32_t in1, uint32_t **out);
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
+
+	void cache_blank_rgb32();
+	void blank_fill(uint32_t **dest, uint32_t count, bool update_cursor = false);
 
 	inline void gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t *cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	inline void gfxunit_exec_cel_loaddata(gfx_cel_t *cel);

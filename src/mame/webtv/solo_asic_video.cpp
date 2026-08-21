@@ -102,7 +102,7 @@ void solo_asic_video_device::device_start()
 	save_item(NAME(m_pot_draw_hsize));
 	save_item(NAME(m_pot_draw_vstart));
 	save_item(NAME(m_pot_draw_vsize));
-	save_item(NAME(m_pot_draw_blank_color));
+	save_item(NAME(m_cached_blank_rgb32));
 	save_item(NAME(m_pot_draw_hintline));
 }
 
@@ -185,10 +185,10 @@ void solo_asic_video_device::device_reset()
 	m_pot_draw_hsize = m_pot_hsize;
 	m_pot_draw_vstart = m_pot_vstart;
 	m_pot_draw_vsize = m_pot_vsize;
-	m_pot_draw_blank_color = m_pot_blank_color;
 	m_pot_draw_hintline = 0x0;
 
 	solo_asic_video_device::validate_active_area();
+	solo_asic_video_device::cache_blank_rgb32();
 }
 
 void solo_asic_video_device::device_stop()
@@ -1025,7 +1025,7 @@ void solo_asic_video_device::reg_9088_w(uint32_t data)
 {
 	m_pot_blank_color = data;
 
-	m_pot_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);     
+	solo_asic_video_device::cache_blank_rgb32();
 }
 
 uint32_t solo_asic_video_device::reg_908c_r()
@@ -1373,6 +1373,39 @@ inline void solo_asic_video_device::draw422(gfx_cel_t *cel, int8_t offset, uint3
 	(*out)++;
 }
 
+void solo_asic_video_device::cache_blank_rgb32()
+{
+	uint32_t color = 
+		  (((m_pot_blank_color >> 0x10) & 0xff) << 0x18)
+		| (((m_pot_blank_color >> 0x08) & 0xff) << 0x10)
+		| (((m_pot_blank_color >> 0x10) & 0xff) << 0x08)
+		| (((m_pot_blank_color >> 0x00) & 0xff) << 0x00);
+
+	uint32_t *cached_blank_rgb32 = m_cached_blank_rgb32;
+	solo_asic_video_device::draw422(NULL, 0, color, &cached_blank_rgb32);
+}
+
+inline void solo_asic_video_device::blank_fill(uint32_t **dest, uint32_t count, bool update_cursor)
+{
+	if (m_cached_blank_rgb32[0] == m_cached_blank_rgb32[1])
+	{
+		std::fill_n(*dest, count, m_cached_blank_rgb32[0]);
+	}
+	else
+	{
+		for (uint32_t i = 0; i < count; i += 2)
+		{
+			*(*dest + i) = m_cached_blank_rgb32[0];
+
+			if ((i + 1) < count)
+				*(*dest + i + 1) = m_cached_blank_rgb32[1];
+		}
+	}
+
+	if(update_cursor)
+		*dest = *dest + count;
+}
+
 inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t *cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	uint32_t codebook_base = cel->codebook_base();
@@ -1396,8 +1429,8 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t
 
 	for (int32_t y = y_top; y < y_bottom; y++)
 	{
-		double x_left   = cel->xleftstart()  + (cel->y_offset * cel->dx_left());
-		double x_right  = cel->xrightstart() + (cel->y_offset * cel->dx_right());
+		double x_left   = cel->c.xleftstart  + (cel->y_offset * cel->c.dx_left);
+		double x_right  = cel->c.xrightstart + (cel->y_offset * cel->c.dx_right);
 
 		int32_t x_start = (int32_t)m_pot_draw_hstart + (                                    ((int32_t)m_pot_draw_hsize / 2) + INTR_TRUNC(x_left ) );
 		int32_t x_end   = (int32_t)m_pot_draw_hstart + (std::min((int32_t)m_pot_draw_hsize, ((int32_t)m_pot_draw_hsize / 2) + INTR_TRUNC(x_right)));
@@ -1610,8 +1643,8 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 {
 	auto profile = g_profiler.start(PROFILER_DRAWGFX);
 
-	uint16_t screen_width = bitmap.width();
-	uint16_t screen_height = bitmap.height();
+	uint32_t screen_width  = bitmap.width();
+	uint32_t screen_height = bitmap.height();
 
 	bool screen_enabled = (m_pot_cntl & POT_FCNTL_EN) && (m_gfx_cntl & GFX_FCNTL_EN);
 
@@ -1619,7 +1652,11 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 	m_vid_csize = m_vid_nsize;
 	m_div_currcfg = m_div_nextcfg;
 
-	for (int y = 0; y < screen_height; y++)
+	uint32_t active_x_start = std::min(screen_width, (m_pot_draw_hstart + 1)                    & ~1u);
+	uint32_t active_x_end   = std::min(screen_width, (m_pot_draw_hstart + m_pot_draw_hsize + 1) & ~1u);
+
+	// Clears active area.
+	for (uint32_t y = 0; y < screen_height; y++)
 	{
 		uint32_t *line = &bitmap.pix(y);
 
@@ -1628,36 +1665,32 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 		if (m_vid_cline == m_pot_draw_hintline)
 			solo_asic_video_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
 
-		for (int x = 0; x < screen_width; x += 2)
+		bool row_is_active = (
+			screen_enabled
+			&& y >= m_pot_draw_vstart
+			&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
+		);
+
+		if (row_is_active)
 		{
-			uint32_t pixel = POT_DEFAULT_COLOR;
+			// Make sure active area is clear
+			std::fill_n(line + active_x_start, active_x_end - active_x_start, 0x00000000);
 
-			bool is_active_area = (
-				y >= m_pot_draw_vstart
-				&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
-
-				&& x >= m_pot_draw_hstart
-				&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
-			);
-
-			if (screen_enabled && is_active_area)
-			{
-				*line++ = 0x00000000;
-				*line++ = 0x00000000;
-			}
-			else
-			{
-				pixel = m_pot_draw_blank_color;
-				solo_asic_video_device::draw422(NULL, 0, pixel, &line);
-			}
-
+			// Non-active area uses blank color
+			solo_asic_video_device::blank_fill(&line, active_x_start, false);                          // Left
+			uint32_t *line_right_ptr = line + active_x_end;
+			solo_asic_video_device::blank_fill(&line_right_ptr, (screen_width - active_x_end), false); // Right
+		}
+		else
+		{
+			// Whole line isn't active so blank the whole thing
+			solo_asic_video_device::blank_fill(&line, screen_width, false);
 		}
 	}
 
+	// Now draw Cels
 	if (m_gfx_ymap_base_master != 0x80000000)
-	{
 		solo_asic_video_device::gfxunit_draw_cels(screen, bitmap, cliprect);
-	}
 
 	// Write back would happen here (would need to push to a buffer rather than direct to the screen)
 	//solo_asic_video_device::set_video_irq(BUS_INT_VID_GFXUNIT, GFX_INT_RANGEINT_WBEOF, 1);
@@ -1669,8 +1702,8 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 {
 	auto profile = g_profiler.start(PROFILER_VIDEO);
 
-	uint16_t screen_width = bitmap.width();
-	uint16_t screen_height = bitmap.height();
+	uint32_t screen_width = bitmap.width();
+	uint32_t screen_height = bitmap.height();
 	uint8_t vid_step = (2 * BYTES_PER_PIXEL);
 	bool screen_enabled = (m_pot_cntl & POT_FCNTL_EN) && (m_vid_dmacntl & VID_DMACNTL_DMAEN);
 
@@ -1679,7 +1712,10 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 	m_vid_ccnt = m_vid_draw_nstart;
 	m_div_currcfg = m_div_nextcfg;
 
-	for (int y = 0; y < screen_height; y++)
+	uint32_t active_x_start = std::min(screen_width, (m_pot_draw_hstart + 1)                    & ~1u);
+	uint32_t active_x_end   = std::min(screen_width, (m_pot_draw_hstart + m_pot_draw_hsize + 1) & ~1u);
+
+	for (uint32_t y = 0; y < screen_height; y++)
 	{
 		uint32_t *line = &bitmap.pix(y);
 
@@ -1688,30 +1724,40 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 		if (m_vid_cline == m_pot_draw_hintline)
 			solo_asic_video_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
 
-		for (int x = 0; x < screen_width; x += 2)
+		bool row_is_active = (
+			screen_enabled
+			&& y >= m_pot_draw_vstart
+			&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
+		);
+
+		if (row_is_active)
 		{
-			uint32_t pixel = POT_DEFAULT_COLOR;
+			// Non-active area uses blank color (left)
+			solo_asic_video_device::blank_fill(&line, active_x_start, true);
 
-			bool is_active_area = (
-				y >= m_pot_draw_vstart
-				&& y < (m_pot_draw_vstart + m_pot_draw_vsize)
-
-				&& x >= m_pot_draw_hstart
-				&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
-			);
-
-			if (screen_enabled && is_active_area && m_vid_ccnt != 0x80000000)
+			// Draw active area
+			for (uint32_t x = 0; x < screen_width; x += 2)
 			{
-				pixel = m_hostram[m_vid_ccnt >> 0x2];
+				bool is_active_area = (
+					x >= m_pot_draw_hstart
+					&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
+				);
 
-				m_vid_ccnt += vid_step;
-			}
-			else
-			{
-				pixel = m_pot_draw_blank_color;
+				if (is_active_area && m_vid_ccnt != 0x80000000)
+				{
+					solo_asic_video_device::draw422(NULL, 0, m_hostram[m_vid_ccnt >> 0x2], &line);
+					m_vid_ccnt += vid_step;
+				}
 			}
 
-			solo_asic_video_device::draw422(NULL, 0, pixel, &line);
+			// Non-active area uses blank color (right)
+			uint32_t *line_right_ptr = line + active_x_end;
+			solo_asic_video_device::blank_fill(&line_right_ptr, (screen_width - active_x_end), true);
+		}
+		else
+		{
+			// Whole line isn't active so blank the whole thing
+			solo_asic_video_device::blank_fill(&line, screen_width, true);
 		}
 	}
 

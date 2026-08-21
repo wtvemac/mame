@@ -234,7 +234,6 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_vid_draw_hsize));
 	save_item(NAME(m_vid_draw_vstart));
 	save_item(NAME(m_vid_draw_vsize));
-	save_item(NAME(m_vid_draw_blank_color));
 
 	save_item(NAME(m_aud_ocstart));
 	save_item(NAME(m_aud_ocsize));
@@ -296,7 +295,6 @@ void spot_asic_device::device_reset()
 	m_vid_draw_hsize = m_vid_hsize;
 	m_vid_draw_vstart = m_vid_vstart;
 	m_vid_draw_vsize = m_vid_vsize;
-	m_vid_draw_blank_color = m_vid_blank_color;
 
 	m_aud_lsample = 0;
 	m_aud_rsample = 0;
@@ -331,6 +329,7 @@ void spot_asic_device::device_reset()
 
 	spot_asic_device::validate_active_area();
 	spot_asic_device::watchdog_enable(m_wdenable);
+	spot_asic_device::cache_blank_rgb32();
 }
 
 void spot_asic_device::device_stop()
@@ -756,7 +755,7 @@ void spot_asic_device::reg_301c_w(uint32_t data)
 {
 	m_vid_blank_color = data;
 
-	m_vid_draw_blank_color = (((data >> 0x10) & 0xff) << 0x18) | (((data >> 0x08) & 0xff) << 0x10) | (((data >> 0x10) & 0xff) << 0x08) | (data & 0xff);	
+	spot_asic_device::cache_blank_rgb32();
 }
 
 uint32_t spot_asic_device::reg_3020_r()
@@ -1333,12 +1332,81 @@ void spot_asic_device::set_vid_irq(uint8_t mask, int state)
 	}
 }
 
+inline void spot_asic_device::draw422(uint32_t in, uint32_t **out)
+{
+	int32_t y1 = ((in >> 0x18) & 0xff) - VID_Y_BLACK;
+	int32_t Cb = ((in >> 0x10) & 0xff) - VID_UV_OFFSET;
+	int32_t y2 = ((in >> 0x08) & 0xff) - VID_Y_BLACK;
+	int32_t Cr = ((in >> 0x00) & 0xff) - VID_UV_OFFSET;
+
+	y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+	y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+
+	int32_t r = ((0x166 * Cr)            + VID_UV_OFFSET) >> 8;
+	int32_t b = ((0x1C7 * Cb)            + VID_UV_OFFSET) >> 8;
+	int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
+
+	**out = (
+		  std::clamp(y1 + r, 0x00, 0xff) << 0x10
+		| std::clamp(y1 - g, 0x00, 0xff) << 0x08
+		| std::clamp(y1 + b, 0x00, 0xff) << 0x00
+	);
+	(*out)++;
+
+	**out = (
+		  std::clamp(y2 + r, 0x00, 0xff) << 0x10
+		| std::clamp(y2 - g, 0x00, 0xff) << 0x08
+		| std::clamp(y2 + b, 0x00, 0xff) << 0x00
+	);
+	(*out)++;
+}
+
+void spot_asic_device::cache_blank_rgb32()
+{
+	uint32_t color = 
+		  (((m_vid_blank_color >> 0x10) & 0xff) << 0x18)
+		| (((m_vid_blank_color >> 0x08) & 0xff) << 0x10)
+		| (((m_vid_blank_color >> 0x10) & 0xff) << 0x08)
+		| (((m_vid_blank_color >> 0x00) & 0xff) << 0x00);
+
+	uint32_t *cached_blank_rgb32 = m_cached_blank_rgb32;
+	spot_asic_device::draw422(color, &cached_blank_rgb32);
+}
+
+inline void spot_asic_device::blank_fill(uint32_t **dest, uint32_t count, bool update_cursor)
+{
+	if (m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
+	{
+		if (m_cached_blank_rgb32[0] == m_cached_blank_rgb32[1])
+		{
+			std::fill_n(*dest, count, m_cached_blank_rgb32[0]);
+		}
+		else
+		{
+			for (uint32_t i = 0; i < count; i += 2)
+			{
+				*(*dest + i) = m_cached_blank_rgb32[0];
+
+				if ((i + 1) < count)
+					*(*dest + i + 1) = m_cached_blank_rgb32[1];
+			}
+		}
+	}
+	else
+	{
+		std::fill_n(*dest, count, 0x00000000);
+	}
+
+	if(update_cursor)
+		*dest = *dest + count;
+}
+
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	auto profile = g_profiler.start(PROFILER_VIDEO);
 
-	uint16_t screen_width = bitmap.width();
-	uint16_t screen_height = bitmap.height();
+	uint32_t screen_width = bitmap.width();
+	uint32_t screen_height = bitmap.height();
 	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
 	bool screen_enabled = (m_vid_fcntl & VID_FCNTL_VIDENAB) && (m_vid_dmacntl & VID_DMACNTL_DMAEN);
 
@@ -1346,7 +1414,10 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 	m_vid_csize = m_vid_nsize;
 	m_vid_ccnt = m_vid_draw_nstart;
 
-	for (int y = 0; y < screen_height; y++)
+	uint32_t active_x_start = std::min(screen_width, (m_vid_draw_hstart + 1)                    & ~1u);
+	uint32_t active_x_end   = std::min(screen_width, (m_vid_draw_hstart + m_vid_draw_hsize + 1) & ~1u);
+
+	for (uint32_t y = 0; y < screen_height; y++)
 	{
 		uint32_t *line = &bitmap.pix(y);
 
@@ -1355,52 +1426,40 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 		if (m_vid_cline == m_vid_hintline)
 			spot_asic_device::set_vid_irq(VID_INT_HSYNC, 1);
 
-		for (int x = 0; x < screen_width; x += 2)
+		bool row_is_active = (
+			screen_enabled
+			&& y >= m_vid_draw_vstart
+			&& y < (m_vid_draw_vstart + m_vid_draw_vsize)
+		);
+
+		if (row_is_active)
 		{
-			uint32_t pixel = VID_DEFAULT_COLOR;
+			// Non-active area uses blank color (left)
+			spot_asic_device::blank_fill(&line, active_x_start, true);
 
-			bool is_active_area = (
-				y >= m_vid_draw_vstart
-				&& y < (m_vid_draw_vstart + m_vid_draw_vsize)
-
-				&& x >= m_vid_draw_hstart
-				&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
-			);
-
-			if (screen_enabled && is_active_area && m_vid_ccnt != 0x80000000)
+			// Draw active area
+			for (uint32_t x = 0; x < screen_width; x += 2)
 			{
-				pixel = m_hostram[m_vid_ccnt >> 0x2];
+				bool is_active_area = (
+					x >= m_vid_draw_hstart
+					&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
+				);
 
-				m_vid_ccnt += vid_step;
-			}
-			else if (m_vid_fcntl & VID_FCNTL_BLNKCOLEN)
-			{
-				pixel = m_vid_draw_blank_color;
+				if (is_active_area && m_vid_ccnt != 0x80000000)
+				{
+					spot_asic_device::draw422(m_hostram[m_vid_ccnt >> 0x2], &line);
+					m_vid_ccnt += vid_step;
+				}
 			}
 
-			int32_t y1 = ((pixel >> 0x18) & 0xff) - VID_Y_BLACK;
-			int32_t Cb = ((pixel >> 0x10) & 0xff) - VID_UV_OFFSET;
-			int32_t y2 = ((pixel >> 0x08) & 0xff) - VID_Y_BLACK;
-			int32_t Cr = ((pixel) & 0xff) - VID_UV_OFFSET;
-
-			y1 = (((y1 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
-			y2 = (((y2 << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
-
-			int32_t r = ((0x166 * Cr) + VID_UV_OFFSET) >> 8;
-			int32_t b = ((0x1C7 * Cb) + VID_UV_OFFSET) >> 8;
-			int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
-
-			*line++ = (
-				std::clamp(y1 + r, 0x00, 0xff) << 0x10
-				| std::clamp(y1 - g, 0x00, 0xff) << 0x08
-				| std::clamp(y1 + b, 0x00, 0xff)
-			);
-
-			*line++ = (
-				std::clamp(y2 + r, 0x00, 0xff) << 0x10
-				| std::clamp(y2 - g, 0x00, 0xff) << 0x08
-				| std::clamp(y2 + b, 0x00, 0xff)
-			);
+			// Non-active area uses blank color (right)
+			uint32_t *line_right_ptr = line + active_x_end;
+			spot_asic_device::blank_fill(&line_right_ptr, (screen_width - active_x_end), true);
+		}
+		else
+		{
+			// Whole line isn't active so blank the whole thing
+			spot_asic_device::blank_fill(&line, screen_width, true);
 		}
 	}
 
