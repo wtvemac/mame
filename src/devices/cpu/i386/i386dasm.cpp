@@ -2068,9 +2068,10 @@ void i386_disassembler::handle_modrm(std::ostream &stream, offs_t base_pc, offs_
 
 void i386_disassembler::handle_modrm(std::string &buffer, offs_t base_pc, offs_t &pc, const data_buffer &opcodes)
 {
-	std::stringstream stream;
-	handle_modrm(stream, base_pc, pc, opcodes);
-	buffer = stream.str();
+	m_modrm_buf.str(std::string());
+	m_modrm_buf.clear();
+	handle_modrm(m_modrm_buf, base_pc, pc, opcodes);
+	buffer = m_modrm_buf.str();
 }
 
 void i386_disassembler::handle_param(std::ostream &stream, uint32_t param, offs_t base_pc, offs_t &pc, const data_buffer &opcodes)
