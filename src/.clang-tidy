@@ -1,0 +1,160 @@
+# license: BSD-3-Clause
+# copyright-holders: wtvemac
+#
+# clang-tidy configuration file. Intended for clang-tidy >= 22.
+#
+# For more information, see:
+#
+# https://docs.mamedev.org/contributing/cxx.html
+#
+
+Checks: >-
+  -*,
+
+  # Bug & error detection
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  bugprone-suspicious-include,
+  bugprone-format-security,
+  
+  # Clang static analyzer
+  clang-analyzer-*,
+
+  # C++ core guidelines & initialization
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+
+  # Readability & naming
+  readability-identifier-naming,
+  readability-make-member-function-const,
+  readability-redundant-*,
+  readability-simplify-boolean-expr,
+  readability-redundant-declaration,
+  readability-static-*,
+  readability-misleading-indentation,
+  readability-container-size-empty,
+  readability-avoid-const-params-in-decls,
+
+  # Modernization & best practices
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-default-member-init,
+  modernize-use-emplace,
+  modernize-use-constexpr,
+
+  # Performance & portability
+  performance-*,
+  performance-inefficient-string-concatenation,
+  portability-*,
+
+  # Standards & security
+  cert-str34-c,
+
+  # Other
+  misc-*,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
+  -misc-include-cleaner,
+  misc-const-correctness
+
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/.*'
+FormatStyle: file
+
+CheckOptions:
+
+  #
+  # Naming conventions
+  #
+
+  # Preprocessor macros
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+
+  # Include guards
+  #   NOTE: You can use to `python3 scripts/build/check_include_guards.py src/devices src/mame` check these.
+  #         I can't get llvm-header-guard to do what I want.
+  #- key: llvm-header-guard.HeaderGuardRegex
+  #  value: "^MAME_.*"
+
+  # Constants
+  - key: readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.ConstantMemberCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.StaticConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.ConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.GlobalConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.StaticConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+
+  # Functions
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.GlobalFunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.MethodCase
+    value: lower_case
+  - key: readability-identifier-naming.PublicMethodCase
+    value: lower_case
+  - key: readability-identifier-naming.ProtectedMethodCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMethodCase
+    value: lower_case
+
+  # Classes
+  - key: readability-identifier-naming.AbstractClassCase
+    value: lower_case
+  - key: readability-identifier-naming.AbstractClassSuffix
+    value: "_base"
+  - key: readability-identifier-naming.ClassCase
+    value: lower_case
+  - key: readability-identifier-naming.StructCase
+    value: lower_case
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+
+  # Device classes
+  # Device types
+  #   NOTE: doesn't look like this can be enforced in clang-tidy
+
+  # Enumerations
+  - key: readability-identifier-naming.StructCase
+    value: lower_case
+  - key: readability-identifier-naming.EnumCase
+    value: lower_case
+
+  # Template parameters
+  - key: readability-identifier-naming.TemplateParameterCase
+    value: CamelCase
+  - key: readability-identifier-naming.ValueTemplateParameterCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypeTemplateParameterCase
+    value: CamelCase
+
+  #
+  # Variables and literals
+  #
+
+  - key: readability-identifier-naming.PrivateMemberPrefix
+    value: "m_"
+  - key: readability-identifier-naming.ProtectedMemberPrefix
+    value: "m_"
+  - key: readability-identifier-naming.StaticDataMemberPrefix
+    value: "s_"
+
