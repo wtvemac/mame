@@ -54,6 +54,14 @@ SpacesInConditionalStatement: false
 SpacesInSquareBrackets: false
 Cpp11BracedListStyle: false
 
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+
+AlignAfterOpenBracket: BlockIndent
+
+WhitespaceSensitiveMacros:
+  - CONS
+
 MaxEmptyLinesToKeep: 2
 
 #
