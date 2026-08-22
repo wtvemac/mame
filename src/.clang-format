@@ -1,0 +1,116 @@
+# license: BSD-3-Clause
+# copyright-holders: wtvemac
+#
+# clang-format configuration file. Intended for clang-format >= 22.
+#
+# For more information, see:
+#
+# https://docs.mamedev.org/contributing/cxx.html
+#
+
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+
+ColumnLimit: 120
+
+#
+# Variables and literals
+#
+
+NumericLiteralCase:
+  HexDigit: Lower
+  Suffix: Upper
+
+#
+# Bracing and indentation
+#
+
+UseTab: ForContinuationAndIndentation
+TabWidth: 4
+IndentWidth: 4
+ContinuationIndentWidth: 8
+
+BreakBeforeBraces: Allman # mamdev also accepts 'Attach' (K&R)
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AlignOperands: AlignAfterOperator
+BreakConstructorInitializers: AfterColon
+PackConstructorInitializers: Never
+IndentCaseLabels: true
+IndentPPDirectives: None
+NamespaceIndentation: All
+AccessModifierOffset: -4
+
+#
+# Spacing
+#
+
+SpaceBeforeParens: ControlStatements
+SpacesInParentheses: false
+SpacesInConditionalStatement: false
+SpacesInSquareBrackets: false
+Cpp11BracedListStyle: false
+
+MaxEmptyLinesToKeep: 2
+
+#
+# Structural organization
+#
+
+IncludeBlocks: Regroup
+SortIncludes: CaseInsensitive
+
+IncludeCategories:
+  - Regex: '^"emu\.h"'
+    Priority: 1
+
+  - Regex: '^"bus/'
+    Priority: 2
+  - Regex: '^"cpu/'
+    Priority: 2
+  - Regex: '^"imagedev/'
+    Priority: 2
+  - Regex: '^"machine/'
+    Priority: 2
+  - Regex: '^"sound/'
+    Priority: 2
+  - Regex: '^"video/'
+    Priority: 2
+
+  - Regex: '^"(addrmap|attotime|bookkeeping|config|crsair|debugger|devcb|devcpu|devdelegate|devfind|device|didisasm|diexec|digfx|diimage|dimemory|dinetwork|dinvram|dipalette|dipty|dirom|dirtc|diserial|dislot|disound|distate|divideo|divtlb)'
+    Priority: 3
+  - Regex: '^"(drawgfx|drivenum|driver|emu|emucore|emufwd|emumemea|emumemedp|emumemedr|emumemedw|emumemem|emumemep|emumemet|emumemeu|emumemeun|emumemws|emumem_mud|emumem|emuopts|emupal)'
+    Priority: 3
+  - Regex: '^"(fileio|gamedrv|hafile|http|image|inpttype|input|inputdev|ioport|logmacro|maine|main|mconfig|memarray|natkeyboard|network|output|parameters|profiler)'
+    Priority: 3
+  - Regex: '^"(recording|render|rendertypes|rendfont|rendlay|rendutil|resampler|romentry|romload|save|sedule|screen|softlist_dev|softlist|sound|speaker|tilemap|uiinput|validity|video|xtal)'
+    Priority: 3
+
+  - Regex: '^"formats/'
+    Priority: 4
+  - Regex: '^"util/'
+    Priority: 4
+
+  - Regex: '^"osd'
+    Priority: 5
+
+  - Regex: '^".*"'
+    Priority: 6
+
+  - Regex: '<.*>'
+    Priority: 7
+
+  - Regex: '"logmacro\.h"'
+    Priority: 8
+
+#
+# Other
+#
+
+ReflowComments: true
+
+PointerAlignment: Right
+ReferenceAlignment: Right
