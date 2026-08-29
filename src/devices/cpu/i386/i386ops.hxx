@@ -309,8 +309,7 @@ void i386_device::i386_cli()               // Opcode 0xfa
 {
 	if(PROTECTED_MODE)
 	{
-		uint8_t IOPL = m_core->IOP1 | (m_core->IOP2 << 1);
-		if(m_core->CPL > IOPL)
+		if(m_core->CPL > m_core->IOPL)
 			FAULT(FAULT_GP,0);
 	}
 	m_core->IF = 0;
@@ -1105,7 +1104,7 @@ void i386_device::i386_repeat(int invert_flag)
 	uint32_t count;
 	int32_t cycle_base = 0, cycle_adjustment = 0;
 	uint8_t prefix_flag=1;
-	uint8_t *flag = nullptr;
+	uint32_t *flag = nullptr;
 
 
 	do {
@@ -1671,8 +1670,7 @@ void i386_device::i386_sti()               // Opcode 0xfb
 {
 	if(PROTECTED_MODE)
 	{
-		uint8_t IOPL = m_core->IOP1 | (m_core->IOP2 << 1);
-		if(m_core->CPL > IOPL)
+		if(m_core->CPL > m_core->IOPL)
 			FAULT(FAULT_GP,0);
 	}
 	m_core->delayed_interrupt_enable = 1;  // IF is set after the next instruction.

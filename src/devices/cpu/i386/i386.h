@@ -114,12 +114,12 @@ protected:
 
 	struct I386_SYS_TABLE {
 		uint32_t base;
-		uint16_t limit;
+		uint32_t limit;
 	};
 
 	struct I386_SEG_DESC {
-		uint16_t segment;
-		uint16_t flags;
+		uint32_t segment;
+		uint32_t flags;
 		uint32_t base;
 		uint32_t limit;
 	};
@@ -385,35 +385,34 @@ protected:
 		uint32_t eflags;
 		uint32_t eflags_mask;
 
-		uint8_t CF;   // Carry flag
-		uint8_t PF;   // Parity Flag
-		uint8_t AF;   // Auxiliary carry flag
-		uint8_t ZF;   // Zero flag
-		uint8_t SF;   // Sign flag
-		uint8_t TF;   // Trap flag
-		uint8_t IF;   // Interrupt enable flag
-		uint8_t DF;   // Direction flag
-		uint8_t OF;   // Overflow flag
-		uint8_t IOP1; // I/O privilege level (0-3)
-		uint8_t IOP2; // I/O privilege level (0-3)
-		uint8_t NT;   // Nested task flag
-		uint8_t RF;   // Resume flag
-		uint8_t VM;   // V8086 mode flag
-		uint8_t AC;   // Alignment check
-		uint8_t VIF;  // Virtual interrupt flag
-		uint8_t VIP;  // Virtual interrupt pending
-		uint8_t ID;   // Identification flag
+		uint32_t CF;   // Carry flag
+		uint32_t PF;   // Parity Flag
+		uint32_t AF;   // Auxiliary carry flag
+		uint32_t ZF;   // Zero flag
+		uint32_t SF;   // Sign flag
+		uint32_t TF;   // Trap flag
+		uint32_t IF;   // Interrupt enable flag
+		uint32_t DF;   // Direction flag
+		uint32_t OF;   // Overflow flag
+		uint32_t IOPL; // I/O privilege level (0-3)
+		uint32_t NT;   // Nested task flag
+		uint32_t RF;   // Resume flag
+		uint32_t VM;   // V8086 mode flag
+		uint32_t AC;   // Alignment check
+		uint32_t VIF;  // Virtual interrupt flag
+		uint32_t VIP;  // Virtual interrupt pending
+		uint32_t ID;   // Identification flag
 
-		uint8_t CPL;  // current privilege level
+		uint32_t CPL;  // current privilege level
 
 		uint32_t cr[5]; // Control registers
 		uint32_t dr[8]; // Debug registers
 		uint32_t tr[8]; // Test registers
 
-		uint8_t irq_state;
-		uint8_t ext;  // external interrupt
-		uint8_t delayed_interrupt_enable;
-		uint8_t performed_intersegment_jump;
+		uint32_t irq_state;
+		uint32_t ext;  // external interrupt
+		uint32_t delayed_interrupt_enable;
+		uint32_t performed_intersegment_jump;
 
 		I386_SREG sreg[6]; // ES=0,CS=1,SS=2,DS=3,FS=4,GS=5
 
@@ -424,19 +423,19 @@ protected:
 
 		offs_t a20_mask;
 
-		bool smm;
-		bool smi;
-		bool smi_latched;
+		uint32_t smm;
+		uint32_t smi;
+		uint32_t smi_latched;
 
 		extFloat80_t x87_reg[8];
-		uint16_t x87_cw;
-		uint16_t x87_sw;
-		uint16_t x87_tw;
-		uint16_t x87_ds;
+		uint32_t x87_cw;
+		uint32_t x87_sw;
+		uint32_t x87_tw;
+		uint32_t x87_ds;
 		uint32_t x87_data_ptr;
-		uint16_t x87_cs;
+		uint32_t x87_cs;
 		uint32_t x87_inst_ptr;
-		uint16_t x87_opcode;
+		uint32_t x87_opcode;
 	};
 	internal_i386_state *m_core;
 

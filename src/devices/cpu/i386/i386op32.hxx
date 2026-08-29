@@ -1843,7 +1843,7 @@ void i386_device::i386_pushad()            // Opcode 0x60
 
 void i386_device::i386_pushfd()            // Opcode 0x9c
 {
-	if(!m_core->IOP1 && !m_core->IOP2 && V8086_MODE)
+	if(m_core->IOPL == 0 && V8086_MODE)
 		FAULT(FAULT_GP,0)
 		uint32_t offset;
 		if(STACK_32BIT)

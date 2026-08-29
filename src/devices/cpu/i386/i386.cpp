@@ -1155,15 +1155,14 @@ void i386_device::CYCLES_RM(int modrm, int r, int m)
 
 void i386_device::check_ioperm(offs_t port, uint8_t mask)
 {
-	uint8_t IOPL, map;
+	uint8_t map;
 	uint16_t IOPB;
 	uint32_t address;
 
 	if(!PROTECTED_MODE)
 		return;
 
-	IOPL = m_core->IOP1 | (m_core->IOP2 << 1);
-	if(!V8086_MODE && (m_core->CPL <= IOPL))
+	if(!V8086_MODE && (m_core->CPL <= m_core->IOPL))
 		return;
 
 	if((m_core->task.limit < 0x67) || ((m_core->task.flags & 0xd) != 9))
@@ -1377,8 +1376,7 @@ uint32_t i386_device::get_flags() const
 	f |= m_core->IF << 9;
 	f |= m_core->DF << 10;
 	f |= m_core->OF << 11;
-	f |= m_core->IOP1 << 12;
-	f |= m_core->IOP2 << 13;
+	f |= (m_core->IOPL & 3) << 12;
 	f |= m_core->NT << 14;
 	f |= m_core->RF << 16;
 	f |= m_core->VM << 17;
@@ -1401,8 +1399,7 @@ void i386_device::set_flags(uint32_t f )
 	m_core->IF = (f & 0x200) ? 1 : 0;
 	m_core->DF = (f & 0x400) ? 1 : 0;
 	m_core->OF = (f & 0x800) ? 1 : 0;
-	m_core->IOP1 = (f & 0x1000) ? 1 : 0;
-	m_core->IOP2 = (f & 0x2000) ? 1 : 0;
+	m_core->IOPL = (f >> 12) & 3;
 	m_core->NT = (f & 0x4000) ? 1 : 0;
 	m_core->RF = (f & 0x10000) ? 1 : 0;
 	m_core->VM = (f & 0x20000) ? 1 : 0;
@@ -2019,8 +2016,7 @@ void i386_device::i386_common_init()
 	save_item(NAME(m_core->AF));
 	save_item(NAME(m_core->IF));
 	save_item(NAME(m_core->TF));
-	save_item(NAME(m_core->IOP1));
-	save_item(NAME(m_core->IOP2));
+	save_item(NAME(m_core->IOPL));
 	save_item(NAME(m_core->NT));
 	save_item(NAME(m_core->RF));
 	save_item(NAME(m_core->VM));
@@ -2289,7 +2285,7 @@ void i386_device::state_string_export(const device_state_entry &entry, std::stri
 				get_flags(),
 				m_core->RF ? "R" : "r",
 				m_core->NT ? " N " : " n ",
-				m_core->IOP2 << 1 | m_core->IOP1,
+				m_core->IOPL,
 				m_core->OF ? " O" : " o",
 				m_core->DF ? " D" : " d",
 				m_core->IF ? " I" : " i",

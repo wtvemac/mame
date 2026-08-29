@@ -458,7 +458,7 @@ void i386_device::i386_trap(int irq, int irq_gate)
 			}
 			if(V8086_MODE)
 			{
-				if((!m_core->IOP1 || !m_core->IOP2) && (m_opcode != 0xcc))
+				if((m_core->IOPL != 3) && (m_opcode != 0xcc))
 				{
 					LOGMASKED(LOG_PM_FAULT_GP, "IRQ (%08x): Is in Virtual 8086 mode and IOPL != 3.\n",m_core->pc);
 					FAULT(FAULT_GP,0)
@@ -2056,7 +2056,7 @@ void i386_device::i386_protected_mode_iret(int operand32)
 	I386_SREG desc,stack;
 	uint8_t CPL, RPL, DPL;
 	uint32_t newflags;
-	uint8_t IOPL = m_core->IOP1 | (m_core->IOP2 << 1);
+	uint8_t IOPL = m_core->IOPL;
 
 	CPL = m_core->CPL;
 	uint32_t ea = i386_translate(SS, (STACK_32BIT)?REG32(ESP):REG16(SP), 0);
