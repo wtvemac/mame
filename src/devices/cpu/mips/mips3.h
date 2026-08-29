@@ -410,8 +410,8 @@ protected:
 		uint32_t        compare_armed;
 		uint32_t        jmpdest;                    /* destination jump target */
 
-		uint8_t         drc_cache_dirty;            /* true if we need to flush the cache */
-		uint8_t         drc_cached_invariant;       // true if we cached invariant code
+		uint32_t         drc_cache_dirty;           /* true if we need to flush the cache */
+		uint32_t         drc_cached_invariant;      // true if we cached invariant code
 	};
 
 	/* core state */
