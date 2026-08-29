@@ -413,8 +413,8 @@ protected:
 		/* XBurst MXU SIMD registers xr0-xr15 (xr0 reads as zero) and the control register xr16; only the moves and loads/stores are implemented */
 		uint32_t        mxu[32];
 
-		uint8_t         drc_cache_dirty;            /* true if we need to flush the cache */
-		uint8_t         drc_cached_invariant;       // true if we cached invariant code
+		uint32_t        drc_cache_dirty;            /* true if we need to flush the cache */
+		uint32_t        drc_cached_invariant;       // true if we cached invariant code
 	};
 
 	/* core state */
