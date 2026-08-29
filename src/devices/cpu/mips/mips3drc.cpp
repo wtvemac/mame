@@ -45,6 +45,12 @@
 #define DEBUG_DIAGRAM_TSORT 1   // 1=sorts by access duration/time, 0=sorts by access count/hits
 #define DEBUG_DIAGRAM_FREQ  5.0 // How often to print memory access diagnostics in seconds, this is rough since it's dependant on mem accesses.
 #define DEBUG_DIAGRAM_ACNT  10  // How many slow addresses to print
+
+// Flag on the address to differentiate between writes and reads on an address.
+// Using MSB (sign bit) as read/write indicator.
+// Should be fine since that used for kseg indication which gets stripped for our use.
+static constexpr uint32_t MEM_DIAG_WRITE_FLAG = 0x80000000;
+
 #include <chrono>
 
 /***************************************************************************
@@ -703,9 +709,9 @@ void mips3_device::func_printf_ramdiag()
 			uint32_t hits = iterators[i]->second.acnt;
 			uint32_t duration = iterators[i]->second.adur;
 
-			bool is_write = (mem_addr & 0x80000000);
+			bool is_write = (mem_addr & MEM_DIAG_WRITE_FLAG);
 
-			mem_addr &= (~0x80000000);
+			mem_addr &= (~MEM_DIAG_WRITE_FLAG);
 
 			printf("%c 0x%-18.8x | 0x%-18.8x | %-18u | %-18uns\n", ((is_write) ? 'W' : 'R'), mem_addr, pc_val, hits, duration);
 		}
@@ -744,13 +750,10 @@ void mips3_device::func_log_slowram()
 	uint64_t adur = (end - m_diag_ramlog_epoch);
 	m_diag_slowram_adur += adur;
 
-	// Using MSB (sign bit) as read/write indicator.
-	// Should be fine since that used for kseg indication which gets stripped for our use.
-
 	if(m_core->arg1 == 1)
-		m_core->arg0 |= 0x80000000;
+		m_core->arg0 |= MEM_DIAG_WRITE_FLAG;
 	else
-		m_core->arg0 &= (~0x80000000);
+		m_core->arg0 &= (~MEM_DIAG_WRITE_FLAG);
 
 	m_diag_slowram_alog[m_core->arg0].acnt++;
 	// This is just a general total time spend. Wont help in bursty situations, would need better diag for that.
