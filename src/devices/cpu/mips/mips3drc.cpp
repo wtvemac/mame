@@ -179,7 +179,7 @@ uint32_t mips3_device::mips3drc_get_options()
 -------------------------------------------------*/
 void mips3_device::clear_fastram(uint32_t select_start)
 {
-	if ((m_core != nullptr && m_core->drc_cached_invariant) && m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM)
+	if (allow_drc() && (m_core != nullptr && m_core->drc_cached_invariant) && m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM)
 		fatalerror("Invariant fastram accessor cannot be modified after start\n");
 
 	m_fastram_select=select_start;
@@ -195,7 +195,7 @@ void mips3_device::clear_fastram(uint32_t select_start)
 
 void mips3_device::add_fastram(offs_t start, offs_t end, uint8_t readonly, void *base)
 {
-	if ((m_core != nullptr && m_core->drc_cached_invariant) && m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM)
+	if (allow_drc() && (m_core != nullptr && m_core->drc_cached_invariant) && m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM)
 		fatalerror("Invariant fastram accessor cannot be modified after start\n");
 
 	if (m_fastram_select < std::size(m_fastram))
