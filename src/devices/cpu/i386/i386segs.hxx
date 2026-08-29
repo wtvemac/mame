@@ -578,7 +578,7 @@ void i386_device::i386_trap(int irq, int irq_gate)
 				}
 				if(stack.selector & 0x04)
 				{
-					if((stack.selector & ~0x07) > m_core->ldtr.base)
+					if((stack.selector & ~0x07) > m_core->ldtr.limit)
 					{
 						LOGMASKED(LOG_PM_FAULT_TS, "IRQ: New stack selector is past LDT limit.\n");
 						FAULT_EXP(FAULT_TS,(stack.selector & ~0x03)+m_core->ext)
@@ -586,7 +586,7 @@ void i386_device::i386_trap(int irq, int irq_gate)
 				}
 				else
 				{
-					if((stack.selector & ~0x07) > m_core->gdtr.base)
+					if((stack.selector & ~0x07) > m_core->gdtr.limit)
 					{
 						LOGMASKED(LOG_PM_FAULT_TS, "IRQ: New stack selector is past GDT limit.\n");
 						FAULT_EXP(FAULT_TS,(stack.selector & ~0x03)+m_core->ext)
