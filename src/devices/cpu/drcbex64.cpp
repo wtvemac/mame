@@ -1540,7 +1540,13 @@ void drcbe_x64::generate(drcuml_block &block, const instruction *instlist, u32 n
 	m_hash.block_begin(block, instlist, numinst);
 	m_map.block_begin(block);
 	m_invariant_block = block.invariant();
-	m_pc_labels.clear();
+
+	// After m_pc_labels reaches a certain size then start fresh rather than clearing the entire space.
+	// Saves a small amount of CPU cycles
+	if (m_pc_labels.bucket_count() > 256)
+		m_pc_labels = std::unordered_map<u32, Label>();
+	else
+		m_pc_labels.clear();
 
 	// compute the base by aligning the cache top to a cache line
 	if (!m_linemask)
