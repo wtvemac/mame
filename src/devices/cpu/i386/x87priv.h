@@ -62,15 +62,15 @@
   *
   *************************************/
 
-#define ST_TO_PHYS(x)           (((m_x87_sw >> X87_SW_TOP_SHIFT) + (x)) & X87_SW_TOP_MASK)
-#define ST(x)                   (m_x87_reg[ST_TO_PHYS(x)])
+  #define ST_TO_PHYS(x)           (((m_core->x87_sw >> X87_SW_TOP_SHIFT) + (x)) & X87_SW_TOP_MASK)
+#define ST(x)                   (m_core->x87_reg[ST_TO_PHYS(x)])
 #define X87_TW_FIELD_SHIFT(x)   ((x) << 1)
-#define X87_TAG(x)              ((m_x87_tw >> X87_TW_FIELD_SHIFT(x)) & X87_TW_MASK)
-#define X87_RC                  ((m_x87_cw >> X87_CW_RC_SHIFT) & X87_CW_RC_MASK)
+#define X87_TAG(x)              ((m_core->x87_tw >> X87_TW_FIELD_SHIFT(x)) & X87_TW_MASK)
+#define X87_RC                  ((m_core->x87_cw >> X87_CW_RC_SHIFT) & X87_CW_RC_MASK)
 #define X87_IS_ST_EMPTY(x)      (X87_TAG(ST_TO_PHYS(x)) == X87_TW_EMPTY)
 #define X87_SW_C3_0             X87_SW_C0
 
-#define UNIMPLEMENTED           fatalerror("Unimplemented x87 op: %s (PC:%x)\n", __FUNCTION__, m_pc)
+#define UNIMPLEMENTED           fatalerror("Unimplemented x87 op: %s (PC:%x)\n", __FUNCTION__, m_core->pc)
 
 
   /*************************************

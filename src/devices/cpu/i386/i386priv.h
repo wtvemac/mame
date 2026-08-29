@@ -297,43 +297,43 @@ union MMX_REG {
 extern int i386_parity_table[256];
 
 #define FAULT_THROW(fault,error) { throw (uint64_t)(fault | (uint64_t)error << 32); }
-#define PF_THROW(error) { m_cr[2] = address; FAULT_THROW(FAULT_PF,error); }
+#define PF_THROW(error) { m_core->cr[2] = address; FAULT_THROW(FAULT_PF,error); }
 
-#define PROTECTED_MODE      (m_cr[0] & CR0_PE)
-#define STACK_32BIT         (m_sreg[SS].d)
-#define V8086_MODE          (m_VM)
-#define NESTED_TASK         (m_NT)
-#define WP                  (m_cr[0] & CR0_WP)
+#define PROTECTED_MODE      (m_core->cr[0] & CR0_PE)
+#define STACK_32BIT         (m_core->sreg[SS].d)
+#define V8086_MODE          (m_core->VM)
+#define NESTED_TASK         (m_core->NT)
+#define WP                  (m_core->cr[0] & CR0_WP)
 
-#define SetOF_Add32(r,s,d)  (m_OF = (((r) ^ (s)) & ((r) ^ (d)) & 0x80000000) ? 1: 0)
-#define SetOF_Add16(r,s,d)  (m_OF = (((r) ^ (s)) & ((r) ^ (d)) & 0x8000) ? 1 : 0)
-#define SetOF_Add8(r,s,d)   (m_OF = (((r) ^ (s)) & ((r) ^ (d)) & 0x80) ? 1 : 0)
+#define SetOF_Add32(r,s,d)  (m_core->OF = (((r) ^ (s)) & ((r) ^ (d)) & 0x80000000) ? 1: 0)
+#define SetOF_Add16(r,s,d)  (m_core->OF = (((r) ^ (s)) & ((r) ^ (d)) & 0x8000) ? 1 : 0)
+#define SetOF_Add8(r,s,d)   (m_core->OF = (((r) ^ (s)) & ((r) ^ (d)) & 0x80) ? 1 : 0)
 
-#define SetOF_Sub32(r,s,d)  (m_OF = (((d) ^ (s)) & ((d) ^ (r)) & 0x80000000) ? 1 : 0)
-#define SetOF_Sub16(r,s,d)  (m_OF = (((d) ^ (s)) & ((d) ^ (r)) & 0x8000) ? 1 : 0)
-#define SetOF_Sub8(r,s,d)   (m_OF = (((d) ^ (s)) & ((d) ^ (r)) & 0x80) ? 1 : 0)
+#define SetOF_Sub32(r,s,d)  (m_core->OF = (((d) ^ (s)) & ((d) ^ (r)) & 0x80000000) ? 1 : 0)
+#define SetOF_Sub16(r,s,d)  (m_core->OF = (((d) ^ (s)) & ((d) ^ (r)) & 0x8000) ? 1 : 0)
+#define SetOF_Sub8(r,s,d)   (m_core->OF = (((d) ^ (s)) & ((d) ^ (r)) & 0x80) ? 1 : 0)
 
-#define SetCF8(x)           {m_CF = ((x) & 0x100) ? 1 : 0; }
-#define SetCF16(x)          {m_CF = ((x) & 0x10000) ? 1 : 0; }
-#define SetCF32(x)          {m_CF = ((x) & (((uint64_t)1) << 32)) ? 1 : 0; }
+#define SetCF8(x)           {m_core->CF = ((x) & 0x100) ? 1 : 0; }
+#define SetCF16(x)          {m_core->CF = ((x) & 0x10000) ? 1 : 0; }
+#define SetCF32(x)          {m_core->CF = ((x) & (((uint64_t)1) << 32)) ? 1 : 0; }
 
-#define SetSF(x)            (m_SF = (x))
-#define SetZF(x)            (m_ZF = (x))
-#define SetAF(x,y,z)        (m_AF = (((x) ^ ((y) ^ (z))) & 0x10) ? 1 : 0)
-#define SetPF(x)            (m_PF = i386_parity_table[(x) & 0xFF])
+#define SetSF(x)            (m_core->SF = (x))
+#define SetZF(x)            (m_core->ZF = (x))
+#define SetAF(x,y,z)        (m_core->AF = (((x) ^ ((y) ^ (z))) & 0x10) ? 1 : 0)
+#define SetPF(x)            (m_core->PF = i386_parity_table[(x) & 0xFF])
 
-#define SetSZPF8(x)         {m_ZF = ((uint8_t)(x)==0);  m_SF = ((x)&0x80) ? 1 : 0; m_PF = i386_parity_table[x & 0xFF]; }
-#define SetSZPF16(x)        {m_ZF = ((uint16_t)(x)==0);  m_SF = ((x)&0x8000) ? 1 : 0; m_PF = i386_parity_table[x & 0xFF]; }
-#define SetSZPF32(x)        {m_ZF = ((uint32_t)(x)==0);  m_SF = ((x)&0x80000000) ? 1 : 0; m_PF = i386_parity_table[x & 0xFF]; }
+#define SetSZPF8(x)         {m_core->ZF = ((uint8_t)(x)==0);  m_core->SF = ((x)&0x80) ? 1 : 0; m_core->PF = i386_parity_table[x & 0xFF]; }
+#define SetSZPF16(x)        {m_core->ZF = ((uint16_t)(x)==0);  m_core->SF = ((x)&0x8000) ? 1 : 0; m_core->PF = i386_parity_table[x & 0xFF]; }
+#define SetSZPF32(x)        {m_core->ZF = ((uint32_t)(x)==0);  m_core->SF = ((x)&0x80000000) ? 1 : 0; m_core->PF = i386_parity_table[x & 0xFF]; }
 
-#define MMX(n)              (*((MMX_REG *)(&m_x87_reg[(n)].signif)))
+#define MMX(n)              (*((MMX_REG *)(&m_core->x87_reg[(n)].signif)))
 #define XMM(n)              m_sse_reg[(n)]
 
 #define FLAG_DIRTY          0x100 // VTLB flag
-#define CYCLES_NUM(x)       (m_cycles -= (x))
+#define CYCLES_NUM(x)       (m_core->cycles -= (x))
 
-#define FAULT(fault,error)  {m_ext = 1; i386_trap_with_error(fault,0,0,error); return;}
-#define FAULT_EXP(fault,error) {m_ext = 1; FAULT_THROW(fault, (error)); return;}
+#define FAULT(fault,error)  {m_core->ext = 1; i386_trap_with_error(fault,0,0,error); return;}
+#define FAULT_EXP(fault,error) {m_core->ext = 1; FAULT_THROW(fault, (error)); return;}
 
 /***********************************************************************************/
 
@@ -352,9 +352,9 @@ struct MODRM_TABLE {
 
 extern MODRM_TABLE i386_MODRM_table[256];
 
-#define REG8(x)         (m_reg.b[x])
-#define REG16(x)        (m_reg.w[x])
-#define REG32(x)        (m_reg.d[x])
+#define REG8(x)         (m_core->reg.b[x])
+#define REG16(x)        (m_core->reg.w[x])
+#define REG32(x)        (m_core->reg.d[x])
 
 #define LOAD_REG8(x)    (REG8(i386_MODRM_table[x].reg.b))
 #define LOAD_REG16(x)   (REG16(i386_MODRM_table[x].reg.w))

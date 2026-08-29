@@ -7,7 +7,7 @@ void i386_device::i486_cpuid()             // Opcode 0x0F A2
 	if (m_cpuid_id0 == 0)
 	{
 		// this 486 doesn't support the CPUID instruction
-		LOGMASKED(LOG_MSR, "CPUID not supported at %08x!\n", m_eip);
+		LOGMASKED(LOG_MSR, "CPUID not supported at %08x!\n", m_core->eip);
 		i386_trap(6, 0);
 	}
 	else
@@ -65,11 +65,11 @@ void i386_device::i486_cmpxchg_rm8_r8()    // Opcode 0x0f b0
 
 		if( REG8(AL) == dst ) {
 			STORE_RM8(modrm, src);
-			m_ZF = 1;
+			m_core->ZF = 1;
 			CYCLES(CYCLES_CMPXCHG_REG_REG_T);
 		} else {
 			REG8(AL) = dst;
-			m_ZF = 0;
+			m_core->ZF = 0;
 			CYCLES(CYCLES_CMPXCHG_REG_REG_F);
 		}
 	} else {
@@ -80,11 +80,11 @@ void i386_device::i486_cmpxchg_rm8_r8()    // Opcode 0x0f b0
 
 		if( REG8(AL) == dst ) {
 			WRITE8(ea, src);
-			m_ZF = 1;
+			m_core->ZF = 1;
 			CYCLES(CYCLES_CMPXCHG_REG_MEM_T);
 		} else {
 			REG8(AL) = dst;
-			m_ZF = 0;
+			m_core->ZF = 0;
 			CYCLES(CYCLES_CMPXCHG_REG_MEM_F);
 		}
 	}
@@ -99,11 +99,11 @@ void i386_device::i486_cmpxchg_rm16_r16()  // Opcode 0x0f b1
 
 		if( REG16(AX) == dst ) {
 			STORE_RM16(modrm, src);
-			m_ZF = 1;
+			m_core->ZF = 1;
 			CYCLES(CYCLES_CMPXCHG_REG_REG_T);
 		} else {
 			REG16(AX) = dst;
-			m_ZF = 0;
+			m_core->ZF = 0;
 			CYCLES(CYCLES_CMPXCHG_REG_REG_F);
 		}
 	} else {
@@ -113,11 +113,11 @@ void i386_device::i486_cmpxchg_rm16_r16()  // Opcode 0x0f b1
 
 		if( REG16(AX) == dst ) {
 			WRITE16(ea, src);
-			m_ZF = 1;
+			m_core->ZF = 1;
 			CYCLES(CYCLES_CMPXCHG_REG_MEM_T);
 		} else {
 			REG16(AX) = dst;
-			m_ZF = 0;
+			m_core->ZF = 0;
 			CYCLES(CYCLES_CMPXCHG_REG_MEM_F);
 		}
 	}
@@ -132,11 +132,11 @@ void i386_device::i486_cmpxchg_rm32_r32()  // Opcode 0x0f b1
 
 		if( REG32(EAX) == dst ) {
 			STORE_RM32(modrm, src);
-			m_ZF = 1;
+			m_core->ZF = 1;
 			CYCLES(CYCLES_CMPXCHG_REG_REG_T);
 		} else {
 			REG32(EAX) = dst;
-			m_ZF = 0;
+			m_core->ZF = 0;
 			CYCLES(CYCLES_CMPXCHG_REG_REG_F);
 		}
 	} else {
@@ -146,11 +146,11 @@ void i386_device::i486_cmpxchg_rm32_r32()  // Opcode 0x0f b1
 
 		if( REG32(EAX) == dst ) {
 			WRITE32(ea, src);
-			m_ZF = 1;
+			m_core->ZF = 1;
 			CYCLES(CYCLES_CMPXCHG_REG_MEM_T);
 		} else {
 			REG32(EAX) = dst;
-			m_ZF = 0;
+			m_core->ZF = 0;
 			CYCLES(CYCLES_CMPXCHG_REG_MEM_F);
 		}
 	}
@@ -235,10 +235,10 @@ void i386_device::i486_group0F01_16()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,1);
 				}
-				WRITE16(ea, m_gdtr.limit);
+				WRITE16(ea, m_core->gdtr.limit);
 				// Win32s requires all 32 bits to be stored here, despite various Intel docs
 				// claiming that the upper 8 bits are either zeroed or undefined in 16-bit mode
-				WRITE32(ea + 2, m_gdtr.base);
+				WRITE32(ea + 2, m_core->gdtr.base);
 				CYCLES(CYCLES_SGDT);
 				break;
 			}
@@ -253,14 +253,14 @@ void i386_device::i486_group0F01_16()      // Opcode 0x0f 01
 				{
 					ea = GetEA(modrm,1);
 				}
-				WRITE16(ea, m_idtr.limit);
-				WRITE32(ea + 2, m_idtr.base);
+				WRITE16(ea, m_core->idtr.limit);
+				WRITE32(ea + 2, m_core->idtr.base);
 				CYCLES(CYCLES_SIDT);
 				break;
 			}
 		case 2:         /* LGDT */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM16(modrm);
@@ -268,14 +268,14 @@ void i386_device::i486_group0F01_16()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,0);
 				}
-				m_gdtr.limit = READ16(ea);
-				m_gdtr.base = READ32(ea + 2) & 0xffffff;
+				m_core->gdtr.limit = READ16(ea);
+				m_core->gdtr.base = READ32(ea + 2) & 0xffffff;
 				CYCLES(CYCLES_LGDT);
 				break;
 			}
 		case 3:         /* LIDT */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM16(modrm);
@@ -283,26 +283,26 @@ void i386_device::i486_group0F01_16()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,0);
 				}
-				m_idtr.limit = READ16(ea);
-				m_idtr.base = READ32(ea + 2) & 0xffffff;
+				m_core->idtr.limit = READ16(ea);
+				m_core->idtr.base = READ32(ea + 2) & 0xffffff;
 				CYCLES(CYCLES_LIDT);
 				break;
 			}
 		case 4:         /* SMSW */
 			{
 				if( modrm >= 0xc0 ) {
-					STORE_RM16(modrm, m_cr[0]);
+					STORE_RM16(modrm, m_core->cr[0]);
 					CYCLES(CYCLES_SMSW_REG);
 				} else {
 					ea = GetEA(modrm,1);
-					WRITE16(ea, m_cr[0]);
+					WRITE16(ea, m_core->cr[0]);
 					CYCLES(CYCLES_SMSW_MEM);
 				}
 				break;
 			}
 		case 6:         /* LMSW */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				uint16_t b;
 				if( modrm >= 0xc0 ) {
@@ -315,13 +315,13 @@ void i386_device::i486_group0F01_16()      // Opcode 0x0f 01
 				}
 				if(PROTECTED_MODE)
 					b |= 0x0001;  // cannot return to real mode using this instruction.
-				m_cr[0] &= ~0x0000000f;
-				m_cr[0] |= b & 0x0000000f;
+				m_core->cr[0] &= ~0x0000000f;
+				m_core->cr[0] |= b & 0x0000000f;
 				break;
 			}
 		case 7:         /* INVLPG */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if(modrm >= 0xc0)
 				{
@@ -354,8 +354,8 @@ void i386_device::i486_group0F01_32()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,1);
 				}
-				WRITE16(ea, m_gdtr.limit);
-				WRITE32(ea + 2, m_gdtr.base);
+				WRITE16(ea, m_core->gdtr.limit);
+				WRITE32(ea + 2, m_core->gdtr.base);
 				CYCLES(CYCLES_SGDT);
 				break;
 			}
@@ -370,14 +370,14 @@ void i386_device::i486_group0F01_32()      // Opcode 0x0f 01
 				{
 					ea = GetEA(modrm,1);
 				}
-				WRITE16(ea, m_idtr.limit);
-				WRITE32(ea + 2, m_idtr.base);
+				WRITE16(ea, m_core->idtr.limit);
+				WRITE32(ea + 2, m_core->idtr.base);
 				CYCLES(CYCLES_SIDT);
 				break;
 			}
 		case 2:         /* LGDT */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM32(modrm);
@@ -385,14 +385,14 @@ void i386_device::i486_group0F01_32()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,0);
 				}
-				m_gdtr.limit = READ16(ea);
-				m_gdtr.base = READ32(ea + 2);
+				m_core->gdtr.limit = READ16(ea);
+				m_core->gdtr.base = READ32(ea + 2);
 				CYCLES(CYCLES_LGDT);
 				break;
 			}
 		case 3:         /* LIDT */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM32(modrm);
@@ -400,27 +400,27 @@ void i386_device::i486_group0F01_32()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,0);
 				}
-				m_idtr.limit = READ16(ea);
-				m_idtr.base = READ32(ea + 2);
+				m_core->idtr.limit = READ16(ea);
+				m_core->idtr.base = READ32(ea + 2);
 				CYCLES(CYCLES_LIDT);
 				break;
 			}
 		case 4:         /* SMSW */
 			{
 				if( modrm >= 0xc0 ) {
-					STORE_RM32(modrm, m_cr[0] & 0xffff);
+					STORE_RM32(modrm, m_core->cr[0] & 0xffff);
 					CYCLES(CYCLES_SMSW_REG);
 				} else {
 					/* always 16-bit memory operand */
 					ea = GetEA(modrm,1);
-					WRITE16(ea, m_cr[0]);
+					WRITE16(ea, m_core->cr[0]);
 					CYCLES(CYCLES_SMSW_MEM);
 				}
 				break;
 			}
 		case 6:         /* LMSW */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				uint16_t b;
 				if( modrm >= 0xc0 ) {
@@ -433,13 +433,13 @@ void i386_device::i486_group0F01_32()      // Opcode 0x0f 01
 				}
 				if(PROTECTED_MODE)
 					b |= 0x0001;  // cannot return to real mode using this instruction.
-				m_cr[0] &= ~0x0000000f;
-				m_cr[0] |= b & 0x0000000f;
+				m_core->cr[0] &= ~0x0000000f;
+				m_core->cr[0] |= b & 0x0000000f;
 				break;
 			}
 		case 7:         /* INVLPG */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if(modrm >= 0xc0)
 				{
@@ -507,17 +507,17 @@ void i386_device::i486_bswap_edi()     // Opcode 0x0f 3F
 
 void i386_device::i486_mov_cr_r32()        // Opcode 0x0f 22
 {
-	if(PROTECTED_MODE && m_CPL)
+	if(PROTECTED_MODE && m_core->CPL)
 		FAULT(FAULT_GP, 0);
 	uint8_t modrm = FETCH();
 	uint8_t cr = (modrm >> 3) & 0x7;
-	uint32_t oldcr = m_cr[cr];
+	uint32_t oldcr = m_core->cr[cr];
 	uint32_t data = LOAD_RM32(modrm);
 	switch(cr)
 	{
 		case 0:
 			CYCLES(CYCLES_MOV_REG_CR0);
-			if((oldcr ^ m_cr[cr]) & (CR0_PG | CR0_WP))
+			if((oldcr ^ m_core->cr[cr]) & (CR0_PG | CR0_WP))
 				vtlb_flush_dynamic();
 			if (PROTECTED_MODE != BIT(data, 0))
 				debugger_privilege_hook();
@@ -532,12 +532,12 @@ void i386_device::i486_mov_cr_r32()        // Opcode 0x0f 22
 			LOGMASKED(LOG_INVALID_OPCODE, "i386: mov_cr_r32 CR%d!\n", cr);
 			return;
 	}
-	m_cr[cr] = data;
+	m_core->cr[cr] = data;
 }
 
 void i386_device::i486_wait()
 {
-	if ((m_cr[0] & (CR0_TS | CR0_MP)) == (CR0_TS | CR0_MP))
+	if ((m_core->cr[0] & (CR0_TS | CR0_MP)) == (CR0_TS | CR0_MP))
 	{
 		i386_trap(FAULT_NM, 0);
 		return;
