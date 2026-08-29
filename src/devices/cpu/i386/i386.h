@@ -6,9 +6,11 @@
 #pragma once
 
 #include "i386dasm.h"
+#include "cpu/drcuml.h"
 #include "divtlb.h"
 #include "softfloat3/source/include/softfloat.h"
 #include <algorithm>
+
 
 #define INPUT_LINE_A20      1
 #define INPUT_LINE_SMI      2
@@ -34,6 +36,8 @@ public:
 	uint64_t debug_segofftovirt(int params, const uint64_t *param);
 	uint64_t debug_virttophys(int params, const uint64_t *param);
 	uint64_t debug_cacheflush(int params, const uint64_t *param);
+
+	void drc_set_cache_size(std::size_t bytes) { m_drc_cache->set_size(bytes); }
 
 protected:
 	i386_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, int program_data_width, int program_addr_width, int io_data_width);
@@ -271,41 +275,7 @@ protected:
 	};
 	static const X86_OPCODE s_x86_opcode_table[];
 
-	I386_GPR m_reg;
-	I386_SREG m_sreg[6];
-	uint32_t m_eip;
-	uint32_t m_pc;
-	uint32_t m_prev_eip;
-	uint32_t m_eflags;
-	uint32_t m_eflags_mask;
-	uint8_t m_CF;
-	uint8_t m_DF;
-	uint8_t m_SF;
-	uint8_t m_OF;
-	uint8_t m_ZF;
-	uint8_t m_PF;
-	uint8_t m_AF;
-	uint8_t m_IF;
-	uint8_t m_TF;
-	uint8_t m_IOP1;
-	uint8_t m_IOP2;
-	uint8_t m_NT;
-	uint8_t m_RF;
-	uint8_t m_VM;
-	uint8_t m_AC;
-	uint8_t m_VIF;
-	uint8_t m_VIP;
-	uint8_t m_ID;
-
-	uint8_t m_CPL;  // current privilege level
-
 	bool m_auto_clear_RF;
-	uint8_t m_performed_intersegment_jump;
-	uint8_t m_delayed_interrupt_enable;
-
-	uint32_t m_cr[5];       // Control registers
-	uint32_t m_dr[8];       // Debug registers
-	uint32_t m_tr[8];       // Test registers
 
 	memory_passthrough_handler m_dr_breakpoints[4];
 	util::notifier_subscription m_notifier;
@@ -314,13 +284,6 @@ protected:
 	//386 Debug Register change handlers.
 	inline void dri_changed();
 	inline void dr7_changed(uint32_t old_val, uint32_t new_val);
-
-	I386_SYS_TABLE m_gdtr;    // Global Descriptor Table Register
-	I386_SYS_TABLE m_idtr;    // Interrupt Descriptor Table Register
-	I386_SEG_DESC m_task;     // Task register
-	I386_SEG_DESC m_ldtr;     // Local Descriptor Table Register
-
-	uint8_t m_ext;  // external interrupt
 
 	int m_halted;
 
@@ -333,14 +296,10 @@ protected:
 	int m_segment_prefix;
 	int m_segment_override;
 
-	int m_cycles;
-	int m_base_cycles;
 	uint8_t m_opcode;
 
-	uint8_t m_irq_state;
 	address_space *m_program;
 	address_space *m_io;
-	offs_t m_a20_mask;
 	memory_access<32, 1, 0, ENDIANNESS_LITTLE>::cache macache16;
 	memory_access<32, 2, 0, ENDIANNESS_LITTLE>::cache macache32;
 
@@ -349,20 +308,9 @@ protected:
 	uint32_t m_cpu_version;
 	uint32_t m_brand_id;
 	uint32_t m_feature_flags;
-	uint64_t m_tsc;
 	uint64_t m_perfctr[2];
 
 	// FPU
-	extFloat80_t m_x87_reg[8];
-
-	uint16_t m_x87_cw;
-	uint16_t m_x87_sw;
-	uint16_t m_x87_tw;
-	uint16_t m_x87_ds;
-	uint32_t m_x87_data_ptr;
-	uint16_t m_x87_cs;
-	uint32_t m_x87_inst_ptr;
-	uint16_t m_x87_opcode;
 
 	i386_modrm_func m_opcode_table_x87_d8[256];
 	i386_modrm_func m_opcode_table_x87_d9[256];
@@ -407,9 +355,6 @@ protected:
 	uint8_t *m_cycle_table_pm;
 	uint8_t *m_cycle_table_rm;
 
-	bool m_smm;
-	bool m_smi;
-	bool m_smi_latched;
 	bool m_nmi_masked;
 	bool m_nmi_latched;
 	uint32_t m_smbase;
@@ -426,6 +371,82 @@ protected:
 
 	uint64_t m_debugger_temp;
 
+	struct internal_i386_state {
+		uint32_t pc;
+		uint32_t eip;
+		uint32_t prev_eip;
+
+		int      cycles;
+		int      base_cycles;
+		uint64_t tsc;
+
+		I386_GPR reg;
+
+		uint32_t eflags;
+		uint32_t eflags_mask;
+
+		uint8_t CF;   // Carry flag
+		uint8_t PF;   // Parity Flag
+		uint8_t AF;   // Auxiliary carry flag
+		uint8_t ZF;   // Zero flag
+		uint8_t SF;   // Sign flag
+		uint8_t TF;   // Trap flag
+		uint8_t IF;   // Interrupt enable flag
+		uint8_t DF;   // Direction flag
+		uint8_t OF;   // Overflow flag
+		uint8_t IOP1; // I/O privilege level (0-3)
+		uint8_t IOP2; // I/O privilege level (0-3)
+		uint8_t NT;   // Nested task flag
+		uint8_t RF;   // Resume flag
+		uint8_t VM;   // V8086 mode flag
+		uint8_t AC;   // Alignment check
+		uint8_t VIF;  // Virtual interrupt flag
+		uint8_t VIP;  // Virtual interrupt pending
+		uint8_t ID;   // Identification flag
+
+		uint8_t CPL;  // current privilege level
+
+		uint32_t cr[5]; // Control registers
+		uint32_t dr[8]; // Debug registers
+		uint32_t tr[8]; // Test registers
+
+		uint8_t irq_state;
+		uint8_t ext;  // external interrupt
+		uint8_t delayed_interrupt_enable;
+		uint8_t performed_intersegment_jump;
+
+		I386_SREG sreg[6]; // ES=0,CS=1,SS=2,DS=3,FS=4,GS=5
+
+		I386_SYS_TABLE gdtr; // Global Descriptor Table Register
+		I386_SYS_TABLE idtr; // Interrupt Descriptor Table Register
+		I386_SEG_DESC task;  // Task register
+		I386_SEG_DESC ldtr;  // Local Descriptor Table Register
+
+		offs_t a20_mask;
+
+		bool smm;
+		bool smi;
+		bool smi_latched;
+
+		extFloat80_t x87_reg[8];
+		uint16_t x87_cw;
+		uint16_t x87_sw;
+		uint16_t x87_tw;
+		uint16_t x87_ds;
+		uint32_t x87_data_ptr;
+		uint16_t x87_cs;
+		uint32_t x87_inst_ptr;
+		uint16_t x87_opcode;
+	};
+	internal_i386_state *m_core;
+
+	std::unique_ptr<drc_cache> m_drc_cache;
+
+	enum : size_t
+	{
+		DRC_CACHE_SIZE = 32U * 1024 * 1024
+	};
+
 	void register_state_i386();
 	void register_state_i386_x87();
 	void register_state_i386_x87_xmm();
@@ -438,19 +459,19 @@ protected:
 	inline uint8_t FETCH();
 	inline uint16_t FETCH16();
 	inline uint32_t FETCH32();
-	inline uint8_t READ8(uint32_t ea) { return READ8PL(ea, m_CPL); }
-	inline uint16_t READ16(uint32_t ea) { return READ16PL(ea, m_CPL); }
-	inline uint32_t READ32(uint32_t ea) { return READ32PL(ea, m_CPL); }
-	inline uint64_t READ64(uint32_t ea) { return READ64PL(ea, m_CPL); }
+	inline uint8_t READ8(uint32_t ea) { return READ8PL(ea, m_core->CPL); }
+	inline uint16_t READ16(uint32_t ea) { return READ16PL(ea, m_core->CPL); }
+	inline uint32_t READ32(uint32_t ea) { return READ32PL(ea, m_core->CPL); }
+	inline uint64_t READ64(uint32_t ea) { return READ64PL(ea, m_core->CPL); }
 	virtual uint8_t READ8PL(uint32_t ea, uint8_t privilege);
 	virtual uint16_t READ16PL(uint32_t ea, uint8_t privilege);
 	virtual uint32_t READ32PL(uint32_t ea, uint8_t privilege);
 	virtual uint64_t READ64PL(uint32_t ea, uint8_t privilege);
 	inline void WRITE_TEST(uint32_t ea);
-	inline void WRITE8(uint32_t ea, uint8_t value) { WRITE8PL(ea, m_CPL, value); }
-	inline void WRITE16(uint32_t ea, uint16_t value) { WRITE16PL(ea, m_CPL, value); }
-	inline void WRITE32(uint32_t ea, uint32_t value) { WRITE32PL(ea, m_CPL, value); }
-	inline void WRITE64(uint32_t ea, uint64_t value) { WRITE64PL(ea, m_CPL, value); }
+	inline void WRITE8(uint32_t ea, uint8_t value) { WRITE8PL(ea, m_core->CPL, value); }
+	inline void WRITE16(uint32_t ea, uint16_t value) { WRITE16PL(ea, m_core->CPL, value); }
+	inline void WRITE32(uint32_t ea, uint32_t value) { WRITE32PL(ea, m_core->CPL, value); }
+	inline void WRITE64(uint32_t ea, uint64_t value) { WRITE64PL(ea, m_core->CPL, value); }
 	virtual void WRITE8PL(uint32_t ea, uint8_t privilege, uint8_t value);
 	virtual void WRITE16PL(uint32_t ea, uint8_t privilege, uint16_t value);
 	virtual void WRITE32PL(uint32_t ea, uint8_t privilege, uint32_t value);

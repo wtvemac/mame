@@ -19,6 +19,7 @@
 */
 
 #include "emu.h"
+#include "emuopts.h"
 #include "i386.h"
 #include "i386priv.h"
 #include "x87priv.h"
@@ -75,6 +76,7 @@ i386_device::i386_device(const machine_config &mconfig, device_type type, const 
 	, m_io_config("io", ENDIANNESS_LITTLE, io_data_width, 16, 0)
 	, m_smiact(*this)
 	, m_ferr_handler(*this)
+	, m_drc_cache(std::make_unique<drc_cache>(DRC_CACHE_SIZE))
 {
 	// 32 unified
 	set_vtlb_dynamic_entries(32);
@@ -180,16 +182,16 @@ uint32_t i386_device::i386_translate(int segment, uint32_t ip, int rwn, int size
 	// TODO: segment limit access size, execution permission, handle exception thrown from exception handler
 	if (PROTECTED_MODE && !V8086_MODE && (rwn != -1))
 	{
-		if (!(m_sreg[segment].valid))
+		if (!(m_core->sreg[segment].valid))
 			FAULT_THROW((segment == SS) ? FAULT_SS : FAULT_GP, 0);
 		if (i386_limit_check(segment, ip, size))
 			FAULT_THROW((segment == SS) ? FAULT_SS : FAULT_GP, 0);
-		if ((rwn == 0) && ((m_sreg[segment].flags & 8) && !(m_sreg[segment].flags & 2)))
+		if ((rwn == 0) && ((m_core->sreg[segment].flags & 8) && !(m_core->sreg[segment].flags & 2)))
 			FAULT_THROW(FAULT_GP, 0);
-		if ((rwn == 1) && ((m_sreg[segment].flags & 8) || !(m_sreg[segment].flags & 2)))
+		if ((rwn == 1) && ((m_core->sreg[segment].flags & 8) || !(m_core->sreg[segment].flags & 2)))
 			FAULT_THROW(FAULT_GP, 0);
 	}
-	return m_sreg[segment].base + ip;
+	return m_core->sreg[segment].base + ip;
 }
 
 device_vtlb_interface::vtlb_entry i386_device::get_permissions(uint32_t pte, int wp)
@@ -205,7 +207,7 @@ device_vtlb_interface::vtlb_entry i386_device::get_permissions(uint32_t pte, int
 bool i386_device::i386_translate_address(int intention, bool debug, offs_t *address, vtlb_entry *entry)
 {
 	offs_t a = *address;
-	offs_t pdbr = m_cr[3] & 0xfffff000;
+	offs_t pdbr = m_core->cr[3] & 0xfffff000;
 	offs_t directory = (a >> 22) & 0x3ff;
 	offs_t table = (a >> 12) & 0x3ff;
 	vtlb_entry perm = 0;
@@ -213,7 +215,7 @@ bool i386_device::i386_translate_address(int intention, bool debug, offs_t *addr
 	bool user = (intention & TR_USER) ? true : false;
 	bool write = (intention & TR_WRITE) ? true : false;
 
-	if (!(m_cr[0] & CR0_PG))
+	if (!(m_core->cr[0] & CR0_PG))
 	{
 		if (entry)
 			*entry = 0x77;
@@ -223,7 +225,7 @@ bool i386_device::i386_translate_address(int intention, bool debug, offs_t *addr
 	uint32_t page_dir = m_program->read_dword(pdbr + directory * 4);
 	if (page_dir & 1)
 	{
-		if ((page_dir & 0x80) && (m_cr[4] & CR4_PSE))
+		if ((page_dir & 0x80) && (m_core->cr[4] & CR4_PSE))
 		{
 			a = (page_dir & 0xffc00000) | (a & 0x003fffff);
 			if (debug)
@@ -293,7 +295,7 @@ bool i386_device::i386_translate_address(int intention, bool debug, offs_t *addr
 
 bool i386_device::translate_address(int pl, int type, offs_t *address, uint32_t *error)
 {
-	if (!(m_cr[0] & CR0_PG)) // Some (very few) old OS's won't work with this
+	if (!(m_core->cr[0] & CR0_PG)) // Some (very few) old OS's won't work with this
 		return true;
 
 	const vtlb_entry *table = vtlb_table();
@@ -311,7 +313,7 @@ bool i386_device::translate_address(int pl, int type, offs_t *address, uint32_t 
 	{
 		if (!i386_translate_address(type, false, address, &entry))
 		{
-			*error = ((type & TR_WRITE) ? 2 : 0) | ((m_CPL == 3) ? 4 : 0);
+			*error = ((type & TR_WRITE) ? 2 : 0) | ((m_core->CPL == 3) ? 4 : 0);
 			if (entry)
 				*error |= 1;
 			return false;
@@ -321,14 +323,14 @@ bool i386_device::translate_address(int pl, int type, offs_t *address, uint32_t 
 	}
 	if (!(entry & (1 << type)))
 	{
-		*error = ((type & TR_WRITE) ? 2 : 0) | ((m_CPL == 3) ? 4 : 0) | 1;
+		*error = ((type & TR_WRITE) ? 2 : 0) | ((m_core->CPL == 3) ? 4 : 0) | 1;
 		return false;
 	}
 	*address = (entry & 0xfffff000) | (*address & 0xfff);
 #ifdef TEST_TLB
 	int test_ret = i386_translate_address(type, true, &test_addr, nullptr);
 	if (!test_ret || (test_addr != *address))
-		logerror("TLB-PTE mismatch! %06X %06X %06x\n", *address, test_addr, m_pc);
+		logerror("TLB-PTE mismatch! %06X %06X %06x\n", *address, test_addr, m_core->pc);
 #endif
 	return true;
 }
@@ -337,72 +339,72 @@ bool i386_device::translate_address(int pl, int type, offs_t *address, uint32_t 
 
 void i386_device::CHANGE_PC(uint32_t pc)
 {
-	m_pc = i386_translate(CS, pc, -1 );
+	m_core->pc = i386_translate(CS, pc, -1 );
 }
 
 void i386_device::NEAR_BRANCH(int32_t offs)
 {
 	/* TODO: limit */
-	m_eip += offs;
-	m_pc += offs;
+	m_core->eip += offs;
+	m_core->pc += offs;
 }
 
 uint8_t i386_device::FETCH()
 {
 	uint8_t value;
-	offs_t address = m_pc;
+	offs_t address = m_core->pc;
 	uint32_t error;
 
-	if(!translate_address(m_CPL,TR_FETCH,&address,&error))
+	if(!translate_address(m_core->CPL,TR_FETCH,&address,&error))
 		PF_THROW(error);
 
-	value = mem_pr8(address & m_a20_mask);
+	value = mem_pr8(address & m_core->a20_mask);
 #ifdef DEBUG_MISSING_OPCODE
 	m_opcode_bytes[m_opcode_bytes_length] = value;
 	m_opcode_bytes_length = (m_opcode_bytes_length + 1) & 15;
 #endif
-	m_eip++;
-	m_pc++;
+	m_core->eip++;
+	m_core->pc++;
 	return value;
 }
 uint16_t i386_device::FETCH16()
 {
 	uint16_t value;
-	offs_t address = m_pc;
+	offs_t address = m_core->pc;
 	uint32_t error;
 
 	if( !WORD_ALIGNED(address) ) {       /* Unaligned read */
 		value = (FETCH() << 0);
 		value |= (FETCH() << 8);
 	} else {
-		if(!translate_address(m_CPL,TR_FETCH,&address,&error))
+		if(!translate_address(m_core->CPL,TR_FETCH,&address,&error))
 			PF_THROW(error);
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = mem_pr16(address);
-		m_eip += 2;
-		m_pc += 2;
+		m_core->eip += 2;
+		m_core->pc += 2;
 	}
 	return value;
 }
 uint32_t i386_device::FETCH32()
 {
 	uint32_t value;
-	offs_t address = m_pc;
+	offs_t address = m_core->pc;
 	uint32_t error;
 
-	if( !DWORD_ALIGNED(m_pc) ) {      /* Unaligned read */
+	if( !DWORD_ALIGNED(m_core->pc) ) {      /* Unaligned read */
 		value = (FETCH() << 0);
 		value |= (FETCH() << 8);
 		value |= (FETCH() << 16);
 		value |= (FETCH() << 24);
 	} else {
-		if(!translate_address(m_CPL,TR_FETCH,&address,&error))
+		if(!translate_address(m_core->CPL,TR_FETCH,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = mem_pr32(address);
-		m_eip += 4;
-		m_pc += 4;
+		m_core->eip += 4;
+		m_core->pc += 4;
 	}
 	return value;
 }
@@ -415,7 +417,7 @@ uint8_t i386_device::READ8PL(uint32_t ea, uint8_t privilege)
 	if(!translate_address(privilege,TR_READ,&address,&error))
 		PF_THROW(error);
 
-	address &= m_a20_mask;
+	address &= m_core->a20_mask;
 	return m_program->read_byte(address);
 }
 
@@ -433,7 +435,7 @@ uint16_t i386_device::READ16PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = m_program->read_word(address);
 		break;
 
@@ -441,7 +443,7 @@ uint16_t i386_device::READ16PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = m_program->read_dword(address - 1, 0x00ffff00) >> 8;
 		break;
 
@@ -467,7 +469,7 @@ uint32_t i386_device::READ32PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = m_program->read_dword(address);
 		break;
 
@@ -475,7 +477,7 @@ uint32_t i386_device::READ32PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = m_program->read_dword(address - 1, 0xffffff00) >> 8;
 		value |= READ8PL(ea + 3, privilege) << 24;
 		break;
@@ -492,7 +494,7 @@ uint32_t i386_device::READ32PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value |= m_program->read_dword(address, 0x00ffffff) << 8;
 		break;
 	}
@@ -518,7 +520,7 @@ uint64_t i386_device::READ64PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = m_program->read_dword(address - 1, 0xffffff00) >> 8;
 		value |= uint64_t(READ32PL(ea + 3, privilege)) << 24;
 		value |= uint64_t(READ8PL(ea + 7, privilege)) << 56;
@@ -538,7 +540,7 @@ uint64_t i386_device::READ64PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value |= uint64_t(m_program->read_dword(address, 0x00ffffff)) << 40;
 		break;
 	}
@@ -557,7 +559,7 @@ uint16_t i386sx_device::READ16PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		return m_program->read_word(address);
 	}
 	else
@@ -616,7 +618,7 @@ void i386_device::WRITE_TEST(uint32_t ea)
 	offs_t address = ea;
 	uint32_t error;
 
-	if(!translate_address(m_CPL,TR_WRITE,&address,&error))
+	if(!translate_address(m_core->CPL,TR_WRITE,&address,&error))
 		PF_THROW(error);
 }
 
@@ -628,7 +630,7 @@ void i386_device::WRITE8PL(uint32_t ea, uint8_t privilege, uint8_t value)
 	if(!translate_address(privilege,TR_WRITE,&address,&error))
 		PF_THROW(error);
 
-	address &= m_a20_mask;
+	address &= m_core->a20_mask;
 	m_program->write_byte(address, value);
 }
 
@@ -644,7 +646,7 @@ void i386_device::WRITE16PL(uint32_t ea, uint8_t privilege, uint16_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_word(address, value);
 		break;
 
@@ -652,7 +654,7 @@ void i386_device::WRITE16PL(uint32_t ea, uint8_t privilege, uint16_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_dword(address - 1, value << 8, 0x00ffff00);
 		break;
 
@@ -674,7 +676,7 @@ void i386_device::WRITE32PL(uint32_t ea, uint8_t privilege, uint32_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_dword(address, value);
 		break;
 
@@ -682,7 +684,7 @@ void i386_device::WRITE32PL(uint32_t ea, uint8_t privilege, uint32_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_dword(address - 1, (value << 8) & 0xffffff00, 0xffffff00);
 		WRITE8PL(ea + 3, privilege, (value >> 24) & 0xff);
 		break;
@@ -699,7 +701,7 @@ void i386_device::WRITE32PL(uint32_t ea, uint8_t privilege, uint32_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_dword(address, value >> 8, 0x00ffffff);
 		break;
 	}
@@ -721,7 +723,7 @@ void i386_device::WRITE64PL(uint32_t ea, uint8_t privilege, uint64_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_dword(address - 1, value << 8, 0xffffff00);
 		WRITE32PL(ea + 3, privilege, (value >> 24) & 0xffffffff);
 		WRITE8PL(ea + 7, privilege, (value >> 56) & 0xff );
@@ -741,7 +743,7 @@ void i386_device::WRITE64PL(uint32_t ea, uint8_t privilege, uint64_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_dword(address, (value >> 40) & 0x00ffffff, 0x00ffffff);
 		break;
 	}
@@ -757,7 +759,7 @@ void i386sx_device::WRITE16PL(uint32_t ea, uint8_t privilege, uint16_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		m_program->write_word(address, value);
 	}
 	else
@@ -806,21 +808,21 @@ void i386sx_device::WRITE64PL(uint32_t ea, uint8_t privilege, uint64_t value)
 uint8_t i386_device::OR8(uint8_t dst, uint8_t src)
 {
 	uint8_t res = dst | src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF8(res);
 	return res;
 }
 uint16_t i386_device::OR16(uint16_t dst, uint16_t src)
 {
 	uint16_t res = dst | src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF16(res);
 	return res;
 }
 uint32_t i386_device::OR32(uint32_t dst, uint32_t src)
 {
 	uint32_t res = dst | src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF32(res);
 	return res;
 }
@@ -828,21 +830,21 @@ uint32_t i386_device::OR32(uint32_t dst, uint32_t src)
 uint8_t i386_device::AND8(uint8_t dst, uint8_t src)
 {
 	uint8_t res = dst & src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF8(res);
 	return res;
 }
 uint16_t i386_device::AND16(uint16_t dst, uint16_t src)
 {
 	uint16_t res = dst & src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF16(res);
 	return res;
 }
 uint32_t i386_device::AND32(uint32_t dst, uint32_t src)
 {
 	uint32_t res = dst & src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF32(res);
 	return res;
 }
@@ -850,21 +852,21 @@ uint32_t i386_device::AND32(uint32_t dst, uint32_t src)
 uint8_t i386_device::XOR8(uint8_t dst, uint8_t src)
 {
 	uint8_t res = dst ^ src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF8(res);
 	return res;
 }
 uint16_t i386_device::XOR16(uint16_t dst, uint16_t src)
 {
 	uint16_t res = dst ^ src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF16(res);
 	return res;
 }
 uint32_t i386_device::XOR32(uint32_t dst, uint32_t src)
 {
 	uint32_t res = dst ^ src;
-	m_CF = m_OF = 0;
+	m_core->CF = m_core->OF = 0;
 	SetSZPF32(res);
 	return res;
 }
@@ -1098,28 +1100,28 @@ uint32_t i386_device::POP32()
 void i386_device::BUMP_SI(int adjustment)
 {
 	if ( m_address_size )
-		REG32(ESI) += ((m_DF) ? -adjustment : +adjustment);
+		REG32(ESI) += ((m_core->DF) ? -adjustment : +adjustment);
 	else
-		REG16(SI) += ((m_DF) ? -adjustment : +adjustment);
+		REG16(SI) += ((m_core->DF) ? -adjustment : +adjustment);
 }
 
 void i386_device::BUMP_DI(int adjustment)
 {
 	if ( m_address_size )
-		REG32(EDI) += ((m_DF) ? -adjustment : +adjustment);
+		REG32(EDI) += ((m_core->DF) ? -adjustment : +adjustment);
 	else
-		REG16(DI) += ((m_DF) ? -adjustment : +adjustment);
+		REG16(DI) += ((m_core->DF) ? -adjustment : +adjustment);
 }
 
 void i386_device::CYCLES(int x)
 {
 	if (PROTECTED_MODE)
 	{
-		m_cycles -= m_cycle_table_pm[x];
+		m_core->cycles -= m_cycle_table_pm[x];
 	}
 	else
 	{
-		m_cycles -= m_cycle_table_rm[x];
+		m_core->cycles -= m_cycle_table_rm[x];
 	}
 }
 
@@ -1129,22 +1131,22 @@ void i386_device::CYCLES_RM(int modrm, int r, int m)
 	{
 		if (PROTECTED_MODE)
 		{
-			m_cycles -= m_cycle_table_pm[r];
+			m_core->cycles -= m_cycle_table_pm[r];
 		}
 		else
 		{
-			m_cycles -= m_cycle_table_rm[r];
+			m_core->cycles -= m_cycle_table_rm[r];
 		}
 	}
 	else
 	{
 		if (PROTECTED_MODE)
 		{
-			m_cycles -= m_cycle_table_pm[m];
+			m_core->cycles -= m_cycle_table_pm[m];
 		}
 		else
 		{
-			m_cycles -= m_cycle_table_rm[m];
+			m_core->cycles -= m_cycle_table_rm[m];
 		}
 	}
 }
@@ -1160,16 +1162,16 @@ void i386_device::check_ioperm(offs_t port, uint8_t mask)
 	if(!PROTECTED_MODE)
 		return;
 
-	IOPL = m_IOP1 | (m_IOP2 << 1);
-	if(!V8086_MODE && (m_CPL <= IOPL))
+	IOPL = m_core->IOP1 | (m_core->IOP2 << 1);
+	if(!V8086_MODE && (m_core->CPL <= IOPL))
 		return;
 
-	if((m_task.limit < 0x67) || ((m_task.flags & 0xd) != 9))
+	if((m_core->task.limit < 0x67) || ((m_core->task.flags & 0xd) != 9))
 		FAULT_THROW(FAULT_GP,0);
 
-	address = m_task.base;
+	address = m_core->task.base;
 	IOPB = READ16PL(address+0x66,0);
-	if((IOPB+(port/8)) > m_task.limit)
+	if((IOPB+(port/8)) > m_core->task.limit)
 		FAULT_THROW(FAULT_GP,0);
 
 	map = READ8PL(address+IOPB+(port/8),0);
@@ -1366,49 +1368,49 @@ void i386sx_device::WRITEPORT32(offs_t port, uint32_t value)
 uint32_t i386_device::get_flags() const
 {
 	uint32_t f = 0x2;
-	f |= m_CF;
-	f |= m_PF << 2;
-	f |= m_AF << 4;
-	f |= m_ZF << 6;
-	f |= m_SF << 7;
-	f |= m_TF << 8;
-	f |= m_IF << 9;
-	f |= m_DF << 10;
-	f |= m_OF << 11;
-	f |= m_IOP1 << 12;
-	f |= m_IOP2 << 13;
-	f |= m_NT << 14;
-	f |= m_RF << 16;
-	f |= m_VM << 17;
-	f |= m_AC << 18;
-	f |= m_VIF << 19;
-	f |= m_VIP << 20;
-	f |= m_ID << 21;
-	return (m_eflags & ~m_eflags_mask) | (f & m_eflags_mask);
+	f |= m_core->CF;
+	f |= m_core->PF << 2;
+	f |= m_core->AF << 4;
+	f |= m_core->ZF << 6;
+	f |= m_core->SF << 7;
+	f |= m_core->TF << 8;
+	f |= m_core->IF << 9;
+	f |= m_core->DF << 10;
+	f |= m_core->OF << 11;
+	f |= m_core->IOP1 << 12;
+	f |= m_core->IOP2 << 13;
+	f |= m_core->NT << 14;
+	f |= m_core->RF << 16;
+	f |= m_core->VM << 17;
+	f |= m_core->AC << 18;
+	f |= m_core->VIF << 19;
+	f |= m_core->VIP << 20;
+	f |= m_core->ID << 21;
+	return (m_core->eflags & ~m_core->eflags_mask) | (f & m_core->eflags_mask);
 }
 
 void i386_device::set_flags(uint32_t f )
 {
-	f &= m_eflags_mask;
-	m_CF = (f & 0x1) ? 1 : 0;
-	m_PF = (f & 0x4) ? 1 : 0;
-	m_AF = (f & 0x10) ? 1 : 0;
-	m_ZF = (f & 0x40) ? 1 : 0;
-	m_SF = (f & 0x80) ? 1 : 0;
-	m_TF = (f & 0x100) ? 1 : 0;
-	m_IF = (f & 0x200) ? 1 : 0;
-	m_DF = (f & 0x400) ? 1 : 0;
-	m_OF = (f & 0x800) ? 1 : 0;
-	m_IOP1 = (f & 0x1000) ? 1 : 0;
-	m_IOP2 = (f & 0x2000) ? 1 : 0;
-	m_NT = (f & 0x4000) ? 1 : 0;
-	m_RF = (f & 0x10000) ? 1 : 0;
-	m_VM = (f & 0x20000) ? 1 : 0;
-	m_AC = (f & 0x40000) ? 1 : 0;
-	m_VIF = (f & 0x80000) ? 1 : 0;
-	m_VIP = (f & 0x100000) ? 1 : 0;
-	m_ID = (f & 0x200000) ? 1 : 0;
-	m_eflags = f;
+	f &= m_core->eflags_mask;
+	m_core->CF = (f & 0x1) ? 1 : 0;
+	m_core->PF = (f & 0x4) ? 1 : 0;
+	m_core->AF = (f & 0x10) ? 1 : 0;
+	m_core->ZF = (f & 0x40) ? 1 : 0;
+	m_core->SF = (f & 0x80) ? 1 : 0;
+	m_core->TF = (f & 0x100) ? 1 : 0;
+	m_core->IF = (f & 0x200) ? 1 : 0;
+	m_core->DF = (f & 0x400) ? 1 : 0;
+	m_core->OF = (f & 0x800) ? 1 : 0;
+	m_core->IOP1 = (f & 0x1000) ? 1 : 0;
+	m_core->IOP2 = (f & 0x2000) ? 1 : 0;
+	m_core->NT = (f & 0x4000) ? 1 : 0;
+	m_core->RF = (f & 0x10000) ? 1 : 0;
+	m_core->VM = (f & 0x20000) ? 1 : 0;
+	m_core->AC = (f & 0x40000) ? 1 : 0;
+	m_core->VIF = (f & 0x80000) ? 1 : 0;
+	m_core->VIP = (f & 0x100000) ? 1 : 0;
+	m_core->ID = (f & 0x200000) ? 1 : 0;
+	m_core->eflags = f;
 }
 
 void i386_device::sib_byte(uint8_t mod, uint32_t* out_ea, uint8_t* out_segment)
@@ -1559,17 +1561,17 @@ uint32_t i386_device::GetEA(uint8_t modrm, int rwn)
 
 void i386_device::i386_check_irq_line()
 {
-	if(!m_smm && m_smi)
+	if(!m_core->smm && m_core->smi)
 	{
 		enter_smm();
 		return;
 	}
 
 	/* Check if the interrupts are enabled */
-	if ( (m_irq_state) && m_IF )
+	if ( (m_core->irq_state) && m_core->IF )
 	{
-		m_cycles -= 2;
-		i386_trap(standard_irq_callback(0, m_pc), 1);
+		m_core->cycles -= 2;
+		i386_trap(standard_irq_callback(0, m_core->pc), 1);
 	}
 }
 
@@ -1593,7 +1595,7 @@ void i386_device::build_cycle_table()
 void i386_device::report_invalid_opcode()
 {
 #ifndef DEBUG_MISSING_OPCODE
-	LOGMASKED(LOG_INVALID_OPCODE, "i386: Invalid opcode %02X at %08X %s\n", m_opcode, m_pc - 1, m_lock ? "with lock" : "");
+	LOGMASKED(LOG_INVALID_OPCODE, "i386: Invalid opcode %02X at %08X %s\n", m_opcode, m_core->pc - 1, m_lock ? "with lock" : "");
 #else
 	logerror("Invalid opcode");
 	for (int a = 0; a < m_opcode_bytes_length; a++)
@@ -1608,7 +1610,7 @@ void i386_device::report_invalid_opcode()
 void i386_device::report_invalid_modrm(const char* opcode, uint8_t modrm)
 {
 #ifndef DEBUG_MISSING_OPCODE
-	LOGMASKED(LOG_INVALID_OPCODE, "i386: Invalid %s modrm %01X at %08X\n", opcode, modrm, m_pc - 2);
+	LOGMASKED(LOG_INVALID_OPCODE, "i386: Invalid %s modrm %01X at %08X\n", opcode, modrm, m_core->pc - 2);
 #else
 	logerror("Invalid %s modrm %01X", opcode, modrm);
 	for (int a = 0; a < m_opcode_bytes_length; a++)
@@ -1771,7 +1773,7 @@ uint8_t i386_device::read8_debug(uint32_t ea, uint8_t *data)
 	if(!i386_translate_address(TR_READ, true, &address, nullptr))
 		return 0;
 
-	address &= m_a20_mask;
+	address &= m_core->a20_mask;
 	*data = m_program->read_byte(address);
 	return 1;
 }
@@ -1785,11 +1787,11 @@ uint32_t i386_device::i386_get_debug_desc(I386_SREG *seg)
 
 	if ( seg->selector & 0x4 )
 	{
-		base = m_ldtr.base;
-		limit = m_ldtr.limit;
+		base = m_core->ldtr.base;
+		limit = m_core->ldtr.limit;
 	} else {
-		base = m_gdtr.base;
-		limit = m_gdtr.limit;
+		base = m_core->gdtr.base;
+		limit = m_core->gdtr.limit;
 	}
 
 	entry = seg->selector & ~0x7;
@@ -1945,12 +1947,18 @@ void i386_device::i386_postload()
 	int i;
 	for (i = 0; i < 6; i++)
 		i386_load_segment_descriptor(i);
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 void i386_device::i386_common_init()
 {
 	int i, j;
+
+	m_drc_cache->allocate_cache(mconfig().options().drc_rwx());
+	m_core = m_drc_cache->alloc_near<internal_i386_state>();
+	if (!m_core)
+		fatalerror("i386 DRC: failed to allocate state in near cache\n");
+
 	static const int regs8[8] = {AL,CL,DL,BL,AH,CH,DH,BH};
 	static const int regs16[8] = {AX,CX,DX,BX,SP,BP,SI,DI};
 	static const int regs32[8] = {EAX,ECX,EDX,EBX,ESP,EBP,ESI,EDI};
@@ -1987,91 +1995,91 @@ void i386_device::i386_common_init()
 	}
 
 	m_io = &space(AS_IO);
-	m_smi = false;
+	m_core->smi = false;
 	m_debugger_temp = 0;
 	m_lock = false;
 
 	zero_state();
 
-	save_item(NAME(m_reg.d));
-	save_item(STRUCT_MEMBER(m_sreg, selector));
-	save_item(STRUCT_MEMBER(m_sreg, base));
-	save_item(STRUCT_MEMBER(m_sreg, limit));
-	save_item(STRUCT_MEMBER(m_sreg, flags));
-	save_item(STRUCT_MEMBER(m_sreg, d));
-	save_item(NAME(m_eip));
-	save_item(NAME(m_prev_eip));
+	save_item(NAME(m_core->reg.d));
+	save_item(STRUCT_MEMBER(m_core->sreg, selector));
+	save_item(STRUCT_MEMBER(m_core->sreg, base));
+	save_item(STRUCT_MEMBER(m_core->sreg, limit));
+	save_item(STRUCT_MEMBER(m_core->sreg, flags));
+	save_item(STRUCT_MEMBER(m_core->sreg, d));
+	save_item(NAME(m_core->eip));
+	save_item(NAME(m_core->prev_eip));
 
-	save_item(NAME(m_CF));
-	save_item(NAME(m_DF));
-	save_item(NAME(m_SF));
-	save_item(NAME(m_OF));
-	save_item(NAME(m_ZF));
-	save_item(NAME(m_PF));
-	save_item(NAME(m_AF));
-	save_item(NAME(m_IF));
-	save_item(NAME(m_TF));
-	save_item(NAME(m_IOP1));
-	save_item(NAME(m_IOP2));
-	save_item(NAME(m_NT));
-	save_item(NAME(m_RF));
-	save_item(NAME(m_VM));
-	save_item(NAME(m_AC));
-	save_item(NAME(m_VIF));
-	save_item(NAME(m_VIP));
-	save_item(NAME(m_ID));
+	save_item(NAME(m_core->CF));
+	save_item(NAME(m_core->DF));
+	save_item(NAME(m_core->SF));
+	save_item(NAME(m_core->OF));
+	save_item(NAME(m_core->ZF));
+	save_item(NAME(m_core->PF));
+	save_item(NAME(m_core->AF));
+	save_item(NAME(m_core->IF));
+	save_item(NAME(m_core->TF));
+	save_item(NAME(m_core->IOP1));
+	save_item(NAME(m_core->IOP2));
+	save_item(NAME(m_core->NT));
+	save_item(NAME(m_core->RF));
+	save_item(NAME(m_core->VM));
+	save_item(NAME(m_core->AC));
+	save_item(NAME(m_core->VIF));
+	save_item(NAME(m_core->VIP));
+	save_item(NAME(m_core->ID));
 
-	save_item(NAME(m_CPL));
+	save_item(NAME(m_core->CPL));
 
 	save_item(NAME(m_auto_clear_RF));
-	save_item(NAME(m_performed_intersegment_jump));
+	save_item(NAME(m_core->performed_intersegment_jump));
 
-	save_item(NAME(m_cr));
-	save_item(NAME(m_dr));
-	save_item(NAME(m_tr));
+	save_item(NAME(m_core->cr));
+	save_item(NAME(m_core->dr));
+	save_item(NAME(m_core->tr));
 
-	save_item(NAME(m_idtr.base));
-	save_item(NAME(m_idtr.limit));
-	save_item(NAME(m_gdtr.base));
-	save_item(NAME(m_gdtr.limit));
-	save_item(NAME(m_task.base));
-	save_item(NAME(m_task.segment));
-	save_item(NAME(m_task.limit));
-	save_item(NAME(m_task.flags));
-	save_item(NAME(m_ldtr.base));
-	save_item(NAME(m_ldtr.segment));
-	save_item(NAME(m_ldtr.limit));
-	save_item(NAME(m_ldtr.flags));
+	save_item(NAME(m_core->idtr.base));
+	save_item(NAME(m_core->idtr.limit));
+	save_item(NAME(m_core->gdtr.base));
+	save_item(NAME(m_core->gdtr.limit));
+	save_item(NAME(m_core->task.base));
+	save_item(NAME(m_core->task.segment));
+	save_item(NAME(m_core->task.limit));
+	save_item(NAME(m_core->task.flags));
+	save_item(NAME(m_core->ldtr.base));
+	save_item(NAME(m_core->ldtr.segment));
+	save_item(NAME(m_core->ldtr.limit));
+	save_item(NAME(m_core->ldtr.flags));
 
 	save_item(NAME(m_segment_override));
 
-	save_item(NAME(m_irq_state));
-	save_item(NAME(m_a20_mask));
+	save_item(NAME(m_core->irq_state));
+	save_item(NAME(m_core->a20_mask));
 
 	save_item(NAME(m_mxcsr));
 
-	save_item(NAME(m_smm));
-	save_item(NAME(m_smi));
-	save_item(NAME(m_smi_latched));
+	save_item(NAME(m_core->smm));
+	save_item(NAME(m_core->smi));
+	save_item(NAME(m_core->smi_latched));
 	save_item(NAME(m_nmi_masked));
 	save_item(NAME(m_nmi_latched));
 	save_item(NAME(m_smbase));
 	save_item(NAME(m_lock));
 
-	save_item(NAME(m_x87_cw));
-	save_item(NAME(m_x87_tw));
-	save_item(NAME(m_x87_sw));
-	save_item(NAME(m_x87_cs));
-	save_item(NAME(m_x87_ds));
-	save_item(NAME(m_x87_inst_ptr));
-	save_item(NAME(m_x87_data_ptr));
-	save_item(NAME(m_x87_opcode));
+	save_item(NAME(m_core->x87_cw));
+	save_item(NAME(m_core->x87_tw));
+	save_item(NAME(m_core->x87_sw));
+	save_item(NAME(m_core->x87_cs));
+	save_item(NAME(m_core->x87_ds));
+	save_item(NAME(m_core->x87_inst_ptr));
+	save_item(NAME(m_core->x87_data_ptr));
+	save_item(NAME(m_core->x87_opcode));
 
 	machine().save().register_postload(save_prepost_delegate(FUNC(i386_device::i386_postload), this));
 
 	m_ferr_handler(0);
 
-	set_icountptr(m_cycles);
+	set_icountptr(m_core->cycles);
 	m_notifier = m_program->add_change_notifier([this] (read_or_write mode) { dri_changed(); });
 }
 
@@ -2088,8 +2096,8 @@ void i386_device::device_start()
 
 void i386_device::register_state_i386()
 {
-	state_add( I386_PC,         "PC", m_pc).formatstr("%08X");
-	state_add( I386_EIP,        "EIP", m_eip).callimport().formatstr("%08X");
+	state_add( I386_PC,         "PC", m_core->pc).formatstr("%08X");
+	state_add( I386_EIP,        "EIP", m_core->eip).callimport().formatstr("%08X");
 	state_add( I386_AL,         "~AL", REG8(AL)).formatstr("%02X");
 	state_add( I386_AH,         "~AH", REG8(AH)).formatstr("%02X");
 	state_add( I386_BL,         "~BL", REG8(BL)).formatstr("%02X");
@@ -2107,70 +2115,70 @@ void i386_device::register_state_i386()
 	state_add( I386_BP,         "~BP", REG16(BP)).formatstr("%04X");
 	state_add( I386_SP,         "~SP", REG16(SP)).formatstr("%04X");
 	state_add( I386_IP,         "~IP", m_debugger_temp).mask(0xffff).callimport().callexport().formatstr("%04X");
-	state_add( I386_EAX,        "EAX", m_reg.d[EAX]).formatstr("%08X");
-	state_add( I386_EBX,        "EBX", m_reg.d[EBX]).formatstr("%08X");
-	state_add( I386_ECX,        "ECX", m_reg.d[ECX]).formatstr("%08X");
-	state_add( I386_EDX,        "EDX", m_reg.d[EDX]).formatstr("%08X");
-	state_add( I386_EBP,        "EBP", m_reg.d[EBP]).formatstr("%08X");
-	state_add( I386_ESP,        "ESP", m_reg.d[ESP]).formatstr("%08X");
-	state_add( I386_ESI,        "ESI", m_reg.d[ESI]).formatstr("%08X");
-	state_add( I386_EDI,        "EDI", m_reg.d[EDI]).formatstr("%08X");
-	state_add( I386_EFLAGS,     "EFLAGS", m_eflags).formatstr("%08X");
-	state_add( I386_CS,         "CS", m_sreg[CS].selector).callimport().formatstr("%04X");
-	state_add( I386_CS_BASE,    "CSBASE", m_sreg[CS].base).formatstr("%08X");
-	state_add( I386_CS_LIMIT,   "CSLIMIT", m_sreg[CS].limit).formatstr("%08X");
-	state_add( I386_CS_FLAGS,   "CSFLAGS", m_sreg[CS].flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_SS,         "SS", m_sreg[SS].selector).callimport().formatstr("%04X");
-	state_add( I386_SS_BASE,    "SSBASE", m_sreg[SS].base).formatstr("%08X");
-	state_add( I386_SS_LIMIT,   "SSLIMIT", m_sreg[SS].limit).formatstr("%08X");
-	state_add( I386_SS_FLAGS,   "SSFLAGS", m_sreg[SS].flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_DS,         "DS", m_sreg[DS].selector).callimport().formatstr("%04X");
-	state_add( I386_DS_BASE,    "DSBASE", m_sreg[DS].base).formatstr("%08X");
-	state_add( I386_DS_LIMIT,   "DSLIMIT", m_sreg[DS].limit).formatstr("%08X");
-	state_add( I386_DS_FLAGS,   "DSFLAGS", m_sreg[DS].flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_ES,         "ES", m_sreg[ES].selector).callimport().formatstr("%04X");
-	state_add( I386_ES_BASE,    "ESBASE", m_sreg[ES].base).formatstr("%08X");
-	state_add( I386_ES_LIMIT,   "ESLIMIT", m_sreg[ES].limit).formatstr("%08X");
-	state_add( I386_ES_FLAGS,   "ESFLAGS", m_sreg[ES].flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_FS,         "FS", m_sreg[FS].selector).callimport().formatstr("%04X");
-	state_add( I386_FS_BASE,    "FSBASE", m_sreg[FS].base).formatstr("%08X");
-	state_add( I386_FS_LIMIT,   "FSLIMIT", m_sreg[FS].limit).formatstr("%08X");
-	state_add( I386_FS_FLAGS,   "FSFLAGS", m_sreg[FS].flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_GS,         "GS", m_sreg[GS].selector).callimport().formatstr("%04X");
-	state_add( I386_GS_BASE,    "GSBASE", m_sreg[GS].base).formatstr("%08X");
-	state_add( I386_GS_LIMIT,   "GSLIMIT", m_sreg[GS].limit).formatstr("%08X");
-	state_add( I386_GS_FLAGS,   "GSFLAGS", m_sreg[GS].flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_CR0,        "CR0", m_cr[0]).formatstr("%08X");
-	state_add( I386_CR1,        "CR1", m_cr[1]).formatstr("%08X");
-	state_add( I386_CR2,        "CR2", m_cr[2]).formatstr("%08X");
-	state_add( I386_CR3,        "CR3", m_cr[3]).formatstr("%08X");
-	state_add( I386_CR4,        "CR4", m_cr[4]).formatstr("%08X");
-	state_add( I386_DR0,        "DR0", m_dr[0]).formatstr("%08X");
-	state_add( I386_DR1,        "DR1", m_dr[1]).formatstr("%08X");
-	state_add( I386_DR2,        "DR2", m_dr[2]).formatstr("%08X");
-	state_add( I386_DR3,        "DR3", m_dr[3]).formatstr("%08X");
-	state_add( I386_DR4,        "DR4", m_dr[4]).formatstr("%08X");
-	state_add( I386_DR5,        "DR5", m_dr[5]).formatstr("%08X");
-	state_add( I386_DR6,        "DR6", m_dr[6]).formatstr("%08X");
-	state_add( I386_DR7,        "DR7", m_dr[7]).formatstr("%08X");
-	state_add( I386_TR6,        "TR6", m_tr[6]).formatstr("%08X");
-	state_add( I386_TR7,        "TR7", m_tr[7]).formatstr("%08X");
-	state_add( I386_GDTR_BASE,  "GDTRBASE", m_gdtr.base).formatstr("%08X");
-	state_add( I386_GDTR_LIMIT, "GDTRLIMIT", m_gdtr.limit).formatstr("%04X");
-	state_add( I386_IDTR_BASE,  "IDTRBASE", m_idtr.base).formatstr("%08X");
-	state_add( I386_IDTR_LIMIT, "IDTRLIMIT", m_idtr.limit).formatstr("%04X");
-	state_add( I386_LDTR,       "LDTR", m_ldtr.segment).formatstr("%04X");
-	state_add( I386_LDTR_BASE,  "LDTRBASE", m_ldtr.base).formatstr("%08X");
-	state_add( I386_LDTR_LIMIT, "LDTRLIMIT", m_ldtr.limit).formatstr("%08X");
-	state_add( I386_LDTR_FLAGS, "LDTRFLAGS", m_ldtr.flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_TR,         "TR", m_task.segment).formatstr("%04X");
-	state_add( I386_TR_BASE,    "TRBASE", m_task.base).formatstr("%08X");
-	state_add( I386_TR_LIMIT,   "TRLIMIT", m_task.limit).formatstr("%08X");
-	state_add( I386_TR_FLAGS,   "TRFLAGS", m_task.flags).mask(0xf0ff).formatstr("%04X");
-	state_add( I386_CPL,        "CPL", m_CPL).formatstr("%01X");
+	state_add( I386_EAX,        "EAX", m_core->reg.d[EAX]).formatstr("%08X");
+	state_add( I386_EBX,        "EBX", m_core->reg.d[EBX]).formatstr("%08X");
+	state_add( I386_ECX,        "ECX", m_core->reg.d[ECX]).formatstr("%08X");
+	state_add( I386_EDX,        "EDX", m_core->reg.d[EDX]).formatstr("%08X");
+	state_add( I386_EBP,        "EBP", m_core->reg.d[EBP]).formatstr("%08X");
+	state_add( I386_ESP,        "ESP", m_core->reg.d[ESP]).formatstr("%08X");
+	state_add( I386_ESI,        "ESI", m_core->reg.d[ESI]).formatstr("%08X");
+	state_add( I386_EDI,        "EDI", m_core->reg.d[EDI]).formatstr("%08X");
+	state_add( I386_EFLAGS,     "EFLAGS", m_core->eflags).formatstr("%08X");
+	state_add( I386_CS,         "CS", m_core->sreg[CS].selector).callimport().formatstr("%04X");
+	state_add( I386_CS_BASE,    "CSBASE", m_core->sreg[CS].base).formatstr("%08X");
+	state_add( I386_CS_LIMIT,   "CSLIMIT", m_core->sreg[CS].limit).formatstr("%08X");
+	state_add( I386_CS_FLAGS,   "CSFLAGS", m_core->sreg[CS].flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_SS,         "SS", m_core->sreg[SS].selector).callimport().formatstr("%04X");
+	state_add( I386_SS_BASE,    "SSBASE", m_core->sreg[SS].base).formatstr("%08X");
+	state_add( I386_SS_LIMIT,   "SSLIMIT", m_core->sreg[SS].limit).formatstr("%08X");
+	state_add( I386_SS_FLAGS,   "SSFLAGS", m_core->sreg[SS].flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_DS,         "DS", m_core->sreg[DS].selector).callimport().formatstr("%04X");
+	state_add( I386_DS_BASE,    "DSBASE", m_core->sreg[DS].base).formatstr("%08X");
+	state_add( I386_DS_LIMIT,   "DSLIMIT", m_core->sreg[DS].limit).formatstr("%08X");
+	state_add( I386_DS_FLAGS,   "DSFLAGS", m_core->sreg[DS].flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_ES,         "ES", m_core->sreg[ES].selector).callimport().formatstr("%04X");
+	state_add( I386_ES_BASE,    "ESBASE", m_core->sreg[ES].base).formatstr("%08X");
+	state_add( I386_ES_LIMIT,   "ESLIMIT", m_core->sreg[ES].limit).formatstr("%08X");
+	state_add( I386_ES_FLAGS,   "ESFLAGS", m_core->sreg[ES].flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_FS,         "FS", m_core->sreg[FS].selector).callimport().formatstr("%04X");
+	state_add( I386_FS_BASE,    "FSBASE", m_core->sreg[FS].base).formatstr("%08X");
+	state_add( I386_FS_LIMIT,   "FSLIMIT", m_core->sreg[FS].limit).formatstr("%08X");
+	state_add( I386_FS_FLAGS,   "FSFLAGS", m_core->sreg[FS].flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_GS,         "GS", m_core->sreg[GS].selector).callimport().formatstr("%04X");
+	state_add( I386_GS_BASE,    "GSBASE", m_core->sreg[GS].base).formatstr("%08X");
+	state_add( I386_GS_LIMIT,   "GSLIMIT", m_core->sreg[GS].limit).formatstr("%08X");
+	state_add( I386_GS_FLAGS,   "GSFLAGS", m_core->sreg[GS].flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_CR0,        "CR0", m_core->cr[0]).formatstr("%08X");
+	state_add( I386_CR1,        "CR1", m_core->cr[1]).formatstr("%08X");
+	state_add( I386_CR2,        "CR2", m_core->cr[2]).formatstr("%08X");
+	state_add( I386_CR3,        "CR3", m_core->cr[3]).formatstr("%08X");
+	state_add( I386_CR4,        "CR4", m_core->cr[4]).formatstr("%08X");
+	state_add( I386_DR0,        "DR0", m_core->dr[0]).formatstr("%08X");
+	state_add( I386_DR1,        "DR1", m_core->dr[1]).formatstr("%08X");
+	state_add( I386_DR2,        "DR2", m_core->dr[2]).formatstr("%08X");
+	state_add( I386_DR3,        "DR3", m_core->dr[3]).formatstr("%08X");
+	state_add( I386_DR4,        "DR4", m_core->dr[4]).formatstr("%08X");
+	state_add( I386_DR5,        "DR5", m_core->dr[5]).formatstr("%08X");
+	state_add( I386_DR6,        "DR6", m_core->dr[6]).formatstr("%08X");
+	state_add( I386_DR7,        "DR7", m_core->dr[7]).formatstr("%08X");
+	state_add( I386_TR6,        "TR6", m_core->tr[6]).formatstr("%08X");
+	state_add( I386_TR7,        "TR7", m_core->tr[7]).formatstr("%08X");
+	state_add( I386_GDTR_BASE,  "GDTRBASE", m_core->gdtr.base).formatstr("%08X");
+	state_add( I386_GDTR_LIMIT, "GDTRLIMIT", m_core->gdtr.limit).formatstr("%04X");
+	state_add( I386_IDTR_BASE,  "IDTRBASE", m_core->idtr.base).formatstr("%08X");
+	state_add( I386_IDTR_LIMIT, "IDTRLIMIT", m_core->idtr.limit).formatstr("%04X");
+	state_add( I386_LDTR,       "LDTR", m_core->ldtr.segment).formatstr("%04X");
+	state_add( I386_LDTR_BASE,  "LDTRBASE", m_core->ldtr.base).formatstr("%08X");
+	state_add( I386_LDTR_LIMIT, "LDTRLIMIT", m_core->ldtr.limit).formatstr("%08X");
+	state_add( I386_LDTR_FLAGS, "LDTRFLAGS", m_core->ldtr.flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_TR,         "TR", m_core->task.segment).formatstr("%04X");
+	state_add( I386_TR_BASE,    "TRBASE", m_core->task.base).formatstr("%08X");
+	state_add( I386_TR_LIMIT,   "TRLIMIT", m_core->task.limit).formatstr("%08X");
+	state_add( I386_TR_FLAGS,   "TRFLAGS", m_core->task.flags).mask(0xf0ff).formatstr("%04X");
+	state_add( I386_CPL,        "CPL", m_core->CPL).formatstr("%01X");
 
-	state_add( STATE_GENPC, "GENPC", m_pc).noshow();
-	state_add( STATE_GENPCBASE, "CURPC", m_pc).noshow();
+	state_add( STATE_GENPC, "GENPC", m_core->pc).noshow();
+	state_add( STATE_GENPCBASE, "CURPC", m_core->pc).noshow();
 	state_add( STATE_GENFLAGS, "GENFLAGS", m_debugger_temp).formatstr("%32s").noshow();
 }
 
@@ -2178,9 +2186,9 @@ void i386_device::register_state_i386_x87()
 {
 	register_state_i386();
 
-	state_add(X87_CTRL,  "x87_CW", m_x87_cw).formatstr("%04X");
-	state_add(X87_STATUS,"x87_SW", m_x87_sw).formatstr("%04X");
-	state_add(X87_TAG,  "x87_TAG", m_x87_tw).formatstr("%04X");
+	state_add(X87_CTRL,  "x87_CW", m_core->x87_cw).formatstr("%04X");
+	state_add(X87_STATUS,"x87_SW", m_core->x87_sw).formatstr("%04X");
+	state_add(X87_TAG,  "x87_TAG", m_core->x87_tw).formatstr("%04X");
 	state_add( X87_ST0,    "ST0", m_debugger_temp ).callexport().formatstr("%15s");
 	state_add( X87_ST1,    "ST1", m_debugger_temp ).callexport().formatstr("%15s");
 	state_add( X87_ST2,    "ST2", m_debugger_temp ).callexport().formatstr("%15s");
@@ -2211,11 +2219,11 @@ void i386_device::state_import(const device_state_entry &entry)
 	switch (entry.index())
 	{
 		case I386_EIP:
-			CHANGE_PC(m_eip);
+			CHANGE_PC(m_core->eip);
 			break;
 		case I386_IP:
-			m_eip = ( m_eip & ~0xffff ) | ( m_debugger_temp & 0xffff);
-			CHANGE_PC(m_eip);
+			m_core->eip = ( m_core->eip & ~0xffff ) | ( m_debugger_temp & 0xffff);
+			CHANGE_PC(m_core->eip);
 			break;
 		case I386_CS:
 			i386_load_segment_descriptor(CS);
@@ -2243,7 +2251,7 @@ void i386_device::state_export(const device_state_entry &entry)
 	switch (entry.index())
 	{
 		case I386_IP:
-			m_debugger_temp = m_eip & 0xffff;
+			m_debugger_temp = m_core->eip & 0xffff;
 			break;
 		case X87_ST0:
 			m_debugger_temp = extF80_to_f64(ST(0)).v;
@@ -2279,18 +2287,18 @@ void i386_device::state_string_export(const device_state_entry &entry, std::stri
 		case STATE_GENFLAGS:
 			str = string_format("%08X %s%s%d%s%s%s%s%s%s%s%s%s",
 				get_flags(),
-				m_RF ? "R" : "r",
-				m_NT ? " N " : " n ",
-				m_IOP2 << 1 | m_IOP1,
-				m_OF ? " O" : " o",
-				m_DF ? " D" : " d",
-				m_IF ? " I" : " i",
-				m_TF ? " T" : " t",
-				m_SF ? " S" : " s",
-				m_ZF ? " Z" : " z",
-				m_AF ? " A" : " a",
-				m_PF ? " P" : " p",
-				m_CF ? " C" : " c");
+				m_core->RF ? "R" : "r",
+				m_core->NT ? " N " : " n ",
+				m_core->IOP2 << 1 | m_core->IOP1,
+				m_core->OF ? " O" : " o",
+				m_core->DF ? " D" : " d",
+				m_core->IF ? " I" : " i",
+				m_core->TF ? " T" : " t",
+				m_core->SF ? " S" : " s",
+				m_core->ZF ? " Z" : " z",
+				m_core->AF ? " A" : " a",
+				m_core->PF ? " P" : " p",
+				m_core->CF ? " C" : " c");
 			break;
 		case X87_ST0:
 			str = string_format("%f", fx80_to_double(ST(0)));
@@ -2439,42 +2447,8 @@ void i386_device::build_opcode_table(uint32_t features)
 
 void i386_device::zero_state()
 {
-	memset( &m_reg, 0, sizeof(m_reg) );
-	memset( m_sreg, 0, sizeof(m_sreg) );
-	m_eip = 0;
-	m_pc = 0;
-	m_prev_eip = 0;
-	m_eflags = 0;
-	m_eflags_mask = 0;
-	m_CF = 0;
-	m_DF = 0;
-	m_SF = 0;
-	m_OF = 0;
-	m_ZF = 0;
-	m_PF = 0;
-	m_AF = 0;
-	m_IF = 0;
-	m_TF = 0;
-	m_IOP1 = 0;
-	m_IOP2 = 0;
-	m_NT = 0;
-	m_RF = 0;
-	m_VM = 0;
-	m_AC = 0;
-	m_VIF = 0;
-	m_VIP = 0;
-	m_ID = 0;
-	m_CPL = 0;
-	m_performed_intersegment_jump = 0;
-	m_delayed_interrupt_enable = 0;
-	memset( m_cr, 0, sizeof(m_cr) );
-	memset( m_dr, 0, sizeof(m_dr) );
-	memset( m_tr, 0, sizeof(m_tr) );
-	memset( &m_gdtr, 0, sizeof(m_gdtr) );
-	memset( &m_idtr, 0, sizeof(m_idtr) );
-	memset( &m_task, 0, sizeof(m_task) );
-	memset( &m_ldtr, 0, sizeof(m_ldtr) );
-	m_ext = 0;
+	memset(m_core, 0, sizeof(internal_i386_state));
+
 	m_halted = 0;
 	m_operand_size = 0;
 	m_xmm_operand_size = 0;
@@ -2483,11 +2457,7 @@ void i386_device::zero_state()
 	m_address_prefix = 0;
 	m_segment_prefix = 0;
 	m_segment_override = 0;
-	m_cycles = 0;
-	m_base_cycles = 0;
 	m_opcode = 0;
-	m_irq_state = 0;
-	m_a20_mask = 0;
 	m_cpuid_max_input_value_eax = 0;
 	m_cpuid_id0 = 0;
 	m_cpuid_id1 = 0;
@@ -2495,27 +2465,14 @@ void i386_device::zero_state()
 	m_cpu_version = 0;
 	m_brand_id = 0; // Pentium III model 8 onward
 	m_feature_flags = 0;
-	m_tsc = 0;
 	m_perfctr[0] = m_perfctr[1] = 0;
-	memset( m_x87_reg, 0, sizeof(m_x87_reg) );
-	m_x87_cw = 0;
-	m_x87_sw = 0;
-	m_x87_tw = 0;
-	m_x87_data_ptr = 0;
-	m_x87_inst_ptr = 0;
-	m_x87_opcode = 0;
 	memset( m_sse_reg, 0, sizeof(m_sse_reg) );
 	m_mxcsr = 0;
-	m_smm = false;
-	m_smi = false;
-	m_smi_latched = false;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
 	m_smbase = 0;
-	memset( m_opcode_bytes, 0, sizeof(m_opcode_bytes) );
 	m_opcode_pc = 0;
 	m_opcode_bytes_length = 0;
-	memset(m_opcode_addrs, 0, sizeof(m_opcode_addrs));
 	m_opcode_addrs_index = 0;
 	m_dri_changed_active = false;
 }
@@ -2524,30 +2481,30 @@ void i386_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x93;
-	m_sreg[CS].valid    = true;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x93;
+	m_core->sreg[CS].valid    = true;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
-	m_sreg[DS].valid = m_sreg[ES].valid = m_sreg[FS].valid = m_sreg[GS].valid = m_sreg[SS].valid =true;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].valid = m_core->sreg[ES].valid = m_core->sreg[FS].valid = m_core->sreg[GS].valid = m_core->sreg[SS].valid =true;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x7fffffe0; // reserved bits set to 1
-	m_eflags = 0;
-	m_eflags_mask = 0x00037fd7;
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x7fffffe0; // reserved bits set to 1
+	m_core->eflags = 0;
+	m_core->eflags_mask = 0x00037fd7;
+	m_core->eip = 0xfff0;
 
 	// [11:8] Family
 	// [ 7:4] Model
@@ -2557,68 +2514,68 @@ void i386_device::device_reset()
 	REG32(EDX) = (3 << 8) | (0 << 4) | (8);
 	m_cpu_version = REG32(EDX);
 
-	m_CPL = 0;
+	m_core->CPL = 0;
 
 	m_auto_clear_RF = true;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 void i386_device::enter_smm()
 {
 	uint32_t smram_state = m_smbase + 0xfe00;
-	uint32_t old_cr0 = m_cr[0];
+	uint32_t old_cr0 = m_core->cr[0];
 	uint32_t old_flags = get_flags();
 
-	m_cr[0] &= ~(0x8000000d);
+	m_core->cr[0] &= ~(0x8000000d);
 	set_flags(2);
 	m_smiact(true);
-	m_smm = true;
-	m_smi_latched = false;
+	m_core->smm = true;
+	m_core->smi_latched = false;
 
 	// save state
 	WRITE32(smram_state + SMRAM_SMBASE, m_smbase);
-	WRITE32(smram_state + SMRAM_IP5_CR4, m_cr[4]);
-	WRITE32(smram_state + SMRAM_IP5_ESLIM, m_sreg[ES].limit);
-	WRITE32(smram_state + SMRAM_IP5_ESBASE, m_sreg[ES].base);
-	WRITE32(smram_state + SMRAM_IP5_ESACC, m_sreg[ES].flags);
-	WRITE32(smram_state + SMRAM_IP5_CSLIM, m_sreg[CS].limit);
-	WRITE32(smram_state + SMRAM_IP5_CSBASE, m_sreg[CS].base);
-	WRITE32(smram_state + SMRAM_IP5_CSACC, m_sreg[CS].flags);
-	WRITE32(smram_state + SMRAM_IP5_SSLIM, m_sreg[SS].limit);
-	WRITE32(smram_state + SMRAM_IP5_SSBASE, m_sreg[SS].base);
-	WRITE32(smram_state + SMRAM_IP5_SSACC, m_sreg[SS].flags);
-	WRITE32(smram_state + SMRAM_IP5_DSLIM, m_sreg[DS].limit);
-	WRITE32(smram_state + SMRAM_IP5_DSBASE, m_sreg[DS].base);
-	WRITE32(smram_state + SMRAM_IP5_DSACC, m_sreg[DS].flags);
-	WRITE32(smram_state + SMRAM_IP5_FSLIM, m_sreg[FS].limit);
-	WRITE32(smram_state + SMRAM_IP5_FSBASE, m_sreg[FS].base);
-	WRITE32(smram_state + SMRAM_IP5_FSACC, m_sreg[FS].flags);
-	WRITE32(smram_state + SMRAM_IP5_GSLIM, m_sreg[GS].limit);
-	WRITE32(smram_state + SMRAM_IP5_GSBASE, m_sreg[GS].base);
-	WRITE32(smram_state + SMRAM_IP5_GSACC, m_sreg[GS].flags);
-	WRITE32(smram_state + SMRAM_IP5_LDTACC, m_ldtr.flags);
-	WRITE32(smram_state + SMRAM_IP5_LDTLIM, m_ldtr.limit);
-	WRITE32(smram_state + SMRAM_IP5_LDTBASE, m_ldtr.base);
-	WRITE32(smram_state + SMRAM_IP5_GDTLIM, m_gdtr.limit);
-	WRITE32(smram_state + SMRAM_IP5_GDTBASE, m_gdtr.base);
-	WRITE32(smram_state + SMRAM_IP5_IDTLIM, m_idtr.limit);
-	WRITE32(smram_state + SMRAM_IP5_IDTBASE, m_idtr.base);
-	WRITE32(smram_state + SMRAM_IP5_TRLIM, m_task.limit);
-	WRITE32(smram_state + SMRAM_IP5_TRBASE, m_task.base);
-	WRITE32(smram_state + SMRAM_IP5_TRACC, m_task.flags);
+	WRITE32(smram_state + SMRAM_IP5_CR4, m_core->cr[4]);
+	WRITE32(smram_state + SMRAM_IP5_ESLIM, m_core->sreg[ES].limit);
+	WRITE32(smram_state + SMRAM_IP5_ESBASE, m_core->sreg[ES].base);
+	WRITE32(smram_state + SMRAM_IP5_ESACC, m_core->sreg[ES].flags);
+	WRITE32(smram_state + SMRAM_IP5_CSLIM, m_core->sreg[CS].limit);
+	WRITE32(smram_state + SMRAM_IP5_CSBASE, m_core->sreg[CS].base);
+	WRITE32(smram_state + SMRAM_IP5_CSACC, m_core->sreg[CS].flags);
+	WRITE32(smram_state + SMRAM_IP5_SSLIM, m_core->sreg[SS].limit);
+	WRITE32(smram_state + SMRAM_IP5_SSBASE, m_core->sreg[SS].base);
+	WRITE32(smram_state + SMRAM_IP5_SSACC, m_core->sreg[SS].flags);
+	WRITE32(smram_state + SMRAM_IP5_DSLIM, m_core->sreg[DS].limit);
+	WRITE32(smram_state + SMRAM_IP5_DSBASE, m_core->sreg[DS].base);
+	WRITE32(smram_state + SMRAM_IP5_DSACC, m_core->sreg[DS].flags);
+	WRITE32(smram_state + SMRAM_IP5_FSLIM, m_core->sreg[FS].limit);
+	WRITE32(smram_state + SMRAM_IP5_FSBASE, m_core->sreg[FS].base);
+	WRITE32(smram_state + SMRAM_IP5_FSACC, m_core->sreg[FS].flags);
+	WRITE32(smram_state + SMRAM_IP5_GSLIM, m_core->sreg[GS].limit);
+	WRITE32(smram_state + SMRAM_IP5_GSBASE, m_core->sreg[GS].base);
+	WRITE32(smram_state + SMRAM_IP5_GSACC, m_core->sreg[GS].flags);
+	WRITE32(smram_state + SMRAM_IP5_LDTACC, m_core->ldtr.flags);
+	WRITE32(smram_state + SMRAM_IP5_LDTLIM, m_core->ldtr.limit);
+	WRITE32(smram_state + SMRAM_IP5_LDTBASE, m_core->ldtr.base);
+	WRITE32(smram_state + SMRAM_IP5_GDTLIM, m_core->gdtr.limit);
+	WRITE32(smram_state + SMRAM_IP5_GDTBASE, m_core->gdtr.base);
+	WRITE32(smram_state + SMRAM_IP5_IDTLIM, m_core->idtr.limit);
+	WRITE32(smram_state + SMRAM_IP5_IDTBASE, m_core->idtr.base);
+	WRITE32(smram_state + SMRAM_IP5_TRLIM, m_core->task.limit);
+	WRITE32(smram_state + SMRAM_IP5_TRBASE, m_core->task.base);
+	WRITE32(smram_state + SMRAM_IP5_TRACC, m_core->task.flags);
 
-	WRITE32(smram_state + SMRAM_ES, m_sreg[ES].selector);
-	WRITE32(smram_state + SMRAM_CS, m_sreg[CS].selector);
-	WRITE32(smram_state + SMRAM_SS, m_sreg[SS].selector);
-	WRITE32(smram_state + SMRAM_DS, m_sreg[DS].selector);
-	WRITE32(smram_state + SMRAM_FS, m_sreg[FS].selector);
-	WRITE32(smram_state + SMRAM_GS, m_sreg[GS].selector);
-	WRITE32(smram_state + SMRAM_LDTR, m_ldtr.segment);
-	WRITE32(smram_state + SMRAM_TR, m_task.segment);
+	WRITE32(smram_state + SMRAM_ES, m_core->sreg[ES].selector);
+	WRITE32(smram_state + SMRAM_CS, m_core->sreg[CS].selector);
+	WRITE32(smram_state + SMRAM_SS, m_core->sreg[SS].selector);
+	WRITE32(smram_state + SMRAM_DS, m_core->sreg[DS].selector);
+	WRITE32(smram_state + SMRAM_FS, m_core->sreg[FS].selector);
+	WRITE32(smram_state + SMRAM_GS, m_core->sreg[GS].selector);
+	WRITE32(smram_state + SMRAM_LDTR, m_core->ldtr.segment);
+	WRITE32(smram_state + SMRAM_DS, m_core->task.segment);
 
-	WRITE32(smram_state + SMRAM_DR7, m_dr[7]);
-	WRITE32(smram_state + SMRAM_DR6, m_dr[6]);
+	WRITE32(smram_state + SMRAM_DR7, m_core->dr[7]);
+	WRITE32(smram_state + SMRAM_DR6, m_core->dr[6]);
 	WRITE32(smram_state + SMRAM_EAX, REG32(EAX));
 	WRITE32(smram_state + SMRAM_ECX, REG32(ECX));
 	WRITE32(smram_state + SMRAM_EDX, REG32(EDX));
@@ -2627,30 +2584,30 @@ void i386_device::enter_smm()
 	WRITE32(smram_state + SMRAM_EBP, REG32(EBP));
 	WRITE32(smram_state + SMRAM_ESI, REG32(ESI));
 	WRITE32(smram_state + SMRAM_EDI, REG32(EDI));
-	WRITE32(smram_state + SMRAM_EIP, m_eip);
+	WRITE32(smram_state + SMRAM_EIP, m_core->eip);
 	WRITE32(smram_state + SMRAM_EFLAGS, old_flags);
-	WRITE32(smram_state + SMRAM_CR3, m_cr[3]);
+	WRITE32(smram_state + SMRAM_CR3, m_core->cr[3]);
 	WRITE32(smram_state + SMRAM_CR0, old_cr0);
 
-	m_sreg[DS].selector = m_sreg[ES].selector = m_sreg[FS].selector = m_sreg[GS].selector = m_sreg[SS].selector = 0;
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffffffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x8093;
-	m_sreg[DS].valid = m_sreg[ES].valid = m_sreg[FS].valid = m_sreg[GS].valid = m_sreg[SS].valid = true;
-	m_sreg[DS].d = m_sreg[ES].d = m_sreg[FS].d = m_sreg[GS].d = m_sreg[SS].d = 0;
-	m_sreg[CS].selector = (m_cpu_version >= 6) ? m_smbase >> 4 : 0x3000; // k6 reports family 6 but may also force 0x3000
-	m_sreg[CS].base = m_smbase;
-	m_sreg[CS].limit = 0xffffffff;
-	m_sreg[CS].flags = 0x8093;
-	m_sreg[CS].valid = true;
-	m_sreg[CS].d = 0;
-	m_cr[4] = 0;
-	m_dr[7] = 0x400;
-	m_eip = 0x8000;
-	m_CPL = 0;
+	m_core->sreg[DS].selector = m_core->sreg[ES].selector = m_core->sreg[FS].selector = m_core->sreg[GS].selector = m_core->sreg[SS].selector = 0;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffffffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x8093;
+	m_core->sreg[DS].valid = m_core->sreg[ES].valid = m_core->sreg[FS].valid = m_core->sreg[GS].valid = m_core->sreg[SS].valid = true;
+	m_core->sreg[DS].d = m_core->sreg[ES].d = m_core->sreg[FS].d = m_core->sreg[GS].d = m_core->sreg[SS].d = 0;
+	m_core->sreg[CS].selector = (m_cpu_version >= 6) ? m_smbase >> 4 : 0x3000; // k6 reports family 6 but may also force 0x3000
+	m_core->sreg[CS].base = m_smbase;
+	m_core->sreg[CS].limit = 0xffffffff;
+	m_core->sreg[CS].flags = 0x8093;
+	m_core->sreg[CS].valid = true;
+	m_core->sreg[CS].d = 0;
+	m_core->cr[4] = 0;
+	m_core->dr[7] = 0x400;
+	m_core->eip = 0x8000;
+	m_core->CPL = 0;
 
 	m_nmi_masked = true;
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 void i386_device::leave_smm()
@@ -2659,47 +2616,47 @@ void i386_device::leave_smm()
 
 	// load state, no sanity checks anywhere
 	m_smbase = READ32(smram_state + SMRAM_SMBASE);
-	m_cr[4] = READ32(smram_state + SMRAM_IP5_CR4);
-	m_sreg[ES].limit = READ32(smram_state + SMRAM_IP5_ESLIM);
-	m_sreg[ES].base = READ32(smram_state + SMRAM_IP5_ESBASE);
-	m_sreg[ES].flags = READ32(smram_state + SMRAM_IP5_ESACC);
-	m_sreg[CS].limit = READ32(smram_state + SMRAM_IP5_CSLIM);
-	m_sreg[CS].base = READ32(smram_state + SMRAM_IP5_CSBASE);
-	m_sreg[CS].flags = READ32(smram_state + SMRAM_IP5_CSACC);
-	m_sreg[SS].limit = READ32(smram_state + SMRAM_IP5_SSLIM);
-	m_sreg[SS].base = READ32(smram_state + SMRAM_IP5_SSBASE);
-	m_sreg[SS].flags = READ32(smram_state + SMRAM_IP5_SSACC);
-	m_sreg[DS].limit = READ32(smram_state + SMRAM_IP5_DSLIM);
-	m_sreg[DS].base = READ32(smram_state + SMRAM_IP5_DSBASE);
-	m_sreg[DS].flags = READ32(smram_state + SMRAM_IP5_DSACC);
-	m_sreg[FS].limit = READ32(smram_state + SMRAM_IP5_FSLIM);
-	m_sreg[FS].base = READ32(smram_state + SMRAM_IP5_FSBASE);
-	m_sreg[FS].flags = READ32(smram_state + SMRAM_IP5_FSACC);
-	m_sreg[GS].limit = READ32(smram_state + SMRAM_IP5_GSLIM);
-	m_sreg[GS].base = READ32(smram_state + SMRAM_IP5_GSBASE);
-	m_sreg[GS].flags = READ32(smram_state + SMRAM_IP5_GSACC);
-	m_ldtr.flags = READ32(smram_state + SMRAM_IP5_LDTACC);
-	m_ldtr.limit = READ32(smram_state + SMRAM_IP5_LDTLIM);
-	m_ldtr.base = READ32(smram_state + SMRAM_IP5_LDTBASE);
-	m_gdtr.limit = READ32(smram_state + SMRAM_IP5_GDTLIM);
-	m_gdtr.base = READ32(smram_state + SMRAM_IP5_GDTBASE);
-	m_idtr.limit = READ32(smram_state + SMRAM_IP5_IDTLIM);
-	m_idtr.base = READ32(smram_state + SMRAM_IP5_IDTBASE);
-	m_task.limit = READ32(smram_state + SMRAM_IP5_TRLIM);
-	m_task.base = READ32(smram_state + SMRAM_IP5_TRBASE);
-	m_task.flags = READ32(smram_state + SMRAM_IP5_TRACC);
+	m_core->cr[4] = READ32(smram_state + SMRAM_IP5_CR4);
+	m_core->sreg[ES].limit = READ32(smram_state + SMRAM_IP5_ESLIM);
+	m_core->sreg[ES].base = READ32(smram_state + SMRAM_IP5_ESBASE);
+	m_core->sreg[ES].flags = READ32(smram_state + SMRAM_IP5_ESACC);
+	m_core->sreg[CS].limit = READ32(smram_state + SMRAM_IP5_CSLIM);
+	m_core->sreg[CS].base = READ32(smram_state + SMRAM_IP5_CSBASE);
+	m_core->sreg[CS].flags = READ32(smram_state + SMRAM_IP5_CSACC);
+	m_core->sreg[SS].limit = READ32(smram_state + SMRAM_IP5_SSLIM);
+	m_core->sreg[SS].base = READ32(smram_state + SMRAM_IP5_SSBASE);
+	m_core->sreg[SS].flags = READ32(smram_state + SMRAM_IP5_SSACC);
+	m_core->sreg[DS].limit = READ32(smram_state + SMRAM_IP5_DSLIM);
+	m_core->sreg[DS].base = READ32(smram_state + SMRAM_IP5_DSBASE);
+	m_core->sreg[DS].flags = READ32(smram_state + SMRAM_IP5_DSACC);
+	m_core->sreg[FS].limit = READ32(smram_state + SMRAM_IP5_FSLIM);
+	m_core->sreg[FS].base = READ32(smram_state + SMRAM_IP5_FSBASE);
+	m_core->sreg[FS].flags = READ32(smram_state + SMRAM_IP5_FSACC);
+	m_core->sreg[GS].limit = READ32(smram_state + SMRAM_IP5_GSLIM);
+	m_core->sreg[GS].base = READ32(smram_state + SMRAM_IP5_GSBASE);
+	m_core->sreg[GS].flags = READ32(smram_state + SMRAM_IP5_GSACC);
+	m_core->ldtr.flags = READ32(smram_state + SMRAM_IP5_LDTACC);
+	m_core->ldtr.limit = READ32(smram_state + SMRAM_IP5_LDTLIM);
+	m_core->ldtr.base = READ32(smram_state + SMRAM_IP5_LDTBASE);
+	m_core->gdtr.limit = READ32(smram_state + SMRAM_IP5_GDTLIM);
+	m_core->gdtr.base = READ32(smram_state + SMRAM_IP5_GDTBASE);
+	m_core->idtr.limit = READ32(smram_state + SMRAM_IP5_IDTLIM);
+	m_core->idtr.base = READ32(smram_state + SMRAM_IP5_IDTBASE);
+	m_core->task.limit = READ32(smram_state + SMRAM_IP5_TRLIM);
+	m_core->task.base = READ32(smram_state + SMRAM_IP5_TRBASE);
+	m_core->task.flags = READ32(smram_state + SMRAM_IP5_TRACC);
 
-	m_sreg[ES].selector = READ32(smram_state + SMRAM_ES);
-	m_sreg[CS].selector = READ32(smram_state + SMRAM_CS);
-	m_sreg[SS].selector = READ32(smram_state + SMRAM_SS);
-	m_sreg[DS].selector = READ32(smram_state + SMRAM_DS);
-	m_sreg[FS].selector = READ32(smram_state + SMRAM_FS);
-	m_sreg[GS].selector = READ32(smram_state + SMRAM_GS);
-	m_ldtr.segment = READ32(smram_state + SMRAM_LDTR);
-	m_task.segment = READ32(smram_state + SMRAM_TR);
+	m_core->sreg[ES].selector = READ32(smram_state + SMRAM_ES);
+	m_core->sreg[CS].selector = READ32(smram_state + SMRAM_CS);
+	m_core->sreg[SS].selector = READ32(smram_state + SMRAM_SS);
+	m_core->sreg[DS].selector = READ32(smram_state + SMRAM_DS);
+	m_core->sreg[FS].selector = READ32(smram_state + SMRAM_FS);
+	m_core->sreg[GS].selector = READ32(smram_state + SMRAM_GS);
+	m_core->ldtr.segment = READ32(smram_state + SMRAM_LDTR);
+	m_core->task.segment = READ32(smram_state + SMRAM_TR);
 
-	m_dr[7] = READ32(smram_state + SMRAM_DR7);
-	m_dr[6] = READ32(smram_state + SMRAM_DR6);
+	m_core->dr[7] = READ32(smram_state + SMRAM_DR7);
+	m_core->dr[6] = READ32(smram_state + SMRAM_DR6);
 	REG32(EAX) = READ32(smram_state + SMRAM_EAX);
 	REG32(ECX) = READ32(smram_state + SMRAM_ECX);
 	REG32(EDX) = READ32(smram_state + SMRAM_EDX);
@@ -2708,26 +2665,26 @@ void i386_device::leave_smm()
 	REG32(EBP) = READ32(smram_state + SMRAM_EBP);
 	REG32(ESI) = READ32(smram_state + SMRAM_ESI);
 	REG32(EDI) = READ32(smram_state + SMRAM_EDI);
-	m_eip = READ32(smram_state + SMRAM_EIP);
-	m_eflags = READ32(smram_state + SMRAM_EFLAGS);
-	m_cr[3] = READ32(smram_state + SMRAM_CR3);
-	m_cr[0] = READ32(smram_state + SMRAM_CR0);
+	m_core->eip = READ32(smram_state + SMRAM_EIP);
+	m_core->eflags = READ32(smram_state + SMRAM_EFLAGS);
+	m_core->cr[3] = READ32(smram_state + SMRAM_CR3);
+	m_core->cr[0] = READ32(smram_state + SMRAM_CR0);
 
-	m_CPL = (m_sreg[SS].flags >> 5) & 3; // cpl == dpl of ss
+	m_core->CPL = (m_core->sreg[SS].flags >> 5) & 3; // cpl == dpl of ss
 
 	for (int i = 0; i <= GS; i++)
 	{
-		m_sreg[i].d = (m_sreg[i].flags & 0x4000) ? 1 : 0;
+		m_core->sreg[i].d = (m_core->sreg[i].flags & 0x4000) ? 1 : 0;
 		if (PROTECTED_MODE && !V8086_MODE)
-			m_sreg[i].valid = m_sreg[i].selector ? true : false;
+			m_core->sreg[i].valid = m_core->sreg[i].selector ? true : false;
 		else
-			m_sreg[i].valid = true;
+			m_core->sreg[i].valid = true;
 	}
 
 	m_smiact(false);
-	m_smm = false;
+	m_core->smm = false;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 	m_nmi_masked = false;
 }
 
@@ -2763,7 +2720,7 @@ void i386_device::execute_set_input(int irqline, int state)
 				m_halted = 0;
 			}
 
-			m_irq_state = state;
+			m_core->irq_state = state;
 		}
 	}
 }
@@ -2772,11 +2729,11 @@ void pentium_device::execute_set_input(int irqline, int state)
 {
 	if ( irqline == INPUT_LINE_SMI )
 	{
-		if ( !m_smi && state && m_smm )
+		if ( !m_core->smi && state && m_core->smm )
 		{
-			m_smi_latched = true;
+			m_core->smi_latched = true;
 		}
-		m_smi = state;
+		m_core->smi = state;
 	}
 	else
 	{
@@ -2788,11 +2745,11 @@ void i386_device::i386_set_a20_line(int state)
 {
 	if (state)
 	{
-		m_a20_mask = ~offs_t(0);
+		m_core->a20_mask = ~offs_t(0);
 	}
 	else
 	{
-		m_a20_mask = ~(offs_t(1) << 20);
+		m_core->a20_mask = ~(offs_t(1) << 20);
 	}
 	// TODO: how does A20M and the tlb interact
 	vtlb_flush_dynamic();
@@ -2800,53 +2757,53 @@ void i386_device::i386_set_a20_line(int state)
 
 void i386_device::execute_run()
 {
-	int cycles = m_cycles;
-	m_base_cycles = cycles;
-	CHANGE_PC(m_eip);
+	int cycles = m_core->cycles;
+	m_core->base_cycles = cycles;
+	CHANGE_PC(m_core->eip);
 
 	if (m_halted)
 	{
 		debugger_wait_hook();
-		m_tsc += cycles;
-		m_cycles = 0;
+		m_core->tsc += cycles;
+		m_core->cycles = 0;
 		return;
 	}
 
-	while( m_cycles > 0 )
+	while( m_core->cycles > 0 )
 	{
 		i386_check_irq_line();
 
 		// The LE and GE bits of DR7 aren't currently implemented because they could potentially require cycle-accurate emulation.
-		if((m_dr[7] & 0xff) != 0) // If all of the breakpoints are disabled, skip checking for instruction breakpoint hitting entirely.
+		if((m_core->dr[7] & 0xff) != 0) // If all of the breakpoints are disabled, skip checking for instruction breakpoint hitting entirely.
 		for(int i = 0; i < 4; i++)
 		{
-			bool dri_enabled = (m_dr[7] & (1 << ((i << 1) + 1))) || (m_dr[7] & (1 << (i << 1))); // Check both local AND global enable bits for this breakpoint.
-			if(dri_enabled && !m_RF)
+			bool dri_enabled = (m_core->dr[7] & (1 << ((i << 1) + 1))) || (m_core->dr[7] & (1 << (i << 1))); // Check both local AND global enable bits for this breakpoint.
+			if(dri_enabled && !m_core->RF)
 			{
-				int breakpoint_type = (m_dr[7] >> (i << 2)) & 3;
-				int breakpoint_length = (m_dr[7] >> ((i << 2) + 2)) & 3;
+				int breakpoint_type = (m_core->dr[7] >> (i << 2)) & 3;
+				int breakpoint_length = (m_core->dr[7] >> ((i << 2) + 2)) & 3;
 				if(breakpoint_type == 0)
 				{
 					uint32_t phys_addr = 0;
 					uint32_t error;
-					if(m_cr[0] & CR0_PG)
+					if(m_core->cr[0] & CR0_PG)
 					{
-						offs_t addr = m_dr[i];
-						phys_addr = translate_address(m_CPL, TR_FETCH, &addr, &error);
-						m_dr[i] = uint32_t(addr);
+						offs_t addr = m_core->dr[i];
+						phys_addr = translate_address(m_core->CPL, TR_FETCH, &addr, &error);
+						m_core->dr[i] = uint32_t(addr);
 					}
 					else
 					{
-						phys_addr = m_dr[i];
+						phys_addr = m_core->dr[i];
 					}
 					if(breakpoint_length != 0) // Not one byte in length? logerror it, I have no idea how this works on real processors.
 					{
 						LOGMASKED(LOG_INVALID_OPCODE, "i386: Breakpoint length not 1 byte on an instruction breakpoint\n");
 					}
-					if(m_pc == phys_addr)
+					if(m_core->pc == phys_addr)
 					{
 						// The processor never automatically clears bits in DR6. It only sets them.
-						m_dr[6] |= 1 << i;
+						m_core->dr[6] |= 1 << i;
 						i386_trap(1,0);
 						break;
 					}
@@ -2854,39 +2811,39 @@ void i386_device::execute_run()
 			}
 		}
 
-		m_operand_size = m_sreg[CS].d;
+		m_operand_size = m_core->sreg[CS].d;
 		m_xmm_operand_size = 0;
-		m_address_size = m_sreg[CS].d;
+		m_address_size = m_core->sreg[CS].d;
 		m_operand_prefix = 0;
 		m_address_prefix = 0;
 
-		m_ext = 1;
-		int old_tf = m_TF;
+		m_core->ext = 1;
+		int old_tf = m_core->TF;
 
 		m_segment_prefix = 0;
-		m_prev_eip = m_eip;
+		m_core->prev_eip = m_core->eip;
 
-		debugger_instruction_hook(m_pc);
+		debugger_instruction_hook(m_core->pc);
 
-		if(m_delayed_interrupt_enable != 0)
+		if(m_core->delayed_interrupt_enable != 0)
 		{
-			m_IF = 1;
-			m_delayed_interrupt_enable = 0;
+			m_core->IF = 1;
+			m_core->delayed_interrupt_enable = 0;
 		}
 #ifdef DEBUG_MISSING_OPCODE
 		m_opcode_bytes_length = 0;
-		m_opcode_pc = m_pc;
+		m_opcode_pc = m_core->pc;
 		m_opcode_addrs[m_opcode_addrs_index] = m_opcode_pc;
 		m_opcode_addrs_index = (m_opcode_addrs_index + 1) & 15;
 #endif
 		try
 		{
 			i386_decode_opcode();
-			if(m_TF && old_tf)
+			if(m_core->TF && old_tf)
 			{
-				m_prev_eip = m_eip;
-				m_ext = 1;
-				m_dr[6] |= (1 << 14); //Set BS bit of DR6.
+				m_core->prev_eip = m_core->eip;
+				m_core->ext = 1;
+				m_core->dr[6] |= (1 << 14); //Set BS bit of DR6.
 				i386_trap(1,0);
 			}
 			if(m_lock && (m_opcode != 0xf0))
@@ -2894,13 +2851,13 @@ void i386_device::execute_run()
 		}
 		catch(uint64_t e)
 		{
-			m_ext = 1;
+			m_core->ext = 1;
 			i386_trap_with_error(e&0xffffffff,0,0,e>>32);
 		}
-		if(m_RF && m_auto_clear_RF) m_RF = 0;
+		if(m_core->RF && m_auto_clear_RF) m_core->RF = 0;
 		if(!m_auto_clear_RF) m_auto_clear_RF = true;
 	}
-	m_tsc += (cycles - m_cycles);
+	m_core->tsc += (cycles - m_core->cycles);
 }
 
 /*************************************************************************/
@@ -2911,13 +2868,13 @@ bool i386_device::memory_translate(int spacenum, int intention, offs_t &address,
 	bool ret = true;
 	if(spacenum == AS_PROGRAM)
 		ret = i386_translate_address(intention, true, &address, nullptr);
-	address &= m_a20_mask;
+	address &= m_core->a20_mask;
 	return ret;
 }
 
 int i386_device::get_mode() const
 {
-	return m_sreg[CS].d ? 32 : 16;
+	return m_core->sreg[CS].d ? 32 : 16;
 }
 
 std::unique_ptr<util::disasm_interface> i386_device::create_disassembler()
@@ -2927,20 +2884,20 @@ std::unique_ptr<util::disasm_interface> i386_device::create_disassembler()
 
 void i386_device::opcode_cpuid()
 {
-	LOGMASKED(LOG_MSR, "CPUID called with unsupported EAX=%08x at %08x!\n", REG32(EAX), m_eip);
+	LOGMASKED(LOG_MSR, "CPUID called with unsupported EAX=%08x at %08x!\n", REG32(EAX), m_core->eip);
 }
 
 uint64_t i386_device::opcode_rdmsr(bool &valid_msr)
 {
 	valid_msr = false;
-	LOGMASKED(LOG_MSR, "RDMSR called with unsupported ECX=%08x at %08x!\n", REG32(ECX), m_eip);
+	LOGMASKED(LOG_MSR, "RDMSR called with unsupported ECX=%08x at %08x!\n", REG32(ECX), m_core->eip);
 	return -1;
 }
 
 void i386_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 {
 	valid_msr = false;
-	LOGMASKED(LOG_MSR, "WRMSR called with unsupported ECX=%08x (%08x%08x) at %08x!\n", REG32(ECX), (uint32_t)(data >> 32), (uint32_t)data, m_eip);
+	LOGMASKED(LOG_MSR, "WRMSR called with unsupported ECX=%08x (%08x%08x) at %08x!\n", REG32(ECX), (uint32_t)(data >> 32), (uint32_t)data, m_core->eip);
 }
 
 /*****************************************************************************/
@@ -2963,26 +2920,26 @@ void i486_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x00000010;
-	m_eflags = 0;
-	m_eflags_mask = 0x00077fd7;
-	m_eip = 0xfff0;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->cr[0] = 0x00000010;
+	m_core->eflags = 0;
+	m_core->eflags_mask = 0x00077fd7;
+	m_core->eip = 0xfff0;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
 
@@ -2996,7 +2953,7 @@ void i486_device::device_reset()
 	REG32(EDX) = (4 << 8) | (0 << 4) | (3);
 	m_cpu_version = REG32(EDX);
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 void i486dx4_device::device_reset()
@@ -3029,27 +2986,27 @@ void pentium_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x00000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x003f7fd7;
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x00000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x003f7fd7;
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -3078,7 +3035,7 @@ void pentium_device::device_reset()
 	// [ 8:8] CMPXCHG8B instruction
 	m_feature_flags = 0x000001bf;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 
@@ -3101,26 +3058,26 @@ void mediagx_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x00000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->cr[0] = 0x00000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
 
@@ -3143,7 +3100,7 @@ void mediagx_device::device_reset()
 	// [ 0:0] FPU on chip
 	m_feature_flags = 0x00000001;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 /*****************************************************************************/
@@ -3164,27 +3121,27 @@ void pentium_pro_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x60000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x60000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -3215,7 +3172,7 @@ void pentium_pro_device::device_reset()
 	// No MMX
 	m_feature_flags = 0x000081bf;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 
@@ -3237,27 +3194,27 @@ void pentium_mmx_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x60000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x60000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -3287,7 +3244,7 @@ void pentium_mmx_device::device_reset()
 	// [23:23] MMX instructions
 	m_feature_flags = 0x008001bf;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 /*****************************************************************************/
@@ -3308,27 +3265,27 @@ void pentium2_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x60000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x60000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -3367,7 +3324,7 @@ void pentium2_device::device_reset()
 	//m_feature_flags = 0x0080f9ff;
 	m_feature_flags = 0x008081bf;  // TODO: enable missing flags
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 /*****************************************************************************/
@@ -3388,27 +3345,27 @@ void pentium3_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x60000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x60000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -3438,7 +3395,7 @@ void pentium3_device::device_reset()
 	m_feature_flags = 0x0004a111;       // TODO: enable relevant flags here
 	m_brand_id = 0x02;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 void pentium3_device::opcode_cpuid()
@@ -3451,7 +3408,7 @@ void pentium3_device::opcode_cpuid()
 			// (upper 32-bits part is in EAX=1 EAX return)
 			// NOTE: if this is triggered from an Arcade system then there's a very good chance
 			// that is trying to tie the serial as a form of copy protection cfr. gamecstl
-			LOGMASKED(LOG_MSR, "CPUID with EAX=00000003 (Pentium III PSN?) at %08x!\n", m_eip);
+			LOGMASKED(LOG_MSR, "CPUID with EAX=00000003 (Pentium III PSN?) at %08x!\n", m_core->eip);
 			REG32(EAX) = 0x00000000;
 			REG32(EBX) = 0x00000000;
 			REG32(ECX) = 0x01234567;
@@ -3482,27 +3439,27 @@ void p3celeron_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x60000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x60000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -3531,7 +3488,7 @@ void p3celeron_device::device_reset()
 	// [18:18] PSN (Processor Serial Number, P3 only)
 	m_feature_flags = 0x0004a111;       // TODO: enable relevant flags here
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 void p3celeron_device::opcode_cpuid()
@@ -3574,27 +3531,27 @@ void pentium4_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base     = 0xffff0000;
-	m_sreg[CS].limit    = 0xffff;
-	m_sreg[CS].flags    = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base     = 0xffff0000;
+	m_core->sreg[CS].limit    = 0xffff;
+	m_core->sreg[CS].flags    = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x60000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x60000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -3624,5 +3581,5 @@ void pentium4_device::device_reset()
 	m_feature_flags = 0x00008101;       // TODO: enable relevant flags here
 	m_brand_id = 0x08;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }

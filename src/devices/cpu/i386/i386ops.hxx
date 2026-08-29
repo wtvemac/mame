@@ -11,48 +11,48 @@ uint8_t i386_device::i386_shift_rotate8(uint8_t modrm, uint32_t value, uint8_t s
 		switch( (modrm >> 3) & 0x7 )
 		{
 			case 0:         /* ROL rm8, 1 */
-				m_CF = (src & 0x80) ? 1 : 0;
-				dst = (src << 1) + m_CF;
-				m_OF = ((src ^ dst) & 0x80) ? 1 : 0;
+				m_core->CF = (src & 0x80) ? 1 : 0;
+				dst = (src << 1) + m_core->CF;
+				m_core->OF = ((src ^ dst) & 0x80) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 1:         /* ROR rm8, 1 */
-				m_CF = (src & 0x1) ? 1 : 0;
-				dst = (m_CF << 7) | (src >> 1);
-				m_OF = ((src ^ dst) & 0x80) ? 1 : 0;
+				m_core->CF = (src & 0x1) ? 1 : 0;
+				dst = (m_core->CF << 7) | (src >> 1);
+				m_core->OF = ((src ^ dst) & 0x80) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 2:         /* RCL rm8, 1 */
-				dst = (src << 1) + m_CF;
-				m_CF = (src & 0x80) ? 1 : 0;
-				m_OF = ((src ^ dst) & 0x80) ? 1 : 0;
+				dst = (src << 1) + m_core->CF;
+				m_core->CF = (src & 0x80) ? 1 : 0;
+				m_core->OF = ((src ^ dst) & 0x80) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 3:         /* RCR rm8, 1 */
-				dst = (m_CF << 7) | (src >> 1);
-				m_CF = src & 0x1;
-				m_OF = ((src ^ dst) & 0x80) ? 1 : 0;
+				dst = (m_core->CF << 7) | (src >> 1);
+				m_core->CF = src & 0x1;
+				m_core->OF = ((src ^ dst) & 0x80) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 4:         /* SHL/SAL rm8, 1 */
 			case 6:
 				dst = src << 1;
-				m_CF = (src & 0x80) ? 1 : 0;
-				m_OF = (((m_CF << 7) ^ dst) & 0x80) ? 1 : 0;
+				m_core->CF = (src & 0x80) ? 1 : 0;
+				m_core->OF = (((m_core->CF << 7) ^ dst) & 0x80) ? 1 : 0;
 				SetSZPF8(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 5:         /* SHR rm8, 1 */
 				dst = src >> 1;
-				m_CF = src & 0x1;
-				m_OF = (dst & 0x80) ? 1 : 0;
+				m_core->CF = src & 0x1;
+				m_core->OF = (dst & 0x80) ? 1 : 0;
 				SetSZPF8(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 7:         /* SAR rm8, 1 */
 				dst = (int8_t)(src) >> 1;
-				m_CF = src & 0x1;
-				m_OF = 0;
+				m_core->CF = src & 0x1;
+				m_core->OF = 0;
 				SetSZPF8(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
@@ -66,16 +66,16 @@ uint8_t i386_device::i386_shift_rotate8(uint8_t modrm, uint32_t value, uint8_t s
 				{
 					if(shift & 0x18)
 					{
-						m_CF = src & 1;
-						m_OF = (src & 1) ^ ((src >> 7) & 1);
+						m_core->CF = src & 1;
+						m_core->OF = (src & 1) ^ ((src >> 7) & 1);
 					}
 					break;
 				}
 				shift &= 7;
 				dst = ((src & ((uint8_t)0xff >> shift)) << shift) |
 						((src & ((uint8_t)0xff << (8-shift))) >> (8-shift));
-				m_CF = dst & 0x1;
-				m_OF = (dst & 1) ^ (dst >> 7);
+				m_core->CF = dst & 0x1;
+				m_core->OF = (dst & 1) ^ (dst >> 7);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 1:         /* ROR rm8, i8 */
@@ -83,55 +83,55 @@ uint8_t i386_device::i386_shift_rotate8(uint8_t modrm, uint32_t value, uint8_t s
 				{
 					if(shift & 0x18)
 					{
-						m_CF = (src >> 7) & 1;
-						m_OF = ((src >> 7) & 1) ^ ((src >> 6) & 1);
+						m_core->CF = (src >> 7) & 1;
+						m_core->OF = ((src >> 7) & 1) ^ ((src >> 6) & 1);
 					}
 					break;
 				}
 				shift &= 7;
 				dst = ((src & ((uint8_t)0xff << shift)) >> shift) |
 						((src & ((uint8_t)0xff >> (8-shift))) << (8-shift));
-				m_CF = (dst >> 7) & 1;
-				m_OF = ((dst >> 7) ^ (dst >> 6)) & 1;
+				m_core->CF = (dst >> 7) & 1;
+				m_core->OF = ((dst >> 7) ^ (dst >> 6)) & 1;
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 2:         /* RCL rm8, i8 */
 				shift %= 9;
 				dst = ((src & ((uint8_t)0xff >> shift)) << shift) |
 						((src & ((uint8_t)0xff << (9-shift))) >> (9-shift)) |
-						(m_CF << (shift-1));
-				if(shift) m_CF = (src >> (8-shift)) & 0x1;
-				m_OF = m_CF ^ ((dst >> 7) & 1);
+						(m_core->CF << (shift-1));
+				if(shift) m_core->CF = (src >> (8-shift)) & 0x1;
+				m_core->OF = m_core->CF ^ ((dst >> 7) & 1);
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 3:         /* RCR rm8, i8 */
 				shift %= 9;
 				dst = ((src & ((uint8_t)0xff << shift)) >> shift) |
 						((src & ((uint8_t)0xff >> (8-shift))) << (9-shift)) |
-						(m_CF << (8-shift));
-				if(shift) m_CF = (src >> (shift-1)) & 0x1;
-				m_OF = ((dst >> 7) ^ (dst >> 6)) & 1;
+						(m_core->CF << (8-shift));
+				if(shift) m_core->CF = (src >> (shift-1)) & 0x1;
+				m_core->OF = ((dst >> 7) ^ (dst >> 6)) & 1;
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 4:         /* SHL/SAL rm8, i8 */
 			case 6:
 				shift &= 31;
 				dst = src << shift;
-				m_CF = (shift <= 8) && ((src >> (8 - shift)) & 1);
+				m_core->CF = (shift <= 8) && ((src >> (8 - shift)) & 1);
 				SetSZPF8(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 5:         /* SHR rm8, i8 */
 				shift &= 31;
 				dst = src >> shift;
-				m_CF = (src & (1 << (shift-1))) ? 1 : 0;
+				m_core->CF = (src & (1 << (shift-1))) ? 1 : 0;
 				SetSZPF8(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 7:         /* SAR rm8, i8 */
 				shift &= 31;
 				dst = (int8_t)src >> shift;
-				m_CF = (src & (1 << (shift-1))) ? 1 : 0;
+				m_core->CF = (src & (1 << (shift-1))) ? 1 : 0;
 				SetSZPF8(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
@@ -150,14 +150,14 @@ void i386_device::i386_adc_rm8_r8()        // Opcode 0x10
 	if( modrm >= 0xc0 ) {
 		src = LOAD_REG8(modrm);
 		dst = LOAD_RM8(modrm);
-		dst = ADC8(dst, src, m_CF);
+		dst = ADC8(dst, src, m_core->CF);
 		STORE_RM8(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,1);
 		src = LOAD_REG8(modrm);
 		dst = READ8(ea);
-		dst = ADC8(dst, src, m_CF);
+		dst = ADC8(dst, src, m_core->CF);
 		WRITE8(ea, dst);
 		CYCLES(CYCLES_ALU_REG_MEM);
 	}
@@ -170,14 +170,14 @@ void i386_device::i386_adc_r8_rm8()        // Opcode 0x12
 	if( modrm >= 0xc0 ) {
 		src = LOAD_RM8(modrm);
 		dst = LOAD_REG8(modrm);
-		dst = ADC8(dst, src, m_CF);
+		dst = ADC8(dst, src, m_core->CF);
 		STORE_REG8(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,0);
 		src = READ8(ea);
 		dst = LOAD_REG8(modrm);
-		dst = ADC8(dst, src, m_CF);
+		dst = ADC8(dst, src, m_core->CF);
 		STORE_REG8(modrm, dst);
 		CYCLES(CYCLES_ALU_MEM_REG);
 	}
@@ -188,7 +188,7 @@ void i386_device::i386_adc_al_i8()     // Opcode 0x14
 	uint8_t src, dst;
 	src = FETCH();
 	dst = REG8(AL);
-	dst = ADC8(dst, src, m_CF);
+	dst = ADC8(dst, src, m_core->CF);
 	REG8(AL) = dst;
 	CYCLES(CYCLES_ALU_IMM_ACC);
 }
@@ -295,13 +295,13 @@ void i386_device::i386_and_al_i8()         // Opcode 0x24
 
 void i386_device::i386_clc()               // Opcode 0xf8
 {
-	m_CF = 0;
+	m_core->CF = 0;
 	CYCLES(CYCLES_CLC);
 }
 
 void i386_device::i386_cld()               // Opcode 0xfc
 {
-	m_DF = 0;
+	m_core->DF = 0;
 	CYCLES(CYCLES_CLD);
 }
 
@@ -309,17 +309,17 @@ void i386_device::i386_cli()               // Opcode 0xfa
 {
 	if(PROTECTED_MODE)
 	{
-		uint8_t IOPL = m_IOP1 | (m_IOP2 << 1);
-		if(m_CPL > IOPL)
+		uint8_t IOPL = m_core->IOP1 | (m_core->IOP2 << 1);
+		if(m_core->CPL > IOPL)
 			FAULT(FAULT_GP,0);
 	}
-	m_IF = 0;
+	m_core->IF = 0;
 	CYCLES(CYCLES_CLI);
 }
 
 void i386_device::i386_cmc()               // Opcode 0xf5
 {
-	m_CF ^= 1;
+	m_core->CF ^= 1;
 	CYCLES(CYCLES_CMC);
 }
 
@@ -405,7 +405,7 @@ void i386_device::i386_in_al_dx()          // Opcode 0xec
 void i386_device::i386_ja_rel8()           // Opcode 0x77
 {
 	int8_t disp = FETCH();
-	if( m_CF == 0 && m_ZF == 0 ) {
+	if( m_core->CF == 0 && m_core->ZF == 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -416,7 +416,7 @@ void i386_device::i386_ja_rel8()           // Opcode 0x77
 void i386_device::i386_jbe_rel8()          // Opcode 0x76
 {
 	int8_t disp = FETCH();
-	if( m_CF != 0 || m_ZF != 0 ) {
+	if( m_core->CF != 0 || m_core->ZF != 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -427,7 +427,7 @@ void i386_device::i386_jbe_rel8()          // Opcode 0x76
 void i386_device::i386_jc_rel8()           // Opcode 0x72
 {
 	int8_t disp = FETCH();
-	if( m_CF != 0 ) {
+	if( m_core->CF != 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -438,7 +438,7 @@ void i386_device::i386_jc_rel8()           // Opcode 0x72
 void i386_device::i386_jg_rel8()           // Opcode 0x7f
 {
 	int8_t disp = FETCH();
-	if( m_ZF == 0 && (m_SF == m_OF) ) {
+	if( m_core->ZF == 0 && (m_core->SF == m_core->OF) ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -449,7 +449,7 @@ void i386_device::i386_jg_rel8()           // Opcode 0x7f
 void i386_device::i386_jge_rel8()          // Opcode 0x7d
 {
 	int8_t disp = FETCH();
-	if(m_SF == m_OF) {
+	if(m_core->SF == m_core->OF) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -460,7 +460,7 @@ void i386_device::i386_jge_rel8()          // Opcode 0x7d
 void i386_device::i386_jl_rel8()           // Opcode 0x7c
 {
 	int8_t disp = FETCH();
-	if( (m_SF != m_OF) ) {
+	if( (m_core->SF != m_core->OF) ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -471,7 +471,7 @@ void i386_device::i386_jl_rel8()           // Opcode 0x7c
 void i386_device::i386_jle_rel8()      // Opcode 0x7e
 {
 	int8_t disp = FETCH();
-	if( m_ZF != 0 || (m_SF != m_OF) ) {
+	if( m_core->ZF != 0 || (m_core->SF != m_core->OF) ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -482,7 +482,7 @@ void i386_device::i386_jle_rel8()      // Opcode 0x7e
 void i386_device::i386_jnc_rel8()          // Opcode 0x73
 {
 	int8_t disp = FETCH();
-	if( m_CF == 0 ) {
+	if( m_core->CF == 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -493,7 +493,7 @@ void i386_device::i386_jnc_rel8()          // Opcode 0x73
 void i386_device::i386_jno_rel8()          // Opcode 0x71
 {
 	int8_t disp = FETCH();
-	if( m_OF == 0 ) {
+	if( m_core->OF == 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -504,7 +504,7 @@ void i386_device::i386_jno_rel8()          // Opcode 0x71
 void i386_device::i386_jnp_rel8()          // Opcode 0x7b
 {
 	int8_t disp = FETCH();
-	if( m_PF == 0 ) {
+	if( m_core->PF == 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -515,7 +515,7 @@ void i386_device::i386_jnp_rel8()          // Opcode 0x7b
 void i386_device::i386_jns_rel8()          // Opcode 0x79
 {
 	int8_t disp = FETCH();
-	if( m_SF == 0 ) {
+	if( m_core->SF == 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -526,7 +526,7 @@ void i386_device::i386_jns_rel8()          // Opcode 0x79
 void i386_device::i386_jnz_rel8()          // Opcode 0x75
 {
 	int8_t disp = FETCH();
-	if( m_ZF == 0 ) {
+	if( m_core->ZF == 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -537,7 +537,7 @@ void i386_device::i386_jnz_rel8()          // Opcode 0x75
 void i386_device::i386_jo_rel8()           // Opcode 0x70
 {
 	int8_t disp = FETCH();
-	if( m_OF != 0 ) {
+	if( m_core->OF != 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -548,7 +548,7 @@ void i386_device::i386_jo_rel8()           // Opcode 0x70
 void i386_device::i386_jp_rel8()           // Opcode 0x7a
 {
 	int8_t disp = FETCH();
-	if( m_PF != 0 ) {
+	if( m_core->PF != 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -559,7 +559,7 @@ void i386_device::i386_jp_rel8()           // Opcode 0x7a
 void i386_device::i386_js_rel8()           // Opcode 0x78
 {
 	int8_t disp = FETCH();
-	if( m_SF != 0 ) {
+	if( m_core->SF != 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -570,7 +570,7 @@ void i386_device::i386_js_rel8()           // Opcode 0x78
 void i386_device::i386_jz_rel8()           // Opcode 0x74
 {
 	int8_t disp = FETCH();
-	if( m_ZF != 0 ) {
+	if( m_core->ZF != 0 ) {
 		NEAR_BRANCH(disp);
 		CYCLES(CYCLES_JCC_DISP8);      /* TODO: Timing = 7 + m */
 	} else {
@@ -653,23 +653,23 @@ void i386_device::i386_mov_rm8_i8()        // Opcode 0xc6
 
 void i386_device::i386_mov_r32_cr()        // Opcode 0x0f 20
 {
-	if(PROTECTED_MODE && m_CPL)
+	if(PROTECTED_MODE && m_core->CPL)
 		FAULT(FAULT_GP, 0);
 	uint8_t modrm = FETCH();
 	uint8_t cr = (modrm >> 3) & 0x7;
 
-	STORE_RM32(modrm, m_cr[cr]);
+	STORE_RM32(modrm, m_core->cr[cr]);
 	CYCLES(CYCLES_MOV_CR_REG);
 }
 
 void i386_device::i386_mov_r32_dr()        // Opcode 0x0f 21
 {
-	if(PROTECTED_MODE && m_CPL)
+	if(PROTECTED_MODE && m_core->CPL)
 		FAULT(FAULT_GP, 0);
 	uint8_t modrm = FETCH();
 	uint8_t dr = (modrm >> 3) & 0x7;
 
-	STORE_RM32(modrm, m_dr[dr]);
+	STORE_RM32(modrm, m_core->dr[dr]);
 	switch(dr)
 	{
 		case 0:
@@ -687,7 +687,7 @@ void i386_device::i386_mov_r32_dr()        // Opcode 0x0f 21
 
 void i386_device::i386_mov_cr_r32()        // Opcode 0x0f 22
 {
-	if(PROTECTED_MODE && m_CPL)
+	if(PROTECTED_MODE && m_core->CPL)
 		FAULT(FAULT_GP, 0);
 	uint8_t modrm = FETCH();
 	uint8_t cr = (modrm >> 3) & 0x7;
@@ -710,12 +710,12 @@ void i386_device::i386_mov_cr_r32()        // Opcode 0x0f 22
 			logerror("i386: mov_cr_r32 CR%d!\n", cr);
 			return;
 	}
-	m_cr[cr] = data;
+	m_core->cr[cr] = data;
 }
 
 void i386_device::i386_mov_dr_r32()        // Opcode 0x0f 23
 {
-	if(PROTECTED_MODE && m_CPL)
+	if(PROTECTED_MODE && m_core->CPL)
 		FAULT(FAULT_GP, 0);
 	uint8_t modrm = FETCH();
 	uint8_t dr = (modrm >> 3) & 0x7;
@@ -728,17 +728,17 @@ void i386_device::i386_mov_dr_r32()        // Opcode 0x0f 23
 		case 2:
 		case 3:
 		{
-			m_dr[dr] = rm32;
+			m_core->dr[dr] = rm32;
 			dri_changed();
 			CYCLES(CYCLES_MOV_DR0_3_REG);
 			break;
 		}
-		case 6: CYCLES(CYCLES_MOV_DR6_7_REG); m_dr[dr] = LOAD_RM32(modrm); break;
+		case 6: CYCLES(CYCLES_MOV_DR6_7_REG); m_core->dr[dr] = LOAD_RM32(modrm); break;
 		case 7:
 		{
-			uint32_t old_dr7 = m_dr[7];
-			m_dr[dr] = rm32;
-			dr7_changed(old_dr7, m_dr[7]);
+			uint32_t old_dr7 = m_core->dr[7];
+			m_core->dr[dr] = rm32;
+			dr7_changed(old_dr7, m_core->dr[7]);
 			CYCLES(CYCLES_MOV_DR6_7_REG);
 			break;
 		}
@@ -791,13 +791,13 @@ void i386_device::i386_mov_rm16_sreg()     // Opcode 0x8c
 
 	if( modrm >= 0xc0 ) {
 		if(m_operand_size)
-			STORE_RM32(modrm, m_sreg[s].selector);
+			STORE_RM32(modrm, m_core->sreg[s].selector);
 		else
-			STORE_RM16(modrm, m_sreg[s].selector);
+			STORE_RM16(modrm, m_core->sreg[s].selector);
 		CYCLES(CYCLES_MOV_SREG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,1);
-		WRITE16(ea, m_sreg[s].selector);
+		WRITE16(ea, m_core->sreg[s].selector);
 		CYCLES(CYCLES_MOV_SREG_MEM);
 	}
 }
@@ -821,10 +821,10 @@ void i386_device::i386_mov_sreg_rm16()     // Opcode 0x8e
 	i386_sreg_load(selector,s,&fault);
 	if((s == SS) && !fault)
 	{
-		if(m_IF != 0) // if external interrupts are enabled
+		if(m_core->IF != 0) // if external interrupts are enabled
 		{
-			m_IF = 0;  // reset IF for the next instruction
-			m_delayed_interrupt_enable = 1;
+			m_core->IF = 0;  // reset IF for the next instruction
+			m_core->delayed_interrupt_enable = 1;
 		}
 	}
 }
@@ -1025,9 +1025,9 @@ void i386_device::i386_ins_generic(int size)
 	}
 
 	if(m_address_size)
-		REG32(EDI) += ((m_DF) ? -1 : 1) * size;
+		REG32(EDI) += ((m_core->DF) ? -1 : 1) * size;
 	else
-		REG16(DI) += ((m_DF) ? -1 : 1) * size;
+		REG16(DI) += ((m_core->DF) ? -1 : 1) * size;
 	CYCLES(CYCLES_INS);    // TODO: Confirm this value
 }
 
@@ -1075,9 +1075,9 @@ void i386_device::i386_outs_generic(int size)
 	}
 
 	if(m_address_size)
-		REG32(ESI) += ((m_DF) ? -1 : 1) * size;
+		REG32(ESI) += ((m_core->DF) ? -1 : 1) * size;
 	else
-		REG16(SI) += ((m_DF) ? -1 : 1) * size;
+		REG16(SI) += ((m_core->DF) ? -1 : 1) * size;
 	CYCLES(CYCLES_OUTS);   // TODO: Confirm this value
 }
 
@@ -1098,8 +1098,8 @@ void i386_device::i386_outsd()             // Opcode 0x6f
 
 void i386_device::i386_repeat(int invert_flag)
 {
-	uint32_t repeated_eip = m_eip;
-	uint32_t repeated_pc = m_pc;
+	uint32_t repeated_eip = m_core->eip;
+	uint32_t repeated_pc = m_core->pc;
 	uint8_t opcode; // = FETCH();
 //  uint32_t eas, ead;
 	uint32_t count;
@@ -1109,8 +1109,8 @@ void i386_device::i386_repeat(int invert_flag)
 
 
 	do {
-	repeated_eip = m_eip;
-	repeated_pc = m_pc;
+	repeated_eip = m_core->eip;
+	repeated_pc = m_core->pc;
 	opcode = FETCH();
 	switch(opcode) {
 		case 0x0f:
@@ -1166,7 +1166,7 @@ void i386_device::i386_repeat(int invert_flag)
 
 	if( m_segment_prefix ) {
 		// FIXME: the following does not work if both address override and segment override are used
-		i386_translate(m_segment_override, m_sreg[m_segment_prefix].d ? REG32(ESI) : REG16(SI), -1 );
+		i386_translate(m_segment_override, m_core->sreg[m_segment_prefix].d ? REG32(ESI) : REG16(SI), -1 );
 	} else {
 		//eas =
 		i386_translate(DS, m_address_size ? REG32(ESI) : REG16(SI), -1 );
@@ -1206,7 +1206,7 @@ void i386_device::i386_repeat(int invert_flag)
 			/* CMPSB, CMPSW, CMPSD */
 			cycle_base = 5;
 			cycle_adjustment = -1;
-			flag = &m_ZF;
+			flag = &m_core->ZF;
 			break;
 
 		case 0xac:
@@ -1230,7 +1230,7 @@ void i386_device::i386_repeat(int invert_flag)
 			/* SCASB, SCASW, SCASD */
 			cycle_base = 5;
 			cycle_adjustment = 0;
-			flag = &m_ZF;
+			flag = &m_core->ZF;
 			break;
 
 		case 0x90:
@@ -1239,12 +1239,12 @@ void i386_device::i386_repeat(int invert_flag)
 
 		case 0xc2: // sigh
 		case 0xc3:
-			m_pc--;
+			m_core->pc--;
 			return;
 
 		default:
-			logerror("i386: Invalid REP/opcode %02X combination at %08x\n",opcode, m_pc - 2);
-			m_pc--;
+			logerror("i386: Invalid REP/opcode %02X combination at %08x\n",opcode, m_core->pc - 2);
+			m_core->pc--;
 			return;
 	}
 
@@ -1260,15 +1260,15 @@ void i386_device::i386_repeat(int invert_flag)
 	CYCLES_NUM(cycle_base);
 	do
 	{
-		m_eip = repeated_eip;
-		m_pc = repeated_pc;
+		m_core->eip = repeated_eip;
+		m_core->pc = repeated_pc;
 		try
 		{
 			i386_decode_opcode();
 		}
 		catch (uint64_t e)
 		{
-			m_eip = m_prev_eip;
+			m_core->eip = m_core->prev_eip;
 			throw e;
 		}
 
@@ -1278,7 +1278,7 @@ void i386_device::i386_repeat(int invert_flag)
 			count = --REG32(ECX);
 		else
 			count = --REG16(CX);
-		if (count && (m_cycles <= 0))
+		if (count && (m_core->cycles <= 0))
 			goto outofcycles;
 	}
 	while( count && (!flag || (invert_flag ? !*flag : *flag)) );
@@ -1290,8 +1290,8 @@ outofcycles:
 	 * time to execute cycles */
 	if(flag && (invert_flag ? *flag : !*flag))
 		return;
-	m_eip = m_prev_eip;
-	CHANGE_PC(m_eip);
+	m_core->eip = m_core->prev_eip;
+	CHANGE_PC(m_core->eip);
 	CYCLES_NUM(-cycle_base);
 }
 
@@ -1318,14 +1318,14 @@ void i386_device::i386_sbb_rm8_r8()        // Opcode 0x18
 	if( modrm >= 0xc0 ) {
 		src = LOAD_REG8(modrm);
 		dst = LOAD_RM8(modrm);
-		dst = SBB8(dst, src, m_CF);
+		dst = SBB8(dst, src, m_core->CF);
 		STORE_RM8(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,1);
 		src = LOAD_REG8(modrm);
 		dst = READ8(ea);
-		dst = SBB8(dst, src, m_CF);
+		dst = SBB8(dst, src, m_core->CF);
 		WRITE8(ea, dst);
 		CYCLES(CYCLES_ALU_REG_MEM);
 	}
@@ -1338,14 +1338,14 @@ void i386_device::i386_sbb_r8_rm8()        // Opcode 0x1a
 	if( modrm >= 0xc0 ) {
 		src = LOAD_RM8(modrm);
 		dst = LOAD_REG8(modrm);
-		dst = SBB8(dst, src, m_CF);
+		dst = SBB8(dst, src, m_core->CF);
 		STORE_REG8(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,0);
 		src = READ8(ea);
 		dst = LOAD_REG8(modrm);
-		dst = SBB8(dst, src, m_CF);
+		dst = SBB8(dst, src, m_core->CF);
 		STORE_REG8(modrm, dst);
 		CYCLES(CYCLES_ALU_MEM_REG);
 	}
@@ -1356,7 +1356,7 @@ void i386_device::i386_sbb_al_i8()         // Opcode 0x1c
 	uint8_t src, dst;
 	src = FETCH();
 	dst = REG8(AL);
-	dst = SBB8(dst, src, m_CF);
+	dst = SBB8(dst, src, m_core->CF);
 	REG8(EAX) = dst;
 	CYCLES(CYCLES_ALU_IMM_ACC);
 }
@@ -1375,7 +1375,7 @@ void i386_device::i386_scasb()             // Opcode 0xae
 
 void i386_device::i386_setalc()            // Opcode 0xd6 (undocumented)
 {
-	if( m_CF ) {
+	if( m_core->CF ) {
 		REG8(AL) = 0xff;
 	} else {
 		REG8(AL) = 0;
@@ -1387,7 +1387,7 @@ void i386_device::i386_seta_rm8()          // Opcode 0x0f 97
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_CF == 0 && m_ZF == 0 ) {
+	if( m_core->CF == 0 && m_core->ZF == 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1404,7 +1404,7 @@ void i386_device::i386_setbe_rm8()         // Opcode 0x0f 96
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_CF != 0 || m_ZF != 0 ) {
+	if( m_core->CF != 0 || m_core->ZF != 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1421,7 +1421,7 @@ void i386_device::i386_setc_rm8()          // Opcode 0x0f 92
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_CF != 0 ) {
+	if( m_core->CF != 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1438,7 +1438,7 @@ void i386_device::i386_setg_rm8()          // Opcode 0x0f 9f
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_ZF == 0 && (m_SF == m_OF) ) {
+	if( m_core->ZF == 0 && (m_core->SF == m_core->OF) ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1455,7 +1455,7 @@ void i386_device::i386_setge_rm8()         // Opcode 0x0f 9d
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if(m_SF == m_OF) {
+	if(m_core->SF == m_core->OF) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1472,7 +1472,7 @@ void i386_device::i386_setl_rm8()          // Opcode 0x0f 9c
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_SF != m_OF ) {
+	if( m_core->SF != m_core->OF ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1489,7 +1489,7 @@ void i386_device::i386_setle_rm8()         // Opcode 0x0f 9e
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_ZF != 0 || (m_SF != m_OF) ) {
+	if( m_core->ZF != 0 || (m_core->SF != m_core->OF) ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1506,7 +1506,7 @@ void i386_device::i386_setnc_rm8()         // Opcode 0x0f 93
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_CF == 0 ) {
+	if( m_core->CF == 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1523,7 +1523,7 @@ void i386_device::i386_setno_rm8()         // Opcode 0x0f 91
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_OF == 0 ) {
+	if( m_core->OF == 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1540,7 +1540,7 @@ void i386_device::i386_setnp_rm8()         // Opcode 0x0f 9b
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_PF == 0 ) {
+	if( m_core->PF == 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1557,7 +1557,7 @@ void i386_device::i386_setns_rm8()         // Opcode 0x0f 99
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_SF == 0 ) {
+	if( m_core->SF == 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1574,7 +1574,7 @@ void i386_device::i386_setnz_rm8()         // Opcode 0x0f 95
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_ZF == 0 ) {
+	if( m_core->ZF == 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1591,7 +1591,7 @@ void i386_device::i386_seto_rm8()          // Opcode 0x0f 90
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_OF != 0 ) {
+	if( m_core->OF != 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1608,7 +1608,7 @@ void i386_device::i386_setp_rm8()          // Opcode 0x0f 9a
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_PF != 0 ) {
+	if( m_core->PF != 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1625,7 +1625,7 @@ void i386_device::i386_sets_rm8()          // Opcode 0x0f 98
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_SF != 0 ) {
+	if( m_core->SF != 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1642,7 +1642,7 @@ void i386_device::i386_setz_rm8()          // Opcode 0x0f 94
 {
 	uint8_t modrm = FETCH();
 	uint8_t value = 0;
-	if( m_ZF != 0 ) {
+	if( m_core->ZF != 0 ) {
 		value = 1;
 	}
 	if( modrm >= 0xc0 ) {
@@ -1657,13 +1657,13 @@ void i386_device::i386_setz_rm8()          // Opcode 0x0f 94
 
 void i386_device::i386_stc()               // Opcode 0xf9
 {
-	m_CF = 1;
+	m_core->CF = 1;
 	CYCLES(CYCLES_STC);
 }
 
 void i386_device::i386_std()               // Opcode 0xfd
 {
-	m_DF = 1;
+	m_core->DF = 1;
 	CYCLES(CYCLES_STD);
 }
 
@@ -1671,11 +1671,11 @@ void i386_device::i386_sti()               // Opcode 0xfb
 {
 	if(PROTECTED_MODE)
 	{
-		uint8_t IOPL = m_IOP1 | (m_IOP2 << 1);
-		if(m_CPL > IOPL)
+		uint8_t IOPL = m_core->IOP1 | (m_core->IOP2 << 1);
+		if(m_core->CPL > IOPL)
 			FAULT(FAULT_GP,0);
 	}
-	m_delayed_interrupt_enable = 1;  // IF is set after the next instruction.
+	m_core->delayed_interrupt_enable = 1;  // IF is set after the next instruction.
 	CYCLES(CYCLES_STI);
 }
 
@@ -1744,8 +1744,8 @@ void i386_device::i386_test_al_i8()        // Opcode 0xa8
 	uint8_t dst = REG8(AL);
 	dst = src & dst;
 	SetSZPF8(dst);
-	m_CF = 0;
-	m_OF = 0;
+	m_core->CF = 0;
+	m_core->OF = 0;
 	CYCLES(CYCLES_ALU_IMM_ACC);
 }
 
@@ -1758,8 +1758,8 @@ void i386_device::i386_test_rm8_r8()       // Opcode 0x84
 		dst = LOAD_RM8(modrm);
 		dst = src & dst;
 		SetSZPF8(dst);
-		m_CF = 0;
-		m_OF = 0;
+		m_core->CF = 0;
+		m_core->OF = 0;
 		CYCLES(CYCLES_TEST_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,0);
@@ -1767,8 +1767,8 @@ void i386_device::i386_test_rm8_r8()       // Opcode 0x84
 		dst = READ8(ea);
 		dst = src & dst;
 		SetSZPF8(dst);
-		m_CF = 0;
-		m_OF = 0;
+		m_core->CF = 0;
+		m_core->OF = 0;
 		CYCLES(CYCLES_TEST_REG_MEM);
 	}
 }
@@ -1888,14 +1888,14 @@ void i386_device::i386_group80_8()         // Opcode 0x80
 			if( modrm >= 0xc0 ) {
 				dst = LOAD_RM8(modrm);
 				src = FETCH();
-				dst = ADC8(dst, src, m_CF);
+				dst = ADC8(dst, src, m_core->CF);
 				STORE_RM8(modrm, dst);
 				CYCLES(CYCLES_ALU_REG_REG);
 			} else {
 				ea = GetEA(modrm,1);
 				dst = READ8(ea);
 				src = FETCH();
-				dst = ADC8(dst, src, m_CF);
+				dst = ADC8(dst, src, m_core->CF);
 				WRITE8(ea, dst);
 				CYCLES(CYCLES_ALU_REG_MEM);
 			}
@@ -1904,14 +1904,14 @@ void i386_device::i386_group80_8()         // Opcode 0x80
 			if( modrm >= 0xc0 ) {
 				dst = LOAD_RM8(modrm);
 				src = FETCH();
-				dst = SBB8(dst, src, m_CF);
+				dst = SBB8(dst, src, m_core->CF);
 				STORE_RM8(modrm, dst);
 				CYCLES(CYCLES_ALU_REG_REG);
 			} else {
 				ea = GetEA(modrm,1);
 				dst = READ8(ea);
 				src = FETCH();
-				dst = SBB8(dst, src, m_CF);
+				dst = SBB8(dst, src, m_core->CF);
 				WRITE8(ea, dst);
 				CYCLES(CYCLES_ALU_REG_MEM);
 			}
@@ -2046,7 +2046,7 @@ void i386_device::i386_groupF6_8()         // Opcode 0xf6
 				uint8_t dst = LOAD_RM8(modrm);
 				uint8_t src = FETCH();
 				dst &= src;
-				m_CF = m_OF = m_AF = 0;
+				m_core->CF = m_core->OF = m_core->AF = 0;
 				SetSZPF8(dst);
 				CYCLES(CYCLES_TEST_IMM_REG);
 			} else {
@@ -2054,7 +2054,7 @@ void i386_device::i386_groupF6_8()         // Opcode 0xf6
 				uint8_t dst = READ8(ea);
 				uint8_t src = FETCH();
 				dst &= src;
-				m_CF = m_OF = m_AF = 0;
+				m_core->CF = m_core->OF = m_core->AF = 0;
 				SetSZPF8(dst);
 				CYCLES(CYCLES_TEST_IMM_MEM);
 			}
@@ -2104,7 +2104,7 @@ void i386_device::i386_groupF6_8()         // Opcode 0xf6
 				result = (uint16_t)src * (uint16_t)dst;
 				REG16(AX) = (uint16_t)result;
 
-				m_CF = m_OF = (REG16(AX) > 0xff);
+				m_core->CF = m_core->OF = (REG16(AX) > 0xff);
 			}
 			break;
 		case 5:         /* IMUL AL, Rm8 */
@@ -2125,7 +2125,7 @@ void i386_device::i386_groupF6_8()         // Opcode 0xf6
 
 				REG16(AX) = (uint16_t)result;
 
-				m_CF = m_OF = !(result == (int16_t)(int8_t)result);
+				m_core->CF = m_core->OF = !(result == (int16_t)(int8_t)result);
 			}
 			break;
 		case 6:         /* DIV AL, Rm8 */
@@ -2153,7 +2153,7 @@ void i386_device::i386_groupF6_8()         // Opcode 0xf6
 
 						// this flag is actually undefined, enable on non-cyrix
 						if (m_cpuid_id0 != 0x69727943)
-							m_CF = 1;
+							m_core->CF = 1;
 					}
 				} else {
 					i386_trap(0, 0);
@@ -2185,7 +2185,7 @@ void i386_device::i386_groupF6_8()         // Opcode 0xf6
 
 						// this flag is actually undefined, enable on non-cyrix
 						if (m_cpuid_id0 != 0x69727943)
-							m_CF = 1;
+							m_core->CF = 1;
 					}
 				} else {
 					i386_trap(0, 0);
@@ -2340,26 +2340,26 @@ void i386_device::i386_nop()               // Opcode 0x90
 void i386_device::i386_int3()              // Opcode 0xcc
 {
 	CYCLES(CYCLES_INT3);
-	m_ext = 0; // not an external interrupt
+	m_core->ext = 0; // not an external interrupt
 	i386_trap(3, 1);
-	m_ext = 1;
+	m_core->ext = 1;
 }
 
 void i386_device::i386_int()               // Opcode 0xcd
 {
 	int interrupt = FETCH();
 	CYCLES(CYCLES_INT);
-	m_ext = 0; // not an external interrupt
+	m_core->ext = 0; // not an external interrupt
 	i386_trap(interrupt, 1);
-	m_ext = 1;
+	m_core->ext = 1;
 }
 
 void i386_device::i386_into()              // Opcode 0xce
 {
-	if( m_OF ) {
-		m_ext = 0;
+	if( m_core->OF ) {
+		m_core->ext = 0;
 		i386_trap(4, 1);
-		m_ext = 1;
+		m_core->ext = 1;
 		CYCLES(CYCLES_INTO_OF1);
 	}
 	else
@@ -2382,26 +2382,26 @@ void i386_device::i386_escape()            // Opcodes 0xd8 - 0xdf
 
 void i386_device::i386_hlt()               // Opcode 0xf4
 {
-	if(PROTECTED_MODE && m_CPL != 0)
+	if(PROTECTED_MODE && m_core->CPL != 0)
 		FAULT(FAULT_GP,0);
 	m_halted = 1;
 	CYCLES(CYCLES_HLT);
-	if (m_cycles > 0)
-		m_cycles = 0;
+	if (m_core->cycles > 0)
+		m_core->cycles = 0;
 }
 
 void i386_device::i386_decimal_adjust(int direction)
 {
 	uint8_t tmpAL = REG8(AL);
-	uint8_t tmpCF = m_CF;
+	uint8_t tmpCF = m_core->CF;
 
-	if (m_AF || ((REG8(AL) & 0xf) > 9))
+	if (m_core->AF || ((REG8(AL) & 0xf) > 9))
 	{
 		uint16_t t= (uint16_t)REG8(AL) + (direction * 0x06);
 		REG8(AL) = (uint8_t)t&0xff;
-		m_AF = 1;
+		m_core->AF = 1;
 		if (t & 0x100)
-			m_CF = 1;
+			m_core->CF = 1;
 		if (direction > 0)
 			tmpAL = REG8(AL);
 	}
@@ -2409,7 +2409,7 @@ void i386_device::i386_decimal_adjust(int direction)
 	if (tmpCF || (tmpAL > 0x99))
 	{
 		REG8(AL) += (direction * 0x60);
-		m_CF = 1;
+		m_core->CF = 1;
 	}
 
 	SetSZPF8(REG8(AL));
@@ -2429,14 +2429,14 @@ void i386_device::i386_das()               // Opcode 0x2f
 
 void i386_device::i386_aaa()               // Opcode 0x37
 {
-	if( ( (REG8(AL) & 0x0f) > 9) || (m_AF != 0) ) {
+	if( ( (REG8(AL) & 0x0f) > 9) || (m_core->AF != 0) ) {
 		REG16(AX) = REG16(AX) + 6;
 		REG8(AH) = REG8(AH) + 1;
-		m_AF = 1;
-		m_CF = 1;
+		m_core->AF = 1;
+		m_core->CF = 1;
 	} else {
-		m_AF = 0;
-		m_CF = 0;
+		m_core->AF = 0;
+		m_core->CF = 0;
 	}
 	REG8(AL) = REG8(AL) & 0x0f;
 	CYCLES(CYCLES_AAA);
@@ -2444,17 +2444,17 @@ void i386_device::i386_aaa()               // Opcode 0x37
 
 void i386_device::i386_aas()               // Opcode 0x3f
 {
-	if (m_AF || ((REG8(AL) & 0xf) > 9))
+	if (m_core->AF || ((REG8(AL) & 0xf) > 9))
 	{
 		REG16(AX) -= 6;
 		REG8(AH) -= 1;
-		m_AF = 1;
-		m_CF = 1;
+		m_core->AF = 1;
+		m_core->CF = 1;
 	}
 	else
 	{
-		m_AF = 0;
-		m_CF = 0;
+		m_core->AF = 0;
+		m_core->CF = 0;
 	}
 	REG8(AL) &= 0x0f;
 	CYCLES(CYCLES_AAS);
@@ -2491,15 +2491,15 @@ void i386_device::i386_aam()               // Opcode 0xd4
 void i386_device::i386_clts()              // Opcode 0x0f 0x06
 {
 	// Privileged instruction, CPL must be zero.  Can be used in real or v86 mode.
-	if(PROTECTED_MODE && m_CPL != 0)
+	if(PROTECTED_MODE && m_core->CPL != 0)
 		FAULT(FAULT_GP,0)
-	m_cr[0] &= ~CR0_TS;   /* clear TS bit */
+	m_core->cr[0] &= ~CR0_TS;   /* clear TS bit */
 	CYCLES(CYCLES_CLTS);
 }
 
 void i386_device::i386_wait()              // Opcode 0x9B
 {
-	if ((m_cr[0] & (CR0_TS | CR0_MP)) == (CR0_TS | CR0_MP))
+	if ((m_core->cr[0] & (CR0_TS | CR0_MP)) == (CR0_TS | CR0_MP))
 	{
 		i386_trap(FAULT_NM, 0);
 		return;
@@ -2529,13 +2529,13 @@ void i386_device::i386_mov_tr_r32()        // Opcode 0x0f 26
 
 void i386_device::i386_loadall()       // Opcode 0x0f 0x07 (0x0f 0x05 on 80286), undocumented
 {
-	if(PROTECTED_MODE && (m_CPL != 0))
+	if(PROTECTED_MODE && (m_core->CPL != 0))
 		FAULT(FAULT_GP,0)
 	uint32_t ea = i386_translate(ES, REG32(EDI), 0);
-	uint32_t old_dr7 = m_dr[7];
-	m_cr[0] = READ32(ea) & 0xfffeffff; // wp not supported on 386
+	uint32_t old_dr7 = m_core->dr[7];
+	m_core->cr[0] = READ32(ea) & 0xfffeffff; // wp not supported on 386
 	set_flags(READ32(ea + 0x04));
-	m_eip = READ32(ea + 0x08);
+	m_core->eip = READ32(ea + 0x08);
 	REG32(EDI) = READ32(ea + 0x0c);
 	REG32(ESI) = READ32(ea + 0x10);
 	REG32(EBP) = READ32(ea + 0x14);
@@ -2544,54 +2544,54 @@ void i386_device::i386_loadall()       // Opcode 0x0f 0x07 (0x0f 0x05 on 80286),
 	REG32(EDX) = READ32(ea + 0x20);
 	REG32(ECX) = READ32(ea + 0x24);
 	REG32(EAX) = READ32(ea + 0x28);
-	m_dr[6] = READ32(ea + 0x2c);
-	m_dr[7] = READ32(ea + 0x30);
-	m_task.segment = READ16(ea + 0x34);
-	m_ldtr.segment = READ16(ea + 0x38);
-	m_sreg[GS].selector = READ16(ea + 0x3c);
-	m_sreg[FS].selector = READ16(ea + 0x40);
-	m_sreg[DS].selector = READ16(ea + 0x44);
-	m_sreg[SS].selector = READ16(ea + 0x48);
-	m_sreg[CS].selector = READ16(ea + 0x4c);
-	m_sreg[ES].selector = READ16(ea + 0x50);
-	m_task.flags = READ32(ea + 0x54) >> 8;
-	m_task.base = READ32(ea + 0x58);
-	m_task.limit = READ32(ea + 0x5c);
-	m_idtr.base = READ32(ea + 0x64);
-	m_idtr.limit = READ32(ea + 0x68);
-	m_gdtr.base = READ32(ea + 0x70);
-	m_gdtr.limit = READ32(ea + 0x74);
-	m_ldtr.flags = READ32(ea + 0x78) >> 8;
-	m_ldtr.base = READ32(ea + 0x7c);
-	m_ldtr.limit = READ32(ea + 0x80);
-	m_sreg[GS].flags = READ32(ea + 0x84) >> 8;
-	m_sreg[GS].base = READ32(ea + 0x88);
-	m_sreg[GS].limit = READ32(ea + 0x8c);
-	m_sreg[FS].flags = READ32(ea + 0x90) >> 8;
-	m_sreg[FS].base = READ32(ea + 0x94);
-	m_sreg[FS].limit = READ32(ea + 0x98);
-	m_sreg[DS].flags = READ32(ea + 0x9c) >> 8;
-	m_sreg[DS].base = READ32(ea + 0xa0);
-	m_sreg[DS].limit = READ32(ea + 0xa4);
-	m_sreg[SS].flags = READ32(ea + 0xa8) >> 8;
-	m_sreg[SS].base = READ32(ea + 0xac);
-	m_sreg[SS].limit = READ32(ea + 0xb0);
-	m_sreg[CS].flags = READ32(ea + 0xb4) >> 8;
-	m_sreg[CS].base = READ32(ea + 0xb8);
-	m_sreg[CS].limit = READ32(ea + 0xbc);
-	m_sreg[ES].flags = READ32(ea + 0xc0) >> 8;
-	m_sreg[ES].base = READ32(ea + 0xc4);
-	m_sreg[ES].limit = READ32(ea + 0xc8);
-	m_CPL = (m_sreg[SS].flags >> 5) & 3; // cpl == dpl of ss
+	m_core->dr[6] = READ32(ea + 0x2c);
+	m_core->dr[7] = READ32(ea + 0x30);
+	m_core->task.segment = READ16(ea + 0x34);
+	m_core->ldtr.segment = READ16(ea + 0x38);
+	m_core->sreg[GS].selector = READ16(ea + 0x3c);
+	m_core->sreg[FS].selector = READ16(ea + 0x40);
+	m_core->sreg[DS].selector = READ16(ea + 0x44);
+	m_core->sreg[SS].selector = READ16(ea + 0x48);
+	m_core->sreg[CS].selector = READ16(ea + 0x4c);
+	m_core->sreg[ES].selector = READ16(ea + 0x50);
+	m_core->task.flags = READ32(ea + 0x54) >> 8;
+	m_core->task.base = READ32(ea + 0x58);
+	m_core->task.limit = READ32(ea + 0x5c);
+	m_core->idtr.base = READ32(ea + 0x64);
+	m_core->idtr.limit = READ32(ea + 0x68);
+	m_core->gdtr.base = READ32(ea + 0x70);
+	m_core->gdtr.limit = READ32(ea + 0x74);
+	m_core->ldtr.flags = READ32(ea + 0x78) >> 8;
+	m_core->ldtr.base = READ32(ea + 0x7c);
+	m_core->ldtr.limit = READ32(ea + 0x80);
+	m_core->sreg[GS].flags = READ32(ea + 0x84) >> 8;
+	m_core->sreg[GS].base = READ32(ea + 0x88);
+	m_core->sreg[GS].limit = READ32(ea + 0x8c);
+	m_core->sreg[FS].flags = READ32(ea + 0x90) >> 8;
+	m_core->sreg[FS].base = READ32(ea + 0x94);
+	m_core->sreg[FS].limit = READ32(ea + 0x98);
+	m_core->sreg[DS].flags = READ32(ea + 0x9c) >> 8;
+	m_core->sreg[DS].base = READ32(ea + 0xa0);
+	m_core->sreg[DS].limit = READ32(ea + 0xa4);
+	m_core->sreg[SS].flags = READ32(ea + 0xa8) >> 8;
+	m_core->sreg[SS].base = READ32(ea + 0xac);
+	m_core->sreg[SS].limit = READ32(ea + 0xb0);
+	m_core->sreg[CS].flags = READ32(ea + 0xb4) >> 8;
+	m_core->sreg[CS].base = READ32(ea + 0xb8);
+	m_core->sreg[CS].limit = READ32(ea + 0xbc);
+	m_core->sreg[ES].flags = READ32(ea + 0xc0) >> 8;
+	m_core->sreg[ES].base = READ32(ea + 0xc4);
+	m_core->sreg[ES].limit = READ32(ea + 0xc8);
+	m_core->CPL = (m_core->sreg[SS].flags >> 5) & 3; // cpl == dpl of ss
 
 	for(int i = 0; i <= GS; i++)
 	{
-		m_sreg[i].valid = (m_sreg[i].flags & 0x80) ? true : false;
-		m_sreg[i].d = (m_sreg[i].flags & 0x4000) ? 1 : 0;
+		m_core->sreg[i].valid = (m_core->sreg[i].flags & 0x80) ? true : false;
+		m_core->sreg[i].d = (m_core->sreg[i].flags & 0x4000) ? 1 : 0;
 	}
 
-	dr7_changed(old_dr7, m_dr[7]);
-	CHANGE_PC(m_eip);
+	dr7_changed(old_dr7, m_core->dr[7]);
+	CHANGE_PC(m_core->eip);
 }
 
 void i386_device::i386_invalid()

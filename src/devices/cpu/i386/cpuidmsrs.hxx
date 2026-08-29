@@ -20,7 +20,7 @@ uint64_t pentium_device::opcode_rdmsr(bool &valid_msr)
 	case 0x10:
 		valid_msr = true;
 		popmessage("RDMSR: Reading TSC");
-		return m_tsc;
+		return m_core->tsc;
 		// Event Counters (TODO)
 	case 0x11:  // CESR
 		valid_msr = true;
@@ -39,7 +39,7 @@ uint64_t pentium_device::opcode_rdmsr(bool &valid_msr)
 			LOGMASKED(LOG_MSR, "RDMSR: Reading test MSR %x\n", offset);
 			return 0;
 		}
-		LOGMASKED(LOG_MSR, "RDMSR: invalid P5 MSR read %08x at %08x\n", offset, m_pc - 2);
+		LOGMASKED(LOG_MSR, "RDMSR: invalid P5 MSR read %08x at %08x\n", offset, m_core->pc - 2);
 		valid_msr = false;
 		return 0;
 	}
@@ -63,7 +63,7 @@ void pentium_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 		break;
 		// Time Stamp Counter
 	case 0x10:
-		m_tsc = data;
+		m_core->tsc = data;
 		popmessage("WRMSR: Writing to TSC");
 		valid_msr = true;
 		break;
@@ -87,7 +87,7 @@ void pentium_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 			LOGMASKED(LOG_MSR, "WRMSR: Writing test MSR %x\n", offset);
 			break;
 		}
-		LOGMASKED(LOG_MSR, "WRMSR: invalid MSR write %08x (%08x%08x) at %08x\n", offset, (uint32_t)(data >> 32), (uint32_t)data, m_pc - 2);
+		LOGMASKED(LOG_MSR, "WRMSR: invalid MSR write %08x (%08x%08x) at %08x\n", offset, (uint32_t)(data >> 32), (uint32_t)data, m_core->pc - 2);
 		valid_msr = false;
 		break;
 	}
@@ -112,7 +112,7 @@ uint64_t pentium_pro_device::opcode_rdmsr(bool &valid_msr)
 	case 0x10:
 		valid_msr = true;
 		popmessage("RDMSR: Reading TSC");
-		return m_tsc;
+		return m_core->tsc;
 		// Performance Counters (TODO)
 	case 0xc1:  // PerfCtr0
 		valid_msr = true;
@@ -121,7 +121,7 @@ uint64_t pentium_pro_device::opcode_rdmsr(bool &valid_msr)
 		valid_msr = true;
 		return m_perfctr[1];
 	default:
-		LOGMASKED(LOG_MSR, "RDMSR: unimplemented register called %08x at %08x\n", offset, m_pc - 2);
+		LOGMASKED(LOG_MSR, "RDMSR: unimplemented register called %08x at %08x\n", offset, m_core->pc - 2);
 		valid_msr = true;
 		return 0;
 	}
@@ -136,7 +136,7 @@ void pentium_pro_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 	{
 		// Time Stamp Counter
 	case 0x10:
-		m_tsc = data;
+		m_core->tsc = data;
 		popmessage("WRMSR: Writing to TSC");
 		valid_msr = true;
 		break;
@@ -150,7 +150,7 @@ void pentium_pro_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 		valid_msr = true;
 		break;
 	default:
-		LOGMASKED(LOG_MSR, "WRMSR: unimplemented register called %08x (%08x%08x) at %08x\n", offset, (uint32_t)(data >> 32), (uint32_t)data, m_pc - 2);
+		LOGMASKED(LOG_MSR, "WRMSR: unimplemented register called %08x (%08x%08x) at %08x\n", offset, (uint32_t)(data >> 32), (uint32_t)data, m_core->pc - 2);
 		valid_msr = true;
 		break;
 	}
@@ -158,13 +158,13 @@ void pentium_pro_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 
 uint64_t pentium4_device::opcode_rdmsr(bool &valid_msr)
 {
-	LOGMASKED(LOG_MSR, "RDMSR: unimplemented register called %08x at %08x\n", REG32(ECX), m_pc - 2);
+	LOGMASKED(LOG_MSR, "RDMSR: unimplemented register called %08x at %08x\n", REG32(ECX), m_core->pc - 2);
 	valid_msr = true;
 	return 0;
 }
 
 void pentium4_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 {
-	LOGMASKED(LOG_MSR, "WRMSR: unimplemented register called %08x (%08x%08x) at %08x\n", REG32(ECX), (uint32_t)(data >> 32), (uint32_t)data, m_pc - 2);
+	LOGMASKED(LOG_MSR, "WRMSR: unimplemented register called %08x (%08x%08x) at %08x\n", REG32(ECX), (uint32_t)(data >> 32), (uint32_t)data, m_core->pc - 2);
 	valid_msr = true;
 }

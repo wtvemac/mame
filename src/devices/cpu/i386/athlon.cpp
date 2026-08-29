@@ -53,27 +53,27 @@ void athlonxp_device::device_reset()
 {
 	zero_state();
 
-	m_sreg[CS].selector = 0xf000;
-	m_sreg[CS].base = 0xffff0000;
-	m_sreg[CS].limit = 0xffff;
-	m_sreg[CS].flags = 0x0093;
+	m_core->sreg[CS].selector = 0xf000;
+	m_core->sreg[CS].base = 0xffff0000;
+	m_core->sreg[CS].limit = 0xffff;
+	m_core->sreg[CS].flags = 0x0093;
 
-	m_sreg[DS].base = m_sreg[ES].base = m_sreg[FS].base = m_sreg[GS].base = m_sreg[SS].base = 0x00000000;
-	m_sreg[DS].limit = m_sreg[ES].limit = m_sreg[FS].limit = m_sreg[GS].limit = m_sreg[SS].limit = 0xffff;
-	m_sreg[DS].flags = m_sreg[ES].flags = m_sreg[FS].flags = m_sreg[GS].flags = m_sreg[SS].flags = 0x0093;
+	m_core->sreg[DS].base = m_core->sreg[ES].base = m_core->sreg[FS].base = m_core->sreg[GS].base = m_core->sreg[SS].base = 0x00000000;
+	m_core->sreg[DS].limit = m_core->sreg[ES].limit = m_core->sreg[FS].limit = m_core->sreg[GS].limit = m_core->sreg[SS].limit = 0xffff;
+	m_core->sreg[DS].flags = m_core->sreg[ES].flags = m_core->sreg[FS].flags = m_core->sreg[GS].flags = m_core->sreg[SS].flags = 0x0093;
 
-	m_idtr.base = 0;
-	m_idtr.limit = 0x3ff;
+	m_core->idtr.base = 0;
+	m_core->idtr.limit = 0x3ff;
 
-	m_a20_mask = ~0;
+	m_core->a20_mask = ~0;
 
-	m_cr[0] = 0x60000010;
-	m_eflags = 0x00200000;
-	m_eflags_mask = 0x00277fd7; /* TODO: is this correct? */
-	m_eip = 0xfff0;
+	m_core->cr[0] = 0x60000010;
+	m_core->eflags = 0x00200000;
+	m_core->eflags_mask = 0x00277fd7; /* TODO: is this correct? */
+	m_core->eip = 0xfff0;
 	m_mxcsr = 0x1f80;
-	m_smm = false;
-	m_smi_latched = false;
+	m_core->smm = false;
+	m_core->smi_latched = false;
 	m_smbase = 0x30000;
 	m_nmi_masked = false;
 	m_nmi_latched = false;
@@ -107,7 +107,7 @@ void athlonxp_device::device_reset()
 	// see FEATURE_FLAGS enum for bit names
 	m_feature_flags = 0x0383fbff;
 
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 device_memory_interface::space_config_vector athlonxp_device::memory_space_config() const
@@ -168,7 +168,7 @@ int athlonxp_device::check_cacheable(offs_t address)
 	int disabled;
 
 	disabled = 0;
-	if (m_cr[0] & (1 << 30))
+	if (m_core->cr[0] & (1 << 30))
 		disabled = 128;
 	if (address >= 0x100000)
 		return disabled;
@@ -413,7 +413,7 @@ uint8_t athlonxp_device::READ8PL(uint32_t ea, uint8_t privilege)
 	if(!translate_address(privilege,TR_READ,&address,&error))
 		PF_THROW(error);
 
-	address &= m_a20_mask;
+	address &= m_core->a20_mask;
 
 	uint8_t shift = 8 * (ea & 3);
 	return program_read_cache(address - (ea & 3), uint32_t(0xff) << shift) >> shift;
@@ -432,7 +432,7 @@ uint16_t athlonxp_device::READ16PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = program_read_cache(address, 0x0000ffff) & 0xffff;
 		break;
 
@@ -440,7 +440,7 @@ uint16_t athlonxp_device::READ16PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = (program_read_cache(address - 1, 0x00ffff00) >> 8) & 0xffff;
 		break;
 
@@ -448,7 +448,7 @@ uint16_t athlonxp_device::READ16PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = (program_read_cache(address - 2, 0xffff0000) >> 16) & 0xffff;
 		break;
 
@@ -474,7 +474,7 @@ uint32_t athlonxp_device::READ32PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = program_read_cache(address, 0xffffffff);
 		break;
 
@@ -482,7 +482,7 @@ uint32_t athlonxp_device::READ32PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = program_read_cache(address - 1, 0xffffff00) >> 8;
 		value |= READ8PL(ea + 3, privilege) << 24;
 		break;
@@ -499,7 +499,7 @@ uint32_t athlonxp_device::READ32PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value |= program_read_cache(address, 0x00ffffff) << 8;
 		break;
 	}
@@ -525,7 +525,7 @@ uint64_t athlonxp_device::READ64PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value = program_read_cache(address - 1, 0xffffff00) >> 8;
 		value |= uint64_t(READ32PL(ea + 3, privilege)) << 24;
 		value |= uint64_t(READ8PL(ea + 7, privilege)) << 56;
@@ -545,7 +545,7 @@ uint64_t athlonxp_device::READ64PL(uint32_t ea, uint8_t privilege)
 		if(!translate_address(privilege,TR_READ,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		value |= uint64_t(program_read_cache(address, 0x00ffffff)) << 40;
 		break;
 	}
@@ -561,7 +561,7 @@ void athlonxp_device::WRITE8PL(uint32_t ea, uint8_t privilege, uint8_t value)
 	if(!translate_address(privilege,TR_WRITE,&address,&error))
 		PF_THROW(error);
 
-	address &= m_a20_mask;
+	address &= m_core->a20_mask;
 
 	uint8_t shift = 8 * (ea & 3);
 	program_write_cache(address - (ea & 3), value << shift, uint32_t(0xff) << shift);
@@ -578,7 +578,7 @@ void athlonxp_device::WRITE16PL(uint32_t ea, uint8_t privilege, uint16_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address, value, 0x0000ffff);
 		break;
 
@@ -586,7 +586,7 @@ void athlonxp_device::WRITE16PL(uint32_t ea, uint8_t privilege, uint16_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address - 1, value << 8, 0x00ffff00);
 		break;
 
@@ -594,7 +594,7 @@ void athlonxp_device::WRITE16PL(uint32_t ea, uint8_t privilege, uint16_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address - 2, value << 16, 0xffff0000);
 		break;
 
@@ -616,7 +616,7 @@ void athlonxp_device::WRITE32PL(uint32_t ea, uint8_t privilege, uint32_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address, value, 0xffffffff);
 		break;
 
@@ -624,7 +624,7 @@ void athlonxp_device::WRITE32PL(uint32_t ea, uint8_t privilege, uint32_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address - 1, (value << 8) & 0xffffff00, 0xffffff00);
 		WRITE8PL(ea + 3, privilege, (value >> 24) & 0xff);
 		break;
@@ -641,7 +641,7 @@ void athlonxp_device::WRITE32PL(uint32_t ea, uint8_t privilege, uint32_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address, value >> 8, 0x00ffffff);
 		break;
 	}
@@ -663,7 +663,7 @@ void athlonxp_device::WRITE64PL(uint32_t ea, uint8_t privilege, uint64_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address - 1, value << 8, 0xffffff00);
 		WRITE32PL(ea + 3, privilege, (value >> 24) & 0xffffffff);
 		WRITE8PL(ea + 7, privilege, (value >> 56) & 0xff );
@@ -683,7 +683,7 @@ void athlonxp_device::WRITE64PL(uint32_t ea, uint8_t privilege, uint64_t value)
 		if(!translate_address(privilege,TR_WRITE,&address,&error))
 			PF_THROW(error);
 
-		address &= m_a20_mask;
+		address &= m_core->a20_mask;
 		program_write_cache(address, (value >> 40) & 0x00ffffff, 0x00ffffff);
 		break;
 	}
@@ -942,7 +942,7 @@ void athlonxp_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 			m_msr_mtrrfix[2] = data;
 			if (m_msr_smm_mask & 1)
 			{
-				if (m_smm)
+				if (m_core->smm)
 					data = 0x1818181818181818; // when smm is active
 				else
 					data = 0; // when smm is not active
@@ -989,7 +989,7 @@ void athlonxp_device::opcode_wrmsr(uint64_t data, bool &valid_msr)
 			m_msr_smm_mask = data;
 			if (m_msr_smm_mask & 1)
 			{
-				if (m_smm)
+				if (m_core->smm)
 					data = 0x1818181818181818; // when smm is active
 				else
 					data = 0; // when smm is not active

@@ -11,48 +11,48 @@ uint16_t i386_device::i386_shift_rotate16(uint8_t modrm, uint32_t value, uint8_t
 		switch( (modrm >> 3) & 0x7 )
 		{
 			case 0:         /* ROL rm16, 1 */
-				m_CF = (src & 0x8000) ? 1 : 0;
-				dst = (src << 1) + m_CF;
-				m_OF = ((src ^ dst) & 0x8000) ? 1 : 0;
+				m_core->CF = (src & 0x8000) ? 1 : 0;
+				dst = (src << 1) + m_core->CF;
+				m_core->OF = ((src ^ dst) & 0x8000) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 1:         /* ROR rm16, 1 */
-				m_CF = (src & 0x1) ? 1 : 0;
-				dst = (m_CF << 15) | (src >> 1);
-				m_OF = ((src ^ dst) & 0x8000) ? 1 : 0;
+				m_core->CF = (src & 0x1) ? 1 : 0;
+				dst = (m_core->CF << 15) | (src >> 1);
+				m_core->OF = ((src ^ dst) & 0x8000) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 2:         /* RCL rm16, 1 */
-				dst = (src << 1) + m_CF;
-				m_CF = (src & 0x8000) ? 1 : 0;
-				m_OF = ((src ^ dst) & 0x8000) ? 1 : 0;
+				dst = (src << 1) + m_core->CF;
+				m_core->CF = (src & 0x8000) ? 1 : 0;
+				m_core->OF = ((src ^ dst) & 0x8000) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 3:         /* RCR rm16, 1 */
-				dst = (m_CF << 15) | (src >> 1);
-				m_CF = src & 0x1;
-				m_OF = ((src ^ dst) & 0x8000) ? 1 : 0;
+				dst = (m_core->CF << 15) | (src >> 1);
+				m_core->CF = src & 0x1;
+				m_core->OF = ((src ^ dst) & 0x8000) ? 1 : 0;
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 4:         /* SHL/SAL rm16, 1 */
 			case 6:
 				dst = src << 1;
-				m_CF = (src & 0x8000) ? 1 : 0;
-				m_OF = (((m_CF << 15) ^ dst) & 0x8000) ? 1 : 0;
+				m_core->CF = (src & 0x8000) ? 1 : 0;
+				m_core->OF = (((m_core->CF << 15) ^ dst) & 0x8000) ? 1 : 0;
 				SetSZPF16(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 5:         /* SHR rm16, 1 */
 				dst = src >> 1;
-				m_CF = src & 0x1;
-				m_OF = (dst & 0x8000) ? 1 : 0;
+				m_core->CF = src & 0x1;
+				m_core->OF = (dst & 0x8000) ? 1 : 0;
 				SetSZPF16(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 7:         /* SAR rm16, 1 */
 				dst = (int16_t)(src) >> 1;
-				m_CF = src & 0x1;
-				m_OF = 0;
+				m_core->CF = src & 0x1;
+				m_core->OF = 0;
 				SetSZPF16(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
@@ -65,16 +65,16 @@ uint16_t i386_device::i386_shift_rotate16(uint8_t modrm, uint32_t value, uint8_t
 				{
 					if(shift & 16)
 					{
-						m_CF = src & 1;
-						m_OF = (src & 1) ^ ((src >> 15) & 1);
+						m_core->CF = src & 1;
+						m_core->OF = (src & 1) ^ ((src >> 15) & 1);
 					}
 					break;
 				}
 				shift &= 15;
 				dst = ((src & ((uint16_t)0xffff >> shift)) << shift) |
 						((src & ((uint16_t)0xffff << (16-shift))) >> (16-shift));
-				m_CF = dst & 0x1;
-				m_OF = (dst & 1) ^ (dst >> 15);
+				m_core->CF = dst & 0x1;
+				m_core->OF = (dst & 1) ^ (dst >> 15);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 1:         /* ROR rm16, i8 */
@@ -82,55 +82,55 @@ uint16_t i386_device::i386_shift_rotate16(uint8_t modrm, uint32_t value, uint8_t
 				{
 					if(shift & 16)
 					{
-						m_CF = (src >> 15) & 1;
-						m_OF = ((src >> 15) & 1) ^ ((src >> 14) & 1);
+						m_core->CF = (src >> 15) & 1;
+						m_core->OF = ((src >> 15) & 1) ^ ((src >> 14) & 1);
 					}
 					break;
 				}
 				shift &= 15;
 				dst = ((src & ((uint16_t)0xffff << shift)) >> shift) |
 						((src & ((uint16_t)0xffff >> (16-shift))) << (16-shift));
-				m_CF = (dst >> 15) & 1;
-				m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+				m_core->CF = (dst >> 15) & 1;
+				m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 2:         /* RCL rm16, i8 */
 				shift %= 17;
 				dst = ((src & ((uint16_t)0xffff >> shift)) << shift) |
 						((src & ((uint16_t)0xffff << (17-shift))) >> (17-shift)) |
-						(m_CF << (shift-1));
-				if(shift) m_CF = (src >> (16-shift)) & 0x1;
-				m_OF = m_CF ^ ((dst >> 15) & 1);
+						(m_core->CF << (shift-1));
+				if(shift) m_core->CF = (src >> (16-shift)) & 0x1;
+				m_core->OF = m_core->CF ^ ((dst >> 15) & 1);
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 3:         /* RCR rm16, i8 */
 				shift %= 17;
 				dst = ((src & ((uint16_t)0xffff << shift)) >> shift) |
 						((src & ((uint16_t)0xffff >> (16-shift))) << (17-shift)) |
-						(m_CF << (16-shift));
-				if(shift) m_CF = (src >> (shift-1)) & 0x1;
-				m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+						(m_core->CF << (16-shift));
+				if(shift) m_core->CF = (src >> (shift-1)) & 0x1;
+				m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 				CYCLES_RM(modrm, CYCLES_ROTATE_CARRY_REG, CYCLES_ROTATE_CARRY_MEM);
 				break;
 			case 4:         /* SHL/SAL rm16, i8 */
 			case 6:
 				shift &= 31;
 				dst = src << shift;
-				m_CF = (shift <= 16) && (src & (1 << (16-shift)));
+				m_core->CF = (shift <= 16) && (src & (1 << (16-shift)));
 				SetSZPF16(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 5:         /* SHR rm16, i8 */
 				shift &= 31;
 				dst = src >> shift;
-				m_CF = (src & (1 << (shift-1))) ? 1 : 0;
+				m_core->CF = (src & (1 << (shift-1))) ? 1 : 0;
 				SetSZPF16(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
 			case 7:         /* SAR rm16, i8 */
 				shift &= 31;
 				dst = (int16_t)src >> shift;
-				m_CF = (src & (1 << (shift-1))) ? 1 : 0;
+				m_core->CF = (src & (1 << (shift-1))) ? 1 : 0;
 				SetSZPF16(dst);
 				CYCLES_RM(modrm, CYCLES_ROTATE_REG, CYCLES_ROTATE_MEM);
 				break;
@@ -149,14 +149,14 @@ void i386_device::i386_adc_rm16_r16()      // Opcode 0x11
 	if( modrm >= 0xc0 ) {
 		src = LOAD_REG16(modrm);
 		dst = LOAD_RM16(modrm);
-		dst = ADC16(dst, src, m_CF);
+		dst = ADC16(dst, src, m_core->CF);
 		STORE_RM16(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,1);
 		src = LOAD_REG16(modrm);
 		dst = READ16(ea);
-		dst = ADC16(dst, src, m_CF);
+		dst = ADC16(dst, src, m_core->CF);
 		WRITE16(ea, dst);
 		CYCLES(CYCLES_ALU_REG_MEM);
 	}
@@ -169,14 +169,14 @@ void i386_device::i386_adc_r16_rm16()      // Opcode 0x13
 	if( modrm >= 0xc0 ) {
 		src = LOAD_RM16(modrm);
 		dst = LOAD_REG16(modrm);
-		dst = ADC16(dst, src, m_CF);
+		dst = ADC16(dst, src, m_core->CF);
 		STORE_REG16(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,0);
 		src = READ16(ea);
 		dst = LOAD_REG16(modrm);
-		dst = ADC16(dst, src, m_CF);
+		dst = ADC16(dst, src, m_core->CF);
 		STORE_REG16(modrm, dst);
 		CYCLES(CYCLES_ALU_MEM_REG);
 	}
@@ -187,7 +187,7 @@ void i386_device::i386_adc_ax_i16()        // Opcode 0x15
 	uint16_t src, dst;
 	src = FETCH16();
 	dst = REG16(AX);
-	dst = ADC16(dst, src, m_CF);
+	dst = ADC16(dst, src, m_core->CF);
 	REG16(AX) = dst;
 	CYCLES(CYCLES_ALU_IMM_ACC);
 }
@@ -307,9 +307,9 @@ void i386_device::i386_bsf_r16_rm16()      // Opcode 0x0f bc
 	dst = 0;
 
 	if( src == 0 ) {
-		m_ZF = 1;
+		m_core->ZF = 1;
 	} else {
-		m_ZF = 0;
+		m_core->ZF = 0;
 		temp = 0;
 		while( (src & (1 << temp)) == 0 ) {
 			temp++;
@@ -336,9 +336,9 @@ void i386_device::i386_bsr_r16_rm16()      // Opcode 0x0f bd
 	dst = 0;
 
 	if( src == 0 ) {
-		m_ZF = 1;
+		m_core->ZF = 1;
 	} else {
-		m_ZF = 0;
+		m_core->ZF = 0;
 		dst = temp = 15;
 		while( (src & (1 << temp)) == 0 ) {
 			temp--;
@@ -359,9 +359,9 @@ void i386_device::i386_bt_rm16_r16()       // Opcode 0x0f a3
 		uint16_t bit = LOAD_REG16(modrm);
 
 		if( dst & (1 << (bit & 0xf)) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 
 		CYCLES(CYCLES_BT_REG_REG);
 	} else {
@@ -374,9 +374,9 @@ void i386_device::i386_bt_rm16_r16()       // Opcode 0x0f a3
 		uint16_t dst = READ16(ea);
 
 		if( dst & (1 << bit) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 
 		CYCLES(CYCLES_BT_REG_MEM);
 	}
@@ -390,9 +390,9 @@ void i386_device::i386_btc_rm16_r16()      // Opcode 0x0f bb
 		uint16_t bit = LOAD_REG16(modrm);
 
 		if( dst & (1 << (bit & 0xf)) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 		dst ^= (1 << (bit & 0xf));
 
 		STORE_RM16(modrm, dst);
@@ -407,9 +407,9 @@ void i386_device::i386_btc_rm16_r16()      // Opcode 0x0f bb
 		uint16_t dst = READ16(ea);
 
 		if( dst & (1 << bit) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 		dst ^= (1 << bit);
 
 		WRITE16(ea, dst);
@@ -425,9 +425,9 @@ void i386_device::i386_btr_rm16_r16()      // Opcode 0x0f b3
 		uint16_t bit = LOAD_REG16(modrm);
 
 		if( dst & (1 << (bit & 0xf)) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 		dst &= ~(1 << (bit & 0xf));
 
 		STORE_RM16(modrm, dst);
@@ -442,9 +442,9 @@ void i386_device::i386_btr_rm16_r16()      // Opcode 0x0f b3
 		uint16_t dst = READ16(ea);
 
 		if( dst & (1 << bit) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 		dst &= ~(1 << bit);
 
 		WRITE16(ea, dst);
@@ -460,9 +460,9 @@ void i386_device::i386_bts_rm16_r16()      // Opcode 0x0f ab
 		uint16_t bit = LOAD_REG16(modrm);
 
 		if( dst & (1 << (bit & 0xf)) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 		dst |= (1 << (bit & 0xf));
 
 		STORE_RM16(modrm, dst);
@@ -477,9 +477,9 @@ void i386_device::i386_bts_rm16_r16()      // Opcode 0x0f ab
 		uint16_t dst = READ16(ea);
 
 		if( dst & (1 << bit) )
-			m_CF = 1;
+			m_core->CF = 1;
 		else
-			m_CF = 0;
+			m_core->CF = 0;
 		dst |= (1 << bit);
 
 		WRITE16(ea, dst);
@@ -498,31 +498,31 @@ void i386_device::i386_call_abs16()        // Opcode 0x9a
 	}
 	else
 	{
-		PUSH16(m_sreg[CS].selector );
-		PUSH16(m_eip );
-		m_sreg[CS].selector = ptr;
-		m_performed_intersegment_jump = 1;
-		m_eip = offset;
+		PUSH16(m_core->sreg[CS].selector );
+		PUSH16(m_core->eip );
+		m_core->sreg[CS].selector = ptr;
+		m_core->performed_intersegment_jump = 1;
+		m_core->eip = offset;
 		i386_load_segment_descriptor(CS);
 	}
 	CYCLES(CYCLES_CALL_INTERSEG);      /* TODO: Timing = 17 + m */
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 }
 
 void i386_device::i386_call_rel16()        // Opcode 0xe8
 {
 	int16_t disp = FETCH16();
 
-	PUSH16(m_eip );
-	if (m_sreg[CS].d)
+	PUSH16(m_core->eip );
+	if (m_core->sreg[CS].d)
 	{
-		m_eip += disp;
+		m_core->eip += disp;
 	}
 	else
 	{
-		m_eip = (m_eip + disp) & 0xffff;
+		m_core->eip = (m_core->eip + disp) & 0xffff;
 	}
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 	CYCLES(CYCLES_CALL);       /* TODO: Timing = 7 + m */
 }
 
@@ -672,7 +672,7 @@ void i386_device::i386_imul_r16_rm16()     // Opcode 0x0f af
 
 	STORE_REG16(modrm, (uint16_t)result);
 
-	m_CF = m_OF = !(result == (int32_t)(int16_t)result);
+	m_core->CF = m_core->OF = !(result == (int32_t)(int16_t)result);
 }
 
 void i386_device::i386_imul_r16_rm16_i16() // Opcode 0x69
@@ -694,7 +694,7 @@ void i386_device::i386_imul_r16_rm16_i16() // Opcode 0x69
 
 	STORE_REG16(modrm, (uint16_t)result);
 
-	m_CF = m_OF = !(result == (int32_t)(int16_t)result);
+	m_core->CF = m_core->OF = !(result == (int32_t)(int16_t)result);
 }
 
 void i386_device::i386_imul_r16_rm16_i8()  // Opcode 0x6b
@@ -716,7 +716,7 @@ void i386_device::i386_imul_r16_rm16_i8()  // Opcode 0x6b
 
 	STORE_REG16(modrm, (uint16_t)result);
 
-	m_CF = m_OF = !(result == (int32_t)(int16_t)result);
+	m_core->CF = m_core->OF = !(result == (int32_t)(int16_t)result);
 }
 
 void i386_device::i386_in_ax_i8()          // Opcode 0xe5
@@ -793,11 +793,11 @@ void i386_device::i386_iret16()            // Opcode 0xcf
 	{
 		/* TODO: #SS(0) exception */
 		/* TODO: #GP(0) exception */
-		m_eip = POP16();
-		m_sreg[CS].selector = POP16();
+		m_core->eip = POP16();
+		m_core->sreg[CS].selector = POP16();
 		set_flags(POP16() );
 		i386_load_segment_descriptor(CS);
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 	}
 	m_auto_clear_RF = false;
 	CYCLES(CYCLES_IRET);
@@ -806,16 +806,16 @@ void i386_device::i386_iret16()            // Opcode 0xcf
 void i386_device::i386_ja_rel16()          // Opcode 0x0f 87
 {
 	int16_t disp = FETCH16();
-	if( m_CF == 0 && m_ZF == 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->CF == 0 && m_core->ZF == 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -825,16 +825,16 @@ void i386_device::i386_ja_rel16()          // Opcode 0x0f 87
 void i386_device::i386_jbe_rel16()         // Opcode 0x0f 86
 {
 	int16_t disp = FETCH16();
-	if( m_CF != 0 || m_ZF != 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->CF != 0 || m_core->ZF != 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -844,16 +844,16 @@ void i386_device::i386_jbe_rel16()         // Opcode 0x0f 86
 void i386_device::i386_jc_rel16()          // Opcode 0x0f 82
 {
 	int16_t disp = FETCH16();
-	if( m_CF != 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->CF != 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -863,16 +863,16 @@ void i386_device::i386_jc_rel16()          // Opcode 0x0f 82
 void i386_device::i386_jg_rel16()          // Opcode 0x0f 8f
 {
 	int16_t disp = FETCH16();
-	if( m_ZF == 0 && (m_SF == m_OF) ) {
-		if (m_sreg[CS].d)
+	if( m_core->ZF == 0 && (m_core->SF == m_core->OF) ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -882,16 +882,16 @@ void i386_device::i386_jg_rel16()          // Opcode 0x0f 8f
 void i386_device::i386_jge_rel16()         // Opcode 0x0f 8d
 {
 	int16_t disp = FETCH16();
-	if(m_SF == m_OF) {
-		if (m_sreg[CS].d)
+	if(m_core->SF == m_core->OF) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -901,16 +901,16 @@ void i386_device::i386_jge_rel16()         // Opcode 0x0f 8d
 void i386_device::i386_jl_rel16()          // Opcode 0x0f 8c
 {
 	int16_t disp = FETCH16();
-	if( (m_SF != m_OF) ) {
-		if (m_sreg[CS].d)
+	if( (m_core->SF != m_core->OF) ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -920,16 +920,16 @@ void i386_device::i386_jl_rel16()          // Opcode 0x0f 8c
 void i386_device::i386_jle_rel16()         // Opcode 0x0f 8e
 {
 	int16_t disp = FETCH16();
-	if( m_ZF != 0 || (m_SF != m_OF) ) {
-		if (m_sreg[CS].d)
+	if( m_core->ZF != 0 || (m_core->SF != m_core->OF) ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -939,16 +939,16 @@ void i386_device::i386_jle_rel16()         // Opcode 0x0f 8e
 void i386_device::i386_jnc_rel16()         // Opcode 0x0f 83
 {
 	int16_t disp = FETCH16();
-	if( m_CF == 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->CF == 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -958,16 +958,16 @@ void i386_device::i386_jnc_rel16()         // Opcode 0x0f 83
 void i386_device::i386_jno_rel16()         // Opcode 0x0f 81
 {
 	int16_t disp = FETCH16();
-	if( m_OF == 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->OF == 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -977,16 +977,16 @@ void i386_device::i386_jno_rel16()         // Opcode 0x0f 81
 void i386_device::i386_jnp_rel16()         // Opcode 0x0f 8b
 {
 	int16_t disp = FETCH16();
-	if( m_PF == 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->PF == 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -996,16 +996,16 @@ void i386_device::i386_jnp_rel16()         // Opcode 0x0f 8b
 void i386_device::i386_jns_rel16()         // Opcode 0x0f 89
 {
 	int16_t disp = FETCH16();
-	if( m_SF == 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->SF == 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -1015,16 +1015,16 @@ void i386_device::i386_jns_rel16()         // Opcode 0x0f 89
 void i386_device::i386_jnz_rel16()         // Opcode 0x0f 85
 {
 	int16_t disp = FETCH16();
-	if( m_ZF == 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->ZF == 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -1034,16 +1034,16 @@ void i386_device::i386_jnz_rel16()         // Opcode 0x0f 85
 void i386_device::i386_jo_rel16()          // Opcode 0x0f 80
 {
 	int16_t disp = FETCH16();
-	if( m_OF != 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->OF != 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -1053,16 +1053,16 @@ void i386_device::i386_jo_rel16()          // Opcode 0x0f 80
 void i386_device::i386_jp_rel16()          // Opcode 0x0f 8a
 {
 	int16_t disp = FETCH16();
-	if( m_PF != 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->PF != 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -1072,16 +1072,16 @@ void i386_device::i386_jp_rel16()          // Opcode 0x0f 8a
 void i386_device::i386_js_rel16()          // Opcode 0x0f 88
 {
 	int16_t disp = FETCH16();
-	if( m_SF != 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->SF != 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -1091,16 +1091,16 @@ void i386_device::i386_js_rel16()          // Opcode 0x0f 88
 void i386_device::i386_jz_rel16()          // Opcode 0x0f 84
 {
 	int16_t disp = FETCH16();
-	if( m_ZF != 0 ) {
-		if (m_sreg[CS].d)
+	if( m_core->ZF != 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCC_FULL_DISP);      /* TODO: Timing = 7 + m */
 	} else {
 		CYCLES(CYCLES_JCC_FULL_DISP_NOBRANCH);
@@ -1112,15 +1112,15 @@ void i386_device::i386_jcxz16()            // Opcode 0xe3
 	int8_t disp = FETCH();
 	int val = (m_address_size)?(REG32(ECX) == 0):(REG16(CX) == 0);
 	if( val ) {
-		if (m_sreg[CS].d)
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		CYCLES(CYCLES_JCXZ);       /* TODO: Timing = 9 + m */
 	} else {
 		CYCLES(CYCLES_JCXZ_NOBRANCH);
@@ -1131,15 +1131,15 @@ void i386_device::i386_jmp_rel16()         // Opcode 0xe9
 {
 	int16_t disp = FETCH16();
 
-	if (m_sreg[CS].d)
+	if (m_core->sreg[CS].d)
 	{
-		m_eip += disp;
+		m_core->eip += disp;
 	}
 	else
 	{
-		m_eip = (m_eip + disp) & 0xffff;
+		m_core->eip = (m_core->eip + disp) & 0xffff;
 	}
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 	CYCLES(CYCLES_JMP);        /* TODO: Timing = 7 + m */
 }
 
@@ -1154,11 +1154,11 @@ void i386_device::i386_jmp_abs16()         // Opcode 0xea
 	}
 	else
 	{
-		m_eip = address;
-		m_sreg[CS].selector = segment;
-		m_performed_intersegment_jump = 1;
+		m_core->eip = address;
+		m_core->sreg[CS].selector = segment;
+		m_core->performed_intersegment_jump = 1;
 		i386_load_segment_descriptor(CS);
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 	}
 	CYCLES(CYCLES_JMP_INTERSEG);
 }
@@ -1239,15 +1239,15 @@ void i386_device::i386_loop16()            // Opcode 0xe2
 	int8_t disp = FETCH();
 	int32_t val = (m_address_size)?(--REG32(ECX)):(--REG16(CX));
 	if( val != 0 ) {
-		if (m_sreg[CS].d)
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 	}
 	CYCLES(CYCLES_LOOP);       /* TODO: Timing = 11 + m */
 }
@@ -1256,16 +1256,16 @@ void i386_device::i386_loopne16()          // Opcode 0xe0
 {
 	int8_t disp = FETCH();
 	int32_t val = (m_address_size)?(--REG32(ECX)):(--REG16(CX));
-	if( val != 0 && m_ZF == 0 ) {
-		if (m_sreg[CS].d)
+	if( val != 0 && m_core->ZF == 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 	}
 	CYCLES(CYCLES_LOOPNZ);     /* TODO: Timing = 11 + m */
 }
@@ -1274,16 +1274,16 @@ void i386_device::i386_loopz16()           // Opcode 0xe1
 {
 	int8_t disp = FETCH();
 	int32_t val = (m_address_size)?(--REG32(ECX)):(--REG16(CX));
-	if( val != 0 && m_ZF != 0 ) {
-		if (m_sreg[CS].d)
+	if( val != 0 && m_core->ZF != 0 ) {
+		if (m_core->sreg[CS].d)
 		{
-			m_eip += disp;
+			m_core->eip += disp;
 		}
 		else
 		{
-			m_eip = (m_eip + disp) & 0xffff;
+			m_core->eip = (m_core->eip + disp) & 0xffff;
 		}
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 	}
 	CYCLES(CYCLES_LOOPZ);      /* TODO: Timing = 11 + m */
 }
@@ -1630,7 +1630,7 @@ bool i386_device::i386_pop_seg16(int segment)
 	}
 	else
 	{
-		m_ext = 1;
+		m_core->ext = 1;
 		i386_trap_with_error(FAULT_SS,0,0,0);
 		return false;
 	}
@@ -1661,10 +1661,10 @@ void i386_device::i386_pop_gs16()          // Opcode 0x0f a9
 void i386_device::i386_pop_ss16()          // Opcode 0x17
 {
 	if(!i386_pop_seg16(SS)) return;
-	if(m_IF != 0) // if external interrupts are enabled
+	if(m_core->IF != 0) // if external interrupts are enabled
 	{
-		m_IF = 0;  // reset IF for the next instruction
-		m_delayed_interrupt_enable = 1;
+		m_core->IF = 0;  // reset IF for the next instruction
+		m_core->delayed_interrupt_enable = 1;
 	}
 }
 
@@ -1728,18 +1728,18 @@ void i386_device::i386_popf()              // Opcode 0x9d
 	uint32_t offset = (STACK_32BIT ? REG32(ESP) : REG16(SP));
 
 	// IOPL can only change if CPL is 0
-	if(m_CPL != 0)
+	if(m_core->CPL != 0)
 		mask &= ~0x00003000;
 
 	// IF can only change if CPL is at least as privileged as IOPL
-	if(m_CPL > IOPL)
+	if(m_core->CPL > IOPL)
 		mask &= ~0x00000200;
 
 	if(V8086_MODE)
 	{
 		if(IOPL < 3)
 		{
-			LOGMASKED(LOG_PM_FAULT_GP, "POPFD(%08x): IOPL < 3 while in V86 mode.\n",m_pc);
+			LOGMASKED(LOG_PM_FAULT_GP, "POPFD(%08x): IOPL < 3 while in V86 mode.\n",m_core->pc);
 			FAULT(FAULT_GP,0)  // #GP(0)
 		}
 		mask &= ~0x00003000;  // IOPL cannot be changed while in V8086 mode
@@ -1877,7 +1877,7 @@ void i386_device::i386_push_cs16()         // Opcode 0x0e
 	else
 		offset = (REG16(SP) - 2) & 0xffff;
 	if(i386_limit_check(SS,offset) == 0)
-		PUSH16(m_sreg[CS].selector );
+		PUSH16(m_core->sreg[CS].selector );
 	else
 		FAULT(FAULT_SS,0)
 	CYCLES(CYCLES_PUSH_SREG);
@@ -1891,7 +1891,7 @@ void i386_device::i386_push_ds16()         // Opcode 0x1e
 	else
 		offset = (REG16(SP) - 2) & 0xffff;
 	if(i386_limit_check(SS,offset) == 0)
-		PUSH16(m_sreg[DS].selector );
+		PUSH16(m_core->sreg[DS].selector );
 	else
 		FAULT(FAULT_SS,0)
 	CYCLES(CYCLES_PUSH_SREG);
@@ -1905,7 +1905,7 @@ void i386_device::i386_push_es16()         // Opcode 0x06
 	else
 		offset = (REG16(SP) - 2) & 0xffff;
 	if(i386_limit_check(SS,offset) == 0)
-		PUSH16(m_sreg[ES].selector );
+		PUSH16(m_core->sreg[ES].selector );
 	else
 		FAULT(FAULT_SS,0)
 	CYCLES(CYCLES_PUSH_SREG);
@@ -1919,7 +1919,7 @@ void i386_device::i386_push_fs16()         // Opcode 0x0f a0
 	else
 		offset = (REG16(SP) - 2) & 0xffff;
 	if(i386_limit_check(SS,offset) == 0)
-		PUSH16(m_sreg[FS].selector );
+		PUSH16(m_core->sreg[FS].selector );
 	else
 		FAULT(FAULT_SS,0)
 	CYCLES(CYCLES_PUSH_SREG);
@@ -1933,7 +1933,7 @@ void i386_device::i386_push_gs16()         // Opcode 0x0f a8
 	else
 		offset = (REG16(SP) - 2) & 0xffff;
 	if(i386_limit_check(SS,offset) == 0)
-		PUSH16(m_sreg[GS].selector );
+		PUSH16(m_core->sreg[GS].selector );
 	else
 		FAULT(FAULT_SS,0)
 	CYCLES(CYCLES_PUSH_SREG);
@@ -1947,7 +1947,7 @@ void i386_device::i386_push_ss16()         // Opcode 0x16
 	else
 		offset = (REG16(SP) - 2) & 0xffff;
 	if(i386_limit_check(SS,offset) == 0)
-		PUSH16(m_sreg[SS].selector );
+		PUSH16(m_core->sreg[SS].selector );
 	else
 		FAULT(FAULT_SS,0)
 	CYCLES(CYCLES_PUSH_SREG);
@@ -2009,16 +2009,16 @@ void i386_device::i386_pushf()             // Opcode 0x9c
 void i386_device::i386_ret_near16_i16()    // Opcode 0xc2
 {
 	int16_t disp = FETCH16();
-	m_eip = POP16();
+	m_core->eip = POP16();
 	REG16(SP) += disp;
-	CHANGE_PC(m_eip);
+	CHANGE_PC(m_core->eip);
 	CYCLES(CYCLES_RET_IMM);        /* TODO: Timing = 10 + m */
 }
 
 void i386_device::i386_ret_near16()        // Opcode 0xc3
 {
-	m_eip = POP16();
-	CHANGE_PC(m_eip);
+	m_core->eip = POP16();
+	CHANGE_PC(m_core->eip);
 	CYCLES(CYCLES_RET);        /* TODO: Timing = 10 + m */
 }
 
@@ -2029,14 +2029,14 @@ void i386_device::i386_sbb_rm16_r16()      // Opcode 0x19
 	if( modrm >= 0xc0 ) {
 		src = LOAD_REG16(modrm);
 		dst = LOAD_RM16(modrm);
-		dst = SBB16(dst, src, m_CF);
+		dst = SBB16(dst, src, m_core->CF);
 		STORE_RM16(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,1);
 		src = LOAD_REG16(modrm);
 		dst = READ16(ea);
-		dst = SBB16(dst, src, m_CF);
+		dst = SBB16(dst, src, m_core->CF);
 		WRITE16(ea, dst);
 		CYCLES(CYCLES_ALU_REG_MEM);
 	}
@@ -2049,14 +2049,14 @@ void i386_device::i386_sbb_r16_rm16()      // Opcode 0x1b
 	if( modrm >= 0xc0 ) {
 		src = LOAD_RM16(modrm);
 		dst = LOAD_REG16(modrm);
-		dst = SBB16(dst, src, m_CF);
+		dst = SBB16(dst, src, m_core->CF);
 		STORE_REG16(modrm, dst);
 		CYCLES(CYCLES_ALU_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,0);
 		src = READ16(ea);
 		dst = LOAD_REG16(modrm);
-		dst = SBB16(dst, src, m_CF);
+		dst = SBB16(dst, src, m_core->CF);
 		STORE_REG16(modrm, dst);
 		CYCLES(CYCLES_ALU_MEM_REG);
 	}
@@ -2067,7 +2067,7 @@ void i386_device::i386_sbb_ax_i16()        // Opcode 0x1d
 	uint16_t src, dst;
 	src = FETCH16();
 	dst = REG16(AX);
-	dst = SBB16(dst, src, m_CF);
+	dst = SBB16(dst, src, m_core->CF);
 	REG16(AX) = dst;
 	CYCLES(CYCLES_ALU_IMM_ACC);
 }
@@ -2094,15 +2094,15 @@ void i386_device::i386_shld16_i8()         // Opcode 0x0f a4
 		shift &= 31;
 		if( shift == 0 ) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (16-shift))) ? 1 : 0;
 			// ppro and above should be (dst >> (32-shift))
 			dst = (upper << (shift-16)) | (upper >> (32-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (16-shift))) ? 1 : 0;
 			dst = (dst << shift) | (upper >> (16-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		}
 		STORE_RM16(modrm, dst);
@@ -2115,14 +2115,14 @@ void i386_device::i386_shld16_i8()         // Opcode 0x0f a4
 		shift &= 31;
 		if( shift == 0 ) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (16-shift))) ? 1 : 0;
 			dst = (upper << (shift-16)) | (upper >> (32-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (16-shift))) ? 1 : 0;
 			dst = (dst << shift) | (upper >> (16-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		}
 		WRITE16(ea, dst);
@@ -2140,14 +2140,14 @@ void i386_device::i386_shld16_cl()         // Opcode 0x0f a5
 		shift &= 31;
 		if( shift == 0 ) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (16-shift))) ? 1 : 0;
 			dst = (upper << (shift-16)) | (upper >> (32-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (16-shift))) ? 1 : 0;
 			dst = (dst << shift) | (upper >> (16-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		}
 		STORE_RM16(modrm, dst);
@@ -2160,14 +2160,14 @@ void i386_device::i386_shld16_cl()         // Opcode 0x0f a5
 		shift &= 31;
 		if( shift == 0 ) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (16-shift))) ? 1 : 0;
 			dst = (upper << (shift-16)) | (upper >> (32-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (16-shift))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (16-shift))) ? 1 : 0;
 			dst = (dst << shift) | (upper >> (16-shift));
-			m_OF = m_CF ^ (dst >> 15);
+			m_core->OF = m_core->CF ^ (dst >> 15);
 			SetSZPF16(dst);
 		}
 		WRITE16(ea, dst);
@@ -2185,14 +2185,14 @@ void i386_device::i386_shrd16_i8()         // Opcode 0x0f ac
 		shift &= 31;
 		if( shift == 0) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (shift-1))) ? 1 : 0;
 			dst = (upper >> (shift-16)) | (upper << (32-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (shift-1))) ? 1 : 0;
 			dst = (dst >> shift) | (upper << (16-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		}
 		STORE_RM16(modrm, dst);
@@ -2205,14 +2205,14 @@ void i386_device::i386_shrd16_i8()         // Opcode 0x0f ac
 		shift &= 31;
 		if( shift == 0) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (shift-1))) ? 1 : 0;
 			dst = (upper >> (shift-16)) | (upper << (32-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (shift-1))) ? 1 : 0;
 			dst = (dst >> shift) | (upper << (16-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		}
 		WRITE16(ea, dst);
@@ -2230,14 +2230,14 @@ void i386_device::i386_shrd16_cl()         // Opcode 0x0f ad
 		shift &= 31;
 		if( shift == 0) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (shift-1))) ? 1 : 0;
 			dst = (upper >> (shift-16)) | (upper << (32-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (shift-1))) ? 1 : 0;
 			dst = (dst >> shift) | (upper << (16-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		}
 		STORE_RM16(modrm, dst);
@@ -2250,14 +2250,14 @@ void i386_device::i386_shrd16_cl()         // Opcode 0x0f ad
 		shift &= 31;
 		if( shift == 0) {
 		} else if( shift > 15 ) {
-			m_CF = (upper & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (upper & (1 << (shift-1))) ? 1 : 0;
 			dst = (upper >> (shift-16)) | (upper << (32-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		} else {
-			m_CF = (dst & (1 << (shift-1))) ? 1 : 0;
+			m_core->CF = (dst & (1 << (shift-1))) ? 1 : 0;
 			dst = (dst >> shift) | (upper << (16-shift));
-			m_OF = ((dst >> 15) ^ (dst >> 14)) & 1;
+			m_core->OF = ((dst >> 15) ^ (dst >> 14)) & 1;
 			SetSZPF16(dst);
 		}
 		WRITE16(ea, dst);
@@ -2330,8 +2330,8 @@ void i386_device::i386_test_ax_i16()       // Opcode 0xa9
 	uint16_t dst = REG16(AX);
 	dst = src & dst;
 	SetSZPF16(dst);
-	m_CF = 0;
-	m_OF = 0;
+	m_core->CF = 0;
+	m_core->OF = 0;
 	CYCLES(CYCLES_TEST_IMM_ACC);
 }
 
@@ -2344,8 +2344,8 @@ void i386_device::i386_test_rm16_r16()     // Opcode 0x85
 		dst = LOAD_RM16(modrm);
 		dst = src & dst;
 		SetSZPF16(dst);
-		m_CF = 0;
-		m_OF = 0;
+		m_core->CF = 0;
+		m_core->OF = 0;
 		CYCLES(CYCLES_TEST_REG_REG);
 	} else {
 		uint32_t ea = GetEA(modrm,0);
@@ -2353,8 +2353,8 @@ void i386_device::i386_test_rm16_r16()     // Opcode 0x85
 		dst = READ16(ea);
 		dst = src & dst;
 		SetSZPF16(dst);
-		m_CF = 0;
-		m_OF = 0;
+		m_core->CF = 0;
+		m_core->OF = 0;
 		CYCLES(CYCLES_TEST_REG_MEM);
 	}
 }
@@ -2537,14 +2537,14 @@ void i386_device::i386_group81_16()        // Opcode 0x81
 			if( modrm >= 0xc0 ) {
 				dst = LOAD_RM16(modrm);
 				src = FETCH16();
-				dst = ADC16(dst, src, m_CF);
+				dst = ADC16(dst, src, m_core->CF);
 				STORE_RM16(modrm, dst);
 				CYCLES(CYCLES_ALU_REG_REG);
 			} else {
 				ea = GetEA(modrm,1);
 				dst = READ16(ea);
 				src = FETCH16();
-				dst = ADC16(dst, src, m_CF);
+				dst = ADC16(dst, src, m_core->CF);
 				WRITE16(ea, dst);
 				CYCLES(CYCLES_ALU_REG_MEM);
 			}
@@ -2553,14 +2553,14 @@ void i386_device::i386_group81_16()        // Opcode 0x81
 			if( modrm >= 0xc0 ) {
 				dst = LOAD_RM16(modrm);
 				src = FETCH16();
-				dst = SBB16(dst, src, m_CF);
+				dst = SBB16(dst, src, m_core->CF);
 				STORE_RM16(modrm, dst);
 				CYCLES(CYCLES_ALU_REG_REG);
 			} else {
 				ea = GetEA(modrm,1);
 				dst = READ16(ea);
 				src = FETCH16();
-				dst = SBB16(dst, src, m_CF);
+				dst = SBB16(dst, src, m_core->CF);
 				WRITE16(ea, dst);
 				CYCLES(CYCLES_ALU_REG_MEM);
 			}
@@ -2674,14 +2674,14 @@ void i386_device::i386_group83_16()        // Opcode 0x83
 			if( modrm >= 0xc0 ) {
 				dst = LOAD_RM16(modrm);
 				src = (uint16_t)(int16_t)(int8_t)FETCH();
-				dst = ADC16(dst, src, m_CF);
+				dst = ADC16(dst, src, m_core->CF);
 				STORE_RM16(modrm, dst);
 				CYCLES(CYCLES_ALU_REG_REG);
 			} else {
 				ea = GetEA(modrm,1);
 				dst = READ16(ea);
 				src = (uint16_t)(int16_t)(int8_t)FETCH();
-				dst = ADC16(dst, src, m_CF);
+				dst = ADC16(dst, src, m_core->CF);
 				WRITE16(ea, dst);
 				CYCLES(CYCLES_ALU_REG_MEM);
 			}
@@ -2690,14 +2690,14 @@ void i386_device::i386_group83_16()        // Opcode 0x83
 			if( modrm >= 0xc0 ) {
 				dst = LOAD_RM16(modrm);
 				src = ((uint16_t)(int16_t)(int8_t)FETCH());
-				dst = SBB16(dst, src, m_CF);
+				dst = SBB16(dst, src, m_core->CF);
 				STORE_RM16(modrm, dst);
 				CYCLES(CYCLES_ALU_REG_REG);
 			} else {
 				ea = GetEA(modrm,1);
 				dst = READ16(ea);
 				src = ((uint16_t)(int16_t)(int8_t)FETCH());
-				dst = SBB16(dst, src, m_CF);
+				dst = SBB16(dst, src, m_core->CF);
 				WRITE16(ea, dst);
 				CYCLES(CYCLES_ALU_REG_MEM);
 			}
@@ -2832,7 +2832,7 @@ void i386_device::i386_groupF7_16()        // Opcode 0xf7
 				uint16_t dst = LOAD_RM16(modrm);
 				uint16_t src = FETCH16();
 				dst &= src;
-				m_CF = m_OF = m_AF = 0;
+				m_core->CF = m_core->OF = m_core->AF = 0;
 				SetSZPF16(dst);
 				CYCLES(CYCLES_TEST_IMM_REG);
 			} else {
@@ -2840,7 +2840,7 @@ void i386_device::i386_groupF7_16()        // Opcode 0xf7
 				uint16_t dst = READ16(ea);
 				uint16_t src = FETCH16();
 				dst &= src;
-				m_CF = m_OF = m_AF = 0;
+				m_core->CF = m_core->OF = m_core->AF = 0;
 				SetSZPF16(dst);
 				CYCLES(CYCLES_TEST_IMM_MEM);
 			}
@@ -2891,7 +2891,7 @@ void i386_device::i386_groupF7_16()        // Opcode 0xf7
 				REG16(DX) = (uint16_t)(result >> 16);
 				REG16(AX) = (uint16_t)result;
 
-				m_CF = m_OF = (REG16(DX) != 0);
+				m_core->CF = m_core->OF = (REG16(DX) != 0);
 			}
 			break;
 		case 5:         /* IMUL AX, Rm16 */
@@ -2913,7 +2913,7 @@ void i386_device::i386_groupF7_16()        // Opcode 0xf7
 				REG16(DX) = (uint16_t)(result >> 16);
 				REG16(AX) = (uint16_t)result;
 
-				m_CF = m_OF = !(result == (int32_t)(int16_t)result);
+				m_core->CF = m_core->OF = !(result == (int32_t)(int16_t)result);
 			}
 			break;
 		case 6:         /* DIV AX, Rm16 */
@@ -2941,7 +2941,7 @@ void i386_device::i386_groupF7_16()        // Opcode 0xf7
 
 						// this flag is actually undefined, enable on non-cyrix
 						if (m_cpuid_id0 != 0x69727943)
-							m_CF = 1;
+							m_core->CF = 1;
 					}
 				} else {
 					i386_trap(0, 0);
@@ -2973,7 +2973,7 @@ void i386_device::i386_groupF7_16()        // Opcode 0xf7
 
 						// this flag is actually undefined, enable on non-cyrix
 						if (m_cpuid_id0 != 0x69727943)
-							m_CF = 1;
+							m_core->CF = 1;
 					}
 				} else {
 					i386_trap(0, 0);
@@ -3028,9 +3028,9 @@ void i386_device::i386_groupFF_16()        // Opcode 0xff
 					address = READ16(ea);
 					CYCLES(CYCLES_CALL_MEM);       /* TODO: Timing = 10 + m */
 				}
-				PUSH16(m_eip );
-				m_eip = address;
-				CHANGE_PC(m_eip);
+				PUSH16(m_core->eip );
+				m_core->eip = address;
+				CHANGE_PC(m_core->eip);
 			}
 			break;
 		case 3:         /* CALL FAR Rm16 */
@@ -3053,13 +3053,13 @@ void i386_device::i386_groupFF_16()        // Opcode 0xff
 					}
 					else
 					{
-						PUSH16(m_sreg[CS].selector );
-						PUSH16(m_eip );
-						m_sreg[CS].selector = selector;
-						m_performed_intersegment_jump = 1;
+						PUSH16(m_core->sreg[CS].selector );
+						PUSH16(m_core->eip );
+						m_core->sreg[CS].selector = selector;
+						m_core->performed_intersegment_jump = 1;
 						i386_load_segment_descriptor(CS );
-						m_eip = address;
-						CHANGE_PC(m_eip);
+						m_core->eip = address;
+						CHANGE_PC(m_core->eip);
 					}
 				}
 			}
@@ -3075,8 +3075,8 @@ void i386_device::i386_groupFF_16()        // Opcode 0xff
 					address = READ16(ea);
 					CYCLES(CYCLES_JMP_MEM);        /* TODO: Timing = 10 + m */
 				}
-				m_eip = address;
-				CHANGE_PC(m_eip);
+				m_core->eip = address;
+				CHANGE_PC(m_core->eip);
 			}
 			break;
 		case 5:         /* JMP FAR Rm16 */
@@ -3099,11 +3099,11 @@ void i386_device::i386_groupFF_16()        // Opcode 0xff
 					}
 					else
 					{
-						m_sreg[CS].selector = selector;
-						m_performed_intersegment_jump = 1;
+						m_core->sreg[CS].selector = selector;
+						m_core->performed_intersegment_jump = 1;
 						i386_load_segment_descriptor(CS );
-						m_eip = address;
-						CHANGE_PC(m_eip);
+						m_core->eip = address;
+						CHANGE_PC(m_core->eip);
 					}
 				}
 			}
@@ -3140,11 +3140,11 @@ void i386_device::i386_group0F00_16()          // Opcode 0x0f 00
 			if ( PROTECTED_MODE && !V8086_MODE )
 			{
 				if( modrm >= 0xc0 ) {
-					STORE_RM16(modrm, m_ldtr.segment);
+					STORE_RM16(modrm, m_core->ldtr.segment);
 					CYCLES(CYCLES_SLDT_REG);
 				} else {
 					ea = GetEA(modrm,1);
-					WRITE16(ea, m_ldtr.segment);
+					WRITE16(ea, m_core->ldtr.segment);
 					CYCLES(CYCLES_SLDT_MEM);
 				}
 			}
@@ -3157,11 +3157,11 @@ void i386_device::i386_group0F00_16()          // Opcode 0x0f 00
 			if ( PROTECTED_MODE && !V8086_MODE )
 			{
 				if( modrm >= 0xc0 ) {
-					STORE_RM16(modrm, m_task.segment);
+					STORE_RM16(modrm, m_core->task.segment);
 					CYCLES(CYCLES_STR_REG);
 				} else {
 					ea = GetEA(modrm,1);
-					WRITE16(ea, m_task.segment);
+					WRITE16(ea, m_core->task.segment);
 					CYCLES(CYCLES_STR_MEM);
 				}
 			}
@@ -3173,23 +3173,23 @@ void i386_device::i386_group0F00_16()          // Opcode 0x0f 00
 		case 2:         /* LLDT */
 			if ( PROTECTED_MODE && !V8086_MODE )
 			{
-				if(m_CPL)
+				if(m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM16(modrm);
-					m_ldtr.segment = address;
+					m_core->ldtr.segment = address;
 					CYCLES(CYCLES_LLDT_REG);
 				} else {
 					ea = GetEA(modrm,0);
-					m_ldtr.segment = READ16(ea);
+					m_core->ldtr.segment = READ16(ea);
 					CYCLES(CYCLES_LLDT_MEM);
 				}
 				memset(&seg, 0, sizeof(seg));
-				seg.selector = m_ldtr.segment;
+				seg.selector = m_core->ldtr.segment;
 				i386_load_protected_mode_segment(&seg,nullptr);
-				m_ldtr.limit = seg.limit;
-				m_ldtr.base = seg.base;
-				m_ldtr.flags = seg.flags;
+				m_core->ldtr.limit = seg.limit;
+				m_core->ldtr.base = seg.base;
+				m_core->ldtr.flags = seg.flags;
 			}
 			else
 			{
@@ -3200,28 +3200,28 @@ void i386_device::i386_group0F00_16()          // Opcode 0x0f 00
 		case 3:         /* LTR */
 			if ( PROTECTED_MODE && !V8086_MODE )
 			{
-				if(m_CPL)
+				if(m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM16(modrm);
-					m_task.segment = address;
+					m_core->task.segment = address;
 					CYCLES(CYCLES_LTR_REG);
 				} else {
 					ea = GetEA(modrm,0);
-					m_task.segment = READ16(ea);
+					m_core->task.segment = READ16(ea);
 					CYCLES(CYCLES_LTR_MEM);
 				}
 				memset(&seg, 0, sizeof(seg));
-				seg.selector = m_task.segment;
+				seg.selector = m_core->task.segment;
 				i386_load_protected_mode_segment(&seg,nullptr);
 
-				offs_t addr = ((seg.selector & 4) ? m_ldtr.base : m_gdtr.base) + (seg.selector & ~7) + 5;
+				offs_t addr = ((seg.selector & 4) ? m_core->ldtr.base : m_core->gdtr.base) + (seg.selector & ~7) + 5;
 				i386_translate_address(TR_READ, false, &addr, nullptr);
 				m_program->write_byte(addr, (seg.flags & 0xff) | 2);
 
-				m_task.limit = seg.limit;
-				m_task.base = seg.base;
-				m_task.flags = seg.flags | 2;
+				m_core->task.limit = seg.limit;
+				m_core->task.base = seg.base;
+				m_core->task.flags = seg.flags | 2;
 			}
 			else
 			{
@@ -3261,14 +3261,14 @@ void i386_device::i386_group0F00_16()          // Opcode 0x0f 00
 							if(!(seg.flags & 0x04))
 							{
 								// if not conforming, then we must check privilege levels
-								if(((seg.flags >> 5) & 0x03) < std::max(m_CPL, (uint8_t)(address & 0x03)))
+								if(((seg.flags >> 5) & 0x03) < std::max((uint8_t)m_core->CPL, (uint8_t)(address & 0x03)))
 									result = 0;
 							}
 						}
 					}
 					else
 					{
-						if(((seg.flags >> 5) & 0x03) < std::max(m_CPL, (uint8_t)(address & 0x03)))
+						if(((seg.flags >> 5) & 0x03) < std::max((uint8_t)m_core->CPL, (uint8_t)(address & 0x03)))
 							result = 0;
 					}
 				}
@@ -3312,7 +3312,7 @@ void i386_device::i386_group0F00_16()          // Opcode 0x0f 00
 							result = 0;
 					}
 				}
-				if(((seg.flags >> 5) & 0x03) < std::max(m_CPL, (uint8_t)(address & 0x03)))
+				if(((seg.flags >> 5) & 0x03) < std::max((uint8_t)m_core->CPL, (uint8_t)(address & 0x03)))
 					result = 0;
 				SetZF(result);
 			}
@@ -3345,8 +3345,8 @@ void i386_device::i386_group0F01_16()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,1);
 				}
-				WRITE16(ea, m_gdtr.limit);
-				WRITE32(ea + 2, m_gdtr.base);
+				WRITE16(ea, m_core->gdtr.limit);
+				WRITE32(ea + 2, m_core->gdtr.base);
 				CYCLES(CYCLES_SGDT);
 				break;
 			}
@@ -3361,14 +3361,14 @@ void i386_device::i386_group0F01_16()      // Opcode 0x0f 01
 				{
 					ea = GetEA(modrm,1);
 				}
-				WRITE16(ea, m_idtr.limit);
-				WRITE32(ea + 2, m_idtr.base);
+				WRITE16(ea, m_core->idtr.limit);
+				WRITE32(ea + 2, m_core->idtr.base);
 				CYCLES(CYCLES_SIDT);
 				break;
 			}
 		case 2:         /* LGDT */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM16(modrm);
@@ -3376,14 +3376,14 @@ void i386_device::i386_group0F01_16()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,0);
 				}
-				m_gdtr.limit = READ16(ea);
-				m_gdtr.base = READ32(ea + 2) & 0xffffff;
+				m_core->gdtr.limit = READ16(ea);
+				m_core->gdtr.base = READ32(ea + 2) & 0xffffff;
 				CYCLES(CYCLES_LGDT);
 				break;
 			}
 		case 3:         /* LIDT */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				if( modrm >= 0xc0 ) {
 					address = LOAD_RM16(modrm);
@@ -3391,26 +3391,26 @@ void i386_device::i386_group0F01_16()      // Opcode 0x0f 01
 				} else {
 					ea = GetEA(modrm,0);
 				}
-				m_idtr.limit = READ16(ea);
-				m_idtr.base = READ32(ea + 2) & 0xffffff;
+				m_core->idtr.limit = READ16(ea);
+				m_core->idtr.base = READ32(ea + 2) & 0xffffff;
 				CYCLES(CYCLES_LIDT);
 				break;
 			}
 		case 4:         /* SMSW */
 			{
 				if( modrm >= 0xc0 ) {
-					STORE_RM16(modrm, m_cr[0]);
+					STORE_RM16(modrm, m_core->cr[0]);
 					CYCLES(CYCLES_SMSW_REG);
 				} else {
 					ea = GetEA(modrm,1);
-					WRITE16(ea, m_cr[0]);
+					WRITE16(ea, m_core->cr[0]);
 					CYCLES(CYCLES_SMSW_MEM);
 				}
 				break;
 			}
 		case 6:         /* LMSW */
 			{
-				if(PROTECTED_MODE && m_CPL)
+				if(PROTECTED_MODE && m_core->CPL)
 					FAULT(FAULT_GP,0)
 				uint16_t b;
 				if( modrm >= 0xc0 ) {
@@ -3423,8 +3423,8 @@ void i386_device::i386_group0F01_16()      // Opcode 0x0f 01
 				}
 				if(PROTECTED_MODE)
 					b |= 0x0001;  // cannot return to real mode using this instruction.
-				m_cr[0] &= ~0x0000000f;
-				m_cr[0] |= b & 0x0000000f;
+				m_core->cr[0] &= ~0x0000000f;
+				m_core->cr[0] |= b & 0x0000000f;
 				break;
 			}
 		default:
@@ -3445,9 +3445,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 
 				CYCLES(CYCLES_BT_IMM_REG);
 			} else {
@@ -3456,9 +3456,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 
 				CYCLES(CYCLES_BT_IMM_MEM);
 			}
@@ -3469,9 +3469,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 				dst |= (1 << bit);
 
 				STORE_RM16(modrm, dst);
@@ -3482,9 +3482,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 				dst |= (1 << bit);
 
 				WRITE16(ea, dst);
@@ -3497,9 +3497,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 				dst &= ~(1 << bit);
 
 				STORE_RM16(modrm, dst);
@@ -3510,9 +3510,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 				dst &= ~(1 << bit);
 
 				WRITE16(ea, dst);
@@ -3525,9 +3525,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 				dst ^= (1 << bit);
 
 				STORE_RM16(modrm, dst);
@@ -3538,9 +3538,9 @@ void i386_device::i386_group0FBA_16()      // Opcode 0x0f ba
 				uint8_t bit = FETCH();
 
 				if( dst & (1 << bit) )
-					m_CF = 1;
+					m_core->CF = 1;
 				else
-					m_CF = 0;
+					m_core->CF = 0;
 				dst ^= (1 << bit);
 
 				WRITE16(ea, dst);
@@ -3576,7 +3576,7 @@ void i386_device::i386_lar_r16_rm16()  // Opcode 0x0f 0x02
 		if(seg.selector == 0)
 		{
 			SetZF(0);  // not a valid segment
-		//  LOGMASKED(LOG_PM_EVENTS, "i386 (%08x): LAR: Selector %04x is invalid type.\n",m_pc,seg.selector);
+		//  LOGMASKED(LOG_PM_EVENTS, "i386 (%08x): LAR: Selector %04x is invalid type.\n",m_core->pc,seg.selector);
 		}
 		else
 		{
@@ -3586,7 +3586,7 @@ void i386_device::i386_lar_r16_rm16()  // Opcode 0x0f 0x02
 				return;
 			}
 			uint8_t DPL = (seg.flags >> 5) & 3;
-			if(((DPL < m_CPL) || (DPL < (seg.selector & 3))) && ((seg.flags & 0x1c) != 0x1c))
+			if(((DPL < m_core->CPL) || (DPL < (seg.selector & 3))) && ((seg.flags & 0x1c) != 0x1c))
 			{
 				SetZF(0);
 				return;
@@ -3651,7 +3651,7 @@ void i386_device::i386_lsl_r16_rm16()  // Opcode 0x0f 0x03
 				return;
 			}
 			uint8_t DPL = (seg.flags >> 5) & 3;
-			if(((DPL < m_CPL) || (DPL < (seg.selector & 3))) && ((seg.flags & 0x1c) != 0x1c))
+			if(((DPL < m_core->CPL) || (DPL < (seg.selector & 3))) && ((seg.flags & 0x1c) != 0x1c))
 			{
 				SetZF(0);
 				return;
@@ -3721,10 +3721,10 @@ void i386_device::i386_retf16()            // Opcode 0xcb
 	}
 	else
 	{
-		m_eip = POP16();
-		m_sreg[CS].selector = POP16();
+		m_core->eip = POP16();
+		m_core->sreg[CS].selector = POP16();
 		i386_load_segment_descriptor(CS );
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 	}
 
 	CYCLES(CYCLES_RET_INTERSEG);
@@ -3740,10 +3740,10 @@ void i386_device::i386_retf_i16()          // Opcode 0xca
 	}
 	else
 	{
-		m_eip = POP16();
-		m_sreg[CS].selector = POP16();
+		m_core->eip = POP16();
+		m_core->sreg[CS].selector = POP16();
 		i386_load_segment_descriptor(CS );
-		CHANGE_PC(m_eip);
+		CHANGE_PC(m_core->eip);
 		REG16(SP) += count;
 	}
 
