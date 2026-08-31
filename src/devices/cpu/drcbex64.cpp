@@ -2503,7 +2503,7 @@ void drcbe_x64::op_jmpt(Assembler &a, const instruction &inst)
 	const parameter &chain_countp = inst.param(3);
 	assert(chain_countp.is_immediate());
 
-	const u32 *const table = reinterpret_cast<const u32 *>(tablep.memory());
+	const uml::code_label *const table = reinterpret_cast<const uml::code_label *>(tablep.memory());
 	const u32 count = u32(countp.immediate());
 	const u32 chain_count = u32(chain_countp.immediate());
 	assert(count > 0);

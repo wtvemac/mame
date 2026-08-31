@@ -502,7 +502,7 @@ namespace uml {
 		void hashjmp(parameter mode, parameter pc, code_handle &handle) { configure(OP_HASHJMP, 4, mode, pc, handle); }
 		void jmp(code_label label) { configure(OP_JMP, 4, label); }
 		void jmp(condition_t cond, code_label label) { configure(OP_JMP, 4, label, cond); }
-		void jmpt(parameter index, const u32 *table, u32 count, u32 chain_count = 0) { configure(OP_JMPT, 4, index, parameter::make_memory(const_cast<u32 *>(table)), parameter(count), parameter(chain_count)); }
+		void jmpt(parameter index, const uml::code_label *table, u32 count, u32 chain_count = 0) { configure(OP_JMPT, 4, index, parameter::make_memory(const_cast<uml::code_label *>(table)), parameter(count), parameter(chain_count)); }
 		void exh(code_handle &handle, parameter param) { configure(OP_EXH, 4, handle, param); }
 		void exh(condition_t cond, code_handle &handle, parameter param) { configure(OP_EXH, 4, handle, param, cond); }
 		void callh(code_handle &handle) { configure(OP_CALLH, 4, handle); }
