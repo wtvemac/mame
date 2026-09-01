@@ -26,7 +26,7 @@ NumericLiteralCase:
 # Bracing and indentation
 #
 
-UseTab: ForContinuationAndIndentation
+UseTab: AlignWithSpaces
 TabWidth: 4
 IndentWidth: 4
 ContinuationIndentWidth: 8
@@ -36,6 +36,7 @@ AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AllowShortBlocksOnASingleLine: Never
 AllowShortFunctionsOnASingleLine: None
+AllowShortLambdasOnASingleLine: false
 AlignOperands: AlignAfterOperator
 BreakConstructorInitializers: AfterColon
 PackConstructorInitializers: Never
@@ -43,6 +44,9 @@ IndentCaseLabels: true
 IndentPPDirectives: None
 NamespaceIndentation: All
 AccessModifierOffset: -4
+
+BinPackParameters: OnePerLine
+BinPackArguments: false
 
 #
 # Spacing
@@ -54,15 +58,19 @@ SpacesInConditionalStatement: false
 SpacesInSquareBrackets: false
 Cpp11BracedListStyle: false
 
-AlignConsecutiveAssignments: true
+AlignConsecutiveAssignments: AcrossComments
 AlignConsecutiveDeclarations: true
-
+AlignArrayOfStructures: Left
+AlignConsecutiveMacros: Consecutive
 AlignAfterOpenBracket: BlockIndent
 
 WhitespaceSensitiveMacros:
   - CONS
 
 MaxEmptyLinesToKeep: 2
+
+MacroBlockBegin: '(INPUT_PORTS_START|DEVICE_INPUT_DEFAULTS_START|ROM_START)'
+MacroBlockEnd:   '(INPUT_PORTS_END|DEVICE_INPUT_DEFAULTS_END|ROM_END)'
 
 #
 # Structural organization
@@ -105,14 +113,17 @@ IncludeCategories:
   - Regex: '^"osd'
     Priority: 5
 
+  - Regex: '"logmacro\.h"'
+    Priority: 8
+
+  - Regex: '".*\.lh"'
+    Priority: 9
+
   - Regex: '^".*"'
     Priority: 6
 
   - Regex: '<.*>'
     Priority: 7
-
-  - Regex: '"logmacro\.h"'
-    Priority: 8
 
 #
 # Other
