@@ -667,23 +667,17 @@ void mips3_device::func_printf_ramdiag()
 		// The "k" value
 		uint32_t print_count = std::min(iterators.size(), size_t(DEBUG_DIAGRAM_ACNT));
 
-		std::nth_element(iterators.begin(), iterators.begin() + print_count, iterators.end(),
-			[](const MapIterator& a, const MapIterator& b) {
-	 			if(DEBUG_DIAGRAM_TSORT)
-					return a->second.adur > b->second.adur;
-				else
-					return a->second.acnt > b->second.acnt;
-			}
-		);
+		auto sort_compare = [](const MapIterator &a, const MapIterator &b)
+		{
+			if (DEBUG_DIAGRAM_TSORT)
+				return a->second.adur > b->second.adur;
+			else
+				return a->second.acnt > b->second.acnt;
+		};
 
-		std::sort(iterators.begin(), iterators.begin() + print_count,
-			[](const MapIterator& a, const MapIterator& b) {
-				if(DEBUG_DIAGRAM_TSORT)
-					return a->second.adur > b->second.adur;
-				else
-					return a->second.acnt > b->second.acnt;
-			}
-		);
+		std::nth_element(iterators.begin(), iterators.begin() + print_count, iterators.end(), sort_compare);
+
+		std::sort(iterators.begin(), iterators.begin() + print_count, sort_compare);
 
 		// Print out sorted addresses
 
