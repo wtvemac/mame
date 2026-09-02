@@ -20,6 +20,7 @@
 #include <bit>
 #include <cfenv>
 #include <cmath>
+#include <cstring>
 
 #if defined(__clang_major__) && (__clang_major__ < 12)
 // can't guarantee floating point environment control works
@@ -325,6 +326,219 @@ inline int dmuls(uint64_t &dstlo, uint64_t &dsthi, int64_t src1, int64_t src2, b
 }
 
 
+//-------------------------------------------------
+//  packed integer helpers
+//-------------------------------------------------
+
+union drcbec_vec64
+{
+	uint8_t  b[8];
+	int8_t   c[8];
+	uint16_t w[4];
+	int16_t  s[4];
+	uint32_t d[2];
+	int32_t  i[2];
+	uint64_t q;
+};
+
+constexpr int8_t vec_sat_sb(int32_t v)
+{
+	return (v > 127) ? 127 : (v < -128) ? -128 : (int8_t)v;
+}
+constexpr int16_t vec_sat_sw(int32_t v)
+{
+	return (v > 32767) ? 32767 : (v < -32768) ? -32768 : (int16_t)v;
+}
+constexpr uint8_t vec_sat_ub(int32_t v)
+{
+	return (v > 255) ? 255 : (v < 0) ? 0 : (uint8_t)v;
+}
+
+inline drcbec_vec64 vec_load64(const void *p)
+{
+	drcbec_vec64 v;
+
+	std::memcpy(&v, p, 8);
+
+	return v;
+}
+inline void vec_store64(void *p, const drcbec_vec64 &v)
+{
+	std::memcpy(p, &v, 8);
+}
+
+inline void vec_iaddsub(void *dp, const void *ap, const void *bp, int esize, bool sub)
+{
+	const drcbec_vec64 a = vec_load64(ap);
+	const drcbec_vec64 b = vec_load64(bp);
+
+	drcbec_vec64 r;
+	switch (esize)
+	{
+		case 1:
+			for (int n = 0; n < 8; n++)
+				r.b[n] = sub ? (a.b[n] - b.b[n]) : (a.b[n] + b.b[n]);
+			break;
+		case 2:
+			for (int n = 0; n < 4; n++)
+				r.w[n] = sub ? (a.w[n] - b.w[n]) : (a.w[n] + b.w[n]);
+			break;
+		case 4:
+			for (int n = 0; n < 2; n++)
+				r.d[n] = sub ? (a.d[n] - b.d[n]) : (a.d[n] + b.d[n]);
+			break;
+		default:
+			r.q = sub ? (a.q - b.q) : (a.q + b.q);
+			break;
+	}
+	vec_store64(dp, r);
+}
+
+inline void vec_iaddsub_s(void *dp, const void *ap, const void *bp, int esize, bool sub)
+{
+	const drcbec_vec64 a = vec_load64(ap);
+	const drcbec_vec64 b = vec_load64(bp);
+
+	drcbec_vec64 r;
+	if (esize == 1)
+		for (int n = 0; n < 8; n++)
+			r.c[n] = vec_sat_sb(sub ? ((int32_t)a.c[n] - b.c[n]) : ((int32_t)a.c[n] + b.c[n]));
+	else
+		for (int n = 0; n < 4; n++)
+			r.s[n] = vec_sat_sw(sub ? ((int32_t)a.s[n] - b.s[n]) : ((int32_t)a.s[n] + b.s[n]));
+
+	vec_store64(dp, r);
+}
+
+inline void vec_iaddsub_us(void *dp, const void *ap, const void *bp, int esize, bool sub)
+{
+	const drcbec_vec64 a = vec_load64(ap);
+	const drcbec_vec64 b = vec_load64(bp);
+
+	drcbec_vec64 r;
+	if (esize == 1)
+		for (int n = 0; n < 8; n++)
+			r.b[n] = sub ? ((a.b[n] < b.b[n]) ? 0 : a.b[n] - b.b[n]) : ((a.b[n] + b.b[n] > 0xff) ? 0xff : a.b[n] + b.b[n]);
+	else
+		for (int n = 0; n < 4; n++)
+			r.w[n] = sub ? ((a.w[n] < b.w[n]) ? 0 : a.w[n] - b.w[n]) : ((a.w[n] + b.w[n] > 0xffff) ? 0xffff : a.w[n] + b.w[n]);
+
+	vec_store64(dp, r);
+}
+
+inline void vec_imullw(void *dp, const void *ap, const void *bp)
+{
+	const drcbec_vec64 a = vec_load64(ap);
+	const drcbec_vec64 b = vec_load64(bp);
+
+	drcbec_vec64 r;
+	for (int n = 0; n < 4; n++)
+		r.w[n] = (uint32_t)((int32_t)a.s[n] * (int32_t)b.s[n]) & 0xffff;
+
+	vec_store64(dp, r);
+}
+
+inline void vec_ipackus(void *dp, const void *ap, const void *bp)
+{
+	const drcbec_vec64 a = vec_load64(ap);
+	const drcbec_vec64 b = vec_load64(bp);
+
+	drcbec_vec64 r;
+	for (int n = 0; n < 4; n++)
+		r.b[n] = vec_sat_ub(a.s[n]);
+	for (int n = 0; n < 4; n++)
+		r.b[n + 4] = vec_sat_ub(b.s[n]);
+
+	vec_store64(dp, r);
+}
+
+inline void vec_iunpck(void *dp, const void *ap, const void *bp, int esize, bool high)
+{
+	const drcbec_vec64 a = vec_load64(ap);
+	const drcbec_vec64 b = vec_load64(bp);
+
+
+	drcbec_vec64 r;
+	const int    half = (8 / esize) / 2;
+	const int    from = high ? half : 0;
+	for (int k = 0; k < half; k++)
+	{
+		std::memcpy(r.b + (2 * k) * esize, a.b + (from + k) * esize, esize);
+		std::memcpy(r.b + (2 * k + 1) * esize, b.b + (from + k) * esize, esize);
+	}
+
+	vec_store64(dp, r);
+}
+
+inline void vec_ishift(void *dp, const void *ap, uint32_t count, int esize, int mode)
+{
+	// mode: 0 = logical left, 1 = logical right, 2 = arithmetic right
+
+	const drcbec_vec64 a = vec_load64(ap);
+
+	drcbec_vec64   r;
+	const uint32_t bits = esize * 8;
+	switch (esize)
+	{
+		case 2:
+			for (int n = 0; n < 4; n++)
+			{
+				if (mode == 2)
+					r.s[n] = a.s[n] >> ((count >= bits) ? (bits - 1) : count);
+				else if (count >= bits)
+					r.w[n] = 0;
+				else
+					r.w[n] = (mode == 0) ? (uint16_t)(a.w[n] << count) : (uint16_t)(a.w[n] >> count);
+			}
+			break;
+		case 4:
+			for (int n = 0; n < 2; n++)
+			{
+				if (mode == 2)
+					r.i[n] = a.i[n] >> ((count >= bits) ? (bits - 1) : count);
+				else if (count >= bits)
+					r.d[n] = 0;
+				else
+					r.d[n] = (mode == 0) ? (a.d[n] << count) : (a.d[n] >> count);
+			}
+			break;
+		default:
+			if (count >= 64)
+				r.q = 0;
+			else
+				r.q = (mode == 0) ? (a.q << count) : (a.q >> count);
+			break;
+	}
+
+	vec_store64(dp, r);
+}
+
+inline void vec_ibitwise(void *dp, const void *ap, const void *bp, int mode)
+{
+	uint64_t a;
+	uint64_t b;
+
+	std::memcpy(&a, ap, 8);
+	std::memcpy(&b, bp, 8);
+	switch (mode)
+	{
+		case 0: // and
+			a &= b;
+			break;
+		case 1: // or
+			a |= b;
+			break;
+		case 2: // xor
+			a ^= b;
+			break;
+		case 3: // andn
+		default:
+			a = ~a & b;
+			break;
+	}
+
+	std::memcpy(dp, &a, 8);
+}
 
 //**************************************************************************
 //  TYPE DEFINITIONS
@@ -374,8 +588,10 @@ public:
 
 private:
 	// helpers
-	void output_parameter(drcbec_instruction **dstptr, void *immed, int immoffset, int size, const uml::parameter &param);
+	void output_parameter(drcbec_instruction **dstptr, void *immed, int immoffset, int size, const uml::parameter &param, bool vector = false);
 	void fixup_label(void *parameter, drccodeptr labelcodeptr);
+
+	alignas(16) uint8_t m_vregs[uml::REG_F_COUNT][16];
 
 	// internal state
 	drc_hash_table          m_hash;                 // hash table state
@@ -557,6 +773,27 @@ void drcbe_c::generate(drcuml_block &block, const instruction *instlist, uint32_
 				dst++;
 				break;
 
+			// JMPT resolves an entire table of labels
+			case OP_JMPT:
+			{
+				const auto *const table = reinterpret_cast<const uml::code_label *>(inst.param(1).memory());
+				const uint32_t count = (uint32_t)inst.param(2).immediate();
+				const parameter &indexp = inst.param(0);
+				const int idximmed = (indexp.is_immediate() && (indexp.immediate() != 0)) ? 1 : 0;
+
+				(dst++)->i = MAKE_OPCODE_FULL(OP_JMPT, 4, COND_ALWAYS, 0, 0);
+				void *immed = dst + 2 + count;
+				output_parameter(&dst, immed, 0, 4, indexp);
+				(dst++)->i = count;
+				for (uint32_t i = 0; i < count; i++)
+				{
+					dst->inst = (drcbec_instruction *)m_labels.get_codeptr(table[i], m_fixup_delegate, dst);
+					dst++;
+				}
+				dst += idximmed;
+				break;
+			}
+
 			// generically handle everything else
 			default:
 
@@ -633,14 +870,24 @@ void drcbe_c::generate(drcuml_block &block, const instruction *instlist, uint32_
 				(dst++)->i = MAKE_OPCODE_FULL(opcode, inst.size(), inst.condition(), inst.flags(), inst.numparams() + immedwords);
 
 				// immediates start after parameters
+				drcbec_instruction *const parambase = dst;
 				void *immed = dst + inst.numparams();
+
+				const bool vector_op = (opcode >= OP_VLOAD) && (opcode <= OP_PREFETCH);
+				const int vector_freg_param =
+						!vector_op                                        ? -1 :
+						(opcode == OP_VSTORE)                             ?  2 :
+						(opcode == OP_VLOAD || opcode == OP_VBCASTB)      ?  0 : -1;
 
 				// output each of the parameters
 				for (int pnum = 0; pnum < inst.numparams(); pnum++)
-					output_parameter(&dst, immed, immoffset[pnum], psize[pnum], inst.param(pnum));
+					output_parameter(&dst, immed, immoffset[pnum], psize[pnum], inst.param(pnum), pnum == vector_freg_param);
 
 				// point past the end of the immediates
 				dst += immedwords;
+
+				if (vector_op && inst.numparams() == 4 && inst.param(3).is_size())
+					parambase[3].i = (uint32_t)inst.param(3).size();
 
 				// Keep track of which registers had an 8 byte write and clear it the next time it's written
 				if (inst.size() == 4)
@@ -826,6 +1073,17 @@ int drcbe_c::execute(code_handle &entry)
 				assert_in_cache(m_cache, newinst);
 				inst = newinst;
 				continue;
+
+			case MAKE_OPCODE_SHORT(OP_JMPT, 4, 0):      // JMPT    index,count,target...
+			{
+				const uint32_t jindex = *inst[0].puint32;
+				const uint32_t jcount = inst[1].i;
+				assert(jindex < jcount);
+				newinst = inst[2 + ((jindex < jcount) ? jindex : 0)].inst;
+				assert_in_cache(m_cache, newinst);
+				inst = newinst;
+				continue;
+			}
 
 			case MAKE_OPCODE_SHORT(OP_CALLH, 4, 1):     // CALLH   handle[,c]
 				if (OPCODE_FAIL_CONDITION(opcode, flags))
@@ -2491,6 +2749,93 @@ int drcbe_c::execute(code_handle &entry)
 				*inst[0].pint64 = d2u(FDPARAM1);
 				break;
 
+
+			// ----------------------- Vector Operations -----------------------
+
+			case MAKE_OPCODE_SHORT(OP_VZEROU, 4, 0):    // VZEROU
+			case MAKE_OPCODE_SHORT(OP_PREFETCH, 4, 0):  // PREFETCH base,index,lines,hint
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VLOAD, 4, 0):     // VLOAD   dst,base,index,width
+				std::memcpy(inst[0].v, (uint8_t *)inst[1].v + *inst[2].puint32, *inst[3].puint32);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VSTORE, 4, 0):    // VSTORE  base,index,src,width
+				std::memcpy((uint8_t *)inst[0].v + *inst[1].puint32, inst[2].v, *inst[3].puint32);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VBCASTB, 4, 0):   // VBCASTB dst,src,width
+				std::memset(inst[0].v, (uint8_t)*inst[1].puint32, *inst[2].puint32);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIADD, 4, 0):     // VIADD   dst,src1,src2,size
+				vec_iaddsub(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, false);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VISUB, 4, 0):     // VISUB   dst,src1,src2,size
+				vec_iaddsub(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, true);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIADDS, 4, 0):    // VIADDS  dst,src1,src2,size
+				vec_iaddsub_s(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, false);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VISUBS, 4, 0):    // VISUBS  dst,src1,src2,size
+				vec_iaddsub_s(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, true);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIADDUS, 4, 0):   // VIADDUS dst,src1,src2,size
+				vec_iaddsub_us(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, false);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VISUBUS, 4, 0):   // VISUBUS dst,src1,src2,size
+				vec_iaddsub_us(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, true);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIMUL, 4, 0):     // VIMUL   dst,src1,src2,size (PMULLW)
+				vec_imullw(inst[0].v, inst[1].v, inst[2].v);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIPACKUS, 4, 0):  // VIPACKUS dst,src1,src2,size (PACKUSWB)
+				vec_ipackus(inst[0].v, inst[1].v, inst[2].v);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIUNPCKL, 4, 0):  // VIUNPCKL dst,src1,src2,size
+				vec_iunpck(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, false);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIUNPCKH, 4, 0):  // VIUNPCKH dst,src1,src2,size
+				vec_iunpck(inst[0].v, inst[1].v, inst[2].v, 1 << inst[3].i, true);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VISHL, 4, 0):     // VISHL   dst,src1,count,size
+				vec_ishift(inst[0].v, inst[1].v, *inst[2].puint32, 1 << inst[3].i, 0);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VISHR, 4, 0):     // VISHR   dst,src1,count,size
+				vec_ishift(inst[0].v, inst[1].v, *inst[2].puint32, 1 << inst[3].i, 1);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VISAR, 4, 0):     // VISAR   dst,src1,count,size
+				vec_ishift(inst[0].v, inst[1].v, *inst[2].puint32, 1 << inst[3].i, 2);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIAND, 4, 0):     // VIAND   dst,src1,src2
+				vec_ibitwise(inst[0].v, inst[1].v, inst[2].v, 0);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIOR, 4, 0):      // VIOR    dst,src1,src2
+				vec_ibitwise(inst[0].v, inst[1].v, inst[2].v, 1);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIXOR, 4, 0):     // VIXOR   dst,src1,src2
+				vec_ibitwise(inst[0].v, inst[1].v, inst[2].v, 2);
+				break;
+
+			case MAKE_OPCODE_SHORT(OP_VIANDN, 4, 0):    // VIANDN  dst,src1,src2 (dst = ~src1 & src2)
+				vec_ibitwise(inst[0].v, inst[1].v, inst[2].v, 3);
+				break;
+
 			default:
 				throw emu_fatalerror("Unexpected opcode! %08x %d %d %d\n", opcode, OPCODE_GET_SHORT(opcode) >> 2, BIT(opcode, 0) ? 8 : 4, BIT(opcode, 1));
 			}
@@ -2514,7 +2859,7 @@ int drcbe_c::execute(code_handle &entry)
 //  output_parameter - output a parameter
 //-------------------------------------------------
 
-void drcbe_c::output_parameter(drcbec_instruction **dstptr, void *immed, int immoffset, int size, const parameter &param)
+void drcbe_c::output_parameter(drcbec_instruction **dstptr, void *immed, int immoffset, int size, const parameter &param, bool vector)
 {
 	drcbec_instruction *dst = *dstptr;
 
@@ -2548,7 +2893,9 @@ void drcbe_c::output_parameter(drcbec_instruction **dstptr, void *immed, int imm
 
 		// float registers point to the appropriate part of the floating point register state
 		case parameter::PTYPE_FLOAT_REGISTER:
-			if (size == 4)
+			if (vector)
+				(dst++)->v = &m_vregs[param.freg() - REG_F0];
+			else if (size == 4)
 				(dst++)->pfloat = &m_state.f[param.freg() - REG_F0].s.l;
 			else
 				(dst++)->pdouble = &m_state.f[param.freg() - REG_F0].d;
