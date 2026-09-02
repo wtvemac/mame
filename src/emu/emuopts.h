@@ -125,6 +125,7 @@
 #define OPTION_SAMPLERATE           "samplerate"
 #define OPTION_SAMPLES              "samples"
 #define OPTION_VOLUME               "volume"
+#define OPTION_DECOUPLED_SOUND      "decoupled_sound"
 
 // core input options
 #define OPTION_COIN_LOCKOUT         "coin_lockout"
@@ -415,6 +416,7 @@ public:
 	int sample_rate() const { return int_value(OPTION_SAMPLERATE); }
 	bool samples() const { return bool_value(OPTION_SAMPLES); }
 	int volume() const { return int_value(OPTION_VOLUME); }
+	bool decoupled_sound() const { return int_value(OPTION_DECOUPLED_SOUND); }
 
 	// core input options
 	bool coin_lockout() const { return bool_value(OPTION_COIN_LOCKOUT); }

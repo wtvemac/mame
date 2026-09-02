@@ -145,6 +145,7 @@ const options_entry emu_options::s_option_entries[] =
 	{ OPTION_SAMPLERATE ";sr(1000-1000000)",             "48000",     core_options::option_type::INTEGER,    "set sound output sample rate" },
 	{ OPTION_SAMPLES,                                    "1",         core_options::option_type::BOOLEAN,    "enable the use of external samples if available" },
 	{ OPTION_VOLUME ";vol(-96-12)",                      "0",         core_options::option_type::INTEGER,    "sound volume in decibels" },
+	{ OPTION_DECOUPLED_SOUND,                            "0",         core_options::option_type::BOOLEAN,    "use decoupled audio timer if available" },
 
 	// input options
 	{ nullptr,                                           nullptr,     core_options::option_type::HEADER,     "CORE INPUT OPTIONS" },

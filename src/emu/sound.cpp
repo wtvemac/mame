@@ -2174,6 +2174,9 @@ void sound_manager::set_update_interval(attotime update_attotime)
 
 void sound_manager::using_decoupled_timer(bool enable)
 {
+	if (enable && !machine().options().decoupled_sound())
+		return;
+
 	if (enable == m_update_timer->decoupled())
 		return;
 
