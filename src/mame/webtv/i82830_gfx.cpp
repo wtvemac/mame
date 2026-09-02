@@ -286,6 +286,8 @@ void i82830_graphics_device::instruction_buffer_skip(ins_parser_state_t* parser_
 
 bool i82830_graphics_device::execute_ps_instruction(uint32_t instruction, ins_parser_state_t* parser_state)
 {
+	// [:pci:02.0] Unknown parser graphics instruction: 08a00000
+	// [:pci:02.0] Unknown parser graphics instruction: 03136001
 
 	switch(instruction & i82830_graphics_device::MI_PS_SUBTYPE_MASK)
 	{
