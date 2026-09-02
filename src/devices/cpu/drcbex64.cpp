@@ -7938,18 +7938,18 @@ void drcbe_x64::op_viunpckh(Assembler &a, const instruction &inst)
 	{
 		a.vmovq(tmp1, MABS(src1p.memory()));
 		a.vmovq(tmp2, MABS(src2p.memory()));
-		a.vpunpcklqdq(tmp1, tmp1, tmp1);
-		a.vpunpcklqdq(tmp2, tmp2, tmp2);
+		a.vpsrlq(tmp1, tmp1, 32);
+		a.vpsrlq(tmp2, tmp2, 32);
 		switch (sizep.size())
 		{
 			case SIZE_BYTE:
-				a.vpunpckhbw(tmp1, tmp1, tmp2);
+				a.vpunpcklbw(tmp1, tmp1, tmp2);
 				break;
 			case SIZE_WORD:
-				a.vpunpckhwd(tmp1, tmp1, tmp2);
+				a.vpunpcklwd(tmp1, tmp1, tmp2);
 				break;
 			case SIZE_DWORD:
-				a.vpunpckhdq(tmp1, tmp1, tmp2);
+				a.vpunpckldq(tmp1, tmp1, tmp2);
 				break;
 			default:
 				break;
@@ -7960,18 +7960,18 @@ void drcbe_x64::op_viunpckh(Assembler &a, const instruction &inst)
 	{
 		a.movq(tmp1, MABS(src1p.memory()));
 		a.movq(tmp2, MABS(src2p.memory()));
-		a.punpcklqdq(tmp1, tmp1);
-		a.punpcklqdq(tmp2, tmp2);
+		a.psrlq(tmp1, 32);
+		a.psrlq(tmp2, 32);
 		switch (sizep.size())
 		{
 			case SIZE_BYTE:
-				a.punpckhbw(tmp1, tmp2);
+				a.punpcklbw(tmp1, tmp2);
 				break;
 			case SIZE_WORD:
-				a.punpckhwd(tmp1, tmp2);
+				a.punpcklwd(tmp1, tmp2);
 				break;
 			case SIZE_DWORD:
-				a.punpckhdq(tmp1, tmp2);
+				a.punpckldq(tmp1, tmp2);
 				break;
 			default:
 				break;
