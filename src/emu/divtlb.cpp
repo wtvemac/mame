@@ -349,3 +349,43 @@ const device_vtlb_interface::vtlb_entry *device_vtlb_interface::vtlb_table() con
 {
 	return m_table_base;
 }
+
+//-------------------------------------------------
+//  vtlb_table - return a pointer to the base of
+//  the linear VTLB lookup table (mutable)
+//-------------------------------------------------
+
+device_vtlb_interface::vtlb_entry *device_vtlb_interface::vtlb_table()
+{
+	return m_table_base;
+}
+
+//-------------------------------------------------
+//  vtlb_live - return a pointer to the base of
+// the array of live entries (mutable)
+//-------------------------------------------------
+
+offs_t *device_vtlb_interface::vtlb_live()
+{
+	return m_live.data();
+}
+
+//-------------------------------------------------
+//  vtlb_dynindex - return a pointer to the index 
+// of next dynamic entry (mutable)
+//-------------------------------------------------
+
+int *device_vtlb_interface::vtlb_dynindex()
+{
+	return &m_dynindex;
+}
+
+//-------------------------------------------------
+//  vtlb_dynamic_count - return a count of the 
+// number of dynamic entries
+//-------------------------------------------------
+
+const int device_vtlb_interface::vtlb_dynamic_count() const
+{
+	return m_dynamic;
+}
