@@ -63,6 +63,10 @@ public:
 
 	// accessors
 	const vtlb_entry *vtlb_table() const;
+	vtlb_entry       *vtlb_table();
+	offs_t           *vtlb_live();
+	int              *vtlb_dynindex();
+	const int        vtlb_dynamic_count() const;
 
 protected:
 	// interface-level overrides
