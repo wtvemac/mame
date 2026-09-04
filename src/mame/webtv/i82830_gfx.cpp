@@ -706,11 +706,7 @@ void i82830_graphics_device::mm_block_w(offs_t offset, uint32_t data)
 			break;
 
 		case i82830_graphics_device::MM_CNTL_IIR:
-			if(m_mm_block[offset] & data)
-			{
-				m_mm_block[offset] &= (~data);
-				m_pirq_w_cb(m_pirq_pin, CLEAR_LINE);
-			}
+			i82830_graphics_device::set_irq(data, CLEAR_LINE);
 			break;
 
 		default:
@@ -882,34 +878,50 @@ void i82830_graphics_device::set_connected_pirq(uint8_t legacy_interrupt_pin, ui
 
 void i82830_graphics_device::vblank_irq(int state)
 {
-/*
-mm_block_w: offset=00070024, data=00000002 [m_test_val_tx=00, m_test_val_tx_bit=08]
-mm_block_r: offset=00070024 [m_test_val_tx=00, m_test_val_tx_bit=08] = 00000002
-mm_block_w: offset=00070024, data=00020002 [m_test_val_tx=00, m_test_val_tx_bit=08]
+	bool can_vblank_assert = false;
 
-IIR—Interrupt Identity Register: mm_block_w: offset=000020a4, data=00000080 [m_test_val_tx=00, m_test_val_tx_bit=08]
-IMR—Interrupt Mask Register: mm_block_r: offset=000020a8 [m_test_val_tx=00, m_test_val_tx_bit=08] = 00000000
-IMR—Interrupt Mask Register: mm_block_w: offset=000020a8, data=00000000 [m_test_val_tx=00, m_test_val_tx_bit=08]
-IER—Interrupt Enable Register: mm_block_w: offset=000020a0, data=00000080 [m_test_val_tx=00, m_test_val_tx_bit=08]
-ISR—Interrupt Status Register: 000020ac
+	can_vblank_assert = (m_mm_block[i82830_graphics_device::MM_DISPLAY_DPLYSTAS] & i82830_graphics_device::GFX_DPLYSTAS_VBLANK_EN);
+	can_vblank_assert = (m_mm_block[i82830_graphics_device::MM_DISPLAY_DPLYSTAS] & i82830_graphics_device::GFX_DPLYSTAS_VBLANK_ASSRT) && can_vblank_assert;
 
-	static constexpr uint32_t MM_CNTL_IER                = 0x020a0;
-	static constexpr uint32_t MM_CNTL_IIR                = 0x020a4;
-	static constexpr uint32_t MM_CNTL_IMR                = 0x020a8;
-	static constexpr uint32_t MM_CNTL_ISR                = 0x020ac;
+	if (can_vblank_assert)
+		i82830_graphics_device::set_irq(i82830_graphics_device::GFX_INT_PRID_VBLANK, ASSERT_LINE);
+}
 
-*/
-	if(m_mm_block[i82830_graphics_device::MM_DISPLAY_DPLYSTAS] & 0x00020002)
+void i82830_graphics_device::set_irq(uint32_t mask, int state)
+{
+	bool irq_enabled = false;
+
+	if (state == ASSERT_LINE)
 	{
-		m_mm_block[i82830_graphics_device::MM_CNTL_IIR] |= 0x80 & (~m_mm_block[i82830_graphics_device::MM_CNTL_IMR]);
+		// Interrupt Mask Register
+		uint32_t filtered_mask = mask & (~m_mm_block[i82830_graphics_device::MM_CNTL_IMR]);
 
-		if(m_mm_block[i82830_graphics_device::MM_CNTL_IER] & 0x80)
+		// Interrupt Identity Register
+		m_mm_block[i82830_graphics_device::MM_CNTL_IIR] |= filtered_mask;
+
+		if (filtered_mask & i82830_graphics_device::GFX_INT_OVR0_FLIP_PENDING)
+			m_mm_block[i82830_graphics_device::MM_CNTL_IIR] &= (~i82830_graphics_device::GFX_INT_OVR0_FLIP_PENDING);
+
+		// Interrupt Enable Register
+		if (m_mm_block[i82830_graphics_device::MM_CNTL_IER] & mask)
 		{
-			m_mm_block[i82830_graphics_device::MM_CNTL_ISR] |= 0x80;
+			// Interrupt Status Register
+			m_mm_block[i82830_graphics_device::MM_CNTL_ISR] |= mask;
 
-
-			if(intr_line > 0 && m_mm_block[i82830_graphics_device::MM_CNTL_IIR] & 0x80)
-				m_pirq_w_cb(m_pirq_pin, ASSERT_LINE);
+			irq_enabled = (filtered_mask != 0);
 		}
 	}
+	else
+	{
+		m_mm_block[i82830_graphics_device::MM_CNTL_IIR] &= (~mask);
+		m_mm_block[i82830_graphics_device::MM_CNTL_ISR] &= (~mask);
+
+		if (mask & i82830_graphics_device::GFX_INT_OVR0_FLIP_PENDING)
+			m_mm_block[i82830_graphics_device::MM_CNTL_IIR] |= i82830_graphics_device::GFX_INT_OVR0_FLIP_PENDING;
+
+		irq_enabled = true;
+	}
+
+	if (irq_enabled && intr_line > 0)
+		m_pirq_w_cb(m_pirq_pin, state);
 }

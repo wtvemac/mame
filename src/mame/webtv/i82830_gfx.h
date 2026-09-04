@@ -28,6 +28,31 @@ public:
 	static constexpr uint32_t GFX_MEM_TYPE_ANY           = 0 << 1;
 	static constexpr uint32_t GFX_MEM_PREFETCHABLE       = 1 << 3;
 
+	static constexpr uint32_t GFX_INT_ERROR             = 1 << 15;
+	static constexpr uint32_t GFX_INT_SYNC_STATUS       = 1 << 12;
+	static constexpr uint32_t GFX_INT_PRID_FLIP_PENDING = 1 << 11;
+	static constexpr uint32_t GFX_INT_SECD_FLIP_PENDING = 1 << 10;
+	static constexpr uint32_t GFX_INT_OVR0_FLIP_PENDING = 1 << 9;
+	static constexpr uint32_t GFX_INT_OVR1_FLIP_PENDING = 1 << 8;
+	static constexpr uint32_t GFX_INT_PRID_VBLANK       = 1 << 7;
+	static constexpr uint32_t GFX_INT_PRID_EVENT        = 1 << 6;
+	static constexpr uint32_t GFX_INT_SECD_VBLANK       = 1 << 5;
+	static constexpr uint32_t GFX_INT_SECD_EVENT        = 1 << 4;
+	static constexpr uint32_t GFX_INT_PORT_EVENT        = 1 << 3;
+	static constexpr uint32_t GFX_INT_CAPT_EVENT        = 1 << 2;
+	static constexpr uint32_t GFX_INT_USER_INT          = 1 << 1;
+	static constexpr uint32_t GFX_INT_BREAKPOINT        = 1 << 0;
+
+	static constexpr uint32_t GFX_DPLYSTAS_LINECOMP_EN         = 1 << 24;
+	static constexpr uint32_t GFX_DPLYSTAS_VBLANK_EN           = 1 << 17;
+	static constexpr uint32_t GFX_DPLYSTAS_OVR_UPDATE_EN       = 1 << 16;
+	static constexpr uint32_t GFX_DPLYSTAS_FP_HPLUG_ASSRT      = 1 << 15;
+	static constexpr uint32_t GFX_DPLYSTAS_FP_HPLUG_EDGE_ASSRT = 1 << 10;
+	static constexpr uint32_t GFX_DPLYSTAS_VSYNC_ASSRT         = 1 << 9;
+	static constexpr uint32_t GFX_DPLYSTAS_LINECOMP_ASSRT      = 1 << 8;
+	static constexpr uint32_t GFX_DPLYSTAS_VBLANK_ASSRT        = 1 << 1;
+	static constexpr uint32_t GFX_DPLYSTAS_OVR_UPDATE_ASSRT    = 1 << 0;
+
 	static constexpr uint32_t MM_SIZE                     = 0x80000; // 512kB
 
 	// Instruction and Interrupt Control Registers (0x01000h-0x02FFF)
@@ -382,6 +407,7 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void vblank_irq(int state);
+	void set_irq(uint32_t mask, int state);
 
 };
 
