@@ -286,9 +286,6 @@ void i82830_graphics_device::instruction_buffer_skip(ins_parser_state_t* parser_
 
 bool i82830_graphics_device::execute_ps_instruction(uint32_t instruction, ins_parser_state_t* parser_state)
 {
-	// [:pci:02.0] Unknown parser graphics instruction: 08a00000
-	// [:pci:02.0] Unknown parser graphics instruction: 03136001
-
 	switch(instruction & i82830_graphics_device::MI_PS_SUBTYPE_MASK)
 	{
 		case MI_PS_CMD_NOP_IDENTIFICATION:
@@ -301,6 +298,12 @@ bool i82830_graphics_device::execute_ps_instruction(uint32_t instruction, ins_pa
 
 		case MI_PS_CMD_FLUSH:
 			// EMAC(NOTE): not implemented
+			return true;
+
+		case MI_PS_CMD_OVERLAY_FLIP:
+			//uint32_t address = i82830_graphics_device::instruction_buffer_shift(parser_state);
+			i82830_graphics_device::instruction_buffer_skip(parser_state, 1);
+			i82830_graphics_device::set_irq(i82830_graphics_device::GFX_INT_OVR0_FLIP_PENDING, ASSERT_LINE);
 			return true;
 
 		case MI_PS_CMD_LOAD_SCAN_LINES_INCL:
@@ -878,6 +881,9 @@ void i82830_graphics_device::set_connected_pirq(uint8_t legacy_interrupt_pin, ui
 
 void i82830_graphics_device::vblank_irq(int state)
 {
+	i82830_graphics_device::set_irq(i82830_graphics_device::GFX_INT_OVR0_FLIP_PENDING, CLEAR_LINE);
+	m_mm_block[MM_OVERLAY_DOVOSTA] |= i82830_graphics_device::GFX_OVR_IDLE;
+
 	bool can_vblank_assert = false;
 
 	can_vblank_assert = (m_mm_block[i82830_graphics_device::MM_DISPLAY_DPLYSTAS] & i82830_graphics_device::GFX_DPLYSTAS_VBLANK_EN);
