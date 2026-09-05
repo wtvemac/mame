@@ -53,6 +53,14 @@ public:
 	static constexpr uint32_t GFX_DPLYSTAS_VBLANK_ASSRT        = 1 << 1;
 	static constexpr uint32_t GFX_DPLYSTAS_OVR_UPDATE_ASSRT    = 1 << 0;
 
+	static constexpr uint32_t GFX_OVR_IDLE             = 1 << 31;
+	static constexpr uint32_t GFX_OVR_O0_BUFFER1       = 1 << 20;
+	static constexpr uint32_t GFX_OVR_O0_FIELD1        = 1 << 19;
+	static constexpr uint32_t GFX_OVR_STS_LINE_ACTIVE  = 1 << 14;
+	static constexpr uint32_t GFX_OVR_STS_LINENO_SHIFT = 0;
+	static constexpr uint32_t GFX_OVR_STS_LINENO_MAX   = 0x800;
+	static constexpr uint32_t GFX_OVR_STS_LINENO_MASK  = (i82830_graphics_device::GFX_OVR_STS_LINENO_MAX - 1) << i82830_graphics_device::GFX_OVR_STS_LINENO_SHIFT;
+
 	static constexpr uint32_t MM_SIZE                     = 0x80000; // 512kB
 
 	// Instruction and Interrupt Control Registers (0x01000h-0x02FFF)
@@ -227,6 +235,7 @@ public:
 	static constexpr uint32_t MI_PS_CMD_NOP_IDENTIFICATION             = 0x00000000;
 	static constexpr uint32_t MI_PS_CMD_WAIT_FOR_EVENT                 = 0x01800000;
 	static constexpr uint32_t MI_PS_CMD_FLUSH                          = 0x02000000;
+	static constexpr uint32_t MI_PS_CMD_OVERLAY_FLIP                   = 0x08800000;
 	static constexpr uint32_t MI_PS_CMD_LOAD_SCAN_LINES_INCL           = 0x09000000;
 	static constexpr uint32_t MI_PS_CMD_SET_CONTEXT                    = 0x0c000000;
 	static constexpr uint32_t MI_PS_CMD_STORE_DWORD_IMM                = 0x10800000;
