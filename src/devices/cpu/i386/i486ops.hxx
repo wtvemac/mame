@@ -331,6 +331,7 @@ void i386_device::i486_group0F01_16()      // Opcode 0x0f 01
 				ea = GetEA(modrm,-1);
 				CYCLES(25); // TODO: add to cycles.h
 				vtlb_flush_address(ea);
+				m_core->drc_cache_dirty = true;
 				break;
 			}
 		default:
@@ -449,6 +450,7 @@ void i386_device::i486_group0F01_32()      // Opcode 0x0f 01
 				ea = GetEA(modrm,-1);
 				CYCLES(25); // TODO: add to cycles.h
 				vtlb_flush_address(ea);
+				m_core->drc_cache_dirty = true;
 				break;
 			}
 		default:
@@ -518,7 +520,10 @@ void i386_device::i486_mov_cr_r32()        // Opcode 0x0f 22
 		case 0:
 			CYCLES(CYCLES_MOV_REG_CR0);
 			if((oldcr ^ m_core->cr[cr]) & (CR0_PG | CR0_WP))
+			{
 				vtlb_flush_dynamic();
+				m_core->drc_cache_dirty = true;
+			}
 			if (PROTECTED_MODE != BIT(data, 0))
 				debugger_privilege_hook();
 			break;
@@ -526,6 +531,7 @@ void i386_device::i486_mov_cr_r32()        // Opcode 0x0f 22
 		case 3:
 			CYCLES(CYCLES_MOV_REG_CR3);
 			vtlb_flush_dynamic();
+			m_core->drc_cache_dirty = true;
 			break;
 		case 4: CYCLES(1); break; // TODO
 		default:

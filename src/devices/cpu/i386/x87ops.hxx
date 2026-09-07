@@ -5511,6 +5511,9 @@ void i386_device::build_x87_opcode_table()
 	build_x87_opcode_table_dd();
 	build_x87_opcode_table_de();
 	build_x87_opcode_table_df();
+
+	if (m_drc_enabled)
+		build_drc_x87_table();
 }
 
 

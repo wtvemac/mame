@@ -19,12 +19,14 @@
 */
 
 #include "emu.h"
+#include "cpu/drcfe.ipp"
 #include "emuopts.h"
 #include "i386.h"
 #include "i386priv.h"
 #include "x87priv.h"
 #include "cycles.h"
 #include "i386ops.h"
+#include "drc_i386fe.h"
 
 #include "debug/debugcpu.h"
 #include "debug/express.h"
@@ -77,9 +79,14 @@ i386_device::i386_device(const machine_config &mconfig, device_type type, const 
 	, m_smiact(*this)
 	, m_ferr_handler(*this)
 	, m_drc_cache(std::make_unique<drc_cache>(DRC_CACHE_SIZE))
+	, m_drc_options(i386_device::I386DRC_SAFE_OPTIONS)
 {
 	// 32 unified
 	set_vtlb_dynamic_entries(32);
+}
+
+i386_device::~i386_device()
+{
 }
 
 i386sx_device::i386sx_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
@@ -1951,10 +1958,7 @@ void i386_device::i386_common_init()
 {
 	int i, j;
 
-	m_drc_cache->allocate_cache(mconfig().options().drc_rwx());
-	m_core = m_drc_cache->alloc_near<internal_i386_state>();
-	if (!m_core)
-		fatalerror("i386 DRC: failed to allocate state in near cache\n");
+	init_drc();
 
 	static const int regs8[8] = {AL,CL,DL,BL,AH,CH,DH,BH};
 	static const int regs16[8] = {AX,CX,DX,BX,SP,BP,SI,DI};
@@ -1995,6 +1999,17 @@ void i386_device::i386_common_init()
 	m_core->smi = false;
 	m_debugger_temp = 0;
 	m_lock = false;
+
+	m_diag_ramlog_epoch = 0;
+	m_diag_fastram_acnt = 0;
+	m_diag_fastram_adur = 0;
+	m_diag_slowram_acnt = 0;
+	m_diag_slowram_adur = 0;
+	m_last_ramdiag_print = std::time(nullptr);
+
+	m_diag_itotal_acnt = 0;
+	m_diag_ifallback_acnt = 0;
+	m_last_ifallbackdiag_print = std::time(nullptr);
 
 	zero_state();
 
@@ -2076,7 +2091,12 @@ void i386_device::i386_common_init()
 	m_ferr_handler(0);
 
 	set_icountptr(m_core->cycles);
-	m_notifier = m_program->add_change_notifier([this] (read_or_write mode) { dri_changed(); });
+	m_notifier = m_program->add_change_notifier([this] (read_or_write mode) {
+		dri_changed();
+
+		if (!(m_drc_options & I386DRC_SKIP_IOCHECKS))
+			m_core->drc_cache_dirty = true;
+	});
 }
 
 void i386_device::device_start()
@@ -2350,6 +2370,8 @@ void i386_device::state_string_export(const device_state_entry &entry, std::stri
 
 void i386_device::build_opcode_table(uint32_t features)
 {
+	m_features = features;
+
 	int i;
 	for (i=0; i < 256; i++)
 	{
@@ -2439,6 +2461,9 @@ void i386_device::build_opcode_table(uint32_t features)
 			}
 		}
 	}
+
+	if (m_drc_enabled)
+		build_drc_opcode_table(features);
 }
 
 void i386_device::zero_state()
@@ -2663,7 +2688,15 @@ void i386_device::leave_smm()
 	REG32(EDI) = READ32(smram_state + SMRAM_EDI);
 	m_core->eip = READ32(smram_state + SMRAM_EIP);
 	m_core->eflags = READ32(smram_state + SMRAM_EFLAGS);
+
+	uint32_t oldcr3 = m_core->cr[3];
 	m_core->cr[3] = READ32(smram_state + SMRAM_CR3);
+	if (oldcr3 != m_core->cr[3])
+	{
+		vtlb_flush_dynamic();
+		m_core->drc_cache_dirty = true;
+	}
+
 	m_core->cr[0] = READ32(smram_state + SMRAM_CR0);
 
 	m_core->CPL = (m_core->sreg[SS].flags >> 5) & 3; // cpl == dpl of ss
@@ -2749,10 +2782,17 @@ void i386_device::i386_set_a20_line(int state)
 	}
 	// TODO: how does A20M and the tlb interact
 	vtlb_flush_dynamic();
+	m_core->drc_cache_dirty = true;
 }
 
 void i386_device::execute_run()
 {
+	if (m_drc_enabled)
+	{
+		execute_run_drc();
+		return;
+	}
+
 	int cycles = m_core->cycles;
 	m_core->base_cycles = cycles;
 	CHANGE_PC(m_core->eip);

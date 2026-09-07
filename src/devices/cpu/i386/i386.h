@@ -10,6 +10,10 @@
 #include "divtlb.h"
 #include "softfloat3/source/include/softfloat.h"
 #include <algorithm>
+#include <array>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 
 #define INPUT_LINE_A20      1
@@ -27,6 +31,8 @@ public:
 	// construction/destruction
 	i386_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	virtual ~i386_device();
+
 	// configuration helpers
 	auto smiact() { return m_smiact.bind(); }
 	auto ferr() { return m_ferr_handler.bind(); }
@@ -37,7 +43,102 @@ public:
 	uint64_t debug_virttophys(int params, const uint64_t *param);
 	uint64_t debug_cacheflush(int params, const uint64_t *param);
 
-	void drc_set_cache_size(std::size_t bytes) { m_drc_cache->set_size(bytes); }
+	// Defer flag calculations until they're needed
+	static constexpr uint32_t I386DRC_LAZY_FLAGS         = 0x00000001;
+	// Inline lazy flag evaluation rather than using shared invariant code with a JMPT
+	// guest code will run faster but will increase the need for DRC cache. Use if DRC cache size isn't an issue.
+	static constexpr uint32_t I386DRC_INLINE_LAZY_FLAGS  = 0x00000002;
+	// Self-modified-code check during non-page mode using content checksum
+	static constexpr uint32_t I386DRC_SMC_CHECK_NCONT    = 0x00000004;
+	// Self-modified-code check during page mode using content checksum
+	static constexpr uint32_t I386DRC_SMC_CHECK_PCONT    = 0x00000008;
+	// Self-modified-code check during page mode using faster page variant check
+	static constexpr uint32_t I386DRC_SMC_CHECK_PVARI    = 0x00000010;
+	// Use inlined fastram accessors in some hot code paths that already have TLB-resolved addresses
+	static constexpr uint32_t I386DRC_INLINE_FASTRAM     = 0x00000020;
+	// Use vector instructions in the backend to execute REP instructions. Only available on fastram entries.
+	static constexpr uint32_t I386DRC_REP_VECTOR         = 0x00000040;
+	// Use prefetch on the host processor (x64 only) for REP instructions. Only available on fastram entries.
+	static constexpr uint32_t I386DRC_REP_PREFETCH       = 0x00000080;
+	// Don't use intrablock branching
+	static constexpr uint32_t I386DRC_DISABLE_INTRABLOCK = 0x00000100;
+	// Causes memory accessor blocks only to be cached once (but prevents fastram modification after start)
+	static constexpr uint32_t I386DRC_INVARIANT_FASTRAM  = 0x00000200;
+	// Skip the A20 mask steps
+	static constexpr uint32_t I386DRC_SKIP_A20MASK       = 0x000000400;
+	// Skip the IN/OUT CPL>IOPL / V8086 privilege check and IO remap check (to clear DRC cache)
+	static constexpr uint32_t I386DRC_SKIP_IOCHECKS      = 0x00000800;
+	// Skip the limit, expand down and access checks during stack operations
+	static constexpr uint32_t I386DRC_SKIP_STACKCHECKS   = 0x00001000;
+
+	// Options that have a high chance of guest code working but it may not be fast.
+	static constexpr uint32_t I386DRC_SAFE_OPTIONS    = (I386DRC_SMC_CHECK_NCONT | I386DRC_SMC_CHECK_PCONT);
+	// Options that lean towards faster implementations but still trying to be correct
+	static constexpr uint32_t I386DRC_FAST_OPTIONS    = (I386DRC_INLINE_FASTRAM | I386DRC_REP_VECTOR | I386DRC_REP_PREFETCH | I386DRC_INVARIANT_FASTRAM);
+	// Options that prefer performance over correctness.
+	static constexpr uint32_t I386DRC_FASTEST_OPTIONS = I386DRC_FAST_OPTIONS | (I386DRC_LAZY_FLAGS | I386DRC_INLINE_LAZY_FLAGS) | (I386DRC_SKIP_A20MASK | I386DRC_SKIP_IOCHECKS | I386DRC_SKIP_STACKCHECKS);
+
+	void drc_set_cache_size(std::size_t bytes)
+	{
+		m_drc_cache->set_size(bytes);
+	}
+	void     drc_set_options(uint32_t options);
+	uint32_t drc_get_options();
+	void     i386drc_add_fastram(offs_t start, offs_t end, bool readonly, void *base, uint32_t access_size = 0, const offs_t *excluded = nullptr, uint32_t excluded_count = 0, bool reg32_write_only = false, bool virtual_base = false);
+	void     i386drc_add_fastpaged(offs_t start, offs_t end, uint32_t *page_table, uint32_t page_table_mask, uint32_t page_index_base, uint32_t page_shift, uint32_t page_offset_mask, uint32_t page_valid_bit, uint32_t *ram_base, uint32_t ram_limit, uint32_t access_size = 0);
+	void     clear_fastram(uint32_t select_start = 0);
+	void     clear_fastpaged(uint32_t select_start = 0);
+
+	void func_log_instruction_exec();
+	void drc_stack_fault_ss_cb();
+	void drc_stack_fault_gp_cb();
+
+	// DRC core
+	void drc_interpreter_step_one();
+	void func_log_printf();
+	void func_printf_ramdiag();
+	void func_ramlog_epoch();
+	void func_log_fastram();
+	void func_log_slowram();
+	void func_printf_ifallbackdiag();
+	// DRC memory
+	void drc_tlb_fault_cb();
+	// DRC IRQ
+	void drc_check_irq_native_cb();
+	void drc_deliver_irq_vector_cb();
+	void drc_get_irq_vector_cb();
+	// DRC segments
+	void drc_mov_to_sreg_cb();
+	void drc_lldt_cb();
+	void drc_ltr_cb();
+	void drc_verr_cb();
+	void drc_verw_cb();
+	// DRC I/O, system management, cpuid
+	void drc_flush_tlb_cb();
+	void drc_invlpg_cb();
+	void drc_write_cr0_cb();
+	void drc_write_cr4_cb();
+	void drc_lmsw_cb();
+	void drc_cpuid_cb();
+	void drc_rdmsr_cb();
+	void drc_wrmsr_cb();
+	// DRC x87 operations
+	void drc_x87_interpreter_cb(uint8_t group_op);
+	void drc_wait_cb();
+	void x87_drc_check_exceptions_cb();
+	void x87_drc_check_exceptions_store_cb();
+	void x87_drc_add_cb();
+	void x87_drc_sub_cb();
+	void x87_drc_mul_cb();
+	void x87_drc_div_cb();
+	void x87_drc_load_f32_cb();
+	void x87_drc_load_f64_cb();
+	void x87_drc_store_f32_cb();
+	void x87_drc_store_f64_cb();
+	void x87_drc_load_arith_b_f32_cb();
+	void x87_drc_load_i32_cb();
+	// DRC Pentium operations
+	void drc_mmx_nm_trap_cb();
 
 protected:
 	i386_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, int program_data_width, int program_addr_width, int io_data_width);
@@ -371,6 +472,8 @@ protected:
 
 	uint64_t m_debugger_temp;
 
+	uint32_t m_features;
+
 	struct internal_i386_state {
 		uint32_t pc;
 		uint32_t eip;
@@ -379,6 +482,8 @@ protected:
 		int      cycles;
 		int      base_cycles;
 		uint64_t tsc;
+		// Similar to pending_cycles in compiler_state but used in invariant code (compiler_state isn't passed)
+		int      pending_cycles;
 
 		I386_GPR reg;
 
@@ -403,16 +508,72 @@ protected:
 		uint32_t VIP;  // Virtual interrupt pending
 		uint32_t ID;   // Identification flag
 
+		uint32_t flags_data_a;
+		uint32_t flags_data_b;
+		uint32_t flags_carry;
+		uint32_t flags_optype;
+		uint32_t flags_of_direct;
+		uint32_t flags_cc;
+
 		uint32_t CPL;  // current privilege level
 
 		uint32_t cr[5]; // Control registers
 		uint32_t dr[8]; // Debug registers
 		uint32_t tr[8]; // Test registers
 
+		uint32_t page_invalidate_addr;
+		uint32_t page_invalidate_mode;
+		uint32_t tlb_miss_faulted;
+		uint32_t tlb_fault_code;
+
+		uint32_t tw_pde;
+		uint32_t tw_pte;
+		uint32_t tw_perm;
+		uint32_t tw_is4m;
+		uint32_t tw_scratch;
+		uint32_t tw_supervisor_read;
+
+		uint32_t mem_laddr;
+		uint32_t mem_paddr;
+		bool     mem_iswrite;
+
+		uint32_t data32;
+		uint32_t data16;
+		uint32_t data8;
+		uint64_t data64;
+		uint8_t data128[16];
+
+		uint32_t rep_chunked_physstart;
+		uint32_t rep_chunked_bytes;
+		uint32_t rep_chunked_fillvalue;
+		uint32_t rep_chunked_pending_region;
+		uint32_t rep_chunked_src_physstart;
+		uint32_t rep_chunked_dst_physstart;
+		uint32_t rep_chunked_movs_bytes;
+		uint32_t rep_chunked_pending_src_region;
+		uint32_t rep_chunked_pending_dst_region;
+
+
 		uint32_t irq_state;
 		uint32_t ext;  // external interrupt
 		uint32_t delayed_interrupt_enable;
 		uint32_t performed_intersegment_jump;
+
+		uint32_t irq_vector_pending;
+		uint32_t irq_gate_is_trap;
+		uint32_t irq_old_cs_selector;
+		uint32_t irq_old_ss_selector;
+		uint32_t irq_old_esp;
+		uint32_t soft_int_vector;
+		uint32_t soft_int_ret_eip;
+
+		uint32_t ctl_target_dpl;
+		uint32_t ctl_new_ss;
+		uint32_t ctl_new_esp;
+		uint32_t ctl_newflags;
+		uint32_t ctl_new_cs;
+		uint32_t ctl_new_eip;
+		uint32_t ctl_pop_count;
 
 		I386_SREG sreg[6]; // ES=0,CS=1,SS=2,DS=3,FS=4,GS=5
 
@@ -436,15 +597,693 @@ protected:
 		uint32_t x87_cs;
 		uint32_t x87_inst_ptr;
 		uint32_t x87_opcode;
+
+		extFloat80_t x87_data_a;
+		extFloat80_t x87_data_b;
+		extFloat80_t x87_data_result;
+		uint32_t     x87_check_result;
+
+		uint32_t drc_cache_dirty;
+		uint32_t drc_cached_invariant;
+
+		uint64_t mem_diag_addr;
+		uint32_t mem_diag_is_write;
+
+		uint32_t drc_ifallback_start_pc;
+
+		uint32_t drc_debug_arg0;
+		uint32_t drc_debug_arg1;
+		uint32_t drc_debug_arg2;
 	};
 	internal_i386_state *m_core;
 
-	std::unique_ptr<drc_cache> m_drc_cache;
+	bool m_drc_enabled;
 
 	enum : size_t
 	{
-		DRC_CACHE_SIZE = 32U * 1024 * 1024
+		DRC_CACHE_SIZE = 32 * 1024 * 1024
 	};
+
+	class opcode_desc;
+	class frontend;
+	struct compiler_state;
+
+	std::unique_ptr<drc_cache>    m_drc_cache;
+	std::unique_ptr<drcuml_state> m_drc_uml;
+	std::unique_ptr<frontend>     m_drcfe;
+
+	static constexpr int    I386DRC_COMPILE_BACKWARDS_BYTES = 128;
+	static constexpr int    I386DRC_COMPILE_FORWARDS_BYTES  = 512;
+	static constexpr int    I386DRC_COMPILE_MAX_SEQUENCE    = 64;
+	static constexpr size_t I386DRC_MAX_PAGE_VARIANTS       = 4;
+	// How many CMP/JMP to chain rather than a direct memory lookup jmp
+	// Mainly for branch predictor optimization
+	static constexpr size_t   I386DRC_JMPT_REC_CHAIN_COUNT  = 0;
+	static constexpr size_t   I386DRC_JMPT_MAT_CHAIN_COUNT  = 1;
+	static constexpr int      VEC_OP_PC_RING_SIZE           = 10;
+	static constexpr uint32_t I386_MAX_FASTRAM              = 4;
+	static constexpr uint32_t I386_MAX_FASTPAGED            = 2;
+	static constexpr uint32_t FASTRAM_MAX_EXCLUDED          = 16;
+
+	uint32_t m_drc_options;
+
+	uml::code_handle *m_entry                           = nullptr;
+	uml::code_handle *m_nocode                          = nullptr;
+	uml::code_handle *m_cachefault                      = nullptr;
+	uml::code_handle *m_fault                           = nullptr;
+	uml::code_handle *m_out_of_cycles                   = nullptr;
+	uml::code_handle *m_flags_eval_cc                   = nullptr;
+	uml::code_handle *m_flags_eval_all                  = nullptr;
+	uml::code_handle *m_push32                          = nullptr;
+	uml::code_handle *m_pop32                           = nullptr;
+	uml::code_handle *m_pack_eflags                     = nullptr;
+	uml::code_handle *m_read_descriptor                 = nullptr;
+	uml::code_handle *m_commit_cs_same_priv             = nullptr;
+	uml::code_handle *m_write_descriptor_accessed       = nullptr;
+	uml::code_handle *m_unpack_descriptor_limit_base    = nullptr;
+	uml::code_handle *m_irq_deliver_protected_same_priv = nullptr;
+	uml::code_handle *m_soft_int_deliver_protected      = nullptr;
+	uml::code_handle *m_iret_protected                  = nullptr;
+	uml::code_handle *m_retf_protected                  = nullptr;
+	uml::code_handle *m_resolve_tlb                     = nullptr;
+	uml::code_handle *m_mem_read8                       = nullptr;
+	uml::code_handle *m_mem_read16                      = nullptr;
+	uml::code_handle *m_mem_read32                      = nullptr;
+	uml::code_handle *m_mem_write8                      = nullptr;
+	uml::code_handle *m_mem_write16                     = nullptr;
+	uml::code_handle *m_mem_write32                     = nullptr;
+	uml::code_handle *m_mem_read64                      = nullptr;
+	uml::code_handle *m_mem_write64                     = nullptr;
+	uml::code_handle *m_mem_read128                     = nullptr;
+	uml::code_handle *m_mem_write128                    = nullptr;
+
+	struct fastram_entry
+	{
+		offs_t   start;
+		offs_t   end;
+		bool     readonly;
+		void    *base;
+		uint32_t access_size                    = 0;
+		uint32_t excluded_count                 = 0;
+		offs_t   excluded[FASTRAM_MAX_EXCLUDED] = {};
+		bool     reg32_write_only               = false;
+		bool     virtual_base                   = false;
+	};
+	fastram_entry m_fastram[I386_MAX_FASTRAM];
+	uint32_t      m_fastram_select = 0;
+
+	struct fastpaged_entry
+	{
+		offs_t    start, end;
+		uint32_t *page_table;
+		uint32_t  page_table_mask;
+		uint32_t  page_index_base;
+		uint32_t  page_shift;
+		uint32_t  page_offset_mask;
+		uint32_t  page_valid_bit;
+		uint32_t *ram_base;
+		uint32_t  ram_limit;
+		uint32_t  access_size = 0;
+	};
+	fastpaged_entry m_fastpaged[I386_MAX_FASTPAGED];
+	uint32_t        m_fastpaged_select = 0;
+
+	struct page_variant_entry
+	{
+		uint32_t   physical_page;
+		uint32_t   checkval;
+		drccodeptr entry;
+	};
+	std::unordered_map<offs_t, std::vector<page_variant_entry>> m_page_variants;
+
+	enum : int
+	{
+		EXECUTE_OUT_OF_CYCLES = 0,
+		EXECUTE_MISSING_CODE  = 1,
+		EXECUTE_UNMAPPED_CODE = 2,
+		EXECUTE_RESET_CACHE   = 3,
+		EXECUTE_CACHE_FAULT   = 4,
+		EXECUTE_FAULT         = 5
+	};
+
+	static constexpr auto interpreter_fallback = nullptr;
+
+	using drc_op_func = bool (i386_device::*)(compiler_state &ctx);
+	struct DRC_OPCODE
+	{
+		uint8_t     opcode    = 0x00;
+		uint32_t    flags     = 0;
+		drc_op_func handler16 = interpreter_fallback;
+		drc_op_func handler32 = interpreter_fallback;
+		uint32_t    drc_flags = 0;
+	};
+	static const DRC_OPCODE s_drc_opcode_table[];
+
+	struct drc_dispatch_t
+	{
+		drc_op_func handler16 = interpreter_fallback;
+		drc_op_func handler32 = interpreter_fallback;
+		uint32_t    drc_flags = 0;
+	};
+	drc_dispatch_t m_drc_sel_pri_table[256];
+	drc_dispatch_t m_drc_sel_x0f_table[256];
+
+	using drc_gen_ea_func  = void (i386_device::*)(compiler_state &ctx);
+	using drc_skip_ea_func = void (i386_device::*)(compiler_state &ctx);
+
+	using drc_x87_func = bool (i386_device::*)(compiler_state &ctx, uint8_t modrm);
+	drc_x87_func m_drc_x87_table_d8[256];
+	drc_x87_func m_drc_x87_table_d9[256];
+	drc_x87_func m_drc_x87_table_da[256];
+	drc_x87_func m_drc_x87_table_db[256];
+	drc_x87_func m_drc_x87_table_dc[256];
+	drc_x87_func m_drc_x87_table_dd[256];
+	drc_x87_func m_drc_x87_table_de[256];
+	drc_x87_func m_drc_x87_table_df[256];
+
+	uint64_t m_diag_ramlog_epoch;
+	uint64_t m_diag_fastram_acnt;
+	uint64_t m_diag_fastram_adur;
+	uint64_t m_diag_slowram_acnt;
+	uint64_t m_diag_slowram_adur;
+	struct diag_addr_entry
+	{
+		uint64_t acnt    = 0;
+		uint64_t adur    = 0;
+		uint32_t last_pc = 0;
+	};
+	std::unordered_map<uintptr_t, diag_addr_entry> m_diag_slowram_alog;
+	std::time_t                                    m_last_ramdiag_print;
+
+	uint64_t m_diag_itotal_acnt;
+	uint64_t m_diag_ifallback_acnt;
+	struct diag_ifallback_entry
+	{
+		uint64_t acnt     = 0;
+		uint32_t last_pc  = 0;
+		uint8_t  bytes[6] = { 0 };
+	};
+	std::unordered_map<uint32_t, diag_ifallback_entry> m_diag_ifallback_alog;
+	std::time_t                                        m_last_ifallbackdiag_print;
+
+	// DRC core
+	template <void (i386_device::*Fn)()> static void cfunc_run_interp(void *p);
+	template <void (i386_device::*Fn)()> static void cfunc_callback(void *p);
+	template <typename Body> inline void             drc_catch_fault_inplace(Body &&body);
+	template <typename Body> inline void             drc_catch_fault_inplace_sync(Body &&body);
+
+	void           init_drc();
+	void           execute_run_drc();
+	void           code_flush_cache();
+	void           generate_invariant();
+	void           static_generate_entry_point(drcuml_block &b);
+	void           static_generate_nocode_handler(drcuml_block &b);
+	void           static_generate_cachefault_handler(drcuml_block &b);
+	void           static_generate_fault_handler(drcuml_block &b);
+	void           static_generate_out_of_cycles(drcuml_block &b);
+	void           code_compile_block(uint8_t mode, offs_t pc, int compile_reason);
+	bool           generate_sequence_instruction(compiler_state &ctx, uint32_t &page_offset, opcode_desc const *desc);
+	void           build_drc_opcode_table(uint32_t features);
+	bool           drc_dispatch_one(compiler_state &ctx, opcode_desc const *desc);
+	bool           fastram_excluded_compare(const offs_t *a, int acount, const offs_t *b, int bcount);
+	uint32_t       drc_page_variant_checkval(offs_t pc);
+	void           drc_gen_page_check(compiler_state &ctx);
+	uint32_t       drc_content_checkval(offs_t pc);
+	void           drc_gen_content_check(compiler_state &ctx);
+	compiler_state drc_create_compiler_state(drcuml_block &b, int &label_ctr, offs_t pc, offs_t eip, uint8_t mode);
+	bool           drc_gen_control_transfer_cb(compiler_state &ctx, offs_t &cursor, void (*cfunc)(void *), void *param, bool end_block = true);
+	bool           drc_gen_interpreter_fallback(compiler_state &ctx);
+	void           drc_gen_fault_inplace_check(compiler_state &ctx);
+	void           drc_enter_interpreter();
+	void           drc_leave_interpreter();
+	void           drc_record_cycles(compiler_state &ctx, int cycles_id);
+	void           drc_flush_cycles(compiler_state &ctx);
+	uint8_t        drc_get_modrm(compiler_state &ctx);
+	uint8_t        drc_get_imm8(compiler_state &ctx);
+	uint16_t       drc_get_imm16(compiler_state &ctx);
+	uint32_t       drc_get_imm32(compiler_state &ctx);
+	void           drc_gen_ea16(compiler_state &ctx);
+	void           drc_gen_ea32(compiler_state &ctx);
+	void           drc_skip_ea16(compiler_state &ctx);
+	void           drc_skip_ea32(compiler_state &ctx);
+	void           drc_gen_rm8(compiler_state &ctx, uint8_t modrm);
+	void           drc_gen_rm16(compiler_state &ctx, uint8_t modrm);
+	void           drc_gen_rm32(compiler_state &ctx, uint8_t modrm);
+	std::string    drc_log_disasm_one(offs_t pc, uint32_t length);
+	std::string    drc_log_desc_flags(opcode_desc const &desc);
+	void           drc_log_opcode_desc(opcode_desc const *desclist, int indent);
+	void           drc_log_add_disasm_comment(drcuml_block &block, opcode_desc const *desc);
+	void           drc_add_symbols();
+	uint8_t        drc_diag_read_byte(offs_t address);
+	uint32_t       drc_compute_fallback_key(offs_t pc);
+	void           func_log_fallback_exec(offs_t pc);
+	// DRC memory operations
+	void     static_generate_memory_accessors();
+	void     static_generate_memory_accessor(int size, bool iswrite, const char *name, uml::code_handle *&handleptr);
+	void     static_generate_resolve_tlb();
+	void     allocate_memory_accessors();
+	void    *drc_try_fastram(offs_t address, uint32_t size, bool iswrite);
+	uint8_t  drc_fetch8(offs_t &cursor);
+	uint8_t  drc_peek8(offs_t cursor);
+	uint8_t  drc_fetch8inter();
+	uint16_t drc_fetch16(offs_t &cursor);
+	uint16_t drc_peek16(offs_t cursor);
+	uint32_t drc_fetch32(offs_t &cursor);
+	uint32_t drc_peek32(offs_t cursor);
+	uint32_t drc_peek32phys(offs_t physical_address);
+	uint32_t drc_resolve_tlb_page(offs_t address);
+	void     drc_gen_inline_fastram32(drcuml_block &b, int &label_ctr, const uml::parameter &addr, const uml::parameter &data, const uml::code_label done, bool iswrite);
+	void     drc_gen_privileged_read32(drcuml_block &b, int &label_ctr, const uml::parameter dest, const uml::parameter addr, const uml::parameter scratch, const uml::code_label take_slow);
+	void     drc_gen_privileged_walk(drcuml_block &b, int &label_ctr, const uml::parameter address, const uml::parameter phys_out, const uml::code_label take_slow);
+	void     drc_gen_privileged_read32walk(drcuml_block &b, int &label_ctr, const uml::parameter dest, const uml::parameter address, const uml::code_label take_slow);
+	void     drc_gen_fastram_memory_access(drcuml_block &b, int &label_ctr, const uml::parameter &addr, const uml::parameter &data, uint32_t size, bool iswrite);
+	void     drc_gen_fastpaged_memory_access(drcuml_block &b, int &label_ctr, const uml::parameter &addr, const uml::parameter &data, uint32_t size, bool iswrite);
+	void     drc_gen_addrspace_memory_access(drcuml_block &b, int &label_ctr, const uml::parameter &addr, const uml::parameter &data, uint32_t size, bool iswrite);
+	void     drc_gen_cross_page_memory_access(drcuml_block &b, const uml::parameter &addr, const uml::parameter &data, uint32_t size, bool iswrite);
+	bool     drc_pri_mov_al_m8(compiler_state &ctx);
+	bool     drc_pri_mov_m8_al(compiler_state &ctx);
+	bool     drc_pri_mov_acc_moffs(compiler_state &ctx);
+	bool     drc_pri_mov_acc_moffs16(compiler_state &ctx);
+	bool     drc_pri_mov8(compiler_state &ctx);
+	bool     drc_pri_mov16(compiler_state &ctx);
+	bool     drc_pri_mov32(compiler_state &ctx);
+	bool     drc_pri_mov_r8_imm(compiler_state &ctx);
+	bool     drc_pri_mov_r16_imm(compiler_state &ctx);
+	bool     drc_pri_mov_r32_imm(compiler_state &ctx);
+	bool     drc_pri_mov_rm8_imm(compiler_state &ctx);
+	bool     drc_pri_mov_rm16_imm(compiler_state &ctx);
+	bool     drc_pri_mov_rm32_imm(compiler_state &ctx);
+	bool     drc_pri_mov_from_sreg(compiler_state &ctx);
+	bool     drc_pri_xchg8(compiler_state &ctx);
+	bool     drc_pri_xchg16(compiler_state &ctx);
+	bool     drc_pri_xchg32_reg(compiler_state &ctx);
+	bool     drc_pri_xchg32_modrm(compiler_state &ctx);
+	bool     drc_pri_lea(compiler_state &ctx);
+	bool     drc_x0f_movzx_sx(compiler_state &ctx);
+	bool     drc_x0f_movzx_sx16(compiler_state &ctx);
+	bool     drc_gen_bswap32(compiler_state &ctx);
+	bool     drc_x0f_bswap(compiler_state &ctx);
+	bool     drc_gen_cmovcc(compiler_state &ctx, uint8_t cc);
+	bool     drc_gen_cmovcc16(compiler_state &ctx, uint8_t cc);
+	bool     drc_x0f_cmovcc_32(compiler_state &ctx);
+	bool     drc_x0f_cmovcc_16(compiler_state &ctx);
+	bool     drc_gen_setcc(compiler_state &ctx, uint8_t cc);
+	bool     drc_x0f_setcc_rm8(compiler_state &ctx);
+	bool     drc_pri_xlat(compiler_state &ctx);
+	// DRC ALU / math operations
+	void drc_gen_alu_op(compiler_state &ctx, uint8_t alu_opcode, const uml::parameter lhs, const uml::parameter rhs, const uml::parameter result, int width_bits);
+	bool drc_pri_alu8(compiler_state &ctx);
+	bool drc_gen_alu8_imm(compiler_state &ctx);
+	bool drc_pri_alu_acc_imm(compiler_state &ctx);
+	bool drc_pri_alu16(compiler_state &ctx);
+	bool drc_gen_alu16_imm(compiler_state &ctx);
+	bool drc_pri_alu16_acc_imm(compiler_state &ctx);
+	bool drc_pri_alu32(compiler_state &ctx);
+	bool drc_gen_alu32_imm(compiler_state &ctx);
+	bool drc_pri_test8(compiler_state &ctx);
+	bool drc_pri_test16(compiler_state &ctx);
+	bool drc_pri_test32(compiler_state &ctx);
+	bool drc_pri_test_acc_imm16(compiler_state &ctx);
+	bool drc_pri_test_acc_imm32(compiler_state &ctx);
+	bool drc_pri_group81_32(compiler_state &ctx);
+	bool drc_pri_group81_16(compiler_state &ctx);
+	bool drc_pri_group83_32(compiler_state &ctx);
+	bool drc_pri_group83_16(compiler_state &ctx);
+	bool drc_pri_group80_8(compiler_state &ctx);
+	bool drc_pri_incdec_r32(compiler_state &ctx);
+	bool drc_pri_incdec_r16(compiler_state &ctx);
+	bool drc_gen_incdec_group(compiler_state &ctx, int width_bits, bool short_form);
+	bool drc_gen_incdec32(compiler_state &ctx, bool short_form);
+	bool drc_gen_incdec16(compiler_state &ctx, bool short_form);
+	bool drc_pri_incdec8_rm(compiler_state &ctx);
+	bool drc_pri_cbw_cwde(compiler_state &ctx);
+	bool drc_pri_cwd_cdq(compiler_state &ctx);
+	bool drc_gen_cwde(compiler_state &ctx);
+	bool drc_gen_cdq(compiler_state &ctx);
+	bool drc_gen_not_neg32(compiler_state &ctx);
+	void drc_gen_f6_test(compiler_state &ctx, uint8_t modrm);
+	void drc_gen_f6_not(compiler_state &ctx, uint8_t modrm);
+	void drc_gen_f6_neg(compiler_state &ctx, uint8_t modrm);
+	void drc_gen_f6_mul(compiler_state &ctx, uint8_t modrm);
+	void drc_gen_f6_imul(compiler_state &ctx, uint8_t modrm);
+	void drc_gen_f6_div(compiler_state &ctx, uint8_t modrm);
+	void drc_gen_f6_idiv(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_f6_group(compiler_state &ctx);
+	bool drc_pri_groupF6_8(compiler_state &ctx);
+	bool drc_gen_f7_16_test(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_f7_16_not(compiler_state &ctx, uint8_t rm16, bool is_m);
+	bool drc_gen_f7_16_neg(compiler_state &ctx, uint8_t rm16, bool is_m);
+	bool drc_gen_f7_16_mul(compiler_state &ctx, bool is_m);
+	bool drc_gen_f7_16_imul(compiler_state &ctx, bool is_m);
+	bool drc_gen_f7_16_div(compiler_state &ctx, bool is_m);
+	bool drc_gen_f7_16_idiv(compiler_state &ctx, bool is_m);
+	bool drc_gen_f7_group16(compiler_state &ctx);
+	bool drc_pri_groupF7_16(compiler_state &ctx);
+	bool drc_gen_mul32_acc(compiler_state &ctx);
+	bool drc_gen_div32_acc(compiler_state &ctx);
+	bool drc_pri_groupF7_32(compiler_state &ctx);
+	bool drc_pri_imul_imm(compiler_state &ctx);
+	bool drc_x0f_imul(compiler_state &ctx);
+	bool drc_pri_shift8(compiler_state &ctx);
+	bool drc_pri_shift16(compiler_state &ctx);
+	bool drc_pri_shift32(compiler_state &ctx);
+	bool drc_gen_shift_group_load(compiler_state &ctx, uint8_t modrm, int width_bits, uint8_t &rm_reg);
+	void drc_gen_shift_group_store(compiler_state &ctx, uint8_t modrm, int width_bits, bool is_m, uint8_t rm_reg);
+	bool drc_gen_shift_group_rotate_carry(compiler_state &ctx, uint8_t modrm, int width_bits, uint8_t shift_opcode);
+	bool drc_gen_shift_group_count(compiler_state &ctx, uint8_t modrm, int width_bits, uint8_t shift_opcode);
+	bool drc_gen_shift_group(compiler_state &ctx, int width_bits);
+	void drc_gen_bt_apply_modify(compiler_state &ctx, uint8_t bt_opcode, const uml::parameter &new_value, const uml::parameter &bit_mask, const uml::parameter &bit_pos);
+	int  drc_gen_bt_cycles(uint8_t bt_opcode, bool is_m, bool is_imm) const;
+	bool drc_gen_bt_group_mem_dynamic(compiler_state &ctx, uint8_t modrm, uint8_t bt_opcode);
+	bool drc_gen_bt_group_general(compiler_state &ctx, uint8_t modrm, uint8_t bt_opcode, bool is_imm, bool is_m);
+	bool drc_x0f_bt_group(compiler_state &ctx);
+	bool drc_x0f_shld(compiler_state &ctx);
+	bool drc_x0f_shrd(compiler_state &ctx);
+	bool drc_x0f_bsf_bsr(compiler_state &ctx);
+	bool drc_x0f_xadd(compiler_state &ctx);
+	bool drc_x0f_cmpxchg(compiler_state &ctx);
+	// DRC control flow operations (jmp, jcc, call etc...)
+	void drc_gen_intrablock_jump(compiler_state &ctx, offs_t target_pc);
+	bool drc_gen_jcc32(compiler_state &ctx, uint8_t cc, bool is_rel32);
+	bool drc_gen_jcc_short16(compiler_state &ctx, uint8_t cc);
+	bool drc_gen_jcc16(compiler_state &ctx, uint8_t cc);
+	bool drc_pri_jcc_rel8_32(compiler_state &ctx);
+	bool drc_pri_jcc_rel8_16(compiler_state &ctx);
+	bool drc_x0f_jcc_rel32(compiler_state &ctx);
+	bool drc_x0f_jcc_rel16(compiler_state &ctx);
+	bool drc_pri_jcxz(compiler_state &ctx);
+	bool drc_pri_jmp_rel8_32(compiler_state &ctx);
+	bool drc_pri_jmp_rel16(compiler_state &ctx);
+	bool drc_pri_jmp_rel8_16(compiler_state &ctx);
+	bool drc_pri_jmp_rel32(compiler_state &ctx);
+	bool drc_pri_jmp_rm32(compiler_state &ctx);
+	bool drc_pri_jmp_rm16(compiler_state &ctx);
+	bool drc_pri_jmp_abs(compiler_state &ctx);
+	bool drc_pri_loop(compiler_state &ctx);
+	bool drc_pri_call32(compiler_state &ctx);
+	bool drc_pri_call16(compiler_state &ctx);
+	bool drc_pri_ret32(compiler_state &ctx);
+	bool drc_pri_retf_i16(compiler_state &ctx);
+	bool drc_pri_retf16(compiler_state &ctx);
+	bool drc_pri_retf32(compiler_state &ctx);
+	bool drc_pri_groupFF_32(compiler_state &ctx);
+	bool drc_pri_groupFF_16(compiler_state &ctx);
+	bool drc_pri_nop(compiler_state &ctx);
+	// DRC IRQ operations
+	void static_generate_irq_deliver_protected_same_priv();
+	void static_generate_soft_int_deliver_protected();
+	void static_generate_iret_protected();
+	void static_generate_retf_protected();
+	void drc_gen_irq_poll(compiler_state &ctx);
+	void drc_gen_irq_deliver_realmode(compiler_state &ctx);
+	void drc_gen_deliver_protected_same_priv(compiler_state &ctx, bool is_software, const uml::code_label bail, const uml::code_label done, const uml::parameter ret_eip, int cycle_count);
+	void drc_gen_deliver_protected_inner_priv(compiler_state &ctx, const uml::parameter new_eip, const uml::parameter target_cs_selector, const uml::parameter target_cs_v1, const uml::parameter target_cs_v2, const uml::parameter dpl, const uml::parameter ret_eip, int cycle_count, const uml::code_label bail);
+	void drc_gen_int_finish(compiler_state &ctx, const uml::parameter new_eip, const uml::parameter ret_eip, int cycle_count);
+	void drc_gen_soft_int_realmode(compiler_state &ctx, uint32_t vector, uint32_t ret_eip, int trap_cycles);
+	void drc_gen_iret_protected(compiler_state &ctx, const uml::code_label bail);
+	void drc_gen_retf_protected(compiler_state &ctx, const uml::code_label bail);
+	void drc_gen_iret_restore_eflags(compiler_state &ctx, const uml::parameter working_eflags, const uml::parameter packed_eflags);
+	bool drc_pri_int3(compiler_state &ctx);
+	bool drc_pri_int(compiler_state &ctx);
+	bool drc_pri_into(compiler_state &ctx);
+	bool drc_pri_iret16(compiler_state &ctx);
+	bool drc_pri_iret32(compiler_state &ctx);
+	bool drc_pri_hlt(compiler_state &ctx);
+	// DRC stack operations
+	void static_generate_push32();
+	void static_generate_pop32();
+	void drc_gen_push32(compiler_state &ctx, const uml::parameter val);
+	void drc_gen_pop32(compiler_state &ctx);
+	void drc_gen_push16(compiler_state &ctx, const uml::parameter val);
+	void drc_gen_pop16(compiler_state &ctx);
+	bool drc_gen_pusha(compiler_state &ctx);
+	bool drc_gen_popa(compiler_state &ctx);
+	void drc_gen_stack_peek_range(drcuml_block &b, int &label_ctr, const uml::code_label take_slow, uint32_t byte_count);
+	void drc_gen_stack_fault_check(drcuml_block &b, int &label_ctr, const uml::parameter &offset, uint32_t byte_count, bool is_write);
+	bool drc_gen_leave(compiler_state &ctx);
+	bool drc_gen_leave16(compiler_state &ctx);
+	bool drc_pri_pusha(compiler_state &ctx);
+	bool drc_pri_popa(compiler_state &ctx);
+	bool drc_pri_leave32(compiler_state &ctx);
+	bool drc_pri_leave16(compiler_state &ctx);
+	bool drc_pri_push_eax32(compiler_state &ctx);
+	bool drc_pri_push_eax16(compiler_state &ctx);
+	bool drc_pri_push_ecx32(compiler_state &ctx);
+	bool drc_pri_push_ecx16(compiler_state &ctx);
+	bool drc_pri_push_edx32(compiler_state &ctx);
+	bool drc_pri_push_edx16(compiler_state &ctx);
+	bool drc_pri_push_ebx32(compiler_state &ctx);
+	bool drc_pri_push_ebx16(compiler_state &ctx);
+	bool drc_pri_push_esp32(compiler_state &ctx);
+	bool drc_pri_push_esp16(compiler_state &ctx);
+	bool drc_pri_push_ebp32(compiler_state &ctx);
+	bool drc_pri_push_ebp16(compiler_state &ctx);
+	bool drc_pri_push_esi32(compiler_state &ctx);
+	bool drc_pri_push_esi16(compiler_state &ctx);
+	bool drc_pri_push_edi32(compiler_state &ctx);
+	bool drc_pri_push_edi16(compiler_state &ctx);
+	bool drc_pri_pop_r32(compiler_state &ctx);
+	bool drc_pri_pop_r16(compiler_state &ctx);
+	bool drc_pri_push_i32(compiler_state &ctx);
+	bool drc_pri_push_i16(compiler_state &ctx);
+	bool drc_pri_push_i8_32(compiler_state &ctx);
+	bool drc_pri_push_i8_16(compiler_state &ctx);
+	bool drc_pri_push_rm32(compiler_state &ctx);
+	bool drc_pri_push_rm16(compiler_state &ctx);
+	bool drc_pri_pushfd(compiler_state &ctx);
+	bool drc_pri_pushf16(compiler_state &ctx);
+	bool drc_pri_popfd(compiler_state &ctx);
+	bool drc_pri_popf16(compiler_state &ctx);
+	// DRC segment operations
+	void static_generate_read_descriptor();
+	void static_generate_commit_cs_same_priv();
+	void static_generate_write_descriptor_accessed();
+	void static_generate_unpack_descriptor_limit_base();
+	void drc_gen_write_descriptor_accessed_inline(drcuml_block &b, int &label_ctr, const uml::parameter access_byte, const uml::code_label take_slow);
+	void drc_gen_unpack_descriptor_limit_inline(drcuml_block &b, int &label_ctr, const uml::parameter limit_dest, const uml::parameter descriptor_lo, const uml::parameter descriptor_hi);
+	void drc_gen_unpack_descriptor_limit_base_inline(drcuml_block &b, int &label_ctr, const uml::parameter limit_dest, const uml::parameter base_dest, const uml::parameter descriptor_lo, const uml::parameter descriptor_hi);
+	void drc_gen_commit_seg_descriptor(drcuml_block &b, int seg, const uml::parameter access_flags, const uml::parameter new_access_byte);
+	void drc_gen_read_descriptor(drcuml_block &b, int &label_ctr, const uml::code_label take_slow);
+	void drc_gen_privileged_read_descriptor(drcuml_block &b, int &label_ctr, const uml::parameter out_lo, const uml::parameter out_hi, const uml::code_label take_slow);
+	void drc_gen_commit_cs_same_priv(drcuml_block &b, int &label_ctr, const uml::parameter new_eip, const uml::code_label take_slow);
+	void drc_gen_write_descriptor_accessed(drcuml_block &b, int &label_ctr, const uml::parameter access_byte, const uml::code_label take_slow);
+	void drc_gen_unpack_descriptor_limit_base(drcuml_block &b, int &label_ctr, const uml::parameter limit_dest, const uml::parameter base_dest, const uml::parameter descriptor_lo, const uml::parameter descriptor_hi);
+	void drc_gen_commit_ss_for_privilege_change(drcuml_block &b, int &label_ctr, const uml::parameter dpl, const uml::code_label take_slow);
+	bool drc_gen_push_seg32(compiler_state &ctx, int seg_reg);
+	bool drc_gen_push_seg16(compiler_state &ctx, int seg_reg);
+	bool drc_gen_pop_sreg(compiler_state &ctx, int seg, void (*slow_cfunc)(void *));
+	void drc_gen_pop_seg_peek(drcuml_block &b, int &label_ctr, const uml::code_label take_slow);
+	bool drc_pri_push_es16(compiler_state &ctx);
+	bool drc_pri_push_es32(compiler_state &ctx);
+	bool drc_pri_push_cs16(compiler_state &ctx);
+	bool drc_pri_push_cs32(compiler_state &ctx);
+	bool drc_pri_push_ss16(compiler_state &ctx);
+	bool drc_pri_push_ss32(compiler_state &ctx);
+	bool drc_pri_push_ds16(compiler_state &ctx);
+	bool drc_pri_push_ds32(compiler_state &ctx);
+	bool drc_x0f_push_fs16(compiler_state &ctx);
+	bool drc_x0f_push_fs32(compiler_state &ctx);
+	bool drc_x0f_push_gs16(compiler_state &ctx);
+	bool drc_x0f_push_gs32(compiler_state &ctx);
+	bool drc_pri_pop_es(compiler_state &ctx);
+	bool drc_pri_pop_ss(compiler_state &ctx);
+	bool drc_pri_pop_ds(compiler_state &ctx);
+	bool drc_x0f_pop_fs(compiler_state &ctx);
+	bool drc_x0f_pop_gs(compiler_state &ctx);
+	bool drc_pri_mov_to_sreg(compiler_state &ctx);
+	// DRC I/O, system management, cpuid
+	void drc_gen_get_io_port(compiler_state &ctx);
+	void drc_gen_io_permission_check(compiler_state &ctx);
+	void drc_gen_io_remap_check(compiler_state &ctx);
+	void drc_io_fault_cb();
+	bool drc_pri_io_read8(compiler_state &ctx);
+	bool drc_pri_io_write8(compiler_state &ctx);
+	bool drc_pri_io_read16(compiler_state &ctx);
+	bool drc_pri_io_write16(compiler_state &ctx);
+	bool drc_pri_io_read32(compiler_state &ctx);
+	bool drc_pri_io_write32(compiler_state &ctx);
+	bool drc_gen_0f00_sldt(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f00_str(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f00_lldt(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f00_ltr(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f00_verr(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f00_verw(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_x0f_group0f00(compiler_state &ctx);
+	bool drc_gen_0f01_sgdt(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f01_sidt(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f01_lgdt(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f01_lidt(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f01_smsw(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f01_lmsw(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_gen_0f01_invlpg(compiler_state &ctx, uint8_t modrm, bool is_reg);
+	bool drc_x0f_group0f01(compiler_state &ctx);
+	bool drc_x0f_clts(compiler_state &ctx);
+	bool drc_x0f_mov_r32_cr(compiler_state &ctx);
+	bool drc_x0f_mov_cr_r32(compiler_state &ctx);
+	bool drc_x0f_cpuid(compiler_state &ctx);
+	bool drc_x0f_rdmsr(compiler_state &ctx);
+	bool drc_x0f_wrmsr(compiler_state &ctx);
+	bool drc_x0f_rdtsc(compiler_state &ctx);
+	// DRC string ops and rep
+	template <typename EmitFlush> inline void drc_gen_chunked_tlb_translate(compiler_state &ctx, const uml::parameter &address, const uml::parameter &entry_reg, const uml::parameter &phys_addr, bool is_write, EmitFlush &&flush);
+	template <typename OnChunk> inline void   drc_gen_stos_vector_fill_tiers(compiler_state &ctx, void *fastbase, const uml::parameter &fill_addr, const uml::parameter &fill_vector, const uml::parameter &remaining_bytes, bool wide_fill_tier_active, uint32_t wide_fill_chunk_bytes, OnChunk &&on_chunk);
+	template <typename OnChunk> inline void   drc_gen_movs_vector_copy_tiers(compiler_state &ctx, void *src_fastbase, void *dst_fastbase, const uml::parameter &src_addr, const uml::parameter &dst_addr, const uml::parameter &copy_vector, const uml::parameter &remaining_bytes, bool wide_tier_active, uint32_t wide_chunk_bytes, OnChunk &&on_chunk);
+
+	void drc_gen_mem_ptr_add(compiler_state &ctx, int reg, const uml::parameter &seg_base);
+	void drc_gen_mem_ptr_advance(compiler_state &ctx, int reg);
+	void drc_gen_rep_zf_early_exit(compiler_state &ctx, const uml::code_label done);
+	void drc_gen_rep_movs_chunked_flush(compiler_state &ctx, const uml::parameter &esi_reg, const uml::parameter &edi_reg, const uml::parameter &ecx_reg, uint32_t shift, int cycles_per_element, bool wide_tier_active, uint32_t wide_chunk_bytes);
+	void drc_gen_stos_chunked_fill_region(compiler_state &ctx, void *fastbase, const uml::parameter &flush_addr, const uml::parameter &flush_remaining, const uml::parameter &fill_byte, const uml::parameter &fill_vector, bool wide_fill_tier_active, uint32_t wide_fill_chunk_bytes, const uml::code_label flush_done);
+	void drc_gen_rep_stos_chunked_flush(compiler_state &ctx, const uml::parameter &edi_reg, const uml::parameter &ecx_reg, uint32_t shift, int cycles_per_element, bool wide_fill_tier_active, uint32_t wide_fill_chunk_bytes);
+	bool drc_gen_mem_movs(compiler_state &ctx, uint32_t operand_bytes);
+	bool drc_gen_mem_cmps(compiler_state &ctx, uint32_t operand_bytes);
+	bool drc_gen_mem_stos(compiler_state &ctx, uint32_t operand_bytes);
+	bool drc_gen_mem_lods(compiler_state &ctx, uint32_t operand_bytes);
+	bool drc_gen_mem_scas(compiler_state &ctx, uint32_t operand_bytes);
+	bool drc_gen_mem(compiler_state &ctx, uint8_t opcode);
+	bool drc_pri_mem32(compiler_state &ctx);
+	bool drc_pri_mem16(compiler_state &ctx);
+	void drc_gen_rep_stos_paged_chunked(compiler_state &ctx, offs_t rep_pc, uint32_t operand_bytes, const uml::code_label done, const uml::code_label bail_to_scalar);
+	void drc_gen_rep_stos_nonpaged_chunked(compiler_state &ctx, offs_t rep_pc, uint32_t operand_bytes, const uml::code_label done, const uml::code_label bail_to_scalar);
+	void drc_gen_rep_movs_paged_chunked(compiler_state &ctx, offs_t rep_pc, uint32_t operand_bytes, const uml::code_label done, const uml::code_label bail_to_scalar);
+	void drc_gen_rep_movs_nonpaged_chunked(compiler_state &ctx, offs_t rep_pc, uint32_t operand_bytes, const uml::code_label done, const uml::code_label bail_to_scalar);
+	bool drc_gen_rep(compiler_state &ctx);
+	bool drc_pri_repne16(compiler_state &ctx);
+	bool drc_pri_repne32(compiler_state &ctx);
+	bool drc_pri_rep16(compiler_state &ctx);
+	bool drc_pri_rep32(compiler_state &ctx);
+	// DRC flag management / lazy flags
+	void static_generate_flags_eval_cc();
+	void static_generate_flags_eval_all();
+	void static_generate_pack_eflags();
+	void drc_flags_all();
+	void drc_gen_set_pf(drcuml_block &b, const uml::parameter src);
+	void drc_gen_flags_rotate(drcuml_block &b);
+	void drc_gen_combine_flags(drcuml_block &b, uint8_t cc);
+	void drc_gen_unpack_eflags(drcuml_block &b, const uml::parameter src, const uml::parameter scratch);
+	void drc_gen_clear_flags(compiler_state &ctx);
+	void drc_gen_defer_flags_arith(compiler_state &ctx, uint32_t optype, int width_bits);
+	void drc_gen_defer_flags_logical(compiler_state &ctx, uint32_t optype);
+	void drc_gen_defer_flags_incdec(compiler_state &ctx, uint32_t optype);
+	void drc_gen_defer_flags_adcsbb(compiler_state &ctx, uint32_t optype, int width_bits);
+	void drc_gen_defer_flags_shift(compiler_state &ctx, uint32_t optype, int width_bits);
+	void drc_gen_defer_flags_alu(compiler_state &ctx, uint8_t alu_opcode, int width_bits);
+	void drc_gen_flags_cc(compiler_state &ctx, uint8_t cc);
+	void drc_gen_flags_cc_dispatch(compiler_state &ctx, uint8_t cc);
+	void drc_gen_eval_flags_cc_arith(drcuml_block &b, int &label_ctr, uint8_t cc, bool is_sub, const uml::parameter op2, int width_bits, bool fast_path);
+	void drc_gen_eval_flags_cc_adcsbb(drcuml_block &b, int &label_ctr, uint8_t cc, bool is_sub, int width_bits);
+	void drc_gen_eval_flags_cc_shift(drcuml_block &b, uint8_t cc, int width_bits);
+	void drc_gen_eval_flags_cc(drcuml_block &b, int &label_ctr, uint8_t cc, uint32_t optype);
+	void drc_gen_flags_all(compiler_state &ctx);
+	void drc_gen_flags_all_dispatch(compiler_state &ctx);
+	void drc_gen_eval_flags_all_arith(drcuml_block &b, int &label_ctr, bool is_sub, const uml::parameter op2, int width_bits);
+	void drc_gen_eval_flags_all_adcsbb(drcuml_block &b, int &label_ctr, bool is_sub, int width_bits);
+	void drc_gen_eval_flags_all_shift(drcuml_block &b, int width_bits);
+	void drc_gen_eval_flags_all(drcuml_block &b, int &label_ctr, uint32_t optype);
+	void drc_gen_pack_eflags(drcuml_block &b, const uml::parameter dest);
+	bool drc_pri_cmc(compiler_state &ctx);
+	bool drc_pri_clc(compiler_state &ctx);
+	bool drc_pri_stc(compiler_state &ctx);
+	bool drc_pri_cli(compiler_state &ctx);
+	bool drc_pri_sti(compiler_state &ctx);
+	bool drc_pri_cld(compiler_state &ctx);
+	bool drc_pri_std(compiler_state &ctx);
+	bool drc_pri_lahf(compiler_state &ctx);
+	bool drc_pri_sahf(compiler_state &ctx);
+	// DRC x87 operations
+	void build_drc_x87_table();
+	void build_drc_x87_table_d8();
+	void build_drc_x87_table_d9();
+	void build_drc_x87_table_da();
+	void build_drc_x87_table_db();
+	void build_drc_x87_table_dc();
+	void build_drc_x87_table_dd();
+	void build_drc_x87_table_de();
+	void build_drc_x87_table_df();
+	bool drc_pri_x87(compiler_state &ctx);
+	void drc_gen_x87_mf_check(compiler_state &ctx, const uml::code_label fallback);
+	void drc_gen_x87_cycles(compiler_state &ctx, int table_index);
+	void drc_gen_x87_set_stack_top(compiler_state &ctx, const uml::parameter new_top, const uml::parameter sw_scratch);
+	void drc_gen_x87_load_reg(compiler_state &ctx, const uml::parameter physx2, const uml::parameter signif, const uml::parameter signexp);
+	void drc_gen_x87_store_reg(compiler_state &ctx, const uml::parameter physx2, const uml::parameter signif, const uml::parameter signexp);
+	void drc_gen_x87_indefinite(compiler_state &ctx, const uml::parameter signif, const uml::parameter signexp);
+	void drc_gen_x87_record_operand(compiler_state &ctx, uint8_t modrm, const uml::parameter address);
+	void drc_gen_x87_set_tag(compiler_state &ctx, const uml::parameter physx2, const uml::parameter tag_value);
+	void drc_gen_x87_get_tag(compiler_state &ctx, const uml::parameter physx2, const uml::parameter tag_dst);
+	void drc_gen_x87_classify_tag(compiler_state &ctx, const uml::parameter signif, const uml::parameter signexp, const uml::parameter tag_dst);
+	void drc_gen_x87_check_exceptions(compiler_state &ctx, bool store);
+	void drc_gen_x87_interpreter_fallback(compiler_state &ctx);
+	void drc_gen_x87_epilogue(compiler_state &ctx, const uml::code_label fallback);
+	bool drc_x87_fld_mem32(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fld_mem64(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fstp_mem32(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fstp_mem64(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fadd_m32real(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fmul_m32real(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fsub_m32real(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fadd_st_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fmul_st_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fsub_st_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fsubr_st_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fdiv_st_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fdivr_st_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fadd_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fmul_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fsubr_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fsub_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fdivr_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fdiv_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_faddp_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fmulp_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fsubrp_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fsubp_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fdivrp_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_x87_fdivp_sti_st(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_stacktop_native(compiler_state &ctx, int delta);
+	bool drc_gen_x87_fincstp(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fdecstp(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fnop(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_ffree(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fstsw_ax(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_finit(compiler_state &ctx, uint8_t modrm);
+	bool drc_pri_wait(compiler_state &ctx);
+	bool drc_gen_x87_signop_native(compiler_state &ctx, uint8_t modrm, uint32_t sign_xor_mask, uint32_t sign_and_mask);
+	bool drc_gen_x87_fchs(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fabs(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fst_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fstp_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fxch_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fld_sti(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fld_mem(compiler_state &ctx, uint8_t modrm, bool is_64);
+	bool drc_gen_x87_fild_m32int(compiler_state &ctx, uint8_t modrm);
+	bool drc_gen_x87_fstp_mem(compiler_state &ctx, uint8_t modrm, bool is_64);
+	bool drc_gen_x87_arith_m32real(compiler_state &ctx, uint8_t modrm, void (*arith_cfunc)(void *), int cycle_index);
+	bool drc_gen_x87_arith_sti(compiler_state &ctx, uint8_t modrm, void (*arith_cfunc)(void *), int cycle_index, bool a_is_sti, bool dest_is_i, bool do_pop);
+	// DRC Pentium operations
+	template <typename ApplyFn> inline bool drc_gen_mmx_binop(compiler_state &ctx, bool mem_is_32bit, ApplyFn &&apply);
+
+	void drc_gen_mmx_prolog(compiler_state &ctx);
+	bool drc_x0f_mmx_group_0f71(compiler_state &ctx);
+	bool drc_x0f_mmx_paddw(compiler_state &ctx);
+	bool drc_x0f_mmx_movq_store(compiler_state &ctx);
+	bool drc_x0f_mmx_movq_load(compiler_state &ctx);
+	bool drc_x0f_mmx_movd_load(compiler_state &ctx);
+	bool drc_x0f_mmx_pmullw(compiler_state &ctx);
+	bool drc_x0f_mmx_punpcklbw(compiler_state &ctx);
+	bool drc_x0f_mmx_punpckhbw(compiler_state &ctx);
+	bool drc_x0f_mmx_packuswb(compiler_state &ctx);
+	bool drc_x0f_mmx_paddusb(compiler_state &ctx);
+	bool drc_x0f_mmx_bitwise(compiler_state &ctx);
+	bool drc_x0f_mmx_add_wrap(compiler_state &ctx);
+	bool drc_x0f_mmx_sub_wrap(compiler_state &ctx);
+	bool drc_x0f_mmx_paddq(compiler_state &ctx);
+	bool drc_x0f_mmx_add_usat(compiler_state &ctx);
+	bool drc_x0f_mmx_sub_usat(compiler_state &ctx);
+	bool drc_x0f_mmx_add_ssat(compiler_state &ctx);
+	bool drc_x0f_mmx_sub_ssat(compiler_state &ctx);
+	bool drc_x0f_mmx_punpckl(compiler_state &ctx);
+	bool drc_x0f_mmx_punpckh(compiler_state &ctx);
+	bool drc_x0f_mmx_emms(compiler_state &ctx);
 
 	void register_state_i386();
 	void register_state_i386_x87();

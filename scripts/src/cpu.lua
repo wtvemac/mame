@@ -13,7 +13,7 @@
 -- Dynamic recompiler objects
 --------------------------------------------------
 
-DRC_CPUS = { "ADSP21062", "DSP16", "DSPP", "E1", "MB86235", "MIPS3", "POWERPC", "SH", "SWP30", "UNSP" }
+DRC_CPUS = { "ADSP21062", "DSP16", "DSPP", "E1", "I386", "MB86235", "MIPS3", "POWERPC", "SH", "SWP30", "UNSP" }
 CPU_INCLUDE_DRC = false
 for i, v in ipairs(DRC_CPUS) do
 	if (CPUS[v]~=null) then
@@ -1350,6 +1350,8 @@ if CPUS["I386"] then
 		MAME_DIR .. "src/devices/cpu/i386/x87ops.hxx",
 		MAME_DIR .. "src/devices/cpu/i386/x87priv.h",
 		MAME_DIR .. "src/devices/cpu/i386/cpuidmsrs.hxx",
+		MAME_DIR .. "src/devices/cpu/i386/drc_i386.cpp",
+		MAME_DIR .. "src/devices/cpu/i386/drc_i386fe.h",
 	}
 end
 

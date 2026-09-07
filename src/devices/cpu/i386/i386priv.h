@@ -726,4 +726,57 @@ enum X86_CYCLES
 #define OP_4BYTE3AF2    0x00400000
 #define OP_4BYTE38F3    0x00200000
 
+// No options, used as a placeholder
+#define DRC_NONE         0x0
+// If the instruction can target mode=0 (proper 16-bit mode)
+#define DRC_MODE0_RDY    0x1
+// If the instruction's operand size can be overridden (16-bit to 32-bit or 32-bit to 16-bit)
+#define DRC_CAN_OSZ_OV   0x2
+// Instructions that aren't handled by the lazy flags code. Pending flag state is reset.
+#define DRC_NO_LFLAGS    0x4
+// Instructions that don't use the register scratch space, so no scratch clear is needed.
+#define DRC_NO_RSCR      0x8
+// If we should skip all the instruction dispatch housekeeping since the instruction code handles it all.
+#define DRC_SELF_MANAGED 0x10
+// If this instruction has a ModR/M byte
+#define DRC_HAS_MODRM    0x20
+// If this is a branch instruction that should end the sequence.
+#define DRC_BR_END       0x40
+// If this is a branch instruction where the target is defined in 1 byte.
+#define DRC_BR_REL8      0x80
+// If this is a branch instruction where the target is defined using 2 or 4 bytes.
+#define DRC_BR_RELW      0x100
+// If this is a branch instruction where the target is reached after a condition is met (if A is greater than B etc...)
+#define DRC_BR_COND      0x200
+// If this instruction entry is a group of instructions. It has a subop. Used for debugging.
+#define DRC_GROUP        0x400
+
+// How the immediate operand should be encoded
+#define DRC_IMM_SHIFT        16
+#define DRC_IMM_MASK         (7u << DRC_IMM_SHIFT)
+#define DRC_IMM_CLASS(flags) ((flags) & DRC_IMM_MASK)
+
+// No immediate
+#define DRC_IMM_NONE     (0u << DRC_IMM_SHIFT)
+// One byte, zero extended operand (ib)
+#define DRC_IMM_B        (1u << DRC_IMM_SHIFT)
+// One byte, sign extended operand (ib)
+#define DRC_IMM_BS       (2u << DRC_IMM_SHIFT)
+// Two or four byte operand (iz)
+#define DRC_IMM_Z        (3u << DRC_IMM_SHIFT)
+// Two byte operand (iw)
+#define DRC_IMM_W        (4u << DRC_IMM_SHIFT)
+// Memory offset
+#define DRC_IMM_MOFFS    (5u << DRC_IMM_SHIFT)
+// Far pointer
+#define DRC_IMM_FARPTR   (6u << DRC_IMM_SHIFT)
+// Group 3 extension for 0xf6 and 0xf7
+#define DRC_IMM_GRP3     (7u << DRC_IMM_SHIFT)
+
+enum drc_dispatch_type
+{
+	DISPATCH_PRI_TABLE = 0,
+	DISPATCH_X0F_TABLE
+};
+
 #endif // MAME_CPU_I386_I386PRIV_H

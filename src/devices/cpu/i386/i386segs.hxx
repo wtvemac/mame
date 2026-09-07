@@ -1023,7 +1023,10 @@ void i386_device::i386_task_switch(uint16_t selector, uint8_t nested)
 	}
 	m_core->cr[3] = READ32(tss+0x1c);  // CR3 (PDBR)
 	if(oldcr3 != m_core->cr[3])
+	{
 		vtlb_flush_dynamic();
+		m_core->drc_cache_dirty = true;
+	}
 
 	/* Set the busy bit in the new task's descriptor */
 	if(selector & 0x0004)

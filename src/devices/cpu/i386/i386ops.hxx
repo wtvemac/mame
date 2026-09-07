@@ -703,6 +703,7 @@ void i386_device::i386_mov_cr_r32()        // Opcode 0x0f 22
 		case 3:
 			CYCLES(CYCLES_MOV_REG_CR3);
 			vtlb_flush_dynamic();
+			m_core->drc_cache_dirty = true;
 			break;
 		case 4: CYCLES(1); break; // TODO
 		default:
