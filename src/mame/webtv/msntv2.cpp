@@ -602,6 +602,8 @@ void msntv2_state::msntv2(machine_config &config)
 {
 	config.set_default_layout(layout_webtv);
 
+	uint32_t usable_ram_size = 128 * 1024 * 1024;
+
 	P3CELERON(config, m_maincpu, 733'333'333); // "Socket 479" mobile Celeron on RM4100, "Socket 479" mobile Pentium 3 on IP1000
 	m_maincpu->set_irq_acknowledge_callback(m_south_lpc_bridge, FUNC(i82801_lpc_device::irq_acknowledge));
 	m_maincpu->drc_set_cache_size(480 * 1024 * 1024);
@@ -613,7 +615,7 @@ void msntv2_state::msntv2(machine_config &config)
 
 		// The MSNTV2 v1.387 BIOS will assume 128MB is on the board and then query the SMBus for SPD data to add additional memory.
 		// The MSNTV2 board has a DIMM slot footprint on the board to add additional memory modules.
-		I82830_HOST(config, m_mcu, 0, "maincpu", 128 * 1024 * 1024); // 128MB max system RAM, exact amount configured from the BIOS
+		I82830_HOST(config, m_mcu, 0, "maincpu", usable_ram_size);
 			m_mcu->interrupt_pin_w(0, i82801_lpc_device::INT_PIN_NONE);
 			m_mcu->enable_agp(false); // The AGP bridge @ pci:01.0 is not available
 
