@@ -705,14 +705,48 @@ ROM_START(msntv2)
 	//     - '+' not sure, might be verbose boot logging to a log file in the boot partition.
 	//     - '@URL' load a custom application via URL. Looks to be BOOT.SIG verified.
 	//
-	// bios-emac.bin is a RM4100 Retail BIOS (v1.387) BIOS with these notes:
+	// bios-emac-mame-only.bin [NOT IDEAL ON REAL HARDWARE] is a RM4100 Retail BIOS (v1.387) BIOS with these notes:
 	//     - Removed BIOS checksum checking so the BIOS can be modified (easily). [POST error code 135]
 	//     - Change upgrade/disaster recovery host from headwaiter.msntv.msn.com to msntv2.ooguy.com. NOTE: this can also be done through DNS spoofing.
 	//     - Removed memory checking to speed up boot.
 	//     - Removed RSA SHA1 signature checking. MD5 integrety checking still exists.
+	//     - Swapped out the loading and video test bitmap (visual change only).
+	//     - Removed the PIC chip data/code check.
+	//        NOTE: This could cause keyboard issues on real hardware.
+	//     - Reduced keyboard input wait period before the splash screen (and after you see 'C' in the console) to speed up boot. Keys it's scanning for:
+	//        NOTE: this will make it harder to use PO codes on real hardware.
+	//         Ctrl+U:   pause boot.
+	//         Ctrl+Q:   resume boot
+	//         Left Alt: go into BIOS power off code mode
+	//             12357     callback @ 0x008165f8
+	//             217       callback @ 0x008165b8
+	//             218       callback @ 0x008165c0
+	//             219       callback @ 0x008165dc
+	//             55325532  callback @ 0x008160b8
+	//             8675309   callback @ 0x00816078
+	//             8088      callback @ 0x00816618
+	//             32767     callback @ 0x008166d0
+	//             32768     callback @ 0x00816690
+	//             77437     callback @ 0x00816128
+	//             555       callback @ 0x0081670c
+	//             93288     callback @ 0x008161bc
+	//             415865808 callback @ 0x008162f4
+	//             415865818 callback @ 0x008162e0
+	//             415865828 callback @ 0x00816414
+	//             415865838 callback @ 0x008163e8
+	//             8086      callback @ 0x008161cc
+	//             2020      callback @ 0x008161d4
+	//             2021      callback @ 0x008161dc
+	//             802       callback @ 0x008161e4
+	//             56000     callback @ 0x008161ec
+	//             503       callback @ 0x00816274
+	//             504       callback @ 0x00816288
+	//             93289     callback @ 0x00816130
+	//             417       callback @ 0x00816620
+	//             1200      callback @ 0x008162d8
 	//
 	ROM_SYSTEM_BIOS(0, "emac", "RM4100 emac-mod BIOS (v1.387)")
-	ROMX_LOAD("bios-emac.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(0))
+	ROMX_LOAD("bios-emac-mame-only.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(0))
 	//
 	// bios-retail.bin is the stock MSNTV2 BIOS. This will boot fine, just not with the modified HackTV CF image because of the RSA SHA1 gate.
 	//
