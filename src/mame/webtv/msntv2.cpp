@@ -70,6 +70,7 @@ public:
 
 protected:
 
+	virtual void device_resolve_objects() override;
 	virtual void machine_start() override;
 	virtual void machine_reset() override;
 
@@ -130,6 +131,63 @@ private:
 	void runtime_w(offs_t offset, uint8_t data);
 
 };
+
+void msntv2_state::device_resolve_objects()
+{
+	m_maincpu->drc_set_options((i386_device::I386DRC_FASTEST_OPTIONS | i386_device::I386DRC_SMC_CHECK_PVARI));
+
+	const uint32_t PHYSICAL_RAM_SIZE = m_mcu->get_allocated_ram_size();
+
+	uint32_t *physical_ram_ptr = m_mcu->get_ram_pointer();
+
+	// Memory used by WinCE
+
+	const uint32_t FASTRAM_WINCE_START = 0x00100000;
+	if (PHYSICAL_RAM_SIZE > FASTRAM_WINCE_START)
+	{
+		const uint32_t FASTRAM_WINCE_END = (PHYSICAL_RAM_SIZE - 1);
+		m_maincpu->i386drc_add_fastram(FASTRAM_WINCE_START, FASTRAM_WINCE_END, false, physical_ram_ptr + (FASTRAM_WINCE_START >> 2));
+	}
+
+	// Memory used in DOS or the BIOS
+
+	const uint32_t FASTRAM_DOS_START = 0x00000000;
+	const uint32_t FASTRAM_DOS_END   = (0x000a0000 - 1);
+	m_maincpu->i386drc_add_fastram(FASTRAM_DOS_START, FASTRAM_DOS_END, false, physical_ram_ptr + (FASTRAM_DOS_START >> 2));
+
+	// The graphics registers, poking holes that need special control
+
+	uint32_t *mm_block_ptr = m_gfx->get_mm_block_pointer();
+
+	const uint32_t GFX_MMADR_SIZE  = i82830_graphics_device::MM_SIZE;
+	const uint32_t GFX_MMADR_START = 0xfeb00000;
+	const uint32_t GFX_MMADR_END   = GFX_MMADR_START + (GFX_MMADR_SIZE - 1);
+
+	const offs_t mmadr_excluded[] = {
+		GFX_MMADR_START + (i82830_graphics_device::MM_IOCNTL_GPIOA << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_IOCNTL_GPIOB << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_IOCNTL_GPIOC << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_TV_HTOTAL << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_TV_VTOTAL << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_DISPLAY_UNKNOWN1 << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_CNTL_PRINGBUF_CNTL << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_CNTL_PRINGBUF_HEAD << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_CNTL_PRINGBUF_TAIL << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_DPLLA_CTRL << 2),
+		GFX_MMADR_START + (i82830_graphics_device::MM_CNTL_IIR << 2),
+	};
+	m_maincpu->i386drc_add_fastram(GFX_MMADR_START, GFX_MMADR_END, false, mm_block_ptr, 0, mmadr_excluded, std::size(mmadr_excluded), true, true);
+
+	// The graphics VRAM paged using the GTT table
+
+	const uint32_t GFX_GMADR_SIZE  = 70 * 1024 * 1024; // matches map_extra()'s gm_map install size
+	const uint32_t GFX_GMADR_START = 0xf0000000;
+	const uint32_t GFX_GMADR_END   = GFX_GMADR_START + (GFX_GMADR_SIZE - 1);
+
+	m_maincpu->i386drc_add_fastpaged(
+			GFX_GMADR_START, GFX_GMADR_END, mm_block_ptr, (i82830_graphics_device::MM_GTT_PAGE_TABLE_SIZE - 1), i82830_graphics_device::MM_GTT_PAGE_TABLE, i82830_graphics_device::MM_GTT_PAGE_ADDR32_SHIFT, i82830_graphics_device::MM_GTT_PAGE_ADDR32_OMASK, i82830_graphics_device::MM_GTT_PAGE_TABLE_VALID, physical_ram_ptr, PHYSICAL_RAM_SIZE, 4
+	);
+}
 
 void msntv2_state::machine_start()
 {
@@ -546,6 +604,7 @@ void msntv2_state::msntv2(machine_config &config)
 
 	P3CELERON(config, m_maincpu, 733'333'333); // "Socket 479" mobile Celeron on RM4100, "Socket 479" mobile Pentium 3 on IP1000
 	m_maincpu->set_irq_acknowledge_callback(m_south_lpc_bridge, FUNC(i82801_lpc_device::irq_acknowledge));
+	m_maincpu->drc_set_cache_size(480 * 1024 * 1024);
 
 	// The MSNTV2 uses CX25873 chip that is controlled by an I2C signal from the northbridge's graphics GPIO pins.
 	CX25873(config, m_cx25873, 0x88);
