@@ -92,6 +92,9 @@ static constexpr uint32_t MEM_DIAG_WRITE_FLAG = 0x80000000;
 static void cfunc_printf_exception(void *param);
 static void cfunc_get_cycles(void *param);
 static void cfunc_printf_probe(void *param);
+// EMAC temporary
+static void cfunc_pc_hook(void *param);
+// (/EMAC temporary)
 static void cfunc_debug_break(void *param);
 
 
@@ -251,6 +254,13 @@ void mips3_device::add_cacheinval_skipped_pc(uint32_t pc)
 {
 	m_cacheinval_skip_pcs.push_back(pc);
 }
+
+// EMAC temporary
+void mips3_device::lets_go_fishing(offs_t pc, std::function<void (mips3_device &, offs_t, uint32_t, uint32_t, uint32_t, uint32_t)> &&callback)
+{
+	m_pc_hooks.emplace_back(pc, std::move(callback));
+}
+// (/EMAC temporary)
 
 void mips3_device::code_flush_cache()
 {
@@ -614,6 +624,32 @@ static void cfunc_printf_probe(void *param)
 {
 	((mips3_device *)param)->func_printf_probe();
 }
+
+// EMAC temporary
+void mips3_device::func_pc_hook()
+{
+	const offs_t pc = m_core->pc;
+	for (auto const &hook : m_pc_hooks)
+	{
+		if (hook.first == pc)
+		{
+			hook.second(
+				*this,
+				pc,
+				(uint32_t)m_core->r[4],
+				(uint32_t)m_core->r[5],
+				(uint32_t)m_core->r[6],
+				(uint32_t)m_core->r[7]
+			);
+		}
+	}
+}
+
+static void cfunc_pc_hook(void *param)
+{
+	((mips3_device *)param)->func_pc_hook();
+}
+// (/EMAC temporary)
 
 /*-------------------------------------------------
     func_debug_break - debugger break
@@ -1633,6 +1669,22 @@ void mips3_device::generate_sequence_instruction(drcuml_block &block, compiler_s
 		UML_MOV(block, mem(&m_core->pc), desc->pc);                              // mov     [pc],desc->pc
 		UML_CALLC(block, cfunc_printf_probe, this);                                // callc   cfunc_printf_probe,mips3
 	}
+
+	// EMAC temporary
+	if (!m_pc_hooks.empty())
+	{
+		for (auto const &hook : m_pc_hooks)
+		{
+			if (hook.first == desc->pc)
+			{
+				UML_MOV(block, mem(&m_core->pc), desc->pc);
+				save_fast_iregs(block);
+				UML_CALLC(block, cfunc_pc_hook, this);
+				break;
+			}
+		}
+	}
+	// (/EMAC temporary)
 
 	/* if we are debugging, call the debugger */
 	if (debugger_enabled())

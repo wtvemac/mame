@@ -21,6 +21,10 @@ MIPS III/IV emulator.
 #include "divtlb.h"
 
 #include <bitset>
+// EMAC temporary
+#include <functional>
+#include <utility>
+// (/EMAC temporary)
 
 
 DECLARE_DEVICE_TYPE(R4000BE, r4000be_device)
@@ -501,6 +505,9 @@ protected:
 
 												/* internal stuff */
 	std::vector<uint32_t> m_cacheinval_skip_pcs;       /* locations of cache instructions to skip */
+	// EMAC temporary
+	std::vector<std::pair<offs_t, std::function<void (mips3_device &, offs_t, uint32_t, uint32_t, uint32_t, uint32_t)>>> m_pc_hooks;
+	// (/EMAC temporary)
 
 												/* tables */
 	uint8_t         m_fpmode[4];                /* FPU mode table */
@@ -583,6 +590,10 @@ public:
 	void mips3com_tlbp();
 	void mark_cache_dirty();
 	void add_cacheinval_skipped_pc(uint32_t pc);
+	// EMAC temporary
+	void lets_go_fishing(offs_t pc, std::function<void (mips3_device &, offs_t, uint32_t, uint32_t, uint32_t, uint32_t)> &&callback);
+	uint32_t get_tha_reg(unsigned r) const { return (uint32_t)m_core->r[r & 31]; }
+	// (/EMAC temporary)
 	void code_flush_cache();
 private:
 	uint32_t compute_config_register();
@@ -655,6 +666,9 @@ public:
 	void func_printf_exception();
 	void func_printf_debug();
 	void func_printf_probe();
+	// EMAC temporary
+	void func_pc_hook();
+	// (/EMAC temporary)
 	void func_debug_break();
 	void func_unimplemented();
 	void func_printf_ramdiag();
