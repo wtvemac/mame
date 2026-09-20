@@ -452,7 +452,7 @@ void i82830_graphics_device::xy_copy_blit(ins_parser_state_t* parser_state)
 
 	uint32_t* ram = m_mcu->get_ram_pointer();
 
-	for(uint32_t dst_y = dst_y_start, src_y = src_y_start; dst_y < dst_y_end; dst_y++, src_y++)
+	for(uint32_t dst_y = dst_y_start; dst_y < dst_y_end; dst_y++)
 	{
 		bool physical_addr_dirty = true;
 
