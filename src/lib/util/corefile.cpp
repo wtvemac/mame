@@ -217,6 +217,8 @@ public:
 
 	virtual std::error_condition truncate(std::uint64_t offset) override;
 
+	virtual int fileno() noexcept override;
+
 protected:
 	bool is_buffered(std::uint64_t offset) const noexcept { return (offset >= m_bufferbase) && (offset < (m_bufferbase + m_bufferbytes)); }
 
@@ -722,6 +724,14 @@ std::error_condition core_osd_file::truncate(std::uint64_t offset)
 	return std::error_condition();
 }
 
+//-------------------------------------------------
+//  fileno - file descriptor associated with the file
+//-------------------------------------------------
+
+int core_osd_file::fileno() noexcept
+{
+	return m_file->fileno();
+}
 
 //-------------------------------------------------
 //  flush - flush file buffers
