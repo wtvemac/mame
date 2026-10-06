@@ -151,6 +151,11 @@ public:
 	/// \return Result of the operation.
 	virtual std::error_condition flush() noexcept = 0;
 
+	/// \brief Get file descriptor associated with an opened file
+	///
+	/// \return file descriptor number or -1 if unavailable
+	virtual int fileno() noexcept { return -1; }
+
 	/// \brief Delete a file
 	///
 	/// \param [in] filename Path to the file to delete.

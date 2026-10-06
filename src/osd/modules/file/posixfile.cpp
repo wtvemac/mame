@@ -160,6 +160,11 @@ public:
 		return std::error_condition();
 	}
 
+	virtual int fileno() noexcept override
+	{
+		return m_fd;
+	}
+
 private:
 	int m_fd;
 };

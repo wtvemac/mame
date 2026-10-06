@@ -40,6 +40,8 @@ class core_file : public random_read_write
 public:
 	typedef std::unique_ptr<core_file> ptr;
 
+	// file descriptor associated with the file
+	virtual int fileno() noexcept { return -1; }
 
 	// ----- file open/close -----
 
