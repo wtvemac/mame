@@ -165,6 +165,7 @@ const options_entry emu_options::s_option_entries[] =
 	{ OPTION_NATURAL_KEYBOARD ";nat",                    "0",         core_options::option_type::BOOLEAN,    "specifies whether to use a natural keyboard or not" },
 	{ OPTION_JOYSTICK_CONTRADICTORY ";joy_contradictory","0",         core_options::option_type::BOOLEAN,    "enable contradictory direction digital joystick input at the same time" },
 	{ OPTION_COIN_IMPULSE,                               "0",         core_options::option_type::INTEGER,    "set coin impulse time (n<0 disable impulse, n==0 obey driver, 0<n set time n)" },
+	{ OPTION_LIRC_INVERTED,                              "0",         core_options::option_type::BOOLEAN,    "LIRC input is inverted (set space to a pulse and pulse to a space)" },
 
 	// input autoenable options
 	{ nullptr,                                           nullptr,     core_options::option_type::HEADER,     "CORE INPUT AUTOMATIC ENABLE OPTIONS" },

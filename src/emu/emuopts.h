@@ -144,6 +144,7 @@
 #define OPTION_NATURAL_KEYBOARD     "natural"
 #define OPTION_JOYSTICK_CONTRADICTORY   "joystick_contradictory"
 #define OPTION_COIN_IMPULSE         "coin_impulse"
+#define OPTION_LIRC_INVERTED        "lirc_inverted"
 
 // input autoenable options
 #define OPTION_PADDLE_DEVICE        "paddle_device"
@@ -443,6 +444,7 @@ public:
 	bool natural_keyboard() const { return bool_value(OPTION_NATURAL_KEYBOARD); }
 	bool joystick_contradictory() const { return m_joystick_contradictory; }
 	int coin_impulse() const { return m_coin_impulse; }
+	bool lirc_inverted() const { return bool_value(OPTION_LIRC_INVERTED); }
 
 	// core debugging options
 	bool log() const { return bool_value(OPTION_LOG); }
