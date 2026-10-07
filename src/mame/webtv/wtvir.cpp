@@ -8,19 +8,23 @@
 #include "wtvir.h"
 #include "natkeyboard.h"
 
-wtvir_device_base::wtvir_device_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock) :
+wtvir_device_base::wtvir_device_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, bool lirc_in_enabled) :
 	device_t(mconfig, type, tag, owner, clock),
-	m_sample_fifo_trigger_cb(*this)
+	m_sample_fifo_trigger_cb(*this),
+	m_lirc(*this, "lirc"),
+	m_lirc_in_enabled(lirc_in_enabled)
 {
 }
 
-TIMER_CALLBACK_MEMBER(wtvir_device_base::poll_buttons)
+TIMER_CALLBACK_MEMBER(wtvir_device_base::poll_timer)
 {
-	polling();
+	poll();
 }
 
 void wtvir_device_base::device_start()
 {
+	save_item(NAME(m_lirc_in_enabled));
+
 	save_item(NAME(m_queued_button_head));
 	save_item(NAME(m_queued_button_tail));
 
@@ -35,26 +39,33 @@ void wtvir_device_base::device_start()
 	m_irin_statcntl = 0x0;
 	m_irin_bit_sample_clock_cnt = DEFAULT_BIT_SAMPLE_CLOCKS;
 
-	m_input_timer = timer_alloc(FUNC(wtvir_device_base::poll_buttons), this);
+	save_item(NAME(m_lirc_in_head));
+	save_item(NAME(m_lirc_in_tail));
+
+	m_lirc_in_head = 0;
+	m_lirc_in_tail = 0;
+
+	m_input_timer = timer_alloc(FUNC(wtvir_device_base::poll_timer), this);
 }
 
 void wtvir_device_base::device_reset()
 {
-	m_input_timer->adjust(attotime::from_msec(5), 0, attotime::from_hz(60));
+	m_input_timer->adjust(attotime::from_msec(5), 0, attotime::from_hz(POLL_RATE_HZ));
 
 	m_irin_statcntl &= (~0x2); // set reset bit back to 0
+}
+
+void wtvir_device_base::device_add_mconfig(machine_config &config)
+{
+	LIRC(config, m_lirc);
 }
 
 void wtvir_device_base::enable(int state)
 {
 	if (state)
-	{
-		m_input_timer->adjust(attotime::from_msec(5), 0, attotime::from_hz(60));
-	}
+		m_input_timer->adjust(attotime::from_msec(5), 0, attotime::from_hz(POLL_RATE_HZ));
 	else
-	{
 		m_input_timer->adjust(attotime::never);
-	}
 }
 
 uint32_t wtvir_device_base::data_r(offs_t offset)
@@ -78,80 +89,7 @@ uint32_t wtvir_device_base::data_r(offs_t offset)
 			break;
 
 		case DEV_IRIN_TRANS_DATA:
-			{
-				ir_button_state_t* active_key = current_button();
-
-				if (active_key != NULL)
-				{
-					bool bit_val = ((active_key->ir_data & (1 << active_key->trans_bit_index)) != 0x0);
-					uint8_t bit_cnt = 1;
-					
-					for (uint8_t sample_fifo_idx = 0; sample_fifo_idx < wtvir_device_base::MAX_SAMPLE_FIFO_ENTRIES; sample_fifo_idx++)
-					{
-						active_key->trans_bit_index++;
-
-						if (active_key->trans_bit_index < m_fifo_data_bit_count)
-						{
-							bool this_bit_val = ((active_key->ir_data & (1 << active_key->trans_bit_index)) != 0x0);
-
-							if (this_bit_val != bit_val)
-							{
-								break;
-							}
-							else
-							{
-								bit_cnt++;
-							}
-						}
-						else
-						{
-							break;
-						}
-					}
-
-					uint16_t sample_clock_cnt = bit_cnt * m_irin_bit_sample_clock_cnt;
-
-					uint8_t fifo_samples_left = 0x0;
-					// It needs to be less 2 because less 1 (meaning we're full: current + max-1 left) makes the WebTV OS/firmware reset thinking there's an overflow
-					uint8_t fifo_samples_left_max = (MAX_SAMPLE_FIFO_ENTRIES - 2);
-
-					if (queued_button_count() > 1)
-					{
-						// If we have more than one button event queued then set to max minus 2.
-						fifo_samples_left = fifo_samples_left_max;
-					}
-					else
-					{
-						fifo_samples_left = (m_fifo_data_bit_count - active_key->trans_bit_index);
-						if (fifo_samples_left > fifo_samples_left_max)
-						{
-							fifo_samples_left = fifo_samples_left_max;
-						}
-					}
-
-					//
-					//  IR transition register data bits:
-					//
-					//  SSSS | V | TTTTTTTTTTT
-					//
-					//    SSSS        = the number of transition entries in the FIFO buffer
-					//    V           = value of the current bit
-					//    TTTTTTTTTTT = the time of the current bit transition measured in sample clocks. 
-					//                  1 sample clock is defined in the register DEV_IR_IN_SAMPLE_TICKS 
-					//                  which is number of system clock cycles per sample clock.
-					//
-					result |= ((fifo_samples_left & 0x00f) << 12);
-					result |= ((bit_val           & 0x001) << 11);
-					result |= ((sample_clock_cnt  & 0x7ff) <<  0);
-
-					if (active_key->trans_bit_index >= m_fifo_data_bit_count)
-					{
-						dequeue_button();
-					}
-				}
-
-				m_waiting_for_fifo_read = false;
-			}
+			result = wtvir_device_base::get_ir_in_data();
 			break;
 
 		case DEV_IRIN_STATCNTL:
@@ -187,9 +125,103 @@ void wtvir_device_base::data_w(offs_t offset, uint32_t data)
 	}
 }
 
+uint32_t wtvir_device_base::get_ir_in_data()
+{
+	// It needs to be less 2 because less 1 (meaning we're full: current + max-1 left) makes the WebTV OS/firmware reset thinking there's an overflow
+	uint8_t fifo_samples_left_max = (wtvir_device_base::MAX_SAMPLE_FIFO_ENTRIES - 2);
+
+	uint8_t fifo_samples_left = 0x0;
+	bool bit_val = 0;
+	uint16_t sample_clock_cnt = 0x0;
+
+	ir_button_state_t* active_key = current_button();
+
+	if (active_key != nullptr)
+	{
+		bit_val = ((active_key->ir_data & (1 << active_key->trans_bit_index)) != 0x0);
+
+		uint8_t bit_cnt = 1;
+		
+		for (uint8_t sample_fifo_idx = 0; sample_fifo_idx < wtvir_device_base::MAX_SAMPLE_FIFO_ENTRIES; sample_fifo_idx++)
+		{
+			active_key->trans_bit_index++;
+
+			if (active_key->trans_bit_index < m_fifo_data_bit_count)
+			{
+				bool this_bit_val = ((active_key->ir_data & (1 << active_key->trans_bit_index)) != 0x0);
+
+				if (this_bit_val != bit_val)
+					break;
+				else
+					bit_cnt++;
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		sample_clock_cnt = bit_cnt * m_irin_bit_sample_clock_cnt;
+
+		if (queued_button_count() > 1)
+			// If we have more than one button event queued then set to max minus 2.
+			fifo_samples_left = fifo_samples_left_max;
+		else
+			fifo_samples_left = (m_fifo_data_bit_count - active_key->trans_bit_index);
+
+		if (active_key->trans_bit_index >= m_fifo_data_bit_count)
+			dequeue_button();
+	}
+	else if(m_lirc_in_enabled && m_lirc->is_enabled())
+	{
+		uint32_t lirc_state = dequeue_lirc_in();
+
+		if (lirc_state != lirc_device::LIRC_INVALID_DATA)
+		{
+			fifo_samples_left = queued_lirc_in_count() + 1;
+			bit_val = (lirc_state & lirc_device::LIRC_IS_PULSE_BIT);
+			double state_us = static_cast<double>(lirc_state & lirc_device::LIRC_INTERVAL_MASK);
+			// Divide transision microseconds (us) by DEFAULT_SAMPLE_CLOCK_US and handle rounding
+			// To produce the mock clock count
+			sample_clock_cnt = static_cast<uint16_t>(std::round(state_us / wtvir_device_base::DEFAULT_SAMPLE_CLOCK_US));
+		}
+	}
+
+	m_waiting_for_fifo_read = false;
+
+	fifo_samples_left = std::min(fifo_samples_left, fifo_samples_left_max);
+
+	return wtvir_device_base::build_lc2_ir_in_data(fifo_samples_left, bit_val, sample_clock_cnt);
+}
+
+uint32_t wtvir_device_base::build_lc2_ir_in_data(uint8_t fifo_cnt, bool bit_val, uint16_t sample_clocks)
+{
+	uint32_t data = 0x00000000;
+
+	if (fifo_cnt > 0)
+	{
+		//
+		//  IR transition register data bits:
+		//
+		//  SSSS | V | TTTTTTTTTTT
+		//
+		//    SSSS        = the number of transition entries in the FIFO buffer
+		//    V           = value of the current bit
+		//    TTTTTTTTTTT = the time of the current bit transition measured in sample clocks. 
+		//                  1 sample clock is defined in the register DEV_IR_IN_SAMPLE_TICKS 
+		//                  which is number of system clock cycles per sample clock.
+		//
+		data |= ((fifo_cnt      & 0x00f) << 12);
+		data |= ((bit_val       & 0x001) << 11);
+		data |= ((sample_clocks & 0x7ff) <<  0);
+	}
+
+	return data;
+}
+
 bool wtvir_device_base::enqueue_button(uint8_t scancode, bool is_make, uint32_t ir_data)
 {
-	if (queued_button_count() < wtvir_device_base::MAX_QUEUED_BUTTONS && ((m_queued_button_head + 1) != m_queued_button_tail))
+	if (queued_button_count() < MAX_QUEUED_BUTTONS && ((m_queued_button_head + 1) != m_queued_button_tail))
 	{
 		m_queued_buttons[m_queued_button_head] = {
 			.scancode = scancode,
@@ -199,7 +231,7 @@ bool wtvir_device_base::enqueue_button(uint8_t scancode, bool is_make, uint32_t 
 		};
 
 		m_queued_button_head++;
-		m_queued_button_head &= (wtvir_device_base::MAX_QUEUED_BUTTONS - 1);
+		m_queued_button_head &= (MAX_QUEUED_BUTTONS - 1);
 
 		return true;
 	}
@@ -211,49 +243,125 @@ bool wtvir_device_base::enqueue_button(uint8_t scancode, bool is_make, uint32_t 
 
 uint8_t wtvir_device_base::queued_button_count()
 {
-	return (m_queued_button_head - m_queued_button_tail) & (wtvir_device_base::MAX_QUEUED_BUTTONS - 1);
+	return (m_queued_button_head - m_queued_button_tail) & (MAX_QUEUED_BUTTONS - 1);
 }
 
 wtvir_device_base::ir_button_state_t* wtvir_device_base::current_button()
 {
 	if (m_queued_button_head != m_queued_button_tail)
-	{
 		return &m_queued_buttons[m_queued_button_tail];
-	}
 	else
-	{
-		return NULL;
-	}
+		return nullptr;
 }
 
 wtvir_device_base::ir_button_state_t* wtvir_device_base::dequeue_button()
 {
 	if (m_queued_button_head != m_queued_button_tail)
 	{
-		m_queued_button_tail++;
-		m_queued_button_tail &= (wtvir_device_base::MAX_QUEUED_BUTTONS - 1);
+		ir_button_state_t* state = &m_queued_buttons[m_queued_button_tail];
 
-		return &m_queued_buttons[m_queued_button_tail];
+		m_queued_button_tail++;
+		m_queued_button_tail &= (MAX_QUEUED_BUTTONS - 1);
+
+		return state;
 	}
 	else
 	{
-		return NULL;
+		return nullptr;
 	}
 }
 
-void wtvir_device_base::polling()
+bool wtvir_device_base::enqueue_lirc_in(uint32_t state)
 {
-	if (queued_button_count() >= 1 && !m_waiting_for_fifo_read)
+	if (queued_lirc_in_count() < LIRC_SAMPLE_FIFO_ENTRIES && ((m_lirc_in_head + 1) != m_lirc_in_tail))
 	{
-		m_waiting_for_fifo_read = true;
-		m_sample_fifo_trigger_cb(1);
+		uint32_t state_us = (state & lirc_device::LIRC_INTERVAL_MASK);
+
+		if (state_us > LIRC_MAX_US)
+			state = lirc_device::LIRC_INVALID_DATA;
+
+		lirc_in_fifo[m_lirc_in_head] = state;
+
+		m_lirc_in_head++;
+		m_lirc_in_head &= (LIRC_SAMPLE_FIFO_ENTRIES - 1);
+
+		return true;
 	}
+	else
+	{
+		return false;
+	}
+}
+
+uint8_t wtvir_device_base::queued_lirc_in_count()
+{
+	return (m_lirc_in_head - m_lirc_in_tail) & (LIRC_SAMPLE_FIFO_ENTRIES - 1);
+}
+
+uint32_t wtvir_device_base::current_lirc_in()
+{
+	if (m_lirc_in_head != m_lirc_in_tail)
+		return lirc_in_fifo[m_lirc_in_tail];
+	else
+		return lirc_device::LIRC_INVALID_DATA;
+}
+
+uint32_t wtvir_device_base::dequeue_lirc_in()
+{
+	if (m_lirc_in_head != m_lirc_in_tail)
+	{
+		uint32_t state = lirc_in_fifo[m_lirc_in_tail];
+
+		m_lirc_in_tail++;
+		m_lirc_in_tail &= (LIRC_SAMPLE_FIFO_ENTRIES - 1);
+
+		return state;
+	}
+	else
+	{
+		return lirc_device::LIRC_INVALID_DATA;
+	}
+}
+
+void wtvir_device_base::poll_buttons()
+{
+	//
+}
+
+void wtvir_device_base::poll_lirc_in()
+{
+	while(true)
+	{
+		uint32_t lirc_state = m_lirc->read();
+
+		if (lirc_state == lirc_device::LIRC_INVALID_DATA || !enqueue_lirc_in(lirc_state))
+			break;
+	}
+}
+
+void wtvir_device_base::poll()
+{
+	poll_buttons();
+
+	if(m_lirc_in_enabled && m_lirc->is_enabled())
+		poll_lirc_in();
+
+	bool have_waiting_buttons = (queued_button_count() >= 1 && !m_waiting_for_fifo_read);
+	bool lirc_in_ready = (queued_lirc_in_count() > wtvir_device_base::MAX_SAMPLE_FIFO_ENTRIES);
+
+	bool should_trigger_fifo_int = (have_waiting_buttons || lirc_in_ready);
+
+	if (have_waiting_buttons)
+		m_waiting_for_fifo_read = true;
+
+	if (should_trigger_fifo_int)
+		m_sample_fifo_trigger_cb(1);
 }
 
 DEFINE_DEVICE_TYPE(SEJIN_KBD, wtvir_sejin_device, "sejinkbd", "Sejin IR Keyboard")
 
-wtvir_sejin_device::wtvir_sejin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	wtvir_device_base(mconfig, SEJIN_KBD, tag, owner, clock),
+wtvir_sejin_device::wtvir_sejin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, bool lirc_in_enabled) :
+	wtvir_device_base(mconfig, SEJIN_KBD, tag, owner, clock, lirc_in_enabled),
 	m_ioport(*this, "wtvir_kbd%u", 0)
 {
 }
@@ -330,7 +438,7 @@ bool wtvir_sejin_device::enqueue_button(uint8_t scancode, bool is_make, uint32_t
 	return wtvir_device_base::enqueue_button(scancode, is_make, ir_data);
 }
 
-void wtvir_sejin_device::polling()
+void wtvir_sejin_device::poll_buttons()
 {
 	if (queued_button_count() < wtvir_device_base::MAX_QUEUED_BUTTONS)
 	{
@@ -359,14 +467,6 @@ void wtvir_sejin_device::polling()
 
 			m_port_state[port_idx] = curr_state;
 		}
-	}
-
-	// Only transmitting once can cause issues with modifier keys like shift. Will need to look into other methods.
-
-	if (queued_button_count() >= 1 && !m_waiting_for_fifo_read)
-	{
-		m_waiting_for_fifo_read = true;
-		m_sample_fifo_trigger_cb(1);
 	}
 }
 

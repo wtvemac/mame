@@ -8,16 +8,22 @@
 
 #pragma once
 
+#include "imagedev/lirc.h"
 #include "machine/pckeybrd.h"
 
 class wtvir_device_base : public device_t
 {
 public:
 
+	static constexpr uint32_t POLL_RATE_HZ = 60;
+
 	static constexpr uint32_t MAX_QUEUED_BUTTONS        =  0x08;
-	static constexpr uint32_t MAX_SAMPLE_FIFO_ENTRIES   =  0x10;
-	static constexpr uint32_t DEFAULT_BIT_SAMPLE_CLOCKS =  0x30;
+	static constexpr uint8_t MAX_SAMPLE_FIFO_ENTRIES    =  0x10;
+	static constexpr uint32_t DEFAULT_BIT_SAMPLE_CLOCKS =  48;
 	static constexpr uint32_t IR_MICROCODE_VERSION      =  0x69;
+	static constexpr double DEFAULT_SAMPLE_CLOCK_US     =  789.0 / 51.3;
+	static constexpr uint32_t LIRC_MAX_US               =  10000; // 10ms
+	static constexpr uint8_t LIRC_SAMPLE_FIFO_ENTRIES   =  0x80;
 
 	enum wtvir_register_t
 	{
@@ -44,7 +50,7 @@ public:
 		uint32_t ir_data;
 	} ir_button_state_t;
 
-	wtvir_device_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock = 0);
+	wtvir_device_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock = 0, bool lirc_in_enabled = true);
 
 	virtual void enable(int state);
 	uint32_t data_r(offs_t offset);
@@ -55,12 +61,18 @@ public:
 	virtual ir_button_state_t* current_button();
 	virtual ir_button_state_t* dequeue_button();
 
+	virtual bool enqueue_lirc_in(uint32_t state);
+	virtual uint8_t queued_lirc_in_count();
+	virtual uint32_t current_lirc_in();
+	virtual uint32_t dequeue_lirc_in();
+
 	auto sample_fifo_trigger_callback() { return m_sample_fifo_trigger_cb.bind(); }
 
 	uint8_t m_fifo_data_bit_count;
 	bool m_waiting_for_fifo_read;
 
 	devcb_write_line m_sample_fifo_trigger_cb;
+	required_device<lirc_device> m_lirc;
 
 	emu_timer *m_input_timer;
 
@@ -73,16 +85,29 @@ public:
 	uint8_t m_irin_statcntl;
 	uint8_t m_irin_bit_sample_clock_cnt;
 
+	uint8_t m_lirc_in_head;
+	uint8_t m_lirc_in_tail;
+
 private:
 
-	virtual void polling();
+	bool m_lirc_in_enabled;
+
+	uint32_t lirc_in_fifo[wtvir_device_base::LIRC_SAMPLE_FIFO_ENTRIES];
+
+	virtual void poll_buttons();
+	virtual void poll_lirc_in();
+	virtual void poll();
+
+	uint32_t get_ir_in_data();
+	uint32_t build_lc2_ir_in_data(uint8_t fifo_cnt, bool bit_val, uint16_t sample_clocks);
 
 protected:
 
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
-	TIMER_CALLBACK_MEMBER(poll_buttons);
+	TIMER_CALLBACK_MEMBER(poll_timer);
 };
 
 class wtvir_sejin_device : public wtvir_device_base
@@ -93,7 +118,7 @@ public:
 	static constexpr uint32_t SEJIN_DEFAULT_IR_DATA   =  0x200508;
 	static constexpr uint32_t SEJIN_DATA_BIT_COUNT    =  22;
 
-	wtvir_sejin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+	wtvir_sejin_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, bool lirc_in_enabled = true);
 
 	bool enqueue_button(uint8_t scancode, bool is_make, uint32_t ir_data) override;
 
@@ -101,7 +126,8 @@ private:
 
 	uint8_t calculate_odd_parity(uint32_t data, uint8_t bit_start, uint8_t bit_end);
 
-	void polling() override;
+	void poll_buttons() override;
+
 	uint32_t readport(int port);
 
 	uint8_t m_device_id;
