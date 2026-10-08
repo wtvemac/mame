@@ -99,7 +99,7 @@ private:
 	virtual void poll();
 
 	uint32_t get_ir_in_data();
-	uint32_t build_lc2_ir_in_data(uint8_t fifo_cnt, bool bit_val, uint16_t sample_clocks);
+	uint32_t build_solo_ir_in_data(uint8_t fifo_cnt, bool bit_val, uint16_t sample_clocks);
 
 protected:
 
