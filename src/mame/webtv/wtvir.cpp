@@ -191,10 +191,10 @@ uint32_t wtvir_device_base::get_ir_in_data()
 
 	fifo_samples_left = std::min(fifo_samples_left, fifo_samples_left_max);
 
-	return wtvir_device_base::build_lc2_ir_in_data(fifo_samples_left, bit_val, sample_clock_cnt);
+	return wtvir_device_base::build_solo_ir_in_data(fifo_samples_left, bit_val, sample_clock_cnt);
 }
 
-uint32_t wtvir_device_base::build_lc2_ir_in_data(uint8_t fifo_cnt, bool bit_val, uint16_t sample_clocks)
+uint32_t wtvir_device_base::build_solo_ir_in_data(uint8_t fifo_cnt, bool bit_val, uint16_t sample_clocks)
 {
 	uint32_t data = 0x00000000;
 
