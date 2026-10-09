@@ -7,6 +7,7 @@
 #include "emu.h"
 #include "wtvir.h"
 #include "natkeyboard.h"
+#include <iterator>
 
 wtvir_device_base::wtvir_device_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, bool lirc_in_enabled) :
 	device_t(mconfig, type, tag, owner, clock),
@@ -33,6 +34,9 @@ void wtvir_device_base::device_start()
 	
 	m_fifo_data_bit_count = 7;
 	m_waiting_for_fifo_read = false;
+
+	m_irin_old_value.reset();
+	m_irin_old_value.set_primary_data(IR_MICROCODE_VERSION);
 
 	m_irin_sample_interval = 0x0;
 	m_irin_reject_interval = 0x0;
@@ -68,6 +72,11 @@ void wtvir_device_base::enable(int state)
 		m_input_timer->adjust(attotime::never);
 }
 
+bool wtvir_device_base::lirc_in_enabled()
+{
+	return (m_lirc_in_enabled && m_lirc->is_enabled());
+}
+
 uint32_t wtvir_device_base::data_r(offs_t offset)
 {
 	uint32_t result = 0x00000000;
@@ -77,7 +86,7 @@ uint32_t wtvir_device_base::data_r(offs_t offset)
 	{
 		case DEV_IROLD:
 			// not implemented
-			result |= ((IR_MICROCODE_VERSION & 0x00ff) << 16);
+			result |= m_irin_old_value.get_raw();
 			break;
 
 		case DEV_IRIN_SAMPLE:
@@ -172,7 +181,7 @@ uint32_t wtvir_device_base::get_ir_in_data()
 		if (active_key->trans_bit_index >= m_fifo_data_bit_count)
 			dequeue_button();
 	}
-	else if(m_lirc_in_enabled && m_lirc->is_enabled())
+	else if(lirc_in_enabled())
 	{
 		uint32_t lirc_state = dequeue_lirc_in();
 
@@ -343,7 +352,7 @@ void wtvir_device_base::poll()
 {
 	poll_buttons();
 
-	if(m_lirc_in_enabled && m_lirc->is_enabled())
+	if(lirc_in_enabled())
 		poll_lirc_in();
 
 	bool have_waiting_buttons = (queued_button_count() >= 1 && !m_waiting_for_fifo_read);
@@ -357,6 +366,481 @@ void wtvir_device_base::poll()
 	if (should_trigger_fifo_int)
 		m_sample_fifo_trigger_cb(1);
 }
+
+DEFINE_DEVICE_TYPE(WTVIR, wtvir_decoder_device, "wtvir", "WebTV IR Decoder")
+
+wtvir_decoder_device::wtvir_decoder_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	wtvir_device_base(mconfig, WTVIR, tag, owner, clock, true),
+	m_ir_code_cb(*this)
+{
+}
+
+void wtvir_decoder_device::device_start()
+{
+	save_item(NAME(m_wtvkb_bits));
+	save_item(NAME(m_wtvkb_bit_idx));
+	save_item(NAME(m_wtvkb_packet_started));
+
+	wtvir_decoder_device::reset_wtvkb_state();
+	wtvir_decoder_device::reset_remote_state();
+
+	wtvir_device_base::device_start();
+}
+
+void wtvir_decoder_device::device_reset()
+{
+	wtvir_device_base::device_reset();
+
+	if (!lirc_in_enabled())
+		m_input_timer->adjust(attotime::never);
+}
+
+wtvir_device_base::ir_old_value_t wtvir_decoder_device::get_irin_old_value()
+{
+	return m_irin_old_value;
+}
+
+void wtvir_decoder_device::send_decoded_state(uint8_t key_flags, uint8_t primary, uint8_t secondary, uint8_t remote_button)
+{
+	m_irin_old_value.reset();
+
+	m_irin_old_value.set_key_flags(key_flags);
+	m_irin_old_value.set_primary_data(primary);
+	m_irin_old_value.set_secondary_data(secondary);
+	m_irin_old_value.set_remote_button(remote_button);
+
+	m_ir_code_cb(1);
+}
+
+void wtvir_decoder_device::prime_wtvkb_state()
+{
+	m_wtvkb_bit_idx = wtvir_decoder_device::WTVKB_START_BITCNT;
+	m_wtvkb_packet_started = true;
+}
+
+void wtvir_decoder_device::reset_wtvkb_state()
+{
+	m_wtvkb_bits = 0x00000000;
+	m_wtvkb_bit_idx = 0;
+	m_wtvkb_packet_started = false;
+}
+
+bool wtvir_decoder_device::validate_wtvkb_parity()
+{
+	uint32_t id_byte = (m_wtvkb_bits >> 1) & 0xFF;
+
+	int id_byte_cparity = (std::popcount(id_byte) % 2 == 0) ? 1 : 0;
+	uint32_t id_byte_fparity = (m_wtvkb_bits >> 9) & 1;
+
+	uint32_t data_byte = (m_wtvkb_bits >> 11) & 0x1FF;
+
+	int data_byte_cparity = (std::popcount(data_byte) % 2 == 0) ? 1 : 0;
+	uint32_t data_byte_fparity = (m_wtvkb_bits >> 20) & 1;
+
+	return (id_byte_cparity == id_byte_fparity) && (data_byte_cparity == data_byte_fparity);
+}
+
+void wtvir_decoder_device::push_wtvkb_ir_event(bool ir_state, uint32_t interval)
+{
+	uint8_t bit_count = static_cast<uint8_t>(std::round(static_cast<double>(interval) / wtvir_decoder_device::WTVKB_TIME_PER_BIT));
+	bit_count = std::min(std::max(wtvir_decoder_device::WTVKB_MIN_BITCNT, bit_count), wtvir_decoder_device::WTVKB_MAX_BITCNT);
+
+	if (ir_state)
+		m_wtvkb_bits |= ((1 << bit_count) - 1) << m_wtvkb_bit_idx;
+
+	m_wtvkb_bit_idx += bit_count;
+
+	if (m_wtvkb_bit_idx >= wtvir_decoder_device::WTVKB_MAX_BITCNT)
+	{
+		if (m_wtvkb_packet_started && (m_wtvkb_bits & wtvir_decoder_device::WTVKB_DATA_GOOD_MASK) == wtvir_decoder_device::WTVKB_DATA_GOOD_MASK)
+		{
+			if (wtvir_decoder_device::validate_wtvkb_parity())
+			{
+				// Set Sejin ID byte as the key flag
+				// Strip off start bit (>>1) and parity + stop bit + data byte (&0xff)
+				uint8_t id_byte = (m_wtvkb_bits >> 1) & 0xff;
+
+				// Set Sejin data byte as primary data (minus start bit and parity + stop bit)
+				uint8_t data_byte = (m_wtvkb_bits >> wtvir_decoder_device::WTVKB_KEYCODE_SHIFT) & wtvir_decoder_device::WTVKB_KEYCODE_MASK;
+
+				wtvir_decoder_device::send_decoded_state(id_byte, data_byte);
+			}
+		}
+
+		wtvir_decoder_device::reset_wtvkb_state();
+	}
+	else if(m_wtvkb_bit_idx >= wtvir_decoder_device::WTVKB_START_BITCNT and !m_wtvkb_packet_started)
+	{
+		uint32_t start_check = m_wtvkb_bits >> (m_wtvkb_bit_idx - wtvir_decoder_device::WTVKB_START_BITCNT);
+
+		if (start_check == wtvir_decoder_device::WTVKB_START_MARK)
+			wtvir_decoder_device::prime_wtvkb_state();
+	}
+}
+
+bool wtvir_decoder_device::remote_within_threshold(threshold_t threshold, uint32_t period)
+{
+	return threshold.min <= period and period <= threshold.max;
+}
+
+void wtvir_decoder_device::reset_phillips_state()
+{
+	m_phillips_state = wtvir_decoder_device::PHILLIPS_RC6_IN_SFT;
+	m_phillips_period = 0;
+	m_phillips_bits = 0x00000000;
+	m_phillips_bit_idx = 0;
+}
+
+void wtvir_decoder_device::phillips_push_button()
+{
+	// Convert (our) Phillips button to Sony remote button
+	// This is because our Phillips decoder dosn't decode the bits properly but it's somewhat identifiable to convert to a Sony button press.
+
+	uint8_t sony_button = 0xff;
+
+	switch (m_phillips_bits)
+	{
+		case 0x1bb6f: // Power
+			sony_button = 0x15;
+			break;
+		case 0x3b6f: // Up
+			sony_button = 0x74;
+			break;
+		case 0x6d8: // Down
+			sony_button = 0x75;
+			break;
+		case 0x1b6f: // Left
+			sony_button = 0x34;
+			break;
+		case 0x36d8: // Right
+			sony_button = 0x33;
+			break;
+
+		//case 0xdb6f: // Channel up
+		case 0x7ed8: // Channel down
+			sony_button = 0x91;
+			break;
+		//case 0x3b68: // Listing
+
+		case 0x6ed8: // 0
+			sony_button = 0x09;
+			break;
+		case 0x19b6f: // 1
+			sony_button = 0x00;
+			break;
+		case 0xced8: // 2
+			sony_button = 0x01;
+			break;
+		case 0xc6d8: // 3
+			sony_button = 0x02;
+			break;
+		case 0x1db6f: // 4
+			sony_button = 0x03;
+			break;
+		case 0xeed8: // 5
+			sony_button = 0x04;
+			break;
+		case 0xe6d8: // 6
+			sony_button = 0x05;
+			break;
+		case 0xf6d8: // 7
+			sony_button = 0x06;
+			break;
+		case 0xf36f: // 8
+			sony_button = 0x07;
+			break;
+		case 0xfb6f: // 9
+			sony_button = 0x08;
+			break;
+
+		case 0xdb6f: // Go
+			sony_button = 0x65;
+			break;
+		case 0x1ed8: // Return
+			sony_button = 0x0b;
+			break;
+		case 0x336f: // Page up
+			sony_button = 0x48;
+			break;
+		case 0xed8: // Page down
+			sony_button = 0x59;
+			break;
+
+		case 0x76d8: // Home
+			sony_button = 0x62;
+			break;
+		case 0x1b6d8: // Back
+			sony_button = 0x4c;
+			break;
+		case 0xe36f: // View
+			sony_button = 0x5c;
+			break;
+		case 0x7b6f: // Options
+			sony_button = 0x61;
+			break;
+		case 0x66d8: // Recent
+			sony_button = 0x4b;
+			break;
+		//case 0x3b6f: // Info
+		//case 0x36f: // Phillips smart connect
+
+		default:
+			break;
+	}
+
+	if (sony_button != 0xff)
+		wtvir_decoder_device::send_decoded_state(0x00, 0x0f, 0x3a, sony_button);
+
+	wtvir_decoder_device::reset_phillips_state();
+}
+
+uint8_t wtvir_decoder_device::phillips_get_symbol_t_value()
+{
+	for (const auto& sym_def : wtvir_decoder_device::PHILLIPS_RC6_SYM_DEF)
+	{
+		if (wtvir_decoder_device::remote_within_threshold(sym_def.threshold, m_phillips_period))
+			return sym_def.t_value;
+	}
+
+	return 0;
+}
+
+void wtvir_decoder_device::phillips_push_bits(uint8_t t)
+{
+	uint8_t bit_cnt = 0;
+	uint32_t bit_value = 0;
+
+	if (m_phillips_bits & 1) // last bit 1
+	{
+		switch (t)
+		{
+			case 2:
+				bit_cnt = 1;
+				bit_value = 1;
+				break;
+			case 3:
+				bit_cnt = 1;
+				bit_value = 0;
+				break;
+			default:
+				wtvir_decoder_device::reset_phillips_state();
+				break;
+		}
+	}
+	else // last bit 0
+	{
+		switch (t)
+		{
+			case 2:
+				bit_cnt = 1;
+				bit_value = 0;
+				break;
+			case 3:
+				bit_cnt = 2;
+				bit_value = 3;
+				break;
+			case 4:
+				bit_cnt = 2;
+				bit_value = 2;
+				break;
+			default:
+				// Add last bit
+				if (m_phillips_bit_idx == (wtvir_decoder_device::PHILLIPS_RC6_MAX_BITS - 1))
+				{
+					bit_cnt = 1;
+					bit_value = 1;
+				}
+				else
+				{
+					wtvir_decoder_device::reset_phillips_state();
+				}
+				break;
+		}
+	}
+
+	if (bit_cnt > 0)
+	{
+		m_phillips_bits = (m_phillips_bits << bit_cnt) | bit_value;
+		m_phillips_bit_idx += bit_cnt;
+	}
+}
+
+void wtvir_decoder_device::phillips_push_ir_event(bool ir_state, uint32_t interval)
+{
+	switch(m_phillips_state)
+	{
+		case wtvir_decoder_device::PHILLIPS_RC6_IN_SFT:
+			if (ir_state && interval >= wtvir_decoder_device::PHILLIPS_RC6_SFT_MIN)
+				m_phillips_state = wtvir_decoder_device::PHILLIPS_RC6_IN_6T;
+			break;
+
+		case wtvir_decoder_device::PHILLIPS_RC6_IN_6T:
+			// On the box this would be "not ir_state" but it seems this is always on the pulse transition with LIRC
+			if (ir_state)
+			{
+				if (wtvir_decoder_device::remote_within_threshold(wtvir_decoder_device::PHILLIPS_RC6_LEADER_6T, interval))
+				{
+					wtvir_decoder_device::reset_phillips_state();
+					m_phillips_state = wtvir_decoder_device::PHILLIPS_RC6_IN_2T;
+				}
+			}
+			break;
+
+		case wtvir_decoder_device::PHILLIPS_RC6_IN_2T:
+			if (ir_state)
+			{
+				if (wtvir_decoder_device::remote_within_threshold(wtvir_decoder_device::PHILLIPS_RC6_LEADER_2T, interval))
+				{
+					m_phillips_state = wtvir_decoder_device::PHILLIPS_RC6_IN_SYMBOLS;
+					m_phillips_period = 0;
+				}
+			}
+			break;
+
+		case wtvir_decoder_device::PHILLIPS_RC6_IN_SYMBOLS:
+			if (ir_state)
+			{
+				if (wtvir_decoder_device::remote_within_threshold(wtvir_decoder_device::PHILLIPS_RC6_LEADER_6T, interval))
+				{
+					wtvir_decoder_device::phillips_push_button();
+					m_phillips_state = wtvir_decoder_device::PHILLIPS_RC6_IN_2T;
+				}
+				else if (interval >= wtvir_decoder_device::PHILLIPS_RC6_SFT_MIN)
+				{
+					wtvir_decoder_device::phillips_push_button();
+					m_phillips_state = wtvir_decoder_device::PHILLIPS_RC6_IN_6T;
+				}
+				else
+				{
+					m_phillips_period = interval;
+				}
+			}
+			else if (m_phillips_period > 0)
+			{
+				m_phillips_period += interval;
+
+				uint8_t t = wtvir_decoder_device::phillips_get_symbol_t_value();
+
+				if (t != 0)
+				{
+					// The code on the box catches when the bit position is 3, checks if the value is 0x8
+					// then go into another mode where it translates the bits differently
+					// I'm keeping this since each button still has a unique signature this way even if the bits don't match
+					wtvir_decoder_device::phillips_push_bits(t);
+				}
+				else
+				{
+					wtvir_decoder_device::reset_phillips_state();
+				}
+			}
+			break;
+		
+		default:
+			break;
+	}
+}
+
+void wtvir_decoder_device::reset_sony_state()
+{
+	m_sony_state = wtvir_decoder_device::SONY_SIRC_IN_GUIDE;
+	m_sony_period = 0;
+	m_sony_bits = 0x00000000;
+	m_sony_bit_idx = 0;
+}
+
+void wtvir_decoder_device::sony_push_button()
+{
+    if (m_sony_bit_idx == wtvir_decoder_device::SONY_SIRC_BITCNT)
+		wtvir_decoder_device::send_decoded_state(0x00, (m_sony_bits >> 28), (m_sony_bits >> 20), (m_sony_bits >> 13));
+
+	wtvir_decoder_device::reset_sony_state();
+}
+
+void wtvir_decoder_device::sony_push_ir_event(bool ir_state, uint32_t interval)
+{
+	if (interval > wtvir_decoder_device::SONY_SIRC_GUIDE.max)
+		wtvir_decoder_device::reset_sony_state();
+
+	switch (m_sony_state)
+	{
+		case wtvir_decoder_device::SONY_SIRC_IN_GUIDE:
+			if (!ir_state && wtvir_decoder_device::remote_within_threshold(wtvir_decoder_device::SONY_SIRC_GUIDE, interval))
+				m_sony_state = wtvir_decoder_device::SONY_SIRC_IN_TLEAD;
+			break;
+		case wtvir_decoder_device::SONY_SIRC_IN_TLEAD:
+			if (ir_state && wtvir_decoder_device::remote_within_threshold(wtvir_decoder_device::SONY_SIRC_TLEAD, interval))
+				m_sony_state = wtvir_decoder_device::SONY_SIRC_IN_BITS;
+			else
+				wtvir_decoder_device::reset_sony_state();
+			break;
+		case wtvir_decoder_device::SONY_SIRC_IN_BITS:
+			if (ir_state)
+			{
+				m_sony_period += interval;
+
+				if (wtvir_decoder_device::remote_within_threshold(wtvir_decoder_device::SONY_SIRC_1BIT, m_sony_period))
+				{
+					m_sony_bits >>= 1;
+					m_sony_bits |= 0x80000000;
+					m_sony_bit_idx += 1;
+				}
+				else if (wtvir_decoder_device::remote_within_threshold(wtvir_decoder_device::SONY_SIRC_0BIT, m_sony_period))
+				{
+					m_sony_bits >>= 1;
+					m_sony_bit_idx += 1;
+				}
+				else
+				{
+					wtvir_decoder_device::reset_sony_state();
+				}
+
+				// standard 20-bit WebTV remote codes
+				if (m_sony_bit_idx == (wtvir_decoder_device::SONY_SIRC_BITCNT - 1))
+				{
+					m_sony_bit_idx = wtvir_decoder_device::SONY_SIRC_BITCNT;
+					wtvir_decoder_device::sony_push_button();
+				}
+			}
+			else
+			{
+				m_sony_period = interval;
+			}
+			break;
+
+		default:
+			break;
+	}
+}
+
+void wtvir_decoder_device::reset_remote_state()
+{
+	wtvir_decoder_device::reset_phillips_state();
+	wtvir_decoder_device::reset_sony_state();
+}
+
+void wtvir_decoder_device::push_remote_ir_event(bool ir_state, uint32_t interval)
+{
+	wtvir_decoder_device::phillips_push_ir_event(ir_state, interval);
+	wtvir_decoder_device::sony_push_ir_event(ir_state, interval);
+}
+
+void wtvir_decoder_device::poll_lirc_in()
+{
+	while(true)
+	{
+		uint32_t lirc_state = m_lirc->read();
+
+		if (lirc_state == lirc_device::LIRC_INVALID_DATA)
+			break;
+
+		bool ir_state = (lirc_state & lirc_device::LIRC_IS_PULSE_BIT);
+		uint32_t interval = lirc_state & lirc_device::LIRC_INTERVAL_MASK;
+
+		wtvir_decoder_device::push_wtvkb_ir_event(ir_state, interval);
+		wtvir_decoder_device::push_remote_ir_event(ir_state, interval);
+	}
+}
+
 
 DEFINE_DEVICE_TYPE(SEJIN_KBD, wtvir_sejin_device, "sejinkbd", "Sejin IR Keyboard")
 
