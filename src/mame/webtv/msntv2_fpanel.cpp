@@ -235,6 +235,12 @@ void pic12f629_irkbd_device::send_keypresses(int state)
 	}
 }
 
+void pic12f629_irkbd_device::sejin_keycode_insert(uint8_t keycode, bool is_make)
+{
+	// This will translate the IR input directly to the ioport binding, so MSNTV2 aren't translated like WebTV boxes where it bypasses MAME's ioport translation.
+	pic12f629_irkbd_device::scancode_insert(wtvkb_to_pcat_scancode[keycode & (pic12f629_irkbd_device::SKEYCODE_TRANSLATE_TABLE_SIZE - 1)], is_make);
+}
+
 void pic12f629_irkbd_device::set_gp0(int state)
 {
 	m_gp0 = state;
@@ -827,6 +833,7 @@ msntv2_fpanel_device::msntv2_fpanel_device(const machine_config &mconfig, const 
 	device_t(mconfig, MSNTV2_FPANEL, tag, owner, clock),
 	device_centronics_peripheral_interface(mconfig, *this),
 	m_irkbd(*this, "irkbd"),
+	m_ir(*this, "irrcv"),
 	m_power_led(*this, "power_led"),
 	m_connect_led(*this, "connect_led"),
 	m_message_led(*this, "message_led")
@@ -852,6 +859,17 @@ void msntv2_fpanel_device::device_add_mconfig(machine_config &config)
 {
 	PIC12F629_IRKBD(config, m_irkbd, 0);
 	m_irkbd->gp4_callback().set(FUNC(msntv2_fpanel_device::output_busy));
+
+	WTVIR(config, m_ir);
+	m_ir->ir_code_callback().set(FUNC(msntv2_fpanel_device::handle_ir_event));
+}
+
+void msntv2_fpanel_device::handle_ir_event(int state)
+{
+	wtvir_device_base::ir_old_value_t value = m_ir->get_irin_old_value();
+
+	if (value.get_is_sejin_keyboard())
+		m_irkbd->sejin_keycode_insert(value.get_primary_data(), value.get_key_is_make());
 }
 
 void msntv2_fpanel_device::input_data0(int state)
