@@ -20,6 +20,7 @@
 #include "sound.h"
 #include "speaker.h"
 #include "machine/watchdog.h"
+#include "wtvir.h"
 
 constexpr uint32_t SYSCONFIG_ROMTYP0    = 1 << 31; // ROM bank 0 is present
 constexpr uint32_t SYSCONFIG_ROMMODE0   = 1 << 30; // ROM bank 0 supports page mode
@@ -292,6 +293,7 @@ private:
 	required_shared_ptr<uint32_t> m_hostram;
 	required_device<ds2401_device> m_serial_id;
 	required_device<kbdc8042_device> m_kbdc;
+	required_device<wtvir_decoder_device> m_ir;
 	required_device<at_keyboard_device> m_kbd;
 	required_device<screen_device> m_screen;
 
@@ -319,6 +321,7 @@ private:
 
 	void irq_uart_w(int state);
 	void vblank_irq(int state);
+	void irq_ir_w(int state);
 	void irq_keyboard_w(int state);
 	void irq_smartcard_w(int state);
 	void irq_audio_w(int state);

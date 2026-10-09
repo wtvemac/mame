@@ -24,6 +24,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	m_hostram(*owner, "mainram"),
 	m_serial_id(*this, finder_base::DUMMY_TAG),
 	m_kbdc(*this, "kbdc"),
+	m_ir(*this, "ir"),
 	m_kbd(*this, "kbd"),
 	m_screen(*this, "screen"),
 	m_lspeaker(*this, "lspeaker"),
@@ -190,6 +191,9 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	m_kbdc->input_buffer_full_callback().set(FUNC(spot_asic_device::irq_keyboard_w));
 	m_kbdc->system_reset_callback().set_inputline(":maincpu", INPUT_LINE_RESET);
 	m_kbdc->set_keyboard_tag("kbd");
+
+	WTVIR(config, m_ir);
+	m_ir->ir_code_callback().set(FUNC(spot_asic_device::irq_ir_w));
 
 	AT_KEYB(config, m_kbd, pc_keyboard_device::KEYBOARD_TYPE::AT, 1);
 	m_kbd->keypress().set(m_kbdc, FUNC(kbdc8042_device::keyboard_w));
@@ -861,8 +865,10 @@ void spot_asic_device::reg_313c_w(uint32_t data)
 // Read IR receiver chip
 uint32_t spot_asic_device::reg_4000_r()
 {
-	// TODO: This seems to have been handled by a PIC16CR54AT. We do not have the ROM for this chip, so its behavior will need to be emulated at a high level.
-	return 0;
+	if (m_ir->lirc_in_enabled())
+		return m_ir->data_r(wtvir_decoder_device::DEV_IROLD);
+	else
+		return 0;
 }
 
 // Read LED states
@@ -1284,6 +1290,11 @@ void spot_asic_device::vblank_irq(int state)
 	// Not to spec but does get the intended result.
 	// All video interrupts are classed the same in the ROM.
 	spot_asic_device::set_vid_irq(VID_INT_VSYNCO, 1);
+}
+
+void spot_asic_device::irq_ir_w(int state)
+{
+	spot_asic_device::set_bus_irq(BUS_INT_DEVIR, state);
 }
 
 void spot_asic_device::irq_keyboard_w(int state)
