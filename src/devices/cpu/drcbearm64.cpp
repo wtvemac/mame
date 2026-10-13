@@ -523,7 +523,7 @@ private:
 		uint8_t nominal_fmod;
 		uint8_t fmod_changed;
 
-		uint8_t vecspill[uml::REG_F_COUNT][16];
+		uint8_t vecspill[uml::REG_F_COUNT][64];
 	};
 
 	struct memory_accessors
@@ -6112,7 +6112,7 @@ void drcbe_arm64::op_vload(a64::Assembler &a, const uml::instruction &inst)
 	}
 	else
 	{
-		static const a64::Vec wide_scratch[4] = { TEMPF_REG1.q(), TEMPF_REG2.q(), TEMPF_REG3.q(), TEMPF_REG4.q() };
+		uint32_t const fregnum = dstp.freg() - uml::REG_F0;
 
 		const a64::Gp basereg = TEMP_REG1;
 		get_imm_relative(a, basereg, uint64_t(basep.memory()));
@@ -6127,12 +6127,17 @@ void drcbe_arm64::op_vload(a64::Assembler &a, const uml::instruction &inst)
 		else
 			emit_ldrsw_mem(a, indreg, indp.memory());
 
+		const a64::Gp addrreg = TEMP_REG3;
+		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
+		uint32_t const physreg = float_register_map[fregnum];
 		int const nchunks = int(width_bytes / 16);
 		for (int i = 0; i < nchunks; i++)
 		{
 			if (i > 0)
 				a.add(indreg, indreg, 16);
-			a.ldr(wide_scratch[i], a64::Mem(basereg, indreg));
+			const a64::Vec chunk = (i == 0 && physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+			a.ldr(chunk, a64::Mem(basereg, indreg));
+			a.str(chunk, a64::Mem(addrreg, i * 16));
 		}
 	}
 }
@@ -6170,7 +6175,7 @@ void drcbe_arm64::op_vstore(a64::Assembler &a, const uml::instruction &inst)
 
 		const a64::Gp indreg = TEMP_REG2;
 		if (indp.is_immediate())
-			get_imm_relative(a, indreg, static_cast<uint64_t>(static_cast<int64_t>(indp.immediate())));
+			get_imm_relative(a, indreg, uint64_t(int64_t(int32_t(uint32_t(indp.immediate())))));
 		else if (indp.is_int_register())
 			a.sxtw(indreg, indp.get_register_int(4));
 		else if ((std::endian::native == std::endian::big) && indp.is_cold_register())
@@ -6182,14 +6187,14 @@ void drcbe_arm64::op_vstore(a64::Assembler &a, const uml::instruction &inst)
 	}
 	else
 	{
-		static const a64::Vec wide_scratch[4] = { TEMPF_REG1.q(), TEMPF_REG2.q(), TEMPF_REG3.q(), TEMPF_REG4.q() };
+		uint32_t const fregnum = srcp.freg() - uml::REG_F0;
 
 		const a64::Gp basereg = TEMP_REG1;
 		get_imm_relative(a, basereg, uint64_t(basep.memory()));
 
 		const a64::Gp indreg = TEMP_REG2;
 		if (indp.is_immediate())
-			get_imm_relative(a, indreg, static_cast<uint64_t>(static_cast<int64_t>(indp.immediate())));
+			get_imm_relative(a, indreg, uint64_t(int64_t(int32_t(uint32_t(indp.immediate())))));
 		else if (indp.is_int_register())
 			a.sxtw(indreg, indp.get_register_int(4));
 		else if ((std::endian::native == std::endian::big) && indp.is_cold_register())
@@ -6197,12 +6202,18 @@ void drcbe_arm64::op_vstore(a64::Assembler &a, const uml::instruction &inst)
 		else
 			emit_ldrsw_mem(a, indreg, indp.memory());
 
+		const a64::Gp addrreg = TEMP_REG3;
+		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
+		uint32_t const physreg = float_register_map[fregnum];
 		int const nchunks = int(width_bytes / 16);
 		for (int i = 0; i < nchunks; i++)
 		{
 			if (i > 0)
 				a.add(indreg, indreg, 16); // advance to the next 16-byte chunk
-			a.str(wide_scratch[i], a64::Mem(basereg, indreg));
+			const a64::Vec chunk = (i == 0 && physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+			if (i != 0 || physreg == 0)
+				a.ldr(chunk, a64::Mem(addrreg, i * 16));
+			a.str(chunk, a64::Mem(basereg, indreg));
 		}
 	}
 }
@@ -6241,10 +6252,15 @@ void drcbe_arm64::op_vbcastb(a64::Assembler &a, const uml::instruction &inst)
 	}
 	else
 	{
-		static const a64::Vec wide_scratch[4] = { TEMPF_REG1.q(), TEMPF_REG2.q(), TEMPF_REG3.q(), TEMPF_REG4.q() };
+		uint32_t const fregnum = dstp.freg() - uml::REG_F0;
+		uint32_t const physreg = float_register_map[fregnum];
+		const a64::Vec dstreg = (physreg != 0) ? a64::Vec::make_v128(physreg) : TEMPF_REG1.q();
+		a.dup(dstreg.b16(), tmp);
+		const a64::Gp addrreg = TEMP_REG3;
+		get_imm_relative(a, addrreg, uint64_t(&m_near.vecspill[fregnum]));
 		int const nchunks = int(width_bytes / 16);
 		for (int i = 0; i < nchunks; i++)
-			a.dup(wide_scratch[i].b16(), tmp);
+			a.str(dstreg, a64::Mem(addrreg, i * 16));
 	}
 
 }
