@@ -116,9 +116,7 @@ public:
 		int32_t dot_product = 0;
 
 		for (uint32_t fdix = 0, sidx = sidx_start; fdix < table_size; fdix++, sidx++)
-		{
 			dot_product += (table0[fdix] * circular_table1[sidx & sidx_mask]);
-		}
 
 		dot_product >>= TRIG_RANGE_BITS;
 
@@ -126,8 +124,16 @@ public:
 	}
 	inline int32_t get_iq_similarity(wtvsoftmodem_dsp::sample_t* itable, wtvsoftmodem_dsp::sample_t* qtable, uint32_t table_size, sample_t* samples, uint32_t sidx_start = 0, uint32_t sidx_mask = 0xffffffff)
 	{
-		int32_t idot_product = circular_dot_product(itable, samples, table_size, sidx_start, sidx_mask);
-		int32_t qdot_product = circular_dot_product(qtable, samples, table_size, sidx_start, sidx_mask);
+		// I and Q circular dot product
+		int32_t idot_product = 0;
+		int32_t qdot_product = 0;
+		for (uint32_t fdix = 0, sidx = sidx_start; fdix < table_size; fdix++, sidx++)
+		{
+			idot_product += (itable[fdix] * samples[sidx & sidx_mask]);
+			qdot_product += (qtable[fdix] * samples[sidx & sidx_mask]);
+		}
+		idot_product >>= TRIG_RANGE_BITS;
+		qdot_product >>= TRIG_RANGE_BITS;
 
 		int32_t power = (idot_product * idot_product) + (qdot_product * qdot_product);
 
@@ -135,7 +141,6 @@ public:
 	}
 	inline int32_t get_iq_similarity(iqtable_t* iqtable, sample_t* samples, uint32_t sidx_start = 0, uint32_t sidx_mask = 0xffffffff)
 	{
-
 		return get_iq_similarity(iqtable->itable, iqtable->qtable, iqtable->table_size, samples, sidx_start, sidx_mask);
 	}
 
