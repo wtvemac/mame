@@ -277,15 +277,15 @@ void wtvsoftmodem_v8::prepare_menu_tx_buffer()
 
 	for (const auto &item : tx_capabilities)
 	{
-		if (((item & wtvsoftmodem_v8::V8_MENU_CAT_MMODE0) == wtvsoftmodem_v8::V8_MENU_CAT_MMODE0))
+		if ((item & (wtvsoftmodem_v8::V8_MENU_CAT_MMODE0 | 0xf00)) == wtvsoftmodem_v8::V8_MENU_CAT_MMODE0)
 		{
 			modn0_byte |= item;
 		}
-		else if (((item & wtvsoftmodem_v8::V8_MENU_CAT_MMODE1) == wtvsoftmodem_v8::V8_MENU_CAT_MMODE1))
+		else if ((item & (wtvsoftmodem_v8::V8_MENU_CAT_MMODE1 | 0xf00)) == wtvsoftmodem_v8::V8_MENU_CAT_MMODE1)
 		{
 			modn1_byte |= item;
 		}
-		else if (((item & wtvsoftmodem_v8::V8_MENU_CAT_MMODE2) == wtvsoftmodem_v8::V8_MENU_CAT_MMODE2))
+		else if ((item & (wtvsoftmodem_v8::V8_MENU_CAT_MMODE2 | 0xf00)) == wtvsoftmodem_v8::V8_MENU_CAT_MMODE2)
 		{
 			modn2_byte |= item;
 		}
