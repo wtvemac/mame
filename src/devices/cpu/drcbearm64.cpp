@@ -695,6 +695,7 @@ private:
 	void mov_mem_param(a64::Assembler &a, uint32_t regsize, void *dst, const be_parameter &src) const;
 
 	void call_arm_addr(a64::Assembler &a, const void *offs) const;
+	void jump_arm_addr(a64::Assembler &a, const void *offs) const;
 
 	[[noreturn]] void end_of_block() const;
 
@@ -1524,6 +1525,21 @@ void drcbe_arm64::call_arm_addr(a64::Assembler &a, const void *offs) const
 	}
 }
 
+void drcbe_arm64::jump_arm_addr(a64::Assembler &a, const void *offs) const
+{
+	const uint64_t codeoffs = a.code()->base_address() + a.offset();
+	const int64_t reloffs = int64_t(uintptr_t(offs)) - int64_t(codeoffs);
+	if (!(reloffs & 3) && is_valid_immediate_signed(reloffs, 26 + 2))
+	{
+		a.b(offs);
+	}
+	else
+	{
+		get_imm_relative(a, SCRATCH_REG1, uintptr_t(offs));
+		a.br(SCRATCH_REG1);
+	}
+}
+
 void drcbe_arm64::store_carry(a64::Assembler &a, bool inverted)
 {
 	m_carry_state = inverted ? carry_state::LOGICAL : carry_state::CANONICAL;
@@ -1963,7 +1979,7 @@ void drcbe_arm64::generate(drcuml_block &block, const instruction *instlist, uin
 	// catch falling off the end of a block
 	if (logger.file())
 		a.set_inline_comment("end of block");
-	a.b(m_endofblock);
+	jump_arm_addr(a, m_endofblock);
 
 	// emit the generated code
 	size_t const bytes = emit(ch, block.invariant());
@@ -2192,7 +2208,7 @@ void drcbe_arm64::op_exit(a64::Assembler &a, const uml::instruction &inst)
 	emit_skip(a, inst.condition(), skip);
 
 	mov_reg_param(a, 4, REG_PARAM1, retp);
-	a.b(m_exit);
+	jump_arm_addr(a, m_exit);
 
 	if (inst.condition() != uml::COND_ALWAYS)
 		a.bind(skip);
