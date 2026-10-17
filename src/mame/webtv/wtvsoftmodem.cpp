@@ -139,16 +139,27 @@ void wtvsoftmodem_device::cts_w(int state)
 	//
 }
 
-uint32_t wtvsoftmodem_device::pull(int32_t* sample, uint32_t sample_count)
+template <wtvsoftmodem_sample_buffer T>
+uint32_t wtvsoftmodem_device::pull(T* buffer, uint32_t sample_count)
 {
+	int16_t* sample;
+	if constexpr (std::is_same_v<T, uint32_t>)
+	{
+		m_sample_scratch.assign(sample_count, 0);
+		sample = m_sample_scratch.data();
+	}
+	else
+	{
+		sample = buffer;
+		std::fill_n(sample, sample_count, 0);
+	}
+
 	uint32_t tx_sample_count = 0;
 
 	switch (m_state)
 	{
 		case ModemState::IDLE_ON_HOOK:
 		case ModemState::CALLER_DIALING:
-			memset(sample, 0, sample_count << 2);
-
 			tx_sample_count = sample_count;
 			break;
 
@@ -185,8 +196,16 @@ uint32_t wtvsoftmodem_device::pull(int32_t* sample, uint32_t sample_count)
 		}
 	}
 
+	if constexpr (std::is_same_v<T, uint32_t>)
+	{
+		for (uint32_t sample_idx = 0; sample_idx < sample_count; sample_idx++)
+			buffer[sample_idx] = uint16_t(sample[sample_idx]);
+	}
+
 	return tx_sample_count;
 }
+template uint32_t wtvsoftmodem_device::pull<uint32_t>(uint32_t* buffer, uint32_t sample_count);
+template uint32_t wtvsoftmodem_device::pull<wtvsoftmodem_dsp::sample_t>(wtvsoftmodem_dsp::sample_t* buffer, uint32_t sample_count);
 
 void wtvsoftmodem_device::restart(wtvsoftmodem_tone::tone_t dial_tone)
 {
@@ -225,7 +244,7 @@ void wtvsoftmodem_device::set_is_dialing()
 	m_tone.tx_init(wtvsoftmodem_tone::TONE_NULL);
 }
 
-void wtvsoftmodem_device::listen_for_dial_string(const int32_t* sample, uint32_t sample_count)
+void wtvsoftmodem_device::listen_for_dial_string(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 {
 	wtvsoftmodem_tone::detected_tone_t dt = m_tone.detect_dtmf(sample, sample_count);
 	if (m_tone.is_new_tone(dt))
@@ -241,8 +260,22 @@ void wtvsoftmodem_device::listen_for_dial_string(const int32_t* sample, uint32_t
 	}
 }
 
-void wtvsoftmodem_device::push(const int32_t* sample, uint32_t sample_count)
+template <wtvsoftmodem_sample_buffer T>
+void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 {
+	const int16_t* sample;
+	if constexpr (std::is_same_v<T, uint32_t>)
+	{
+		m_sample_scratch.resize(sample_count);
+		for (uint32_t sample_idx = 0; sample_idx < sample_count; sample_idx++)
+			m_sample_scratch[sample_idx] = wtvsoftmodem_dsp::sample_t(uint16_t(buffer[sample_idx]));
+		sample = m_sample_scratch.data();
+	}
+	else
+	{
+		sample = buffer;
+	}
+
 	switch (m_state)
 	{
 		case ModemState::IDLE_ON_HOOK:
@@ -277,6 +310,8 @@ void wtvsoftmodem_device::push(const int32_t* sample, uint32_t sample_count)
 			m_line_mixer_buffer[m_line_mixer_tail++ & (wtvsoftmodem_device::LINE_MIXER_BUFFER_SIZE - 1)] = sample[idx];
 	}
 }
+template void wtvsoftmodem_device::push<uint32_t>(const uint32_t* buffer, uint32_t sample_count);
+template void wtvsoftmodem_device::push<wtvsoftmodem_dsp::sample_t>(const wtvsoftmodem_dsp::sample_t* buffer, uint32_t sample_count);
 
 void wtvsoftmodem_device::received_byte(u8 byte)
 {

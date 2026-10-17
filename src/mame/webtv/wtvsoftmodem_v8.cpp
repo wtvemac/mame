@@ -324,7 +324,7 @@ void wtvsoftmodem_v8::send_menu()
 	wtvsoftmodem_v8::start_tx();
 }
 
-uint32_t wtvsoftmodem_v8::tx(int32_t* sample, uint32_t sample_count)
+uint32_t wtvsoftmodem_v8::tx(wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 {
 	switch (v8_state)
 	{
@@ -333,7 +333,7 @@ uint32_t wtvsoftmodem_v8::tx(int32_t* sample, uint32_t sample_count)
 
 		case wtvsoftmodem_v8::V8State::IDLE:
 		case wtvsoftmodem_v8::V8State::NEGOTIATED:
-			memset(sample, 0, sizeof(int32_t) * sample_count);
+			memset(sample, 0, sizeof(*sample) * sample_count);
 			return 0;
 
 		default:

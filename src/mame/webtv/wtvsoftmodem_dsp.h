@@ -81,7 +81,7 @@ public:
 	phase_t get_aadvance(frequency_t frequency, frequency_t sample_rate);
 
 	dft_state_t dft_init(frequency_t sniff_frequency, frequency_t sample_rate, uint32_t samples_per_block);
-	bool dft(dft_state_t* state, const int32_t* sample, uint32_t sample_count)
+	bool dft(dft_state_t* state, const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 	{
 		for (uint32_t sidx = 0; sidx < sample_count; sidx++)
 		{

@@ -119,7 +119,7 @@ void wtvsoftmodem_tone::rx_init()
 	demod_state.hit_count = 0;
 }
 
-wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_dual_tone_freq(const int32_t* sample, uint32_t sample_count)
+wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_dual_tone_freq(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 {
 	dual_frequency_t detected_frequencies = wtvsoftmodem_tone::detect_dual_freq(0, frequency_count, sample, sample_count);
 
@@ -168,7 +168,7 @@ wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_dual_tone_freq(cons
 	}
 }
 
-wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_single_tone_freq(const int32_t* sample, uint32_t sample_count)
+wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_single_tone_freq(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 {
 	int32_t detected_index = wtvsoftmodem_tone::detect_single_freq(0, frequency_count, sample, sample_count);
 
@@ -213,7 +213,7 @@ wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_single_tone_freq(co
 	}
 }
 
-wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_dtmf(const int32_t* sample, uint32_t sample_count)
+wtvsoftmodem_tone::detected_tone_t wtvsoftmodem_tone::detect_dtmf(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 {
 	int32_t detected_row_index = wtvsoftmodem_tone::detect_single_freq(wtvsoftmodem_tone::DTMF_TABLE_ROW_START_INDEX, wtvsoftmodem_tone::DTMF_FREQUENCY_COUNT, sample, sample_count);
 	int32_t detected_col_index = wtvsoftmodem_tone::detect_single_freq(wtvsoftmodem_tone::DTMF_TABLE_COL_START_INDEX, wtvsoftmodem_tone::DTMF_FREQUENCY_COUNT, sample, sample_count);
