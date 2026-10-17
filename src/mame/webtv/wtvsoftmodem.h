@@ -26,7 +26,8 @@
 #include "wtvsoftmodem_v34.h"
 #include "wtvsoftmodem_v90.h"
 
-#define SOFTMODEM_DEBUG false
+#include "wtvsoftmodem_recorder.h"
+
 template <typename T>
 concept wtvsoftmodem_sample_buffer = std::is_same_v<T, uint32_t> || std::is_same_v<T, wtvsoftmodem_dsp::sample_t>;
 
@@ -86,6 +87,8 @@ private:
 	static constexpr uint32_t ECHO_DELAY_SAMPLE_CNT = 45;
 	static constexpr int32_t ECHO_SCALEDOWN = 4;
 
+	static constexpr std::string WAV_RECORDER_FILETAG = "wtvsm";
+
 	static constexpr uint8_t touchppp_data_command[] = "ATD\x0d";
 
 	devcb_write_line m_out_tx_cb;
@@ -117,6 +120,9 @@ private:
 	std::string m_dte_reply_line;
 	std::deque<uint8_t> m_dte_pending;
 
+	bool m_wav_recorder_enabled;
+	wtvsoftmodem_recorder m_wav_recorder;
+
 	bool m_has_dialed;
 	std::string m_dial_digits;
 
@@ -147,6 +153,7 @@ protected:
 
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
+	virtual void device_stop() override ATTR_COLD;
 
 	virtual void tra_callback() override;
 	virtual void tra_complete() override;

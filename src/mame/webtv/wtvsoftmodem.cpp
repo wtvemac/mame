@@ -4,6 +4,7 @@
 // Description here
 
 #include "emu.h"
+#include "emuopts.h"
 #include "wtvsoftmodem.h"
 #include <cmath>
 
@@ -15,7 +16,8 @@ wtvsoftmodem_device::wtvsoftmodem_device(const machine_config &mconfig, const ch
 	m_out_tx_cb(*this),
 	m_out_dtr_cb(*this),
 	m_out_rts_cb(*this),
-	m_out_int_cb(*this)
+	m_out_int_cb(*this),
+	m_wav_recorder_enabled(false)
 {
 }
 
@@ -23,6 +25,8 @@ void wtvsoftmodem_device::device_start()
 {
 	dial_completed_timer = timer_alloc(FUNC(wtvsoftmodem_device::dial_completed), this);
 	data_start_timer = timer_alloc(FUNC(wtvsoftmodem_device::start_data), this);
+
+	m_wav_recorder_enabled = device().machine().options().sm_record();
 
 	save_item(NAME(m_sample_rate));
 	//save_item(NAME(m_state));
@@ -68,29 +72,37 @@ void wtvsoftmodem_device::device_reset()
 
 	m_v8.set_state_change_callback([this] (wtvsoftmodem_v8::V8State old_state, wtvsoftmodem_v8::V8State new_state)
 	{
-#if SOFTMODEM_DEBUG
-		printf("MAME MESSAGE-> V8: old=%02x, new=%02x\n", old_state, new_state);
-#endif
+		if (m_wav_recorder_enabled)
+			m_wav_recorder.annotate(std::format("V.8 state to '{}'", wtvsoftmodem_v8::v8_state_to_string(new_state)));
 
 		if (new_state == wtvsoftmodem_v8::V8State::RCV_CM)
 		{
-#if SOFTMODEM_DEBUG
-			auto in_caps = m_v8.get_peer_capabilities();
-			for (const auto &in_cap : in_caps)
+			if (m_wav_recorder_enabled)
 			{
-				printf("\tMAME MESSAGE-> in_cap=%08x\n", in_cap);
+				std::string peer_caps = "";
+
+				auto in_caps = m_v8.get_peer_capabilities();
+				for (const auto &in_cap : in_caps)
+					peer_caps += std::format(" 0x{:04x}", in_cap);
+
+				m_wav_recorder.annotate("V.8 peer capabilities:" +  peer_caps);
 			}
-#endif
 		}
 		else if (new_state == wtvsoftmodem_v8::V8State::NEGOTIATED)
 		{
-#if SOFTMODEM_DEBUG
-			printf("MAME MESSAGE-> GO V23\n");
-#endif
+			if (m_wav_recorder_enabled)
+				m_wav_recorder.annotate("V.8 negotiated, going to V.23");
+
 			m_state = ModemState::V23;
 			wtvsoftmodem_device::enter_data_mode();
 		}
 	});
+}
+
+void wtvsoftmodem_device::device_stop()
+{
+	if (m_wav_recorder_enabled)
+		m_wav_recorder.close();
 }
 
 void wtvsoftmodem_device::reset()
@@ -111,6 +123,9 @@ void wtvsoftmodem_device::reset()
 	m_dte_pending.clear();
 	clear_fifo();
 	transmit_register_reset();
+
+	if (m_wav_recorder_enabled)
+		m_wav_recorder.close();
 
 	data_start_timer->adjust(attotime::never);
 	dial_completed_timer->adjust(attotime::never);
@@ -146,6 +161,8 @@ void wtvsoftmodem_device::set_clock(uint32_t clock)
 	m_v8.set_sample_rate(m_sample_rate);
 	m_v22.set_sample_rate(m_sample_rate);
 	m_v23.set_sample_rate(m_sample_rate);
+
+	m_wav_recorder.set_sample_rate(m_sample_rate);
 }
 
 void wtvsoftmodem_device::rx_w(int state)
@@ -319,6 +336,9 @@ uint32_t wtvsoftmodem_device::pull(T* buffer, uint32_t sample_count)
 		}
 	}
 
+	if (m_wav_recorder_enabled)
+		m_wav_recorder.push_right(sample, tx_sample_count);
+
 	if constexpr (std::is_same_v<T, uint32_t>)
 	{
 		for (uint32_t sample_idx = 0; sample_idx < sample_count; sample_idx++)
@@ -358,6 +378,12 @@ void wtvsoftmodem_device::set_off_hook(wtvsoftmodem_tone::tone_t dial_tone)
 
 		m_dial_digits.clear();
 
+		if (m_wav_recorder_enabled)
+		{
+			m_wav_recorder.open(WAV_RECORDER_FILETAG);
+			m_wav_recorder.annotate("Modem off hook");
+		}
+
 		wtvsoftmodem_device::reset_echo(true);
 
 		wtvsoftmodem_device::restart(dial_tone);
@@ -391,11 +417,15 @@ void wtvsoftmodem_device::listen_for_dial_string(const wtvsoftmodem_dsp::sample_
 	wtvsoftmodem_tone::detected_tone_t dt = m_tone.detect_dtmf(sample, sample_count);
 	if (m_tone.is_new_tone(dt))
 	{
-#if SOFTMODEM_DEBUG
-		printf("MAME MESSAGE-> Detected DTMF digit: %c\n", m_tone.get_tone_digit(dt));
-#endif
+		const char detected_digit = m_tone.get_tone_digit(dt);
+
 		dial_completed_timer->adjust(attotime::from_msec(WAIT_AFTER_DIAL_SILENCE_MS));
-		m_dial_digits += m_tone.get_tone_digit(dt);
+
+		m_dial_digits += detected_digit;
+
+		if (m_wav_recorder_enabled)
+			m_wav_recorder.annotate(std::format("Detected DTMF digit '{}'", detected_digit));
+
 		if (m_state == ModemState::IDLE_OFF_HOOK)
 			wtvsoftmodem_device::set_is_dialing();
 	}
@@ -421,6 +451,9 @@ void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 	{
 		sample = buffer;
 	}
+	
+	if (m_wav_recorder_enabled)
+		m_wav_recorder.push_left(sample, sample_count);
 
 	// Add an echo so audible dialing doesn't sound too weird on a zero-echo channel (things like hearing the dialed digit)
 	// Echo gets turned off after V.8 to not disturb training.
@@ -466,6 +499,9 @@ template void wtvsoftmodem_device::push<wtvsoftmodem_dsp::sample_t>(const wtvsof
 TIMER_CALLBACK_MEMBER(wtvsoftmodem_device::dial_completed)
 {
 	m_has_dialed = true;
+
+	if (m_wav_recorder_enabled)
+		m_wav_recorder.annotate("Dialed '" +  m_dial_digits + "', going to V.8");
 
 	m_state = ModemState::V8;
 	m_v8.start();

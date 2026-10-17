@@ -15,6 +15,7 @@
 #include "wtvsoftmodem_framing.h"
 #include <vector>
 #include <algorithm>
+#include <string>
 
 using std::vector;
 
@@ -39,6 +40,42 @@ public:
 		SNT_JM,    // Sent Joint Menu (JM)
 		NEGOTIATED // Both sides fully negotiated parameters
 	};
+	static std::string v8_state_to_string(V8State state)
+	{
+		switch (state)
+		{
+			case V8State::IDLE:
+				return "IDLE";
+			case V8State::RCV_CI:
+				return "RCV_CI";
+			case V8State::SND_CI:
+				return "SND_CI";
+			case V8State::SNT_CI:
+				return "SNT_CI";
+			case V8State::RCV_ANSAM:
+				return "RCV_ANSAM";
+			case V8State::SND_ANSAM:
+				return "SND_ANSAM";
+			case V8State::SNT_ANSAM:
+				return "SNT_ANSAM";
+			case V8State::RCV_CM:
+				return "RCV_CM";
+			case V8State::SND_CM:
+				return "SND_CM";
+			case V8State::SNT_CM:
+				return "SNT_CM";
+			case V8State::RCV_JM:
+				return "RCV_JM";
+			case V8State::SND_JM:
+				return "SND_JM";
+			case V8State::SNT_JM:
+				return "SNT_JM";
+			case V8State::NEGOTIATED:
+				return "NEGOTIATED";
+		}
+
+		return "UNKNOWN";
+	}
 
 	typedef std::function<void(V8State, V8State)> state_change_callback_func;
 

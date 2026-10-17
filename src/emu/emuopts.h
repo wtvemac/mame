@@ -183,6 +183,9 @@
 #define OPTION_NVRAM_SAVE           "nvram_save"
 #define OPTION_RTC_TIME             "rtc"
 
+// WebTV softmodem options
+#define OPTION_SM_RECORD            "sm_record"
+
 // core comm options
 #define OPTION_COMM_LOCAL_HOST      "comm_localhost"
 #define OPTION_COMM_LOCAL_PORT      "comm_localport"
@@ -471,6 +474,9 @@ public:
 	ui_option ui() const { return m_ui; }
 	bool nvram_save() const { return bool_value(OPTION_NVRAM_SAVE); }
 	const char *rtc_time() const { return value(OPTION_RTC_TIME); }
+
+	// WebTV softmodem options
+	bool sm_record() const { return bool_value(OPTION_SM_RECORD); }
 
 	// core comm options
 	const char *comm_localhost() const { return value(OPTION_COMM_LOCAL_HOST); }
