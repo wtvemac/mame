@@ -49,17 +49,17 @@ void wtvsoftmodem_device::device_reset()
 
 	wtvsoftmodem_device::set_clock(wtvsoftmodem_device::DEFAULT_SAMPLE_RATE);
 
-	m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_DATMODEM);
-	//m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V21AVAIL);
-	//m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V32AVAIL);
-	m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V23FULLD);
-	//m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V22AVAIL);
+	m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_DATMODEM);
+	//m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V21AVAIL);
+	//m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V32AVAIL);
+	m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V23FULLD);
+	//m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V22AVAIL);
 
 	/*
-	m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V34FULLD);
-	m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_V90ANLOG);
-	m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM);
-	m_v8.add_tx_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEANLOG);
+	m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V34FULLD);
+	m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_V90ANLOG);
+	m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM);
+	m_v8.add_local_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEANLOG);
 	*/
 	
 	m_out_dtr_cb(1);
@@ -78,7 +78,7 @@ void wtvsoftmodem_device::device_reset()
 		if (new_state == wtvsoftmodem_v8::V8State::RCV_CM)
 		{
 #if SOFTMODEM_DEBUG
-			auto in_caps = m_v8.get_rx_capabilities();
+			auto in_caps = m_v8.get_peer_capabilities();
 			for (const auto &in_cap : in_caps)
 			{
 				printf("\tMAME MESSAGE-> in_cap=%08x\n", in_cap);
