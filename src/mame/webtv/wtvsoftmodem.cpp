@@ -176,6 +176,15 @@ uint32_t wtvsoftmodem_device::pull(T* buffer, uint32_t sample_count)
 			tx_sample_count = m_tone.tx(sample, sample_count);
 			break;
 
+		case ModemState::WAITING:
+		{
+			tx_sample_count = sample_count;
+			m_wait_samples -= sample_count;
+			if(m_wait_samples <= 0)
+				m_state = m_wait_end_state;
+			break;
+		}
+
 		case ModemState::V8:
 			tx_sample_count = m_v8.tx(sample, sample_count);
 			break;
@@ -255,6 +264,13 @@ void wtvsoftmodem_device::set_off_hook(wtvsoftmodem_tone::tone_t dial_tone)
 	}
 }
 
+void wtvsoftmodem_device::set_is_waiting(uint32_t wait_ms, ModemState wait_end_state)
+{
+	m_state = ModemState::WAITING;
+	m_wait_samples = (wait_ms * m_sample_rate)/1000;
+	m_wait_end_state = wait_end_state;
+}
+
 void wtvsoftmodem_device::reset_echo(bool can_echo)
 {
 	m_can_echo = can_echo;
@@ -323,6 +339,9 @@ void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 		case ModemState::IDLE_OFF_HOOK:
 		case ModemState::CALLER_DIALING:
 			wtvsoftmodem_device::listen_for_dial_string(sample, sample_count);
+			break;
+
+		case ModemState::WAITING:
 			break;
 
 		case ModemState::V8:

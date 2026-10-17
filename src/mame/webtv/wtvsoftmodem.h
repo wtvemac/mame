@@ -38,6 +38,7 @@ public:
 		IDLE_ON_HOOK,
 		IDLE_OFF_HOOK,
 		CALLER_DIALING,
+		WAITING,
 		V8,
 		V22,
 		V23,
@@ -111,7 +112,10 @@ private:
 	bool m_has_dialed;
 	std::string m_dial_digits;
 
-	bool m_can_echo = false;
+	int32_t m_wait_samples;
+	ModemState m_wait_end_state;
+
+	bool m_can_echo;
 	std::array<wtvsoftmodem_dsp::sample_t, wtvsoftmodem_device::ECHO_SAMPLE_CNT> m_echo;
 	uint32_t m_echo_idx;
 
@@ -121,6 +125,7 @@ private:
 
 	void reset_echo(bool can_echo = true);
 
+	void set_is_waiting(uint32_t wait_ms, ModemState wait_end_state);
 	void set_is_dialing();
 	void listen_for_dial_string(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
 
