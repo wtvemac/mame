@@ -42,7 +42,7 @@ void wtvsoftmodem_device::device_reset()
 	m_line_mixer_head = 0;
 	m_line_mixer_tail = 0;
 
-	m_state = ModemState::IDLE_ON_HOOK;
+	wtvsoftmodem_device::reset();
 
 	device_buffered_serial_interface::set_data_frame(1, 8, PARITY_NONE, STOP_BITS_1);
 	device_buffered_serial_interface::set_rate(wtvsoftmodem_device::DEFAULT_DTE_BUAD_RATE);
@@ -91,10 +91,20 @@ void wtvsoftmodem_device::device_reset()
 			printf("MAME MESSAGE-> GO V23\n");
 #endif
 			m_state = ModemState::V23;
-
-			data_start_timer->adjust(attotime::from_msec(BEFORE_DATA_MS));
+			wtvsoftmodem_device::enter_data_mode();
 		}
 	});
+}
+
+void wtvsoftmodem_device::reset()
+{
+	m_state = ModemState::IDLE_ON_HOOK;
+
+	m_has_dialed = false;
+	m_dial_digits.clear();
+
+	data_start_timer->adjust(attotime::never);
+	dial_completed_timer->adjust(attotime::never);
 }
 
 void wtvsoftmodem_device::tra_callback()
@@ -224,7 +234,7 @@ bool wtvsoftmodem_device::is_on_hook()
 
 void wtvsoftmodem_device::set_on_hook()
 {
-	m_state = ModemState::IDLE_ON_HOOK;
+	wtvsoftmodem_device::reset();
 }
 
 void wtvsoftmodem_device::set_off_hook(wtvsoftmodem_tone::tone_t dial_tone)
@@ -232,6 +242,8 @@ void wtvsoftmodem_device::set_off_hook(wtvsoftmodem_tone::tone_t dial_tone)
 	if (m_state == ModemState::IDLE_ON_HOOK)
 	{
 		m_state = ModemState::IDLE_OFF_HOOK;
+
+		m_dial_digits.clear();
 
 		wtvsoftmodem_device::restart(dial_tone);
 	}
@@ -249,15 +261,19 @@ void wtvsoftmodem_device::listen_for_dial_string(const wtvsoftmodem_dsp::sample_
 	wtvsoftmodem_tone::detected_tone_t dt = m_tone.detect_dtmf(sample, sample_count);
 	if (m_tone.is_new_tone(dt))
 	{
-		dial_completed_timer->adjust(attotime::from_msec(AFTER_DIAL_SILENCE_MS));
 #if SOFTMODEM_DEBUG
 		printf("MAME MESSAGE-> Detected DTMF digit: %c\n", m_tone.get_tone_digit(dt));
 #endif
+		dial_completed_timer->adjust(attotime::from_msec(WAIT_AFTER_DIAL_SILENCE_MS));
+		m_dial_digits += m_tone.get_tone_digit(dt);
 		if (m_state == ModemState::IDLE_OFF_HOOK)
-		{
 			wtvsoftmodem_device::set_is_dialing();
-		}
 	}
+}
+
+void wtvsoftmodem_device::enter_data_mode()
+{
+	data_start_timer->adjust(attotime::from_msec(WAIT_BEFORE_DATA_MS));
 }
 
 template <wtvsoftmodem_sample_buffer T>
@@ -322,6 +338,8 @@ void wtvsoftmodem_device::received_byte(u8 byte)
 
 TIMER_CALLBACK_MEMBER(wtvsoftmodem_device::dial_completed)
 {
+	m_has_dialed = true;
+
 	m_state = ModemState::V8;
 	m_v8.start();
 }
