@@ -39,9 +39,6 @@ in_cap=00000bb0 DCE is analog
 
 void wtvsoftmodem_device::device_reset()
 {
-	m_line_mixer_head = 0;
-	m_line_mixer_tail = 0;
-
 	wtvsoftmodem_device::reset();
 
 	device_buffered_serial_interface::set_data_frame(1, 8, PARITY_NONE, STOP_BITS_1);
@@ -99,6 +96,8 @@ void wtvsoftmodem_device::device_reset()
 void wtvsoftmodem_device::reset()
 {
 	m_state = ModemState::IDLE_ON_HOOK;
+
+	wtvsoftmodem_device::reset_echo(false);
 
 	m_has_dialed = false;
 	m_dial_digits.clear();
@@ -193,16 +192,21 @@ uint32_t wtvsoftmodem_device::pull(T* buffer, uint32_t sample_count)
 			break;
 	}
 
-	// Mix in outgoing samples from the WebTV build.
-	// This allows the user to hear both sides of the handshake.
-	if(m_state < wtvsoftmodem_device::LINE_MIXER_END_STATE)
+	if (m_can_echo)
 	{
-		for(uint16_t idx = 0; idx < sample_count; idx++)
+		const uint32_t base = (m_echo_idx - tx_sample_count - wtvsoftmodem_device::ECHO_DELAY_SAMPLE_CNT);
+		if (base > 0)
 		{
-			if(m_line_mixer_head == m_line_mixer_tail)
-				break;
-			else
-				sample[idx] += m_line_mixer_buffer[m_line_mixer_head++ & (wtvsoftmodem_device::LINE_MIXER_BUFFER_SIZE - 1)];
+			for (uint32_t sample_idx = 0; sample_idx < tx_sample_count; sample_idx++)
+			{
+				int32_t echo_sample = (int32_t)m_echo[(base + sample_idx) & (wtvsoftmodem_device::ECHO_SAMPLE_CNT - 1)];
+
+				sample[sample_idx] = (wtvsoftmodem_dsp::sample_t)std::clamp(
+					(int32_t)sample[sample_idx] + (echo_sample / wtvsoftmodem_device::ECHO_SCALEDOWN),
+					static_cast<int32_t>(std::numeric_limits<wtvsoftmodem_dsp::sample_t>::min()),
+					static_cast<int32_t>(std::numeric_limits<wtvsoftmodem_dsp::sample_t>::max())
+				);
+			}
 		}
 	}
 
@@ -245,8 +249,18 @@ void wtvsoftmodem_device::set_off_hook(wtvsoftmodem_tone::tone_t dial_tone)
 
 		m_dial_digits.clear();
 
+		wtvsoftmodem_device::reset_echo(true);
+
 		wtvsoftmodem_device::restart(dial_tone);
 	}
+}
+
+void wtvsoftmodem_device::reset_echo(bool can_echo)
+{
+	m_can_echo = can_echo;
+
+	m_echo.fill(0);
+	m_echo_idx = 0;
 }
 
 void wtvsoftmodem_device::set_is_dialing()
@@ -292,6 +306,15 @@ void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 		sample = buffer;
 	}
 
+	// Add an echo so audible dialing doesn't sound too weird on a zero-echo channel (things like hearing the dialed digit)
+	// Echo gets turned off after V.8 to not disturb training.
+	// These samples are mixed with pull()'d samples to generage the echo.
+	if (m_can_echo)
+	{
+		for (uint32_t sample_idx = 0; sample_idx < sample_count; sample_idx++)
+			m_echo[m_echo_idx++ & (wtvsoftmodem_device::ECHO_SAMPLE_CNT - 1)] = sample[sample_idx];
+	}
+
 	switch (m_state)
 	{
 		case ModemState::IDLE_ON_HOOK:
@@ -316,14 +339,6 @@ void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 
 		default:
 			break;
-	}
-
-	// Save these samples so they can be mixed with the incoming samples since the WebTV only plays the incoming side.
-	// Samples are only saved during the handshake (< wtvsoftmodem_device::LINE_MIXER_END_STATE)
-	if(m_state < wtvsoftmodem_device::LINE_MIXER_END_STATE)
-	{
-		for(uint16_t idx = 0; idx < sample_count; idx++)
-			m_line_mixer_buffer[m_line_mixer_tail++ & (wtvsoftmodem_device::LINE_MIXER_BUFFER_SIZE - 1)] = sample[idx];
 	}
 }
 template void wtvsoftmodem_device::push<uint32_t>(const uint32_t* buffer, uint32_t sample_count);
