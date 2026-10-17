@@ -111,9 +111,9 @@ public:
 	static constexpr menu_item_t V8_MENU_PSTNA_DCEANLOG = V8_MENU_CAT_PSTNA  | 0x00; // DCE is analog
 
 	static constexpr menu_item_t V8_MENU_CAT_PCMMD      = 0xee0;                     // PCM modem availability
-	static constexpr menu_item_t V8_MENU_CFUNC_V90ANLOG = V8_MENU_CAT_PCMMD  | 0x04; // V.90 analogue modem availability
-	static constexpr menu_item_t V8_MENU_CFUNC_V90DIGIT = V8_MENU_CAT_PCMMD  | 0x02; // V.90 digital modem availability
-	static constexpr menu_item_t V8_MENU_CFUNC_V91AVAIL = V8_MENU_CAT_PCMMD  | 0x01; // V.91 availability
+	static constexpr menu_item_t V8_MENU_PCMMD_V90ANLOG = V8_MENU_CAT_PCMMD  | 0x04; // V.90 analogue modem availability
+	static constexpr menu_item_t V8_MENU_PCMMD_V90DIGIT = V8_MENU_CAT_PCMMD  | 0x02; // V.90 digital modem availability
+	static constexpr menu_item_t V8_MENU_PCMMD_V91AVAIL = V8_MENU_CAT_PCMMD  | 0x01; // V.91 availability
 
 	static constexpr menu_item_t V8_MENU_CAT_NSTND      = 0xff0;                     // Non-standard facilities
 
@@ -121,12 +121,15 @@ public:
 
 	void set_sample_rate(wtvsoftmodem_dsp::frequency_t set_sample_rate);
 
-	bool add_tx_capability(menu_item_t item);
-	bool is_tx_capable(menu_item_t item);
-	vector<menu_item_t>& get_tx_capabilities();
+	bool add_local_capability(menu_item_t item);
+	bool is_local_capable(menu_item_t item);
+	vector<menu_item_t>& get_local_capabilities();
 
-	bool is_rx_capable(menu_item_t item);
-	vector<menu_item_t>& get_rx_capabilities();
+	bool is_peer_capable(menu_item_t item);
+	vector<menu_item_t>& get_peer_capabilities();
+
+	bool is_joint_capable(menu_item_t local_item, menu_item_t peer_item);
+	vector<menu_item_t> get_joint_capabilities();
 
 	V8State get_current_state();
 
@@ -393,8 +396,8 @@ private:
 	frame8n1::builder_state_t tx_frame_state;
 	uint32_t tx_repeated_count;
 
-	vector<menu_item_t> rx_capabilities;
-	vector<menu_item_t> tx_capabilities;
+	vector<menu_item_t> peer_capabilities;
+	vector<menu_item_t> local_capabilities;
 
 	wtvsoftmodem_dsp::dft_state_t v8_dft_state[(sizeof(V8_FREQ_TABLE) / sizeof(V8_FREQ_TABLE[0]))];
 
@@ -418,12 +421,12 @@ private:
 	virtual bool pop_tx_bit() override;
 
 	bool add_tx_byte(uint8_t byte);
-	void prepare_menu_tx_buffer();
+	void prepare_menu_tx_buffer(const vector<menu_item_t> &items);
 	void send_cm();
 	void send_jm();
-	void send_menu();
+	void send_menu(const vector<menu_item_t> &items);
 
-	bool add_rx_capability(menu_item_t item);
+	bool add_peer_capability(menu_item_t item);
 
 	bool parse_protocol_menu_item(uint8_t octet);
 	bool parse_fax_menu_item(uint8_t octet);

@@ -31,11 +31,11 @@ void wtvsoftmodem_v8::set_sample_rate(wtvsoftmodem_dsp::frequency_t set_sample_r
 	wtvsoftmodem_fsk::set_sample_rate(set_sample_rate);
 }
 
-bool wtvsoftmodem_v8::add_tx_capability(menu_item_t item)
+bool wtvsoftmodem_v8::add_local_capability(menu_item_t item)
 {
-	if (!wtvsoftmodem_v8::is_tx_capable(item))
+	if (!wtvsoftmodem_v8::is_local_capable(item))
 	{
-		tx_capabilities.push_back(item);
+		local_capabilities.push_back(item);
 
 		return true;
 	}
@@ -44,20 +44,20 @@ bool wtvsoftmodem_v8::add_tx_capability(menu_item_t item)
 		return false;
 	}
 }
-bool wtvsoftmodem_v8::is_tx_capable(menu_item_t item)
+bool wtvsoftmodem_v8::is_local_capable(menu_item_t item)
 {
-	return (std::find(tx_capabilities.begin(), tx_capabilities.end(), item) != tx_capabilities.end());
+	return (std::find(local_capabilities.begin(), local_capabilities.end(), item) != local_capabilities.end());
 }
-vector<wtvsoftmodem_v8::menu_item_t>& wtvsoftmodem_v8::get_tx_capabilities()
+vector<wtvsoftmodem_v8::menu_item_t>& wtvsoftmodem_v8::get_local_capabilities()
 {
-	return tx_capabilities;
+	return local_capabilities;
 }
 
-bool wtvsoftmodem_v8::add_rx_capability(menu_item_t item)
+bool wtvsoftmodem_v8::add_peer_capability(menu_item_t item)
 {
-	if (!wtvsoftmodem_v8::is_rx_capable(item))
+	if (!wtvsoftmodem_v8::is_peer_capable(item))
 	{
-		rx_capabilities.push_back(item);
+		peer_capabilities.push_back(item);
 
 		return true;
 	}
@@ -67,13 +67,18 @@ bool wtvsoftmodem_v8::add_rx_capability(menu_item_t item)
 	}
 	
 }
-bool wtvsoftmodem_v8::is_rx_capable(menu_item_t item)
+bool wtvsoftmodem_v8::is_peer_capable(menu_item_t item)
 {
-	return (std::find(rx_capabilities.begin(), rx_capabilities.end(), item) != rx_capabilities.end());
+	return (std::find(peer_capabilities.begin(), peer_capabilities.end(), item) != peer_capabilities.end());
 }
-vector<wtvsoftmodem_v8::menu_item_t>& wtvsoftmodem_v8::get_rx_capabilities()
+vector<wtvsoftmodem_v8::menu_item_t>& wtvsoftmodem_v8::get_peer_capabilities()
 {
-	return rx_capabilities;
+	return peer_capabilities;
+}
+
+bool wtvsoftmodem_v8::is_joint_capable(menu_item_t local_item, menu_item_t peer_item)
+{
+	return (wtvsoftmodem_v8::is_local_capable(local_item) && wtvsoftmodem_v8::is_peer_capable(peer_item));
 }
 
 void wtvsoftmodem_v8::tone_completed()
@@ -140,7 +145,7 @@ void wtvsoftmodem_v8::reset()
 
 	v8_tx_state = wtvsoftmodem_v8::V8OutState::DISABLED;
 
-	rx_capabilities.clear();
+	peer_capabilities.clear();
 	previous_menu_checksum = 0;
 }
 
@@ -151,9 +156,7 @@ void wtvsoftmodem_v8::push_rx_bit(bool bit)
 	if (rx_bit_sync == wtvsoftmodem_v8::BIT_SYNC_CMJM)
 	{
 		if (rx_synced == wtvsoftmodem_v8::BIT_SYNC_CMJM && rx_buffer_size > 0)
-		{
 			wtvsoftmodem_v8::parse_menu();
-		}
 
 		rx_synced = wtvsoftmodem_v8::BIT_SYNC_CMJM;
 		rx_buffer_size = 0;
@@ -277,7 +280,35 @@ bool wtvsoftmodem_v8::add_tx_byte(uint8_t byte)
 	}
 }
 
-void wtvsoftmodem_v8::prepare_menu_tx_buffer()
+vector<wtvsoftmodem_v8::menu_item_t> wtvsoftmodem_v8::get_joint_capabilities()
+{
+	const bool v90_digital = wtvsoftmodem_v8::is_joint_capable(wtvsoftmodem_v8::V8_MENU_PCMMD_V90DIGIT, wtvsoftmodem_v8::V8_MENU_PCMMD_V90ANLOG);
+	const bool v90_analog = wtvsoftmodem_v8::is_joint_capable(wtvsoftmodem_v8::V8_MENU_PCMMD_V90ANLOG, wtvsoftmodem_v8::V8_MENU_PCMMD_V90DIGIT);
+	const bool joint_pcm = wtvsoftmodem_v8::is_joint_capable(wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM, wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM) && (v90_digital || v90_analog);
+
+	vector<menu_item_t> joint_capabilities;
+
+	for (const auto &item : local_capabilities)
+	{
+		bool keep;
+
+		if (item == wtvsoftmodem_v8::V8_MENU_PCMMD_V90DIGIT)
+			keep = joint_pcm && v90_digital;
+		else if (item == wtvsoftmodem_v8::V8_MENU_PCMMD_V90ANLOG)
+			keep = joint_pcm && v90_analog;
+		else if (item == wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM || (item & 0xff8) == wtvsoftmodem_v8::V8_MENU_CAT_PSTNA)
+			keep = joint_pcm;
+		else
+			keep = wtvsoftmodem_v8::is_peer_capable(item);
+
+		if (keep)
+			joint_capabilities.push_back(item);
+	}
+
+	return joint_capabilities;
+}
+
+void wtvsoftmodem_v8::prepare_menu_tx_buffer(const vector<menu_item_t> &items)
 {
 	tx_sync_header = wtvsoftmodem_v8::BIT_SYNC_CMJM;
 
@@ -285,7 +316,15 @@ void wtvsoftmodem_v8::prepare_menu_tx_buffer()
 	uint8_t modn1_byte = wtvsoftmodem_v8::V8_MENU_CAT_MMODE1 & 0xff;
 	uint8_t modn2_byte = wtvsoftmodem_v8::V8_MENU_CAT_MMODE2 & 0xff;
 
-	for (const auto &item : tx_capabilities)
+	for (const auto &item : items)
+	{
+		if ((item & 0xff8) == wtvsoftmodem_v8::V8_MENU_CAT_CFUNC)
+			wtvsoftmodem_v8::add_tx_byte(item & 0xff);
+	}
+
+	vector<uint8_t> other_bytes;
+
+	for (const auto &item : items)
 	{
 		if ((item & (wtvsoftmodem_v8::V8_MENU_CAT_MMODE0 | 0xf00)) == wtvsoftmodem_v8::V8_MENU_CAT_MMODE0)
 		{
@@ -299,22 +338,25 @@ void wtvsoftmodem_v8::prepare_menu_tx_buffer()
 		{
 			modn2_byte |= item;
 		}
-		else
+		else if ((item & 0xff8) != wtvsoftmodem_v8::V8_MENU_CAT_CFUNC)
 		{
-			wtvsoftmodem_v8::add_tx_byte(item & 0xff);
+			other_bytes.push_back(item & 0xff);
 		}
 	}
 
 	wtvsoftmodem_v8::add_tx_byte(modn0_byte & 0xff);
 	wtvsoftmodem_v8::add_tx_byte(modn1_byte & 0xff);
 	wtvsoftmodem_v8::add_tx_byte(modn2_byte & 0xff);
+
+	for (const auto byte : other_bytes)
+		wtvsoftmodem_v8::add_tx_byte(byte);
 }
 
 void wtvsoftmodem_v8::send_cm()
 {
 	wtvsoftmodem_v8::set_current_state(wtvsoftmodem_v8::V8State::SND_CM);
 
-	wtvsoftmodem_v8::send_menu();
+	wtvsoftmodem_v8::send_menu(local_capabilities);
 }
 
 void wtvsoftmodem_v8::send_jm()
@@ -323,13 +365,13 @@ void wtvsoftmodem_v8::send_jm()
 	{
 		wtvsoftmodem_v8::set_current_state(wtvsoftmodem_v8::V8State::SND_JM);
 
-		wtvsoftmodem_v8::send_menu();
+		wtvsoftmodem_v8::send_menu(wtvsoftmodem_v8::get_joint_capabilities());
 	}
 }
 
-void wtvsoftmodem_v8::send_menu()
+void wtvsoftmodem_v8::send_menu(const vector<menu_item_t> &items)
 {
-	wtvsoftmodem_v8::prepare_menu_tx_buffer();
+	wtvsoftmodem_v8::prepare_menu_tx_buffer(items);
 
 	wtvsoftmodem_v8::start_tx();
 }
@@ -356,10 +398,10 @@ bool wtvsoftmodem_v8::parse_protocol_menu_item(uint8_t octet)
 	switch (octet & wtvsoftmodem_v8::V8_MENU_ITM_MASK)
 	{
 		case (wtvsoftmodem_v8::V8_MENU_PROTO_V42CALLS & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_PROTO_V42CALLS);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PROTO_V42CALLS);
 
 		case (wtvsoftmodem_v8::V8_MENU_PROTO_EXTCALLS & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_PROTO_EXTCALLS);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PROTO_EXTCALLS);
 
 		default:
 			return false;
@@ -376,25 +418,25 @@ bool wtvsoftmodem_v8::parse_call_function_menu_item(uint8_t octet)
 	switch (octet & wtvsoftmodem_v8::V8_MENU_ITM_MASK)
 	{
 		case (wtvsoftmodem_v8::V8_MENU_CFUNC_PSTNMULT & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_PSTNMULT);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_PSTNMULT);
 
 		case (wtvsoftmodem_v8::V8_MENU_CFUNC_TXTPHONE & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_TXTPHONE);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_TXTPHONE);
 
 		case (wtvsoftmodem_v8::V8_MENU_CFUNC_VIDPHONE & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_VIDPHONE);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_VIDPHONE);
 
 		case (wtvsoftmodem_v8::V8_MENU_CFUNC_T30TXFAX & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_T30TXFAX);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_T30TXFAX);
 
 		case (wtvsoftmodem_v8::V8_MENU_CFUNC_T30RXFAX & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_T30RXFAX);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_T30RXFAX);
 
 		case (wtvsoftmodem_v8::V8_MENU_CFUNC_DATMODEM & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_DATMODEM);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_DATMODEM);
 
 		case (wtvsoftmodem_v8::V8_MENU_CFUNC_CALLFEXT & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_CALLFEXT);
+			return wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_CALLFEXT);
 
 		default:
 			return false;
@@ -403,20 +445,20 @@ bool wtvsoftmodem_v8::parse_call_function_menu_item(uint8_t octet)
 
 bool wtvsoftmodem_v8::parse_pcm_modem_menu_item(uint8_t octet)
 {
-	switch (octet & wtvsoftmodem_v8::V8_MENU_ITM_MASK)
-	{
-		case (wtvsoftmodem_v8::V8_MENU_CFUNC_V90ANLOG & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_V90ANLOG);
+	bool found_new_match = false;
 
-		case (wtvsoftmodem_v8::V8_MENU_CFUNC_V90DIGIT & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_V90DIGIT);
+	uint8_t menu_items = octet & wtvsoftmodem_v8::V8_MENU_ITM_MASK;
 
-		case (wtvsoftmodem_v8::V8_MENU_CFUNC_V91AVAIL & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_CFUNC_V91AVAIL);
+	if (menu_items & (wtvsoftmodem_v8::V8_MENU_PCMMD_V90ANLOG & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
+		found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PCMMD_V90ANLOG);
 
-		default:
-			return false;
-	}
+	if (menu_items & (wtvsoftmodem_v8::V8_MENU_PCMMD_V90DIGIT & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
+		found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PCMMD_V90DIGIT);
+
+	if (menu_items & (wtvsoftmodem_v8::V8_MENU_PCMMD_V91AVAIL & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
+		found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PCMMD_V91AVAIL);
+
+	return found_new_match;
 }
 
 bool wtvsoftmodem_v8::parse_mmode_menu_item(uint8_t octet, uint8_t mmode_index)
@@ -428,77 +470,51 @@ bool wtvsoftmodem_v8::parse_mmode_menu_item(uint8_t octet, uint8_t mmode_index)
 		uint8_t menu_items = octet & wtvsoftmodem_v8::V8_MENU_ITM_MASK;
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_PCMMODEM);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V34FULLD & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V34FULLD);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V34FULLD);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V34HALFD & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V34HALFD);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V34HALFD);
 	}
 	else if(mmode_index == 1 && ((octet & wtvsoftmodem_v8::V8_MENU_MMODE_EXM_MASK) == (wtvsoftmodem_v8::V8_MENU_CAT_MMODE1 & wtvsoftmodem_v8::V8_MENU_MMODE_EXM_MASK)))
 	{
 		uint8_t menu_items = octet & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK;
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V32AVAIL & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V32AVAIL);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V32AVAIL);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V22AVAIL & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V22AVAIL);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V22AVAIL);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V17AVAIL & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V17AVAIL);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V17AVAIL);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V29HALFD & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V29HALFD);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V29HALFD);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V27TERAV & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V27TERAV);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V27TERAV);
 	}
 	else if(mmode_index == 2 && ((octet & wtvsoftmodem_v8::V8_MENU_MMODE_EXM_MASK) == (wtvsoftmodem_v8::V8_MENU_CAT_MMODE2 & wtvsoftmodem_v8::V8_MENU_MMODE_EXM_MASK)))
 	{
 		uint8_t menu_items = octet & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK;
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V26TERAV & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V26TERAV);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V26TERAV);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V26BISAV & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V26BISAV);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V26BISAV);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V23FULLD & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V23FULLD);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V23FULLD);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V23HALFD & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V23HALFD);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V23HALFD);
 
 		if (menu_items & (wtvsoftmodem_v8::V8_MENU_MMODE_V21AVAIL & wtvsoftmodem_v8::V8_MENU_MMODE_EXI_MASK))
-		{
-			found_new_match |= wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V21AVAIL);
-		}
+			found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_MMODE_V21AVAIL);
 	}
 
 	return found_new_match;
@@ -506,23 +522,23 @@ bool wtvsoftmodem_v8::parse_mmode_menu_item(uint8_t octet, uint8_t mmode_index)
 
 bool wtvsoftmodem_v8::parse_pstn_access_menu_item(uint8_t octet)
 {
-	switch (octet & wtvsoftmodem_v8::V8_MENU_ITM_MASK)
-	{
-		case (wtvsoftmodem_v8::V8_MENU_PSTNA_DCECCELL & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCECCELL);
+	bool found_new_match = false;
 
-		case (wtvsoftmodem_v8::V8_MENU_PSTNA_DCEACELL & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEACELL);
+	uint8_t menu_items = octet & wtvsoftmodem_v8::V8_MENU_ITM_MASK;
 
-		case (wtvsoftmodem_v8::V8_MENU_PSTNA_DCEDIGIT & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEDIGIT);
+	if (menu_items == (wtvsoftmodem_v8::V8_MENU_PSTNA_DCEANLOG & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
+		found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEANLOG);
 
-		case (wtvsoftmodem_v8::V8_MENU_PSTNA_DCEANLOG & wtvsoftmodem_v8::V8_MENU_ITM_MASK):
-			return wtvsoftmodem_v8::add_rx_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEANLOG);
+	if (menu_items & (wtvsoftmodem_v8::V8_MENU_PSTNA_DCECCELL & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
+		found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCECCELL);
 
-		default:
-			return false;
-	}
+	if (menu_items & (wtvsoftmodem_v8::V8_MENU_PSTNA_DCEACELL & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
+		found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEACELL);
+
+	if (menu_items & (wtvsoftmodem_v8::V8_MENU_PSTNA_DCEDIGIT & wtvsoftmodem_v8::V8_MENU_ITM_MASK))
+		found_new_match |= wtvsoftmodem_v8::add_peer_capability(wtvsoftmodem_v8::V8_MENU_PSTNA_DCEDIGIT);
+
+	return found_new_match;
 }
 
 bool wtvsoftmodem_v8::parse_nonstd_menu_item(uint8_t octet)
@@ -540,7 +556,10 @@ void wtvsoftmodem_v8::parse_menu()
 		{
 			current_menu_checksum += rx_buffer[bidx];
 
-			if (mmode_index >= 1)
+			// modn1 and modn2 are optional so this causes additional bytes to be interpreted as an extended menu byte.
+			bool is_extended = ((rx_buffer[bidx] & wtvsoftmodem_v8::V8_MENU_MMODE_EXM_MASK) == (wtvsoftmodem_v8::V8_MENU_CAT_MMODE1 & wtvsoftmodem_v8::V8_MENU_MMODE_EXM_MASK));
+
+			if (mmode_index >= 1 && is_extended)
 			{
 				wtvsoftmodem_v8::parse_mmode_menu_item(rx_buffer[bidx], mmode_index);
 				mmode_index++;
@@ -550,6 +569,8 @@ void wtvsoftmodem_v8::parse_menu()
 			}
 			else
 			{
+				mmode_index = 0;
+
 				switch (rx_buffer[bidx] & wtvsoftmodem_v8::V8_MENU_CAT_MASK)
 				{
 					case (wtvsoftmodem_v8::V8_MENU_CAT_PROTO  & wtvsoftmodem_v8::V8_MENU_CAT_MASK):
