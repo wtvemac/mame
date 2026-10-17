@@ -80,15 +80,11 @@ private:
 
 	static constexpr uint32_t WAIT_AFTER_DIAL_SILENCE_MS = 1000; // time is in milliseconds
 	static constexpr uint32_t WAIT_BEFORE_DATA_MS = 3200; // time is in milliseconds
+	static constexpr uint32_t ECHO_SAMPLE_CNT = 4096;
+	static constexpr uint32_t ECHO_DELAY_SAMPLE_CNT = 45;
+	static constexpr int32_t ECHO_SCALEDOWN = 4;
 
 	static constexpr uint8_t touchppp_data_command[] = "ATD\x0d";
-
-	static constexpr uint16_t LINE_MIXER_BUFFER_SIZE = 128;
-	static constexpr ModemState LINE_MIXER_END_STATE = wtvsoftmodem_device::ModemState::CONNECTED;
-
-	uint16_t m_line_mixer_head;
-	uint16_t m_line_mixer_tail;
-	int32_t m_line_mixer_buffer[wtvsoftmodem_device::LINE_MIXER_BUFFER_SIZE];
 
 	devcb_write_line m_out_tx_cb;
 	devcb_write_line m_out_dtr_cb;
@@ -115,9 +111,15 @@ private:
 	bool m_has_dialed;
 	std::string m_dial_digits;
 
+	bool m_can_echo = false;
+	std::array<wtvsoftmodem_dsp::sample_t, wtvsoftmodem_device::ECHO_SAMPLE_CNT> m_echo;
+	uint32_t m_echo_idx;
+
 	std::vector<wtvsoftmodem_dsp::sample_t> m_sample_scratch;
 
 	void tone_out_completed();
+
+	void reset_echo(bool can_echo = true);
 
 	void set_is_dialing();
 	void listen_for_dial_string(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
