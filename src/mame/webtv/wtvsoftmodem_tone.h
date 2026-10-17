@@ -134,12 +134,10 @@ public:
 			return 0;
 		}
 	}
-	inline uint32_t tx(int32_t* sample, uint32_t sample_count)
+	inline uint32_t tx(wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 	{
 		for(uint32_t i = 0; i < sample_count; i++)
-		{
 			sample[i] = tx_sample();
-		}
 
 		return sample_count;
 	}
@@ -157,9 +155,9 @@ public:
 
 	}
 	void rx_init();
-	detected_tone_t detect_dual_tone_freq(const int32_t* sample, uint32_t sample_count);
-	detected_tone_t detect_single_tone_freq(const int32_t* sample, uint32_t sample_count);
-	detected_tone_t detect_dtmf(const int32_t* sample, uint32_t sample_count);
+	detected_tone_t detect_dual_tone_freq(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
+	detected_tone_t detect_single_tone_freq(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
+	detected_tone_t detect_dtmf(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
 
 private:
 
@@ -435,7 +433,7 @@ private:
 
 	virtual void tone_completed() { }
 
-	inline dual_frequency_t detect_dual_freq(uint32_t index_start, uint32_t length, const int32_t* sample, uint32_t sample_count)
+	inline dual_frequency_t detect_dual_freq(uint32_t index_start, uint32_t length, const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 	{
 		double row_max_result = 0.0;
 		dual_frequency_t detected_frequencies = {
@@ -463,7 +461,7 @@ private:
 
 		return detected_frequencies;
 	}
-	inline int32_t detect_single_freq(uint32_t index_start, uint32_t length, const int32_t* sample, uint32_t sample_count)
+	inline int32_t detect_single_freq(uint32_t index_start, uint32_t length, const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 	{
 		double row_max_result = 0.0;
 		int32_t detected_frequency = FREQUENCY_NOT_DETECTED;

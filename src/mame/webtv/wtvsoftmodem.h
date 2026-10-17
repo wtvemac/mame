@@ -15,6 +15,8 @@
 
 #include "diserial.h"
 
+#include <vector>
+
 #include "wtvsoftmodem_tone.h"
 #include "wtvsoftmodem_v8.h"
 #include "wtvsoftmodem_v22.h"
@@ -23,6 +25,8 @@
 #include "wtvsoftmodem_v90.h"
 
 #define SOFTMODEM_DEBUG false
+template <typename T>
+concept wtvsoftmodem_sample_buffer = std::is_same_v<T, uint32_t> || std::is_same_v<T, wtvsoftmodem_dsp::sample_t>;
 
 class wtvsoftmodem_device : public device_t, public device_buffered_serial_interface<64>
 {
@@ -57,14 +61,16 @@ public:
 	void ri_w(int state);
 	void cts_w(int state);
 
-	uint32_t pull(int32_t* sample, uint32_t sample_count);
+	template <wtvsoftmodem_sample_buffer T>
+	uint32_t pull(T* buffer, uint32_t sample_count);
 
 	void restart(wtvsoftmodem_tone::tone_t dial_tone = wtvsoftmodem_tone::TONE_DIAL_NA);
 	bool is_on_hook();
 	void set_on_hook();
 	void set_off_hook(wtvsoftmodem_tone::tone_t dial_tone = wtvsoftmodem_tone::TONE_DIAL_NA);
 
-	void push(const int32_t* sample, uint32_t sample_count);
+	template <wtvsoftmodem_sample_buffer T>
+	void push(const T* buffer, uint32_t sample_count);
 
 private:
 
@@ -102,10 +108,12 @@ private:
 
 	ModemState m_state;
 
+	std::vector<wtvsoftmodem_dsp::sample_t> m_sample_scratch;
+
 	void tone_out_completed();
 
 	void set_is_dialing();
-	void listen_for_dial_string(const int32_t* sample, uint32_t sample_count);
+	void listen_for_dial_string(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
 
 	virtual void received_byte(u8 byte) override;
 

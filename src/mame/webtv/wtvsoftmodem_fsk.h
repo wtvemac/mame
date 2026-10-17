@@ -86,12 +86,10 @@ public:
 			return 0;
 		}
 	}
-	inline uint32_t tx(int32_t* sample, uint32_t sample_count)
+	inline uint32_t tx(wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 	{
 		for(uint32_t i = 0; i < sample_count; i++)
-		{
 			sample[i] = tx_sample();
-		}
 
 		return sample_count;
 	}
@@ -99,7 +97,7 @@ public:
 
 	void rx_init(const fsk_detail_t* fsk_detail);
 	void set_rx_channel(uint8_t channel_index);
-	inline void rx(const int32_t* sample, uint32_t sample_count)
+	inline void rx(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
 	{
 		for(uint32_t sidx = 0; sidx < sample_count; sidx++)
 		{

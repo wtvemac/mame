@@ -782,7 +782,7 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modout_samples)
 				m_mod_odmacntl &= (~MOD_DMACNTL_NV);
 			}
 
-			m_softmodem->push((int32_t*)&m_hostram[m_mod_occnt >> 0x02], (m_mod_ocsize >> 2));
+			m_softmodem->push(&m_hostram[m_mod_occnt >> 0x02], (m_mod_ocsize >> 2));
 
 			solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_SMODEMOUT, ASSERT_LINE);
 		}
@@ -833,7 +833,7 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 
 			if (m_mod_iccnt >= m_mod_icend)
 			{
-				m_softmodem->pull((int32_t*)&m_hostram[m_mod_icstart >> 0x02], (m_mod_icsize >> 2));
+				m_softmodem->pull(&m_hostram[m_mod_icstart >> 0x02], (m_mod_icsize >> 2));
 
 				if ((m_mod_idmacntl & MOD_DMACNTL_NVF) == 0x0)
 				{
