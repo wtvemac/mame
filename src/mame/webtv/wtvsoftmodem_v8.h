@@ -134,6 +134,7 @@ public:
 
 	void start(bool disable_echo_suppressors = true);
 	void stop();
+	void reset();
 
 	uint32_t tx(wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
 

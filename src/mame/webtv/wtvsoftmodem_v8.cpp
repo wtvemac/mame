@@ -22,9 +22,7 @@ wtvsoftmodem_v8::wtvsoftmodem_v8() :
 
 	wtvsoftmodem_v8::set_sample_rate(wtvsoftmodem_dsp::DEFAULT_SAMPLE_RATE);
 
-	v8_tx_state = wtvsoftmodem_v8::V8OutState::DISABLED;
-
-	wtvsoftmodem_fsk::init(wtvsoftmodem_fsk::FSK_V21);
+	wtvsoftmodem_v8::reset();
 }
 
 void wtvsoftmodem_v8::set_sample_rate(wtvsoftmodem_dsp::frequency_t set_sample_rate)
@@ -108,6 +106,8 @@ void wtvsoftmodem_v8::set_state_change_callback(wtvsoftmodem_v8::state_change_ca
 
 void wtvsoftmodem_v8::start(bool disable_echo_suppressors)
 {
+	wtvsoftmodem_v8::reset();
+
 	wtvsoftmodem_v8::set_current_state(wtvsoftmodem_v8::V8State::SND_ANSAM);
 
 	rx_bit_sync = 0;
@@ -132,6 +132,16 @@ void wtvsoftmodem_v8::start(bool disable_echo_suppressors)
 void wtvsoftmodem_v8::stop()
 {
 	wtvsoftmodem_v8::set_current_state(wtvsoftmodem_v8::V8State::IDLE);
+}
+
+void wtvsoftmodem_v8::reset()
+{
+	wtvsoftmodem_fsk::init(wtvsoftmodem_fsk::FSK_V21);
+
+	v8_tx_state = wtvsoftmodem_v8::V8OutState::DISABLED;
+
+	rx_capabilities.clear();
+	previous_menu_checksum = 0;
 }
 
 void wtvsoftmodem_v8::push_rx_bit(bool bit)
