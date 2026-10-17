@@ -16,6 +16,7 @@
 #include "diserial.h"
 
 #include <vector>
+#include <string>
 
 #include "wtvsoftmodem_tone.h"
 #include "wtvsoftmodem_v8.h"
@@ -38,15 +39,18 @@ public:
 		IDLE_OFF_HOOK,
 		CALLER_DIALING,
 		V8,
-		CONNECTED,
 		V22,
-		V23
+		V23,
+		V34,
+		V90
 	};
 
 	static constexpr uint32_t DEFAULT_SAMPLE_RATE = wtvsoftmodem_dsp::DEFAULT_SAMPLE_RATE;
 	static constexpr uint32_t DEFAULT_DTE_BUAD_RATE = 115200;
 
 	wtvsoftmodem_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+
+	void reset();
 
 	void set_clock(uint32_t clock);
 
@@ -74,8 +78,8 @@ public:
 
 private:
 
-	static constexpr uint32_t AFTER_DIAL_SILENCE_MS = 1000; // time is in milliseconds
-	static constexpr uint32_t BEFORE_DATA_MS = 3200; // time is in milliseconds
+	static constexpr uint32_t WAIT_AFTER_DIAL_SILENCE_MS = 1000; // time is in milliseconds
+	static constexpr uint32_t WAIT_BEFORE_DATA_MS = 3200; // time is in milliseconds
 
 	static constexpr uint8_t touchppp_data_command[] = "ATD\x0d";
 
@@ -108,12 +112,17 @@ private:
 
 	ModemState m_state;
 
+	bool m_has_dialed;
+	std::string m_dial_digits;
+
 	std::vector<wtvsoftmodem_dsp::sample_t> m_sample_scratch;
 
 	void tone_out_completed();
 
 	void set_is_dialing();
 	void listen_for_dial_string(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
+
+	void enter_data_mode();
 
 	virtual void received_byte(u8 byte) override;
 
