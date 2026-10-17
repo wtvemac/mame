@@ -188,6 +188,10 @@ const options_entry emu_options::s_option_entries[] =
 	{ OPTION_DEBUGSCRIPT,                                nullptr,     core_options::option_type::PATH,       "script for debugger" },
 	{ OPTION_DEBUGLOG,                                   "0",         core_options::option_type::BOOLEAN,    "write debug console output to debug.log" },
 
+	// WebTV softmodem options
+	{ nullptr,                                           nullptr,     core_options::option_type::HEADER,     "WEBTV SOFTMODEM OPTIONS" },
+	{ OPTION_SM_RECORD,                                  "0",         core_options::option_type::BOOLEAN,    "record modem audio to a wav file" },
+
 	// comm options
 	{ nullptr,                                           nullptr,     core_options::option_type::HEADER,     "CORE COMM OPTIONS" },
 	{ OPTION_COMM_LOCAL_HOST,                            "0.0.0.0",   core_options::option_type::STRING,     "local address to bind to" },
