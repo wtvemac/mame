@@ -102,6 +102,16 @@ void wtvsoftmodem_device::reset()
 	m_has_dialed = false;
 	m_dial_digits.clear();
 
+	m_dte_byte_tx = false;
+
+	m_dte_in_atd = false;
+	m_dte_data_started = false;
+	m_dte_skip_lf = false;
+	m_dte_reply_line.clear();
+	m_dte_pending.clear();
+	clear_fifo();
+	transmit_register_reset();
+
 	data_start_timer->adjust(attotime::never);
 	dial_completed_timer->adjust(attotime::never);
 }
@@ -111,6 +121,21 @@ void wtvsoftmodem_device::tra_callback()
 	int m_txd = device_buffered_serial_interface::transmit_register_get_data_bit();
 
 	m_out_tx_cb(m_txd);
+}
+
+void wtvsoftmodem_device::tra_complete()
+{
+	device_buffered_serial_interface::tra_complete();
+	drain_dte_pending();
+}
+
+void wtvsoftmodem_device::drain_dte_pending()
+{
+	while (m_dte_in_atd && m_dte_data_started && !m_dte_pending.empty() && !fifo_full())
+	{
+		device_buffered_serial_interface::transmit_byte(m_dte_pending.front());
+		m_dte_pending.pop_front();
+	}
 }
 
 void wtvsoftmodem_device::set_clock(uint32_t clock)
@@ -125,7 +150,82 @@ void wtvsoftmodem_device::set_clock(uint32_t clock)
 
 void wtvsoftmodem_device::rx_w(int state)
 {
-	m_v23.transmit_le_8n1_bit(state & 0x1);
+	if (m_dte_byte_tx)
+	{
+		// Will collect bits without framing until we have a byte ready then process the entire byte in received_byte.
+		device_serial_interface::rx_w(state);
+	}
+	else
+	{
+		switch (m_state)
+		{
+			case ModemState::V23:
+				m_v23.transmit_le_8n1_bit(state & 0x1);
+				break;
+
+			default:
+				break;
+		}
+	}
+}
+
+void wtvsoftmodem_device::received_byte(uint8_t byte)
+{
+	if (m_dte_in_atd)
+	{
+		// Remove modem status messages from byte stream before we commit to data mode
+		if (!m_dte_data_started)
+		{
+			bool can_transmit = false;
+
+			if (byte == '\r' || byte == '\n')
+			{
+				if (m_dte_reply_line == "CONNECT" || m_dte_reply_line.starts_with("CONNECT "))
+					m_dte_data_started = true;
+
+				m_dte_reply_line.clear();
+			}
+			// If we get a PPP flag byte then enter data mode. 
+			else if(byte == 0x7e)
+			{
+				m_dte_data_started = true;
+				can_transmit = true;
+			}
+			// Log printable ASCII characters
+			else if (byte >= 0x20 && byte < 0x7f && m_dte_reply_line.size() < 128)
+			{
+				m_dte_reply_line.push_back(static_cast<char>(byte));
+			}
+
+			if (m_dte_data_started)
+			{
+				m_dte_skip_lf = (byte == '\r');
+				drain_dte_pending();
+			}
+
+			if (!can_transmit)
+				return;
+		}
+		else if (m_dte_skip_lf)
+		{
+			m_dte_skip_lf = false;
+
+			if (byte == '\n')
+				return;
+		}
+
+		// Send actual PPP data
+		switch (m_state)
+		{
+			case ModemState::V34:
+			case ModemState::V90:
+				break;
+
+			default:
+				break;
+		}
+
+	}
 }
 
 void wtvsoftmodem_device::dcd_w(int state)
@@ -363,13 +463,6 @@ void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 template void wtvsoftmodem_device::push<uint32_t>(const uint32_t* buffer, uint32_t sample_count);
 template void wtvsoftmodem_device::push<wtvsoftmodem_dsp::sample_t>(const wtvsoftmodem_dsp::sample_t* buffer, uint32_t sample_count);
 
-void wtvsoftmodem_device::received_byte(u8 byte)
-{
-#if SOFTMODEM_DEBUG
-	printf("received_byte: byte=%08x\n", byte);
-#endif
-}
-
 TIMER_CALLBACK_MEMBER(wtvsoftmodem_device::dial_completed)
 {
 	m_has_dialed = true;
@@ -378,12 +471,11 @@ TIMER_CALLBACK_MEMBER(wtvsoftmodem_device::dial_completed)
 	m_v8.start();
 }
 
-
 TIMER_CALLBACK_MEMBER(wtvsoftmodem_device::start_data)
 {
-	device_buffered_serial_interface::transmit_byte(0x41);
-	device_buffered_serial_interface::transmit_byte(0x54);
-	device_buffered_serial_interface::transmit_byte(0x44);
-	device_buffered_serial_interface::transmit_byte(0x0d);
-}
+	m_dte_in_atd = true;
 
+	std::string_view at_command(reinterpret_cast<const char*>(touchppp_data_command), sizeof(touchppp_data_command) - 1);
+	for (char cmd_char : at_command)
+		device_buffered_serial_interface::transmit_byte(static_cast<uint8_t>(cmd_char));
+}

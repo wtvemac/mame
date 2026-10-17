@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <string>
+#include <deque>
 
 #include "wtvsoftmodem_tone.h"
 #include "wtvsoftmodem_v8.h"
@@ -109,6 +110,13 @@ private:
 
 	ModemState m_state;
 
+	bool m_dte_byte_tx = true;
+	bool m_dte_in_atd = false;
+	bool m_dte_data_started = false;
+	bool m_dte_skip_lf = false;
+	std::string m_dte_reply_line;
+	std::deque<uint8_t> m_dte_pending;
+
 	bool m_has_dialed;
 	std::string m_dial_digits;
 
@@ -121,6 +129,8 @@ private:
 
 	std::vector<wtvsoftmodem_dsp::sample_t> m_sample_scratch;
 
+	void drain_dte_pending();
+
 	void tone_out_completed();
 
 	void reset_echo(bool can_echo = true);
@@ -131,7 +141,7 @@ private:
 
 	void enter_data_mode();
 
-	virtual void received_byte(u8 byte) override;
+	virtual void received_byte(uint8_t byte) override;
 
 protected:
 
@@ -139,6 +149,7 @@ protected:
 	virtual void device_reset() override ATTR_COLD;
 
 	virtual void tra_callback() override;
+	virtual void tra_complete() override;
 
 };
 
