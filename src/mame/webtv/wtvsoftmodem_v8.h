@@ -436,7 +436,7 @@ private:
 	vector<menu_item_t> peer_capabilities;
 	vector<menu_item_t> local_capabilities;
 
-	wtvsoftmodem_dsp::dft_state_t v8_dft_state[(sizeof(V8_FREQ_TABLE) / sizeof(V8_FREQ_TABLE[0]))];
+	wtvsoftmodem_dsp::goertzel_state_t v8_goertzel_state[(sizeof(V8_FREQ_TABLE) / sizeof(V8_FREQ_TABLE[0]))];
 
 	V8State v8_state;
 

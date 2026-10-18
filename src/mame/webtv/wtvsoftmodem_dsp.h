@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <complex>
 #include <cstdint>
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -44,13 +46,14 @@ public:
 		sample_t qtable[IQ_TABLE_SIZE];
 	} iqtable_t;
 
-	typedef struct dft_state
+	typedef struct goertzel_state
 	{
 		uint32_t samples_processed;
 		uint32_t samples_per_block;
+		double omega;
 		double coeff;
 		double q[2];
-	} dft_state_t;
+	} goertzel_state_t;
 
 	static constexpr frequency_t DEFAULT_SAMPLE_RATE   = 16000;
 
@@ -76,32 +79,73 @@ public:
 	// This value is passed to sin() to to produce an amplitude value that's used to adjust the sample value.
 	phase_t get_aadvance(frequency_t frequency, frequency_t sample_rate);
 
-	dft_state_t dft_init(frequency_t sniff_frequency, frequency_t sample_rate, uint32_t samples_per_block);
-	bool dft(dft_state_t* state, const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count)
+	// Discrete Fourier transform using the Goertzel algorithm 
+	// Info: https://eng.libretexts.org/Bookshelves/Electrical_Engineering/Signal_Processing_and_Modeling/Fast_Fourier_Transforms_(Burrus)/04%3A_The_DFT_as_Convolution_or_Filtering/4.04%3A_Goertzel's_Algorithm_or_A_Better_DFT_Algorithm
+	static inline goertzel_state_t goertzel_init(frequency_t frequency, frequency_t sample_rate, uint32_t samples_per_block, bool round_to_bin = true)
 	{
-		for (uint32_t sidx = 0; sidx < sample_count; sidx++)
+		// round_to_bin moves the frequency to the nearest bin centre of the block (k = rint(f * N / fs)).
+		double omega;
+		if (round_to_bin)
 		{
-			double q    = state->coeff * state->q[0] - state->q[1] + (double)sample[sidx];
-			state->q[1] = state->q[0];
-			state->q[0] = q;
+			double k = std::rint(frequency * ((double)samples_per_block / sample_rate));
+			omega = k * (M_TAU / (double)samples_per_block);
+		}
+		else
+		{
+			omega = M_TAU * (frequency / sample_rate);
 		}
 
-		state->samples_processed += sample_count;
+		return {
+			.samples_processed = 0,
+			.samples_per_block = samples_per_block,
+			.omega             = omega,
+			.coeff             = 2.0 * std::cos(omega),
+			.q                 = { 0, 0 }
+		};
+	}
+	static inline void goertzel_put(goertzel_state_t* state, double sample)
+	{
+		double q    = state->coeff * state->q[0] - state->q[1] + sample;
+		state->q[1] = state->q[0];
+		state->q[0] = q;
 
+		state->samples_processed++;
+	}
+	template <typename T>
+	static inline uint32_t goertzel_update(goertzel_state_t* state, const T* sample, uint32_t sample_count)
+	{
+		uint32_t remaining = (state->samples_processed < state->samples_per_block) ? (state->samples_per_block - state->samples_processed) : 0;
+		uint32_t take = std::min(sample_count, remaining);
+
+		for (uint32_t sidx = 0; sidx < take; sidx++)
+			goertzel_put(state, (double)sample[sidx]);
+
+		return take;
+	}
+	static inline bool goertzel_ready(const goertzel_state_t* state)
+	{
 		return (state->samples_processed >= state->samples_per_block);
 	}
-	inline double dft_result(dft_state_t* state)
+	static inline double goertzel_power(const goertzel_state_t* state)
 	{
-		double power = (state->q[0] * state->q[0]) + (state->q[1] * state->q[1]) - (state->coeff * state->q[0] * state->q[1]);
+		// |X(k)|^2
+		return (state->q[0] * state->q[0]) + (state->q[1] * state->q[1]) - (state->coeff * state->q[0] * state->q[1]);
+	}
+	static inline std::complex<double> goertzel_value(const goertzel_state_t* state)
+	{
+		// X(k) = sum(x[n] * e^(-j*omega*n))
+		std::complex<double> y(state->q[0] - (std::cos(state->omega) * state->q[1]), std::sin(state->omega) * state->q[1]);
 
-		if (state->samples_processed >= state->samples_per_block)
-		{
-			state->samples_processed = 0;
-			state->q[0] = 0;
-			state->q[1] = 0;
-		}
-
-		return power;
+		if (state->samples_processed == 0)
+			return 0;
+		else
+			return y * std::polar(1.0, -state->omega * (double)(state->samples_processed - 1));
+	}
+	static inline void goertzel_reset(goertzel_state_t* state)
+	{
+		state->samples_processed = 0;
+		state->q[0] = 0;
+		state->q[1] = 0;
 	}
 
 	void populate_i_table(wtvsoftmodem_dsp::sample_t* itable, uint32_t size, wtvsoftmodem_dsp::frequency_t frequency, wtvsoftmodem_dsp::frequency_t sample_rate);
