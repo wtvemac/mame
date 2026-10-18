@@ -35,7 +35,6 @@ public:
 	{
 		double raw;
 		sample_t sample;
-		double sample_dbl;
 	} trig_entry_t;
 
 	typedef struct iqtable
@@ -55,12 +54,9 @@ public:
 
 	static constexpr frequency_t DEFAULT_SAMPLE_RATE   = 16000;
 
-	wtvsoftmodem_dsp(bool populate_sin_table = true);
+	wtvsoftmodem_dsp();
 
-	void populate_sin_table(trig_entry_t* table, uint32_t size);
-	void populate_cos_table(trig_entry_t* table, uint32_t size);
-
-	inline trig_entry_t sin(phase_t phase_angle)
+	inline trig_entry_t sin(phase_t phase_angle) const
 	{
 		phase_angle >>= (TRIG_DOMAIN_BITS - TRIG_TABLE_BITS);
 
@@ -165,7 +161,12 @@ private:
 	static constexpr uint32_t    TRIG_TABLE_BITS   = 14;
 	static constexpr uint32_t    TRIG_TABLE_SIZE   = (1 << TRIG_TABLE_BITS);
 
-	trig_entry_t sin_table[TRIG_TABLE_SIZE];
+
+	static const trig_entry_t* shared_sin_table();
+	static void populate_sin_table(trig_entry_t* table, uint32_t size);
+	static void populate_cos_table(trig_entry_t* table, uint32_t size);
+
+	const trig_entry_t* sin_table;
 
 };
 
