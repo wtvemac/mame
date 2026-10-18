@@ -51,6 +51,8 @@ public:
 	static constexpr tone_state_t TONE_CONTINUE   = 0xfe; // Previous tone still being detected.
 	static constexpr int32_t      TONE_INFINITE   =   -1; // Tone goes on forever.
 
+	static constexpr uint32_t     SAMPLES_PER_HIT = 384;
+
 	static constexpr tone_t       TONE_NULL       = 0x00; // Silence
 	static constexpr tone_t       TONE_STOP       = 0x00; // Silence, but used to indicate to stop the tone progression.
 
@@ -79,7 +81,7 @@ public:
 
 	wtvsoftmodem_tone();
 
-	void set_freq_table(const wtvsoftmodem_dsp::frequency_t* set_frequency_table, uint8_t set_frequency_count, wtvsoftmodem_dsp::dft_state_t* set_dft_state);
+	void set_freq_table(const wtvsoftmodem_dsp::frequency_t* set_frequency_table, uint8_t set_frequency_count, wtvsoftmodem_dsp::goertzel_state_t* set_goertzel_state);
 	void set_tone_table(const tone_detail_t* set_tone_table, uint8_t set_tone_count);
 	void set_sample_rate(wtvsoftmodem_dsp::frequency_t set_sample_rate);
 
@@ -182,14 +184,15 @@ private:
 	{
 		int32_t tone_index;
 		int32_t hit_count;
+		uint32_t block_samples;
 	} tone_demodulate_state_t;
+
+	typedef detected_tone_t (wtvsoftmodem_tone::*block_detector_t)(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
 
 	typedef struct dual_frequency
 	{
 		uint32_t index[2];
 	} dual_frequency_t;
-
-	static constexpr uint32_t SAMPLES_PER_HIT            = 384;
 
 	static constexpr uint8_t  FREQUENCY_NOT_DETECTED     = -1;
 	static constexpr uint8_t  FREQUENCY_DETECTING        = -2;
@@ -420,11 +423,11 @@ private:
 	tone_modulate_state_t mod_state;
 	tone_demodulate_state_t demod_state;
 
-	wtvsoftmodem_dsp::dft_state_t default_dft_state[(sizeof(DEFAULT_FREQ_TABLE) / sizeof(DEFAULT_FREQ_TABLE[0]))];
+	wtvsoftmodem_dsp::goertzel_state_t default_goertzel_state[(sizeof(DEFAULT_FREQ_TABLE) / sizeof(DEFAULT_FREQ_TABLE[0]))];
 
 	uint8_t frequency_count;
 	const wtvsoftmodem_dsp::frequency_t* frequency_table;
-	wtvsoftmodem_dsp::dft_state_t* dft_state;
+	wtvsoftmodem_dsp::goertzel_state_t* goertzel_state;
 
 	uint8_t tone_count;
 	const tone_detail_t* tone_table;
@@ -441,9 +444,12 @@ private:
 		};
 		for (uint8_t fidx = index_start; fidx < std::min(frequency_count, (uint8_t)(index_start + length)); fidx++)
 		{
-			if (dsp.dft(&dft_state[fidx], sample, sample_count))
+			wtvsoftmodem_dsp::goertzel_update(&goertzel_state[fidx], sample, sample_count);
+
+			if (wtvsoftmodem_dsp::goertzel_ready(&goertzel_state[fidx]))
 			{
-				double result = dsp.dft_result(&dft_state[fidx]);
+				double result = wtvsoftmodem_dsp::goertzel_power(&goertzel_state[fidx]);
+				wtvsoftmodem_dsp::goertzel_reset(&goertzel_state[fidx]);
 
 				if (result > row_max_result)
 				{
@@ -467,9 +473,12 @@ private:
 		int32_t detected_frequency = FREQUENCY_NOT_DETECTED;
 		for (uint8_t fidx = index_start; fidx < std::min(frequency_count, (uint8_t)(index_start + length)); fidx++)
 		{
-			if (dsp.dft(&dft_state[fidx], sample, sample_count))
+			wtvsoftmodem_dsp::goertzel_update(&goertzel_state[fidx], sample, sample_count);
+
+			if (wtvsoftmodem_dsp::goertzel_ready(&goertzel_state[fidx]))
 			{
-				double result = dsp.dft_result(&dft_state[fidx]);
+				double result = wtvsoftmodem_dsp::goertzel_power(&goertzel_state[fidx]);
+				wtvsoftmodem_dsp::goertzel_reset(&goertzel_state[fidx]);
 
 				if (result > row_max_result)
 				{
@@ -485,6 +494,10 @@ private:
 
 		return detected_frequency;
 	}
+	detected_tone_t detect_blocks(block_detector_t detector, const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
+	detected_tone_t detect_dual_tone_block(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
+	detected_tone_t detect_single_tone_block(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
+	detected_tone_t detect_dtmf_block(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
 	detected_tone_t log_rx_hit(uint32_t tone_index);
 	void rx_reset();
 

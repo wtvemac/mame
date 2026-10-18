@@ -15,7 +15,7 @@ wtvsoftmodem_v8::wtvsoftmodem_v8() :
 	tx_buffer_size = 0;
 
 	uint8_t set_frequency_count = (sizeof(wtvsoftmodem_v8::V8_FREQ_TABLE) / sizeof(wtvsoftmodem_v8::V8_FREQ_TABLE[0]));
-	wtvsoftmodem_v8::set_freq_table(wtvsoftmodem_v8::V8_FREQ_TABLE, set_frequency_count, v8_dft_state);
+	wtvsoftmodem_v8::set_freq_table(wtvsoftmodem_v8::V8_FREQ_TABLE, set_frequency_count, v8_goertzel_state);
 
 	uint8_t set_tone_count = (sizeof(wtvsoftmodem_v8::V8_TONE_TABLE) / sizeof(wtvsoftmodem_v8::V8_TONE_TABLE[0]));
 	wtvsoftmodem_v8::set_tone_table(wtvsoftmodem_v8::V8_TONE_TABLE, set_tone_count);
