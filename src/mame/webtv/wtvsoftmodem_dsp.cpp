@@ -6,11 +6,25 @@
 #include "wtvsoftmodem_dsp.h"
 #include <cstdio>
 #include <algorithm>
+#include <array>
 
-wtvsoftmodem_dsp::wtvsoftmodem_dsp(bool populate_sin_table)
+wtvsoftmodem_dsp::wtvsoftmodem_dsp()
+	: sin_table(wtvsoftmodem_dsp::shared_sin_table())
 {
-	if (populate_sin_table)
-		wtvsoftmodem_dsp::populate_sin_table(sin_table, wtvsoftmodem_dsp::TRIG_TABLE_SIZE);
+}
+
+const wtvsoftmodem_dsp::trig_entry_t* wtvsoftmodem_dsp::shared_sin_table()
+{
+	static const std::array<wtvsoftmodem_dsp::trig_entry_t, wtvsoftmodem_dsp::TRIG_TABLE_SIZE> table =
+	[] {
+		std::array<wtvsoftmodem_dsp::trig_entry_t, wtvsoftmodem_dsp::TRIG_TABLE_SIZE> t;
+
+		wtvsoftmodem_dsp::populate_sin_table(t.data(), wtvsoftmodem_dsp::TRIG_TABLE_SIZE);
+
+		return t;
+	}();
+
+	return table.data();
 }
 
 void wtvsoftmodem_dsp::populate_sin_table(wtvsoftmodem_dsp::trig_entry_t* table, uint32_t size)
@@ -26,8 +40,7 @@ void wtvsoftmodem_dsp::populate_sin_table(wtvsoftmodem_dsp::trig_entry_t* table,
 
 		table[i] = {
 			.raw = raw,
-			.sample = (sample_t)sample_dbl,
-			.sample_dbl = sample_dbl
+			.sample = (sample_t)sample_dbl
 		};
 	}
 }
@@ -45,8 +58,7 @@ void wtvsoftmodem_dsp::populate_cos_table(wtvsoftmodem_dsp::trig_entry_t* table,
 
 		table[i] = {
 			.raw = raw,
-			.sample = (sample_t)sample_dbl,
-			.sample_dbl = sample_dbl
+			.sample = (sample_t)sample_dbl
 		};
 	}
 }
