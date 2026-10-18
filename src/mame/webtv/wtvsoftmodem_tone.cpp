@@ -329,7 +329,7 @@ void wtvsoftmodem_tone::tx_init(wtvsoftmodem_tone::tone_t tone, int32_t total_sa
 					if (tone_table[didx].play_duration_ms == wtvsoftmodem_tone::TONE_INFINITE)
 						total_samples = wtvsoftmodem_tone::TONE_INFINITE;
 					else
-						total_samples = std::rint((tone_table[didx].play_duration_ms * sample_rate) / 1000);
+						total_samples = std::rint(wtvsoftmodem_dsp::ms_to_samples(tone_table[didx].play_duration_ms, sample_rate));
 				}
 				else
 				{
@@ -338,7 +338,7 @@ void wtvsoftmodem_tone::tx_init(wtvsoftmodem_tone::tone_t tone, int32_t total_sa
 
 				int32_t preverse_samples;
 				if (tone_table[didx].preverse_ms > 0)
-					preverse_samples = std::rint((tone_table[didx].preverse_ms * sample_rate) / 1000);
+					preverse_samples = std::rint(wtvsoftmodem_dsp::ms_to_samples(tone_table[didx].preverse_ms, sample_rate));
 				else
 					preverse_samples = 0;
 
