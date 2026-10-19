@@ -15,16 +15,17 @@
 
 #include "diserial.h"
 
+#include <type_traits>
 #include <vector>
 #include <string>
+#include <string_view>
 #include <deque>
 
 #include "wtvsoftmodem_tone.h"
 #include "wtvsoftmodem_v8.h"
 #include "wtvsoftmodem_v22.h"
 #include "wtvsoftmodem_v23.h"
-#include "wtvsoftmodem_v34.h"
-#include "wtvsoftmodem_v90.h"
+#include "wtvsoftmodem_v34family.h"
 
 #include "wtvsoftmodem_recorder.h"
 
@@ -50,6 +51,14 @@ public:
 
 	static constexpr uint32_t DEFAULT_SAMPLE_RATE = wtvsoftmodem_dsp::DEFAULT_SAMPLE_RATE;
 	static constexpr uint32_t DEFAULT_DTE_BUAD_RATE = 115200;
+
+	// These are 1800 numbers that are usually dialed from V.34-only TellyScripts
+	// So I use these to disable V.90 so the TellyScript doesn't throw an unknown rate error.
+	static constexpr std::string_view V34_NUMBERS[] = {
+		"18004653537",
+		"18006138199",
+		"18775094567"
+	};
 
 	wtvsoftmodem_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
@@ -83,6 +92,7 @@ private:
 
 	static constexpr uint32_t WAIT_AFTER_DIAL_SILENCE_MS = 1000; // time is in milliseconds
 	static constexpr uint32_t WAIT_BEFORE_DATA_MS = 3200; // time is in milliseconds
+	static constexpr uint32_t WAIT_BEFORE_TRAINING_MS = 70; // time is in milliseconds
 	static constexpr uint32_t ECHO_SAMPLE_CNT = 4096;
 	static constexpr uint32_t ECHO_DELAY_SAMPLE_CNT = 45;
 	static constexpr int32_t ECHO_SCALEDOWN = 4;
@@ -108,8 +118,7 @@ private:
 	wtvsoftmodem_v8 m_v8;
 	wtvsoftmodem_v22 m_v22;
 	wtvsoftmodem_v23 m_v23;
-	wtvsoftmodem_v34 m_v34;
-	wtvsoftmodem_v90 m_v90;
+	wtvsoftmodem_v34family m_v34fam;
 
 	ModemState m_state;
 
@@ -144,6 +153,8 @@ private:
 	void set_is_waiting(uint32_t wait_ms, ModemState wait_end_state);
 	void set_is_dialing();
 	void listen_for_dial_string(const wtvsoftmodem_dsp::sample_t* sample, uint32_t sample_count);
+
+	bool configure_call(std::string_view number);
 
 	void enter_data_mode();
 
