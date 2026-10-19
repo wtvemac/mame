@@ -1020,13 +1020,13 @@ CONS(1997, wtv2jpp,       0,      0, webtv2_jpp,     0,    webtv2_state, base_in
 // Can add child machines here if you want to split out wtv2jpp
 CONS(1997, wtv2jpc,       0,      0, webtv2_jpc,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Japan Classic | Sony INT-WJ200 / Fujitsu F993000",                             MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2jpc
-CONS(1998, wtv2drb,       0,      0, webtv2_derby,   0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Derby | Sony INT-W200 'CND'",                                                  MACHINE_UNOFFICIAL | MACHINE_NODEVICE_LAN)
+CONS(1998, wtv2drb,       0,      0, webtv2_derby,   0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Derby | Sony INT-W200 'CND'",                                                  MACHINE_UNOFFICIAL)
 CONS(1998, wtv2wld,       0,      0, webtv2_wld,     0,    webtv2_state, base_init, "Philips", "WebTV 2: Philips WLD100 Italian Prototype",                                             MACHINE_UNOFFICIAL)
-CONS(1999, wtv2npl,       0,      0, webtv2_newplus, 0,    webtv2_state, base_init, "WebTV",   "WebTV 2: New Plus | Sony INT-W250 / Philips MAT976 / RCA RW2110",                       MACHINE_UNOFFICIAL | MACHINE_NODEVICE_LAN)
+CONS(1999, wtv2npl,       0,      0, webtv2_newplus, 0,    webtv2_state, base_init, "WebTV",   "WebTV 2: New Plus | Sony INT-W250 / Philips MAT976 / RCA RW2110",                       MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2npl
-CONS(1999, wtv2ncl,       0,      0, webtv2_newclsc, 0,    webtv2_state, base_init, "WebTV",   "WebTV 2: BPS | Sony INT-W150 / Philips MAT965 / RCA RW2100",                            MACHINE_UNOFFICIAL | MACHINE_NODEVICE_LAN)
+CONS(1999, wtv2ncl,       0,      0, webtv2_newclsc, 0,    webtv2_state, base_init, "WebTV",   "WebTV 2: BPS | Sony INT-W150 / Philips MAT965 / RCA RW2100",                            MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2ncl
-CONS(1999, wtv2esr,       0,      0, webtv2_estar,   0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Echostar | DishPlayer 7100 / DishPlayer 7200",                                 MACHINE_UNOFFICIAL | MACHINE_NODEVICE_LAN)
+CONS(1999, wtv2esr,       0,      0, webtv2_estar,   0,    webtv2_state, base_init, "WebTV",   "WebTV 2: Echostar | DishPlayer 7100 / DishPlayer 7200",                                 MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2esr
-CONS(2000, wtv2utv,       0,      0, webtv2_utv,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: UltimateTV | Sony SAT-W60 / RCA DWD490RE / RCA DWD495RG",                      MACHINE_UNOFFICIAL | MACHINE_NODEVICE_LAN)
+CONS(2000, wtv2utv,       0,      0, webtv2_utv,     0,    webtv2_state, base_init, "WebTV",   "WebTV 2: UltimateTV | Sony SAT-W60 / RCA DWD490RE / RCA DWD495RG",                      MACHINE_UNOFFICIAL)
 // Can add child machines here if you want to split out wtv2utv
