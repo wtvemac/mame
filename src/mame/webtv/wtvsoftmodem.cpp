@@ -18,8 +18,14 @@ wtvsoftmodem_device::wtvsoftmodem_device(const machine_config &mconfig, const ch
 	m_out_dtr_cb(*this),
 	m_out_rts_cb(*this),
 	m_out_int_cb(*this),
+	m_moip(*this, "moip"),
 	m_wav_recorder_enabled(false)
 {
+}
+
+void wtvsoftmodem_device::device_add_mconfig(machine_config &config)
+{
+	MOIPBRIDGE(config, m_moip, 0, wtvsoftmodem_device::DEFAULT_SAMPLE_RATE);
 }
 
 void wtvsoftmodem_device::device_start()
@@ -305,6 +311,14 @@ void wtvsoftmodem_device::device_stop()
 
 void wtvsoftmodem_device::reset()
 {
+	if (m_moip->is_enabled())
+	{
+		m_moip->reset_audio();
+
+		if (m_has_dialed)
+			m_moip->hangup();
+	}
+
 	m_state = ModemState::IDLE_ON_HOOK;
 
 	wtvsoftmodem_device::reset_echo(false);
@@ -482,62 +496,69 @@ uint32_t wtvsoftmodem_device::pull(T* buffer, uint32_t sample_count)
 
 	uint32_t tx_sample_count = 0;
 
-	switch (m_state)
+	if (m_moip->is_enabled() && m_has_dialed)
 	{
-		case ModemState::IDLE_ON_HOOK:
-		case ModemState::CALLER_DIALING:
-			tx_sample_count = sample_count;
-			break;
-
-		case ModemState::IDLE_OFF_HOOK:
-			tx_sample_count = m_tone.tx(sample, sample_count);
-			break;
-
-		case ModemState::WAITING:
+		tx_sample_count = m_moip->pull(sample, sample_count);
+	}
+	else
+	{
+		switch (m_state)
 		{
-			tx_sample_count = sample_count;
-			m_wait_samples -= sample_count;
-			if(m_wait_samples <= 0)
-				m_state = m_wait_end_state;
-			break;
+			case ModemState::IDLE_ON_HOOK:
+			case ModemState::CALLER_DIALING:
+				tx_sample_count = sample_count;
+				break;
+
+			case ModemState::IDLE_OFF_HOOK:
+				tx_sample_count = m_tone.tx(sample, sample_count);
+				break;
+
+			case ModemState::WAITING:
+			{
+				tx_sample_count = sample_count;
+				m_wait_samples -= sample_count;
+				if(m_wait_samples <= 0)
+					m_state = m_wait_end_state;
+				break;
+			}
+
+			case ModemState::V8:
+				tx_sample_count = m_v8.tx(sample, sample_count);
+				break;
+
+			case ModemState::V22:
+				tx_sample_count = m_v22.tx(sample, sample_count);
+				break;
+
+			case ModemState::V34:
+			case ModemState::V90:
+				tx_sample_count = m_v34fam.tx(sample, sample_count);
+				break;
+
+			case ModemState::V23:
+				tx_sample_count = m_v23.tx(sample, sample_count);
+				break;
+
+			default:
+				break;
 		}
 
-		case ModemState::V8:
-			tx_sample_count = m_v8.tx(sample, sample_count);
-			break;
-
-		case ModemState::V22:
-			tx_sample_count = m_v22.tx(sample, sample_count);
-			break;
-
-		case ModemState::V34:
-		case ModemState::V90:
-			tx_sample_count = m_v34fam.tx(sample, sample_count);
-			break;
-
-		case ModemState::V23:
-			tx_sample_count = m_v23.tx(sample, sample_count);
-			break;
-
-		default:
-			break;
-	}
-
-	const bool v90_echo_window = (m_state == ModemState::V90 && m_v34fam.is_v90_mode() && m_v34fam.hybrid_echo_active());
-	if (m_can_echo || v90_echo_window)
-	{
-		const uint32_t base = (m_echo_idx - tx_sample_count - wtvsoftmodem_device::ECHO_DELAY_SAMPLE_CNT);
-		if (base > 0)
+		const bool v90_echo_window = (m_state == ModemState::V90 && m_v34fam.is_v90_mode() && m_v34fam.hybrid_echo_active());
+		if (m_can_echo || v90_echo_window)
 		{
-			for (uint32_t sample_idx = 0; sample_idx < tx_sample_count; sample_idx++)
+			const uint32_t base = (m_echo_idx - tx_sample_count - wtvsoftmodem_device::ECHO_DELAY_SAMPLE_CNT);
+			if (base > 0)
 			{
-				int32_t echo_sample = (int32_t)m_echo[(base + sample_idx) & (wtvsoftmodem_device::ECHO_SAMPLE_CNT - 1)];
+				for (uint32_t sample_idx = 0; sample_idx < tx_sample_count; sample_idx++)
+				{
+					int32_t echo_sample = (int32_t)m_echo[(base + sample_idx) & (wtvsoftmodem_device::ECHO_SAMPLE_CNT - 1)];
 
-				sample[sample_idx] = (wtvsoftmodem_dsp::sample_t)std::clamp(
-					(int32_t)sample[sample_idx] + (echo_sample / wtvsoftmodem_device::ECHO_SCALEDOWN),
-					static_cast<int32_t>(std::numeric_limits<wtvsoftmodem_dsp::sample_t>::min()),
-					static_cast<int32_t>(std::numeric_limits<wtvsoftmodem_dsp::sample_t>::max())
-				);
+					sample[sample_idx] = (wtvsoftmodem_dsp::sample_t)std::clamp(
+						(int32_t)sample[sample_idx] + (echo_sample / wtvsoftmodem_device::ECHO_SCALEDOWN),
+						static_cast<int32_t>(std::numeric_limits<wtvsoftmodem_dsp::sample_t>::min()),
+						static_cast<int32_t>(std::numeric_limits<wtvsoftmodem_dsp::sample_t>::max())
+					);
+				}
 			}
 		}
 	}
@@ -680,6 +701,13 @@ void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 	if (m_wav_recorder_enabled)
 		m_wav_recorder.push_left(sample, sample_count);
 
+
+	if (m_moip->is_enabled() && m_has_dialed)
+	{
+		m_moip->push(sample, sample_count);
+		return;
+	}
+
 	// AltoCom's V.90 needs a hear an echo at the end of training to continue into data mode.
 	// I also add an echo so audible dialing doesn't sound too weird on a zero-echo channel (things like hearing the dialed digit)
 	// Echo gets turned off after V.8 to not disturb training.
@@ -731,13 +759,25 @@ TIMER_CALLBACK_MEMBER(wtvsoftmodem_device::dial_completed)
 {
 	m_has_dialed = true;
 
-	if (m_wav_recorder_enabled)
-		m_wav_recorder.annotate("Dialed '" +  m_dial_digits + "', going to V.8");
+	if (m_moip->is_enabled())
+	{
+		if (m_wav_recorder_enabled)
+			m_wav_recorder.annotate("Dialed '" +  m_dial_digits + "', calling via MoIP");
 
-	configure_call(m_dial_digits);
+		m_state = ModemState::MOIP;
 
-	m_state = ModemState::V8;
-	m_v8.start();
+		m_moip->dial(m_dial_digits);
+	}
+	else
+	{
+		if (m_wav_recorder_enabled)
+			m_wav_recorder.annotate("Dialed '" +  m_dial_digits + "', going to V.8");
+
+		configure_call(m_dial_digits);
+
+		m_state = ModemState::V8;
+		m_v8.start();
+	}
 }
 
 TIMER_CALLBACK_MEMBER(wtvsoftmodem_device::start_data)

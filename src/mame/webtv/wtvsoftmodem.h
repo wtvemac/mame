@@ -26,6 +26,7 @@
 #include "wtvsoftmodem_v22.h"
 #include "wtvsoftmodem_v23.h"
 #include "wtvsoftmodem_v34family.h"
+#include "imagedev/moipbridge.h"
 
 #include "wtvsoftmodem_recorder.h"
 
@@ -46,7 +47,8 @@ public:
 		V22,
 		V23,
 		V34,
-		V90
+		V90,
+		MOIP
 	};
 
 	static constexpr uint32_t DEFAULT_SAMPLE_RATE = wtvsoftmodem_dsp::DEFAULT_SAMPLE_RATE;
@@ -120,6 +122,8 @@ private:
 	wtvsoftmodem_v23 m_v23;
 	wtvsoftmodem_v34family m_v34fam;
 
+	required_device<moipbridge_device> m_moip;
+
 	ModemState m_state;
 
 	bool m_dte_byte_tx = true;
@@ -165,6 +169,7 @@ protected:
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
 	virtual void device_stop() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 	virtual void tra_callback() override;
 	virtual void tra_complete() override;
