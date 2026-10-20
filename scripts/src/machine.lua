@@ -65,6 +65,8 @@ files {
 	MAME_DIR .. "src/devices/imagedev/midiin.h",
 	MAME_DIR .. "src/devices/imagedev/midiout.cpp",
 	MAME_DIR .. "src/devices/imagedev/midiout.h",
+	MAME_DIR .. "src/devices/imagedev/moipbridge.cpp",
+	MAME_DIR .. "src/devices/imagedev/moipbridge.h",
 	MAME_DIR .. "src/devices/imagedev/papertape.cpp",
 	MAME_DIR .. "src/devices/imagedev/papertape.h",
 	MAME_DIR .. "src/devices/imagedev/picture.cpp",

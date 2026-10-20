@@ -202,6 +202,36 @@ end
 			ext_lib("portmidi"),
 		}
 	end
+	if _OPTIONS["NO_USE_PJSUA2"]~="1" then
+		if _OPTIONS["with-system-pjproject"]=="1" then
+			local str = backtick(pjsua2_pkgconfigcmd() .. " --libs --static libpjproject")
+			addlibfromstring(str)
+			addoptionsfromstring(str)
+
+			if not string.find(str, "pjsua2") then
+				local extra = backtick([[sh -c 'ls /usr/local/lib/libpjsua2-* /usr/lib/libpjsua2-* 2>/dev/null | head -1 | sed "s/.*lib\(pjsua2[^.]*\).*/-l\1/"']])
+				addlibfromstring(extra)
+			end
+			links {
+				"stdc++",
+			}
+		else
+			links {
+				"pjproject",
+			}
+		end
+		if _OPTIONS["targetos"]=="windows" then
+			links {
+				"ws2_32",
+				"iphlpapi",
+				"ole32",
+			}
+		else
+			links {
+				"pthread",
+			}
+		end
+	end
 	links {
 		"bgfx",
 		"bimg",

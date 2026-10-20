@@ -44,6 +44,43 @@ function devicesProject(_target, _subtarget)
 		ext_includedir("flac"),
 	}
 
+	-- pjsua2 support (3rdparty or external)
+	-- Set MAME_HAVE_PJSUA2 or MAME_NO_PJSUA2 option that can be used from source to check pjsua2 availability.
+	if _OPTIONS["NO_USE_PJSUA2"] == "0" and _OPTIONS["with-system-pjproject"] == "1" then
+		local haspjsua2 = os.execute(pjsua2_pkgconfigcmd() .. " --exists libpjproject")
+		if not haspjsua2 then
+			_OPTIONS["NO_USE_PJSUA2"] = "1"
+		end
+	end
+
+	if _OPTIONS["NO_USE_PJSUA2"] == "1" then
+		defines {
+			"MAME_NO_PJSUA2",
+		}
+	else
+		defines {
+			"MAME_HAVE_PJSUA2",
+		}
+		if _OPTIONS["with-system-pjproject"] == "1" then
+			buildoptions {
+				backtick(pjsua2_pkgconfigcmd() .. " --cflags libpjproject"),
+			}
+		else
+
+			configuration { "gmake or ninja" }
+				for _, dir in ipairs(pjproject_includedirs()) do
+					buildoptions {
+						"-isystem " .. dir,
+					}
+				end
+			configuration { "vs*" }
+				includedirs {
+					pjproject_includedirs(),
+				}
+			configuration { }
+		end
+	end
+
 	dofile(path.join("src", "cpu.lua"))
 
 	dofile(path.join("src", "sound.lua"))

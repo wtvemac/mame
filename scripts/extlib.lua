@@ -93,6 +93,11 @@ newoption {
 	description = "Use system pugixml library",
 }
 
+newoption {
+	trigger = "with-system-pjproject",
+	description = "Use system pjproject (pjsua2) library",
+}
+
 -- build helpers
 function ext_lib(lib)
 	local opt = _OPTIONS["with-system-" .. lib]

@@ -421,6 +421,38 @@ newoption {
 	description = "Select projects to be built. Will look into project folder for files.",
 }
 
+-- Use system (3rdparty/pjproject) by default unless --NO_USE_PJSUA2=1 is set at compile time
+function pjsua2_pkgconfigcmd()
+	local pkgconfig = os.getenv("PKG_CONFIG")
+	if pkgconfig == nil then
+		return "pkg-config"
+	end
+	return pkgconfig
+end
+
+function pjproject_includedirs()
+	return {
+		MAME_DIR .. "3rdparty/pjproject/pjlib/include",
+		MAME_DIR .. "3rdparty/pjproject/pjlib-util/include",
+		MAME_DIR .. "3rdparty/pjproject/pjnath/include",
+		MAME_DIR .. "3rdparty/pjproject/pjmedia/include",
+		MAME_DIR .. "3rdparty/pjproject/pjsip/include",
+	}
+end
+
+newoption {
+	trigger = "NO_USE_PJSUA2",
+	description = "Disable pjsua2 (SIP) support in the WebTV VoIP bridge device",
+	allowed = {
+		{ "0",  "Enable pjsua2 SIP support"  },
+		{ "1",  "Disable pjsua2 SIP support" },
+	},
+}
+
+if not _OPTIONS["NO_USE_PJSUA2"] then
+	_OPTIONS["NO_USE_PJSUA2"] = "0"
+end
+
 dofile ("extlib.lua")
 
 if _OPTIONS["SHLIB"]=="1" then
