@@ -27,9 +27,14 @@
 #include <bit>
 #include <concepts>
 #include <algorithm>
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <mutex>
 #include <optional>
+
+#ifndef M_PI
+	#define M_PI 3.14159265358979323846
+#endif
 
 constexpr double MOIP_SAMPLE_RATE  = 8000.0;
 constexpr uint32_t MOIP_CHANNEL_COUNT  = 1;
