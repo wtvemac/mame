@@ -93,7 +93,7 @@ private:
 
 	const double besselI0(double x);
 
-	void build_coeffs(coeff_table_t &target_table, uint32_t input_rate);
+	void build_coeffs(coeff_table_t &target_table, uint32_t input_rate, bool advancing);
 
 	inline void history_push(std::vector<double> &hist, size_t &head, double sample);
 

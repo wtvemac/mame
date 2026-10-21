@@ -128,8 +128,8 @@ moip_sample_ring_buffer::moip_sample_ring_buffer(uint32_t capacity, double machi
 
 	m_push_hist.assign(m_tap_count, 0.0);
 	m_pull_hist.assign(m_tap_count, 0.0);
-	moip_sample_ring_buffer::build_coeffs(m_moip_coeffs, MOIP_SAMPLE_RATE);
-	moip_sample_ring_buffer::build_coeffs(m_machine_coeffs, machine_sample_rate);
+	moip_sample_ring_buffer::build_coeffs(m_moip_coeffs, MOIP_SAMPLE_RATE, true);
+	moip_sample_ring_buffer::build_coeffs(m_machine_coeffs, machine_sample_rate, false);
 
 	clear();
 }
@@ -165,7 +165,7 @@ const double moip_sample_ring_buffer::besselI0(double x)
 	return sum;
 }
 
-void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t input_rate)
+void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t input_rate, bool advancing)
 {
 	const double freq_lo = m_cutoff_freqlo / static_cast<double>(input_rate);
 	const double freq_hi = m_cutoff_freqhi / static_cast<double>(input_rate);
@@ -188,7 +188,7 @@ void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t
 		for (int p = 0; p < fit_points; ++p)
 		{
 			double mu = mu_points[p];
-			double n_idx = (static_cast<double>(t) - center) - mu;
+			double n_idx = (static_cast<double>(t) - center) + (advancing ? mu : -mu);
 			
 			double sinc;
 			if (std::abs(n_idx) < 1e-9)
@@ -286,8 +286,6 @@ const moip_sample_ring_buffer::sample_t moip_sample_ring_buffer::fir(const coeff
     double sum = 0.0;
 
     double mu = sub_frac;
-    double mu2 = mu * mu;
-    double mu3 = mu2 * mu;
 
     for (int t = 0; t < m_tap_count; ++t)
     {
@@ -297,7 +295,9 @@ const moip_sample_ring_buffer::sample_t moip_sample_ring_buffer::fir(const coeff
 
         const auto &c = target_table[t];
 
-		double tap_coeff = c[0] + c[1] * mu + c[2] * mu2 + c[3] * mu3;
+		double tap_coeff = c.back();
+		for (int r = int(c.size()) - 2; r >= 0; --r)
+			tap_coeff = tap_coeff * mu + c[r];
 
         sum += sample * tap_coeff;
     }
@@ -355,14 +355,32 @@ bool moip_sample_ring_buffer::push(const T *sample, uint32_t sample_count, moip_
 	uint32_t tail = m_tail.load(std::memory_order_relaxed);
 	uint32_t capacity = m_mask + 1;
 
-	if (sample_count > (capacity - (tail - head)))
+	const uint32_t free_samples = capacity - (tail - head);
+	const double phase_increment = (MOIP_SAMPLE_RATE / m_machine_sample_rate) * (1.0 + m_ppm_offset);
+	if (machine_samples_in)
+	{
+		double phase = m_push_frac_phase;
+		uint32_t output_count = 0;
+		for (uint32_t i = 0; i < sample_count; i++)
+		{
+			phase += phase_increment;
+			while (phase >= 1.0)
+			{
+				if (output_count == free_samples)
+					return false;
+
+				output_count++;
+				phase -= 1.0;
+			}
+		}
+	}
+	else if (sample_count > free_samples)
 		return false;
 
 	uint32_t samples_pushed = 0;
 
 	if (machine_samples_in)
 	{
-		const double phase_increment = (MOIP_SAMPLE_RATE / m_machine_sample_rate) * (1.0 + m_ppm_offset);
 		const double gain = m_gain_adjust;
 
 		for (uint32_t i = 0; i < sample_count; ++i)
@@ -373,7 +391,7 @@ bool moip_sample_ring_buffer::push(const T *sample, uint32_t sample_count, moip_
 
 			while (m_push_frac_phase >= 1.0)
 			{
-				double sub_frac = m_push_frac_phase - 1.0;
+				double sub_frac = (m_push_frac_phase - 1.0) / phase_increment;
 				if (sub_frac > 1.0)
 					sub_frac = 1.0;
 
