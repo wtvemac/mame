@@ -66,7 +66,7 @@ public:
 	static constexpr uint32_t SRB_DEFAULT_IN_DELAY_SAMPLES = 720;
 	static constexpr uint32_t SRB_DEFAULT_OUT_DELAY_SAMPLES = 320;
 	static constexpr uint32_t SRB_POLYNOMIAL_ORDER = 7;
-	static constexpr uint8_t SRB_DEFAULT_TAP_COUNT = 64;
+	static constexpr uint8_t SRB_DEFAULT_TAP_COUNT = 192;
 	static constexpr double SRB_DEFAULT_CUTOFF_FREQLO = 200.0;
 	static constexpr double SRB_DEFAULT_CUTOFF_FREQHI = 3564.0;
 	static constexpr double SRB_DEFAULT_SLATTDB = 90.0;
