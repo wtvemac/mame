@@ -6,6 +6,7 @@
 #include "emu.h"
 #include "emuopts.h"
 #include "moipbridge.h"
+#include <stdexcept>
 
 DEFINE_DEVICE_TYPE(VOIPBRIDGE, moipbridge_device, "moipbridge", "MoIP (SIP) Bridge")
 
@@ -104,20 +105,33 @@ void moipbridge_device::reset_audio()
 // and call quality adjustments for modems.
 // ----------------------------------------------------------------------------
 
-moip_sample_ring_buffer::moip_sample_ring_buffer(uint32_t capacity, double machine_sample_rate, double gain_adjust, double ppm_offset, uint32_t delay_samples, uint8_t tap_count, double cutoff_freqlo, double cutoff_freqhi, double slattdb)
+moip_sample_ring_buffer::moip_sample_ring_buffer(uint32_t capacity, double machine_sample_rate, bool bypass_resampler, double gain_adjust, double ppm_offset, uint32_t delay_samples, uint8_t tap_count, double cutoff_freqlo, double cutoff_freqhi, double slattdb)
 	: m_machine_sample_rate(machine_sample_rate),
+	m_bypass_resampler(bypass_resampler),
 	m_tap_count(tap_count),
 	m_cutoff_freqlo(cutoff_freqlo),
 	m_cutoff_freqhi(cutoff_freqhi),
 	m_beta(moip_sample_ring_buffer::calculate_kaiser_shape(slattdb)),
-	m_moip_coeffs(tap_count, std::vector<double>(moip_sample_ring_buffer::SRB_POLYNOMIAL_ORDER + 1, 0.0)),
-	m_machine_coeffs(tap_count, std::vector<double>(moip_sample_ring_buffer::SRB_POLYNOMIAL_ORDER + 1, 0.0)),
+	m_moip_coeffs(
+		std::size(MOIP_SAMPLE_RATES),
+		coeff_table_t
+		{
+			.sample_rate = 0.0,
+			.coeffs = std::vector<std::vector<double>>(tap_count, std::vector<double>(moip_sample_ring_buffer::SRB_POLYNOMIAL_ORDER + 1, 0.0)),
+		}
+	),
+	m_machine_coeffs(
+		{
+			.sample_rate = machine_sample_rate,
+			.coeffs = std::vector<std::vector<double>>(tap_count, std::vector<double>(moip_sample_ring_buffer::SRB_POLYNOMIAL_ORDER + 1, 0.0)),
+		}
+	),
 	m_gain_adjust(gain_adjust),
 	m_ppm_offset(ppm_offset * 1e-6),
 	m_delay_samples(delay_samples),
 	m_within_delay(delay_samples > 0)
 {
-	assert(m_machine_sample_rate >= MOIP_SAMPLE_RATE);
+	assert(m_machine_sample_rate >= MOIP_MAX_SAMPLE_RATE);
 
 	uint32_t alloced_capacity = std::max(std::bit_ceil(capacity), (uint32_t)2);
 
@@ -128,7 +142,13 @@ moip_sample_ring_buffer::moip_sample_ring_buffer(uint32_t capacity, double machi
 
 	m_push_hist.assign(m_tap_count, 0.0);
 	m_pull_hist.assign(m_tap_count, 0.0);
-	moip_sample_ring_buffer::build_coeffs(m_moip_coeffs, MOIP_SAMPLE_RATE, true);
+
+	uint32_t rate_idx = 0;
+	for (double sample_rate : MOIP_SAMPLE_RATES)
+	{
+		moip_sample_ring_buffer::build_coeffs(m_moip_coeffs[rate_idx], sample_rate, true);
+		rate_idx++;
+	}
 	moip_sample_ring_buffer::build_coeffs(m_machine_coeffs, machine_sample_rate, false);
 
 	clear();
@@ -167,6 +187,8 @@ const double moip_sample_ring_buffer::besselI0(double x)
 
 void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t input_rate, bool advancing)
 {
+	target_table.sample_rate = input_rate;
+
 	const double freq_lo = m_cutoff_freqlo / static_cast<double>(input_rate);
 	const double freq_hi = m_cutoff_freqhi / static_cast<double>(input_rate);
 
@@ -189,7 +211,7 @@ void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t
 		{
 			double mu = mu_points[p];
 			double n_idx = (static_cast<double>(t) - center) + (advancing ? mu : -mu);
-			
+
 			double sinc;
 			if (std::abs(n_idx) < 1e-9)
 			{
@@ -200,7 +222,7 @@ void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t
 				sinc = (std::sin(2.0 * M_PI * freq_hi * n_idx) - std::sin(2.0 * M_PI * freq_lo * n_idx)) 
 					/ (M_PI * n_idx);
 			}
-			
+
 			double arg = 1.0 - std::pow((static_cast<double>(t) - center) / center, 2.0);
 			arg = std::max(0.0, arg);
 			double window = moip_sample_ring_buffer::besselI0(m_beta * std::sqrt(arg)) / moip_sample_ring_buffer::besselI0(m_beta);
@@ -257,7 +279,7 @@ void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t
 				for (int c = i + 1; c <= num_coeffs; ++c)
 					aug[i][c] /= aug[i][i];
 				aug[i][i] = 1.0;
-				
+
 				for (int r = 0; r <= order; ++r)
 				{
 					if (r != i)
@@ -271,38 +293,38 @@ void moip_sample_ring_buffer::build_coeffs(coeff_table_t &target_table, uint32_t
 		}
 
 		for (int r = 0; r <= order; ++r)
-			target_table[t][r] = aug[r][num_coeffs];
+			target_table.coeffs[t][r] = aug[r][num_coeffs];
 	}
 }
 
 void moip_sample_ring_buffer::history_push(std::vector<double> &hist, size_t &head, double sample)
 {
-    head = (head - 1 + hist.size()) % hist.size();
-    hist[head] = sample;
+	head = (head - 1 + hist.size()) % hist.size();
+	hist[head] = sample;
 }
 
 const moip_sample_ring_buffer::sample_t moip_sample_ring_buffer::fir(const coeff_table_t &target_table, std::vector<double> &hist, size_t &head, double sub_frac, double gain)
 {
-    double sum = 0.0;
+	double sum = 0.0;
 
-    double mu = sub_frac;
+	double mu = sub_frac;
 
-    for (int t = 0; t < m_tap_count; ++t)
-    {
-        int hist_idx = (head + t) % hist.size();
+	for (int t = 0; t < m_tap_count; ++t)
+	{
+		int hist_idx = (head + t) % hist.size();
 
 		double sample = hist[hist_idx];
 
-        const auto &c = target_table[t];
+		const auto &c = target_table.coeffs[t];
 
 		double tap_coeff = c.back();
 		for (int r = int(c.size()) - 2; r >= 0; --r)
 			tap_coeff = tap_coeff * mu + c[r];
 
-        sum += sample * tap_coeff;
-    }
+		sum += sample * tap_coeff;
+	}
 
-    return clamp<sample_t>(sum * gain);
+	return clamp<sample_t>(sum * gain);
 }
 
 template <std::integral T>
@@ -349,14 +371,14 @@ bool moip_sample_ring_buffer::push(const T *sample, uint32_t sample_count, moip_
 	if (sample_count == 0)
 		return true;
 
-	const bool machine_samples_in = (samples_from == moip_sample_ring_buffer::MoipSampleOwner::SAMPLE_OWNER_MACHINE);
+	const bool machine_samples_in = !(m_bypass_resampler && m_sip_sample_rate == m_machine_sample_rate) && (samples_from == moip_sample_ring_buffer::MoipSampleOwner::SAMPLE_OWNER_MACHINE);
 
 	uint32_t head = m_head.load(std::memory_order_acquire);
 	uint32_t tail = m_tail.load(std::memory_order_relaxed);
 	uint32_t capacity = m_mask + 1;
 
 	const uint32_t free_samples = capacity - (tail - head);
-	const double phase_increment = (MOIP_SAMPLE_RATE / m_machine_sample_rate) * (1.0 + m_ppm_offset);
+	const double phase_increment = (m_sip_sample_rate / m_machine_sample_rate) * (1.0 + m_ppm_offset);
 	if (machine_samples_in)
 	{
 		double phase = m_push_frac_phase;
@@ -446,57 +468,70 @@ uint32_t moip_sample_ring_buffer::pull(T *sample, uint32_t sample_count, moip_sa
 
 	if(machine_samples_out)
 	{
-		double phase_increment = (MOIP_SAMPLE_RATE / m_machine_sample_rate) * (1.0 + m_ppm_offset);
-		double gain = m_gain_adjust;
-
-		if (apply_jitter_delay && m_within_delay)
+		if (m_bypass_resampler && m_sip_sample_rate == m_machine_sample_rate)
 		{
-			if (avail() >= m_delay_samples)
-				m_within_delay = false;
-			else
-				return 0;
+			// Apply jitter delay only then exit when we're bypassing the resampler code.
+			const uint32_t samples_pulled = moip_sample_ring_buffer::pull(sample, sample_count, SAMPLE_OWNER_SIP, false);
+
+			if (apply_jitter_delay && samples_pulled < sample_count)
+				m_within_delay = (m_delay_samples > 0);
+
+			return samples_pulled;
 		}
-
-		for (uint32_t i = 0; i < sample_count; ++i)
+		else
 		{
-			while (m_pull_frac_phase >= 1.0)
+			double phase_increment = (m_sip_sample_rate / m_machine_sample_rate) * (1.0 + m_ppm_offset);
+			double gain = m_gain_adjust;
+
+			if (apply_jitter_delay && m_within_delay)
 			{
-				// Pull the PCM sample from the MoIP transport to be interpolated (upsampled) for the machine
-				sample_t moip_sample;
-				if (moip_sample_ring_buffer::pull(&moip_sample, 1) == 1)
-				{
-					moip_sample_ring_buffer::history_push(m_pull_hist, m_pull_head, static_cast<double>(moip_sample));
-				}
+				if (avail() >= m_delay_samples)
+					m_within_delay = false;
 				else
-				{
-					if (apply_jitter_delay)
-						m_within_delay = true;
-
-					// Repeating the last send sample rather than using 0
-					// This allows the amplitude, frequency and phase change calculation to appear flat.
-
-					T machine_sample = moip_sample_ring_buffer::get_machine_sample<T>(m_last_sample);
-
-					std::fill(sample + i, sample + sample_count, machine_sample);
-
-					return samples_pulled;
-				}
-				m_pull_frac_phase -= 1.0;
+					return 0;
 			}
 
-			double sub_frac = m_pull_frac_phase;
-			if (sub_frac > 1.0)
-				sub_frac = 1.0;
+			for (uint32_t i = 0; i < sample_count; ++i)
+			{
+				while (m_pull_frac_phase >= 1.0)
+				{
+					// Pull the PCM sample from the MoIP transport to be interpolated (upsampled) for the machine
+					sample_t moip_sample;
+					if (moip_sample_ring_buffer::pull(&moip_sample, 1) == 1)
+					{
+						moip_sample_ring_buffer::history_push(m_pull_hist, m_pull_head, static_cast<double>(moip_sample));
+					}
+					else
+					{
+						if (apply_jitter_delay)
+							m_within_delay = true;
 
-			sample_t fir_sample = moip_sample_ring_buffer::fir(m_moip_coeffs, m_pull_hist, m_pull_head, sub_frac, gain);
+						// Repeating the last send sample rather than using 0
+						// This allows the amplitude, frequency and phase change calculation to appear flat.
 
-			sample[i] = moip_sample_ring_buffer::get_machine_sample<T>(fir_sample);
+						T machine_sample = moip_sample_ring_buffer::get_machine_sample<T>(m_last_sample);
 
-			m_last_sample = fir_sample;
+						std::fill(sample + i, sample + sample_count, machine_sample);
 
-			m_pull_frac_phase += phase_increment;
+						return samples_pulled;
+					}
+					m_pull_frac_phase -= 1.0;
+				}
 
-			samples_pulled++;
+				double sub_frac = m_pull_frac_phase;
+				if (sub_frac > 1.0)
+					sub_frac = 1.0;
+
+				sample_t fir_sample = moip_sample_ring_buffer::fir(m_moip_coeffs[m_sip_rate_idx], m_pull_hist, m_pull_head, sub_frac, gain);
+
+				sample[i] = moip_sample_ring_buffer::get_machine_sample<T>(fir_sample);
+
+				m_last_sample = fir_sample;
+
+				m_pull_frac_phase += phase_increment;
+
+				samples_pulled++;
+			}
 		}
 	}
 	else
@@ -549,6 +584,23 @@ const uint32_t moip_sample_ring_buffer::avail()
 	uint32_t head = m_head.load(std::memory_order_relaxed);
 	uint32_t tail = m_tail.load(std::memory_order_acquire);
 	return (tail - head);
+}
+
+void moip_sample_ring_buffer::set_sip_sample_rate(double rate)
+{
+	auto rate_ptr = std::find(std::begin(MOIP_SAMPLE_RATES), std::end(MOIP_SAMPLE_RATES), rate);
+
+	assert(rate_ptr != std::end(MOIP_SAMPLE_RATES));
+
+	moip_sample_ring_buffer::set_sip_sample_rate(static_cast<uint32_t>(std::distance(std::begin(MOIP_SAMPLE_RATES), rate_ptr)));
+}
+
+void moip_sample_ring_buffer::set_sip_sample_rate(uint32_t rate_idx)
+{
+	assert(rate_idx < std::size(MOIP_SAMPLE_RATES));
+
+	m_sip_rate_idx = rate_idx;
+	m_sip_sample_rate = MOIP_SAMPLE_RATES[rate_idx];
 }
 
 void moip_sample_ring_buffer::set_gain_adjust(double gain)
@@ -705,6 +757,10 @@ std::optional<sip_client::SIPURIConfig> sip_client::parse_uri(const char *sip_ur
 				{
 					config.transport = val_str;
 				}
+				else if (key == "resampler_bypass" || key == "can_bypass")
+				{
+					config.bypass_resampler = stob(val_str);
+				}
 				else if (key == "gain")
 				{
 					config.in_gain = std::stod(val_str);
@@ -793,6 +849,14 @@ std::optional<sip_client::SIPURIConfig> sip_client::parse_uri(const char *sip_ur
 				{
 					config.out_slattdb = std::stod(val_str);
 				}
+				else if (key == "disable_8k")
+				{
+					config.disable_8k = stob(val_str);
+				}
+				else if (key == "disable_16k")
+				{
+					config.disable_16k = stob(val_str);
+				}
 				else if (key == "disable_ulaw")
 				{
 					config.disable_ulaw = stob(val_str);
@@ -839,8 +903,8 @@ bool sip_client::start_sip(std::string &error)
 		return false;
 	}
 
-	uint32_t sample_rate = static_cast<uint32_t>(MOIP_SAMPLE_RATE);
-	uint32_t channel_count = MOIP_CHANNEL_COUNT;
+	uint32_t sample_rate = static_cast<uint32_t>(MOIP_DEFAULT_SAMPLE_RATE);
+	uint32_t channel_count = MOIP_DEFAULT_CHANNEL_COUNT;
 
 	try
 	{
@@ -906,15 +970,7 @@ bool sip_client::start_sip(std::string &error)
 
 		m_endp->libStart();
 
-		// We're not playing audio through the sound card so using a null device
-		try
-		{
-			m_endp->audDevManager().setNullDev();
-		}
-		catch (pj::Error &e)
-		{
-			osd_printf_verbose("MoIP bridge: setNullDev: %s\n", e.info().c_str());
-		}
+		m_endp->audDevManager().setNoDev();
 
 		// Setup codecs. The codec choices are optimized for MoIP
 		const pj::CodecInfoVector2 codecs = m_endp->codecEnum2();
@@ -922,17 +978,36 @@ bool sip_client::start_sip(std::string &error)
 		{
 			uint32_t priority = 0;
 
-			// Note: assuming MOIP_SAMPLE_RATE=8kHz
+			for (double search_sample_rate : MOIP_SAMPLE_RATES)
+			{
+				if (search_sample_rate == 8000.0 && m_config.disable_8k)
+					continue;
+				else if (search_sample_rate == 16000.0 && m_config.disable_16k)
+					continue;
 
-			// L16 raw uncompressed 16-bit PCM samples @ 8kHz
-			// 128kbps
-			if (!m_config.disable_l16 && ci.codecId.rfind(std::format("L16/{}/{}", sample_rate, channel_count)) == 0)
-				priority = 250;
-			// G.711 u-law @ 8kHz. Predictable logrithmic compression (13 bits to 8 bits)
-			// Some quantization errors but they aren't as bad as true compression codecs
-			// 64kbps
-			else if (!m_config.disable_ulaw && ci.codecId.rfind(std::format("PCMU/{}/{}", sample_rate, channel_count)) == 0)
-				priority = 240;
+				// L16 raw uncompressed mono PCM at the selected sample rate
+				if (ci.codecId.rfind(std::format("L16/{}/{}", static_cast<uint32_t>(search_sample_rate), channel_count)) == 0)
+				{
+					if (!m_config.disable_l16)
+						priority = (search_sample_rate == 16000.0) ? 251 : 250;
+
+					// Found codec so exiting sample rate search.
+					break;
+				}
+				// G.711 u-law (normally @ 8kHz). Predictable logrithmic compression (13 bits to 8 bits)
+				// Some quantization errors but they aren't as bad as true compression codecs
+				// 64kbps
+				else if (ci.codecId.rfind(std::format("PCMU/{}/{}", static_cast<uint32_t>(search_sample_rate), channel_count)) == 0)
+				{
+					// 16kHz isn't supported but specifying the priority here in case I try to add it.
+					if (!m_config.disable_ulaw)
+						priority = (search_sample_rate == 16000.0) ? 241 : 240;
+
+					// Found codec so exiting sample rate search.
+					break;
+				}
+
+			}
 
 			m_endp->codecSetPriority(ci.codecId, priority);
 		}
@@ -940,20 +1015,6 @@ bool sip_client::start_sip(std::string &error)
 		//
 		// Media handler setup
 		//
-
-		m_mprt = std::make_unique<sip_mediaport>(*this);
-
-		pj::MediaFormatAudio media_format;
-		media_format.type = PJMEDIA_TYPE_AUDIO;
-		media_format.clockRate = endpoint_config.medConfig.clockRate;
-		media_format.channelCount = endpoint_config.medConfig.channelCount;
-		media_format.bitsPerSample = sizeof(int16_t) * 8;
-		// 20ms frames
-		media_format.frameTimeUsec = endpoint_config.medConfig.audioFramePtime * 1000;
-		// 128kbps constant bps
-		media_format.avgBps = media_format.bitsPerSample * media_format.clockRate;
-		media_format.maxBps = media_format.bitsPerSample * media_format.clockRate;
-		m_mprt->createPort("mamemoip", media_format);
 
 		// Setup sample ring buffer
 
@@ -963,6 +1024,8 @@ bool sip_client::start_sip(std::string &error)
 			sip_client::SIP_RING_BUFFER_SZ,
 			// The MAME machine sample rate (16kHz for WebTV softmodems)
 			m_machine_sample_rate,
+			// Bypass the resampler entierly. This can only work if both the SIP and machine sample rate are the same.
+			m_config.bypass_resampler,
 			// The gain adjustment
 			m_config.out_gain,
 			// Frequency offset adjustment in ppm
@@ -984,6 +1047,8 @@ bool sip_client::start_sip(std::string &error)
 			sip_client::SIP_RING_BUFFER_SZ,
 			// The MAME machine sample rate (16kHz for WebTV softmodems)
 			m_machine_sample_rate,
+			// Bypass the resampler entierly. This can only work if both the SIP and machine sample rate are the same.
+			m_config.bypass_resampler,
 			// The gain adjustment
 			m_config.in_gain,
 			// Frequency offset adjustment in ppm
@@ -1069,6 +1134,8 @@ void sip_client::hangup()
 	
 	try
 	{
+		m_call->kill_audio();
+
 		pj::CallOpParam p;
 		m_call->hangup(p);
 	}
@@ -1117,7 +1184,6 @@ void sip_client::shutdown()
 
 	}
 
-	m_mprt.reset();
 	m_acct.reset();
 	m_endp.reset();
 }
@@ -1163,6 +1229,8 @@ uint32_t sip_client::play_fast_busy(T* sample, uint32_t sample_count)
 template <std::integral T>
 void sip_client::push(const T* sample, uint32_t sample_count)
 {
+	std::shared_lock guard(m_mutex);
+
 	if(!m_valid_uri)
 		return;
 
@@ -1172,6 +1240,8 @@ void sip_client::push(const T* sample, uint32_t sample_count)
 template <std::integral T>
 uint32_t sip_client::pull(T* sample, uint32_t sample_count)
 {
+	std::shared_lock guard(m_mutex);
+
 	if(!m_valid_uri)
 		return 0;
 
@@ -1186,6 +1256,8 @@ uint32_t sip_client::pull(T* sample, uint32_t sample_count)
 
 void sip_client::reset_audio()
 {
+	std::unique_lock guard(m_mutex);
+
 	if(!m_valid_uri)
 		return;
 
@@ -1195,6 +1267,31 @@ void sip_client::reset_audio()
 
 	m_out_buf->clear();
 	m_in_buf->clear();
+}
+
+void sip_client::sip_audio_init(double rate)
+{
+	std::unique_lock guard(m_mutex);
+
+	m_out_buf->set_sip_sample_rate(rate);
+	m_out_buf->clear();
+
+	m_in_buf->set_sip_sample_rate(rate);
+	m_in_buf->clear();
+}
+
+void sip_client::sip_audio_pull(int16_t *sample, uint32_t sample_count)
+{
+	std::shared_lock guard(m_mutex);
+
+	m_out_buf->pull(sample, sample_count, moip_sample_ring_buffer::SAMPLE_OWNER_SIP, true);
+}
+
+void sip_client::sip_audio_push(const int16_t *sample, uint32_t sample_count)
+{
+	std::shared_lock guard(m_mutex);
+
+	m_in_buf->push(sample, sample_count, moip_sample_ring_buffer::SAMPLE_OWNER_SIP);
 }
 
 #if MOIPBRIDGE_HAVE_PJSUA2
@@ -1220,46 +1317,222 @@ void sip_account::onIncomingCall(pj::OnIncomingCallParam &)
 }
 
 // ----------------------------------------------------------------------------
+// SIP media bridge
+// ----------------------------------------------------------------------------
+
+sip_audio_bridge::~sip_audio_bridge()
+{
+	sip_audio_bridge::leave();
+}
+
+void sip_audio_bridge::join(pjmedia_port *port, rx_cb_fn rx_cb, tx_cb_fn tx_cb)
+{
+	std::lock_guard guard(m_mutex);
+
+	sip_audio_bridge::leave();
+
+	if (!port)
+		throw std::runtime_error("PJMEDIA port is empty!");
+
+	m_port = port;
+
+	const uint32_t sample_rate = PJMEDIA_PIA_SRATE(&m_port->info);
+	const uint32_t channel_count = PJMEDIA_PIA_CCNT(&m_port->info);
+	const uint32_t samples_per_frame = PJMEDIA_PIA_SPF(&m_port->info);
+	const uint32_t bits_per_sample = PJMEDIA_PIA_BITS(&m_port->info);
+
+	if (bits_per_sample != (sizeof(int16_t) * 8))
+		throw std::runtime_error("PJMEDIA requests a bad bits per sample value!");
+
+	if (channel_count != MOIP_DEFAULT_CHANNEL_COUNT)
+		throw std::runtime_error("PJMEDIA requests a bad channel count value!");
+
+	if (samples_per_frame == 0)
+		throw std::runtime_error("PJMEDIA requests a an empty samples per frame value!");
+
+	if (samples_per_frame == 0)
+		throw std::runtime_error("PJMEDIA requests a an empty samples per frame value!");
+
+	auto rate_ptr = std::find(std::begin(MOIP_SAMPLE_RATES), std::end(MOIP_SAMPLE_RATES), static_cast<double>(sample_rate));
+	if (rate_ptr == std::end(MOIP_SAMPLE_RATES))
+		throw std::runtime_error("PJMEDIA requests a bad sample rate value!");
+
+	m_pool = pjsua_pool_create("sip_audio_bridge", sip_audio_bridge::SIP_AUDIO_POOL_SIZE, sip_audio_bridge::SIP_AUDIO_POOL_INCR);
+	if (!m_pool)
+	{
+		m_port = nullptr;
+		throw std::bad_alloc();
+	}
+
+	m_rx_sample.assign(samples_per_frame, 0);
+	m_rx_cb = std::move(rx_cb);
+
+	m_tx_sample.assign(samples_per_frame, 0);
+	m_tx_cb = std::move(tx_cb);
+
+	m_error.store(PJ_SUCCESS);
+
+	const auto status = pjmedia_clock_create(
+		m_pool,
+		sample_rate,
+		channel_count,
+		samples_per_frame,
+		PJMEDIA_CLOCK_NO_HIGHEST_PRIO,
+		&tick,
+		this, // user_data
+		&m_clock
+	);
+
+	if (status != PJ_SUCCESS)
+	{
+		sip_audio_bridge::leave();
+
+		throw std::runtime_error("Failed to create PJMEDIA clock!");
+	}
+}
+
+void sip_audio_bridge::leave()
+{
+	std::lock_guard guard(m_mutex);
+
+	sip_audio_bridge::stop();
+
+	m_port = nullptr;
+
+	if (m_clock)
+	{
+		pjmedia_clock_destroy(m_clock);
+		m_clock = nullptr;
+	}
+
+	if (m_pool)
+	{
+		pj_pool_release(m_pool);
+		m_pool = nullptr;
+	}
+}
+
+void sip_audio_bridge::start()
+{
+	std::lock_guard guard(m_mutex);
+
+	if (!m_clock || m_started)
+		return;
+
+	if (pjmedia_clock_start(m_clock) != PJ_SUCCESS)
+		throw std::runtime_error("Cannot start MoIP media clock!");
+
+	m_started = true;
+}
+
+void sip_audio_bridge::stop()
+{
+	std::lock_guard guard(m_mutex);
+
+	if (m_clock && m_started)
+		pjmedia_clock_stop(m_clock);
+
+	m_started = false;
+}
+
+void sip_audio_bridge::process_audio(pj_timestamp timestamp) noexcept
+{
+	// RX
+
+	pjmedia_frame rx_frame {};
+	std::fill(m_rx_sample.begin(), m_rx_sample.end(), 0);
+	rx_frame.buf = m_rx_sample.data();
+	rx_frame.size = m_rx_sample.size() * sizeof(int16_t);
+	rx_frame.timestamp = timestamp;
+
+	const auto rx_status = pjmedia_port_get_frame(m_port, &rx_frame);
+	if (rx_status != PJ_SUCCESS)
+		m_error.store(rx_status);
+
+	if (rx_status != PJ_SUCCESS || rx_frame.type != PJMEDIA_FRAME_TYPE_AUDIO)
+		std::fill(m_rx_sample.begin(), m_rx_sample.end(), 0);
+	else if (rx_frame.size < (m_rx_sample.size() * sizeof(int16_t)))
+		std::fill(m_rx_sample.begin() + rx_frame.size / sizeof(int16_t), m_rx_sample.end(), 0);
+
+	try
+	{
+		m_rx_cb(m_rx_sample.data(), (uint32_t)m_rx_sample.size());
+	}
+	catch (...)
+	{
+		m_error.store(PJ_EUNKNOWN);
+	}
+
+	// TX
+
+	std::fill(m_tx_sample.begin(), m_tx_sample.end(), 0);
+	try
+	{
+		m_tx_cb(m_tx_sample.data(), (uint32_t)m_tx_sample.size());
+	}
+	catch (...)
+	{
+		m_error.store(PJ_EUNKNOWN);
+		std::fill(m_tx_sample.begin(), m_tx_sample.end(), 0);
+	}
+
+	pjmedia_frame tx_frame {};
+	tx_frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
+	tx_frame.buf = m_tx_sample.data();
+	tx_frame.size = m_tx_sample.size() * sizeof(int16_t);
+	tx_frame.timestamp = timestamp;
+
+	const auto tx_status = pjmedia_port_put_frame(m_port, &tx_frame);
+	if (tx_status != PJ_SUCCESS)
+		m_error.store(tx_status);
+}
+
+// ----------------------------------------------------------------------------
 // SIP media handling
 // ----------------------------------------------------------------------------
 
-sip_mediaport::sip_mediaport(sip_client &sip)
-	: m_sip(sip)
+void sip_call::kill_audio()
 {
-
+	m_audio.leave();
 }
 
-void sip_mediaport::onFrameRequested(pj::MediaFrame &frame)
+void sip_call::onStreamCreated(pj::OnStreamCreatedParam &prm)
 {
-	const uint32_t sample_count = frame.size ? (uint32_t)(frame.size / sizeof(int16_t)) : 160u;
+	try
+	{
+		kill_audio();
 
-	frame.type = PJMEDIA_FRAME_TYPE_AUDIO;
-	frame.buf.resize(sample_count * sizeof(int16_t));
+		auto *port = static_cast<pjmedia_port *>(prm.pPort);
+		m_sip.sip_audio_init(PJMEDIA_PIA_SRATE(&port->info));
 
-	std::vector<int16_t> scratch(sample_count);
+		m_audio.join(port,
+			[this](const int16_t *sample, unsigned sample_count)
+			{
+				m_sip.sip_audio_push(sample, sample_count);
+			},
+			[this](int16_t *sample, unsigned sample_count)
+			{
+				m_sip.sip_audio_pull(sample, sample_count);
+			}
+		);
 
-	m_sip.m_out_buf->pull(scratch.data(), sample_count, moip_sample_ring_buffer::MoipSampleOwner::SAMPLE_OWNER_SIP, false);
-
-	std::memcpy(&frame.buf[0], scratch.data(), sample_count * sizeof(int16_t));
-
-	frame.size = sample_count * 2;
+		m_stream = prm.stream;
+	}
+	catch (const std::exception &e)
+	{
+		m_sip.set_call_dropped();
+		osd_printf_verbose("MoIP bridge: error with stream setup: %s\n", e.what());
+	}
 }
 
-uint64_t coolts = 0;
-
-void sip_mediaport::onFrameReceived(pj::MediaFrame &frame)
+void sip_call::onStreamDestroyed(pj::OnStreamDestroyedParam &prm)
 {
-	const uint32_t sample_count = (uint32_t)(frame.size / sizeof(int16_t));
+	if (prm.stream == m_stream)
+	{
+		kill_audio();
 
-	if (sample_count == 0)
-		return;
-
-	std::vector<int16_t> scratch(sample_count);
-
-	std::memcpy(scratch.data(), &frame.buf[0], sample_count * sizeof(int16_t));
-
-	m_sip.m_in_buf->push(scratch.data(), sample_count, moip_sample_ring_buffer::MoipSampleOwner::SAMPLE_OWNER_SIP);
-
+		m_stream = nullptr;
+	}
 }
 
 
@@ -1274,6 +1547,11 @@ sip_call::sip_call(pj::Account &acct, sip_client &sip)
 
 }
 
+sip_call::~sip_call()
+{
+	sip_call::kill_audio();
+}
+
 void sip_call::onCallState(pj::OnCallStateParam &)
 {
 	pj::CallInfo ci = getInfo();
@@ -1286,6 +1564,8 @@ void sip_call::onCallState(pj::OnCallStateParam &)
 	}
 	else if (ci.state == PJSIP_INV_STATE_DISCONNECTED)
 	{
+		kill_audio();
+
 		m_active = false;
 
 		m_sip.set_call_dropped();
@@ -1299,43 +1579,31 @@ void sip_call::onCallMediaState(pj::OnCallMediaStateParam &)
 
 void sip_call::bridge()
 {
-	pj::CallInfo ci = getInfo();
-
-	for (unsigned i = 0; i < ci.media.size(); i++)
+	try
 	{
-		if (ci.media[i].type != PJMEDIA_TYPE_AUDIO || getMedia(i) == nullptr)
-			continue;
-		if (ci.media[i].status != PJSUA_CALL_MEDIA_ACTIVE &&  ci.media[i].status != PJSUA_CALL_MEDIA_REMOTE_HOLD)
-			continue;
-
-		pj::AudioMedia am = getAudioMedia(i);
-
-		const int slot = am.getPortId();
-
-		// already bridged to conference slot
-		if (m_bridged_slot == slot)
-			return;
-
-		try
+		const auto ci = getInfo();
+		for (const auto &media : ci.media)
 		{
-			// MAME machine -> Callee
-			m_sip.m_mprt->startTransmit(am);
+			if (media.type == PJMEDIA_TYPE_AUDIO && media.status == PJSUA_CALL_MEDIA_ACTIVE)
+			{
+				m_audio.start();
 
-			// Callee -> MAME machine
-			am.startTransmit(*m_sip.m_mprt);
+				osd_printf_verbose("MoIP bridge: media bridged\n");
 
-			osd_printf_verbose("MoIP bridge: media bridged (conf slot %d%s)\n", slot, (m_bridged_slot >= 0 ? " [re-pointed]" : ""));
-
-			m_bridged_slot = slot;
+				return;
+			}
 		}
-		catch (pj::Error &e)
-		{
-			m_sip.set_call_dropped();
-
-			osd_printf_verbose("MoIP bridge: bridge err: %s\n", e.info().c_str());
-		}
-
-		return;
+		m_audio.stop();
+	}
+	catch (const std::exception &e)
+	{
+		m_sip.set_call_dropped();
+		osd_printf_verbose("MoIP bridge: bridge err: %s\n", e.what());
+	}
+	catch (const pj::Error &e)
+	{
+		m_sip.set_call_dropped();
+		osd_printf_verbose("MoIP bridge: bridge err: %s\n", e.info().c_str());
 	}
 }
 

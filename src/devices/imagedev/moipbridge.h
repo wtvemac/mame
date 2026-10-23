@@ -10,6 +10,9 @@
 
 #if defined(MAME_HAVE_PJSUA2)
 #include <pjsua2.hpp>
+#include <pjsua-lib/pjsua.h>
+#include <pjmedia/clock.h>
+#include <pjmedia/port.h>
 #define MOIPBRIDGE_HAVE_PJSUA2 1
 #else
 #define MOIPBRIDGE_HAVE_PJSUA2 0
@@ -30,14 +33,23 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <mutex>
+#include <shared_mutex>
+#include <functional>
+#include <utility>
+#include <stdexcept>
 #include <optional>
 
 #ifndef M_PI
 	#define M_PI 3.14159265358979323846
 #endif
 
-constexpr double MOIP_SAMPLE_RATE  = 8000.0;
-constexpr uint32_t MOIP_CHANNEL_COUNT  = 1;
+constexpr double MOIP_SAMPLE_RATES[]  = {
+	8000.0,
+	16000.0
+};
+constexpr double   MOIP_DEFAULT_SAMPLE_RATE    = 8000.0;
+constexpr double   MOIP_MAX_SAMPLE_RATE        = std::ranges::max(MOIP_SAMPLE_RATES);
+constexpr uint32_t MOIP_DEFAULT_CHANNEL_COUNT  = 1;
 
 class sip_account;
 class sip_mediaport;
@@ -64,9 +76,13 @@ public:
 
 	typedef int16_t sample_t;
 
-	typedef std::vector<std::vector<double>> coeff_table_t;
+	typedef struct coeff_table
+	{
+		double sample_rate;
+		std::vector<std::vector<double>> coeffs;
+	} coeff_table_t;
 
-	moip_sample_ring_buffer(uint32_t capacity, double machine_sample_rate = MOIP_SAMPLE_RATE, double gain_adjust = moip_sample_ring_buffer::SRB_DEFAULT_GAIN, double ppm_offset = SRB_DEFAULT_PPM_OFFSET, uint32_t delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_DELAY_SAMPLES, uint8_t = moip_sample_ring_buffer::SRB_DEFAULT_TAP_COUNT, double cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQLO, double cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI, double slattdb = moip_sample_ring_buffer::SRB_DEFAULT_SLATTDB);
+	moip_sample_ring_buffer(uint32_t capacity, double machine_sample_rate = MOIP_DEFAULT_SAMPLE_RATE, bool bypass_resampler = false, double gain_adjust = moip_sample_ring_buffer::SRB_DEFAULT_GAIN, double ppm_offset = SRB_DEFAULT_PPM_OFFSET, uint32_t delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_DELAY_SAMPLES, uint8_t = moip_sample_ring_buffer::SRB_DEFAULT_TAP_COUNT, double cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQLO, double cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI, double slattdb = moip_sample_ring_buffer::SRB_DEFAULT_SLATTDB);
 
 	static const double calculate_kaiser_shape(double slattdb);
 
@@ -80,6 +96,9 @@ public:
 	bool push(const T *sample, uint32_t sample_count, moip_sample_ring_buffer::MoipSampleOwner samples_from);
 
 	[[nodiscard]] const uint32_t avail();
+
+	void set_sip_sample_rate(double rate);
+	void set_sip_sample_rate(uint32_t rate_idx);
 
 	void set_gain_adjust(double gain);
 
@@ -112,13 +131,16 @@ private:
 	std::atomic<uint32_t> m_tail{0};
 	uint32_t m_mask;
 
+	double m_sip_sample_rate = MOIP_DEFAULT_SAMPLE_RATE;
+	uint32_t m_sip_rate_idx = 0;
 	double m_machine_sample_rate;
+	bool m_bypass_resampler;
 
 	uint8_t m_tap_count;
 	double m_cutoff_freqlo;
 	double m_cutoff_freqhi;
 	double m_beta;
-	coeff_table_t m_moip_coeffs;
+	std::vector<coeff_table_t> m_moip_coeffs;
 	coeff_table_t m_machine_coeffs;
 	sample_t m_last_sample;
 	std::vector<double> m_pull_hist;
@@ -150,7 +172,7 @@ class sip_client
 	static constexpr uint16_t SIP_DEFAULT_PORT  = 5060;
 
 	static constexpr uint32_t SIP_RING_BUFFER_MS  = 2048;
-	static constexpr uint32_t SIP_RING_BUFFER_SZ  = sip_client::SIP_RING_BUFFER_MS / (1000.0 / MOIP_SAMPLE_RATE);
+	static constexpr uint32_t SIP_RING_BUFFER_SZ  = sip_client::SIP_RING_BUFFER_MS / (1000.0 / MOIP_DEFAULT_SAMPLE_RATE);
 
 	struct SIPURIConfig
 	{
@@ -178,11 +200,14 @@ class sip_client
 		double out_cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI;
 		double out_slattdb = moip_sample_ring_buffer::SRB_DEFAULT_SLATTDB;
 
+		double disable_8k = false;
+		double disable_16k = false;
+		bool bypass_resampler = false;
 		double disable_ulaw = false;
 		double disable_l16 = false;
 	};
 
-	sip_client(const char *sip_uri, double machine_sample_rate = MOIP_SAMPLE_RATE, sip_client::SipLoggingLevel logging_level = sip_client::SipLoggingLevel::SIP_LOG_NONE);
+	sip_client(const char *sip_uri, double machine_sample_rate = MOIP_DEFAULT_SAMPLE_RATE, sip_client::SipLoggingLevel logging_level = sip_client::SipLoggingLevel::SIP_LOG_NONE);
 
 	static const bool validate_uri(const char *sip_uri);
 
@@ -203,7 +228,9 @@ class sip_client
 	void set_call_dropped(bool enabled = true);
 	void shutdown();
 
-	std::unique_ptr<sip_mediaport> m_mprt;
+	void sip_audio_init(double rate);
+	void sip_audio_pull(int16_t *sample, uint32_t sample_count);
+	void sip_audio_push(const int16_t *sample, uint32_t sample_count);
 
 	#else
 	bool start_sip(std::string &error)
@@ -218,9 +245,6 @@ class sip_client
 	void set_call_dropped(bool enabled = true) { }
 	void shutdown(){ }
 	#endif // MOIPBRIDGE_HAVE_PJSUA2
-
-	std::unique_ptr<moip_sample_ring_buffer> m_out_buf;
-	std::unique_ptr<moip_sample_ring_buffer> m_in_buf;
 private:
 
 	static std::optional<sip_client::SIPURIConfig> parse_uri(const char *sip_uri);
@@ -233,6 +257,11 @@ private:
 	std::unique_ptr<sip_account> m_acct;
 	std::unique_ptr<sip_call> m_call;
 	#endif // MOIPBRIDGE_HAVE_PJSUA2
+
+	mutable std::shared_mutex m_mutex;
+
+	std::unique_ptr<moip_sample_ring_buffer> m_out_buf;
+	std::unique_ptr<moip_sample_ring_buffer> m_in_buf;
 
 	double m_machine_sample_rate;
 	sip_client::SipLoggingLevel m_logging_level;
@@ -257,22 +286,66 @@ private:
 	sip_client &m_sip;
 };
 
-class sip_mediaport : public pj::AudioMediaPort
+
+class sip_audio_bridge
 {
 public:
-	sip_mediaport(sip_client &sip);
 
-	void onFrameRequested(pj::MediaFrame &frame) override;
-	void onFrameReceived(pj::MediaFrame &frame) override;
+	using rx_cb_fn = std::function<void(const int16_t *, uint32_t)>;
+	using tx_cb_fn = std::function<void(int16_t *, uint32_t)>;
+
+	sip_audio_bridge() = default;
+	sip_audio_bridge(const sip_audio_bridge &) = delete;
+	sip_audio_bridge &operator=(const sip_audio_bridge &) = delete;
+
+	~sip_audio_bridge();
+
+	void join(pjmedia_port *port, rx_cb_fn rx_cb, tx_cb_fn tx_cb);
+	void leave();
+
+	void start();
+	void stop();
 
 private:
-	sip_client &m_sip;
+
+	static constexpr pj_size_t SIP_AUDIO_POOL_SIZE = 2048;
+	static constexpr pj_size_t SIP_AUDIO_POOL_INCR = 2048;
+
+	static void tick(const pj_timestamp *timestamp, void *user_data) noexcept
+	{
+		auto &self = *static_cast<sip_audio_bridge *>(user_data);
+		self.process_audio(*timestamp);
+	}
+
+	void process_audio(pj_timestamp timestamp) noexcept;
+
+	mutable std::recursive_mutex m_mutex;
+
+	pj_pool_t *m_pool = nullptr;
+	pjmedia_clock *m_clock = nullptr;
+	pjmedia_port *m_port = nullptr;
+	bool m_started = false;
+
+	std::atomic<pj_status_t> m_error {PJ_SUCCESS};
+
+	std::vector<int16_t> m_rx_sample;
+	rx_cb_fn m_rx_cb;
+
+	std::vector<int16_t> m_tx_sample;
+	tx_cb_fn m_tx_cb;
 };
 
 class sip_call : public pj::Call
 {
 public:
 	sip_call(pj::Account &acc, sip_client &sip);
+
+	~sip_call() override;
+
+	void kill_audio();
+
+	void onStreamCreated(pj::OnStreamCreatedParam &prm) override;
+	void onStreamDestroyed(pj::OnStreamDestroyedParam &prm) override;
 
 	void onCallState(pj::OnCallStateParam &prm) override;
 	void onCallMediaState(pj::OnCallMediaStateParam &prm) override;
@@ -284,7 +357,8 @@ private:
 
 	sip_client &m_sip;
 
-	int  m_bridged_slot = -1;
+	sip_audio_bridge m_audio;
+	pj::MediaStream m_stream = nullptr;
 
 	bool m_active = true;
 };
@@ -293,7 +367,7 @@ private:
 class moipbridge_device : public device_t, public device_image_interface
 {
 public:
-	moipbridge_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, double sample_rate = MOIP_SAMPLE_RATE);
+	moipbridge_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, double sample_rate = MOIP_DEFAULT_SAMPLE_RATE);
 	virtual ~moipbridge_device();
 
 	virtual std::pair<std::error_condition, std::string> call_load() override;
