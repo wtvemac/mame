@@ -63,6 +63,8 @@ public:
 	static constexpr double SRB_DEFAULT_GAIN = 1.08;
 	static constexpr double SRB_DEFAULT_PPM_OFFSET = 0.0;
 	static constexpr uint32_t SRB_DEFAULT_DELAY_SAMPLES = 720;
+	static constexpr uint32_t SRB_DEFAULT_IN_DELAY_SAMPLES = 720;
+	static constexpr uint32_t SRB_DEFAULT_OUT_DELAY_SAMPLES = 320;
 	static constexpr uint32_t SRB_POLYNOMIAL_ORDER = 7;
 	static constexpr uint8_t SRB_DEFAULT_TAP_COUNT = 64;
 	static constexpr double SRB_DEFAULT_CUTOFF_FREQLO = 200.0;
@@ -189,7 +191,8 @@ class sip_client
 
 		double in_gain = moip_sample_ring_buffer::SRB_DEFAULT_GAIN;
 		double in_ppm_offset = moip_sample_ring_buffer::SRB_DEFAULT_PPM_OFFSET;
-		uint32_t in_delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_DELAY_SAMPLES;
+		uint32_t in_delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_IN_DELAY_SAMPLES;
+		uint32_t out_delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_OUT_DELAY_SAMPLES;
 		uint8_t in_tap_count = moip_sample_ring_buffer::SRB_DEFAULT_TAP_COUNT;
 		double in_cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQLO;
 		double in_cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI;

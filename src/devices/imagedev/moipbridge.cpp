@@ -466,6 +466,21 @@ uint32_t moip_sample_ring_buffer::pull(T *sample, uint32_t sample_count, moip_sa
 
 	uint32_t samples_pulled = 0;
 
+	if (apply_jitter_delay && m_within_delay)
+	{
+		const uint32_t target = machine_samples_out ? m_delay_samples : std::max(m_delay_samples, sample_count);
+		if (avail() >= target)
+		{
+			m_within_delay = false;
+		}
+		else
+		{
+			std::fill(sample, sample + sample_count, get_machine_sample<T>(0));
+
+			return 0;
+		}
+	}
+
 	if(machine_samples_out)
 	{
 		if (m_bypass_resampler && m_sip_sample_rate == m_machine_sample_rate)
@@ -795,10 +810,15 @@ std::optional<sip_client::SIPURIConfig> sip_client::parse_uri(const char *sip_ur
 				{
 					uint32_t d = static_cast<uint32_t>(std::stoul(val_str));
 					config.in_delay_samples = d;
+					config.out_delay_samples = d;
 				}
 				else if (key == "in_delay_samples")
 				{
 					config.in_delay_samples = static_cast<uint32_t>(std::stoul(val_str));
+				}
+				else if (key == "out_delay_samples")
+				{
+					config.out_delay_samples = static_cast<uint32_t>(std::stoul(val_str));
 				}
 				else if (key == "tap_count")
 				{
@@ -1040,8 +1060,8 @@ bool sip_client::start_sip(std::string &error)
 			m_config.out_gain,
 			// Frequency offset adjustment in ppm
 			m_config.out_ppm_offset,
-			// There is not output jitter buffer
-			0,
+			// Amount of samples to prime the jitter buffer with. This is a constant jitter correction, nothing is adaptive.
+			m_config.out_delay_samples,
 			// Polyphase FIR filter taps per phase table values (higher is better filtering, lower is faster evaluation and less memory)
 			m_config.out_tap_count,
 			// The FIR polyphase FIR filter low cutoff freqency (everything below this is filtered)
