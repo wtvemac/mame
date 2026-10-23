@@ -757,6 +757,10 @@ std::optional<sip_client::SIPURIConfig> sip_client::parse_uri(const char *sip_ur
 				{
 					config.transport = val_str;
 				}
+				else if (key == "jitter_ms")
+				{
+					config.jitter_ms = static_cast<uint32_t>(std::stoul(val_str));
+				}
 				else if (key == "resampler_bypass" || key == "can_bypass")
 				{
 					config.bypass_resampler = stob(val_str);
@@ -915,6 +919,9 @@ bool sip_client::start_sip(std::string &error)
 		m_endp = std::make_unique<pj::Endpoint>();
 		m_endp->libCreate();
 
+		// ms of audio in one packet.
+		uint32_t ptime_ms = sip_client::SIP_PTIME_MS;
+
 		pj::EpConfig endpoint_config;
 		endpoint_config.uaConfig.userAgent = sip_client::SIP_USER_AGENT;
 		endpoint_config.medConfig.clockRate = sample_rate;
@@ -924,23 +931,26 @@ bool sip_client::start_sip(std::string &error)
 		// lower=lower latency better packet loss protection under low-loss conditions but more data to send
 		// Setting this to 10ms because it works with pjmedia's system, bandwidth is negligble for most users
 		// and it provides good packet loss protection (less sample time lost per datagram/packet)
-		endpoint_config.medConfig.audioFramePtime = 20;
+		endpoint_config.medConfig.audioFramePtime = ptime_ms;
 		// Voice activity detection is disabled.
 		// There's no voice on this line and this will mess with data transmission
 		endpoint_config.medConfig.noVad = true;
 		// Echo canceller tail length in ms
 		// All echo cancelation is disabled. There shouldn't be any sample alteration, leave that to the modem.
 		endpoint_config.medConfig.ecTailLen = 0;
-		// There's a jitter buffer in moip_sample_ring_buffer that works better for modems
-		// Any adaptive jitter buffer messes with sample timing. Timing must be constant for modems.
+		// There appears to be no way to disable pjmedia's jitter buffer. =0 sets it to adaptive which is bad for modems that assume a constant delay.
+		// So this allows it to be configured with jitter_ms= in incrments of ptime_ms and have it be fixed, not adaptive.
+		const unsigned prefetch_ms = m_config.jitter_ms ? ((m_config.jitter_ms + (ptime_ms - 1)) / ptime_ms) * ptime_ms : 0;
 		// Jitter buffer prefetch delay in ms
-		endpoint_config.medConfig.jbInit = 0;
+		endpoint_config.medConfig.jbInit = prefetch_ms;
 		// Jitter buffer minimum prefetch delay in ms
-		endpoint_config.medConfig.jbMinPre = 0;
+		endpoint_config.medConfig.jbMinPre = prefetch_ms;
 		// Jitter buffer maximum prefetch delay in ms
-		endpoint_config.medConfig.jbMaxPre = 0;
+		endpoint_config.medConfig.jbMaxPre = prefetch_ms;
 		// Jitter buffer maximum delay in ms
 		endpoint_config.medConfig.jbMax = 0;
+		// Jitter buffer discard algorithm. PJMEDIA_JB_DISCARD_NONE sets it to not discard unless the jitter buffer is full.
+		endpoint_config.medConfig.jbDiscardAlgo = PJMEDIA_JB_DISCARD_NONE;
 		// Thread count
 		endpoint_config.medConfig.threadCnt = 1;
 		// Logging (on for -verbose or -debug)

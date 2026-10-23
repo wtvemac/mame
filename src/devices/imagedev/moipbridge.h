@@ -174,6 +174,8 @@ class sip_client
 	static constexpr uint32_t SIP_RING_BUFFER_MS  = 2048;
 	static constexpr uint32_t SIP_RING_BUFFER_SZ  = sip_client::SIP_RING_BUFFER_MS / (1000.0 / MOIP_DEFAULT_SAMPLE_RATE);
 
+	static constexpr uint32_t SIP_PTIME_MS  = 20;
+
 	struct SIPURIConfig
 	{
 		SIPURIConfig() = default;
@@ -199,6 +201,8 @@ class sip_client
 		double out_cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQLO;
 		double out_cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI;
 		double out_slattdb = moip_sample_ring_buffer::SRB_DEFAULT_SLATTDB;
+
+		uint32_t jitter_ms = sip_client::SIP_PTIME_MS;
 
 		double disable_8k = false;
 		double disable_16k = false;
