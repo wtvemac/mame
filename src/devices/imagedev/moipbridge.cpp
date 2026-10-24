@@ -1024,6 +1024,9 @@ bool sip_client::start_sip(std::string &error)
 					if (!m_config.disable_l16)
 						priority = (search_sample_rate == 16000.0) ? 251 : 250;
 
+					// L16 ignored ptime (SIP_FRAME_PTIME_MS) and uses audioFramePtime which is bound to SIP_LOCAL_PTIME_MS
+					// So no codecSetParam here.
+
 					// Found codec so exiting sample rate search.
 					break;
 				}
@@ -1034,7 +1037,14 @@ bool sip_client::start_sip(std::string &error)
 				{
 					// 16kHz isn't supported but specifying the priority here in case I try to add it.
 					if (!m_config.disable_ulaw)
+					{
 						priority = (search_sample_rate == 16000.0) ? 241 : 240;
+
+						// Lower packet latency for ulaw to 1 SIP_FRAME_PTIME_MS
+						auto param = m_endp->codecGetParam(ci.codecId);
+						param.setting.frmPerPkt = 1;
+						m_endp->codecSetParam(ci.codecId, param);
+					}
 
 					// Found codec so exiting sample rate search.
 					break;
@@ -1358,7 +1368,7 @@ sip_audio_bridge::~sip_audio_bridge()
 	sip_audio_bridge::leave();
 }
 
-void sip_audio_bridge::join(pjmedia_port *port, rx_cb_fn rx_cb, tx_cb_fn tx_cb)
+void sip_audio_bridge::join(pjmedia_port *port, rx_cb_fn rx_cb, tx_cb_fn tx_cb, rx_empty_check_fn rx_empty_check)
 {
 	std::lock_guard guard(m_mutex);
 
@@ -1399,6 +1409,7 @@ void sip_audio_bridge::join(pjmedia_port *port, rx_cb_fn rx_cb, tx_cb_fn tx_cb)
 
 	m_rx_sample.assign(samples_per_frame, 0);
 	m_rx_cb = std::move(rx_cb);
+	m_rx_empty_check = std::move(rx_empty_check);
 
 	m_tx_sample.assign(samples_per_frame, 0);
 	m_tx_cb = std::move(tx_cb);
@@ -1468,6 +1479,37 @@ void sip_audio_bridge::stop()
 	m_started = false;
 }
 
+sip_audio_bridge::rx_empty_check_fn sip_audio_bridge::get_concealment_probe(pjmedia_stream *stream, const pjmedia_port *port)
+{
+	pjmedia_stream_info info { };
+	if (!stream || !port || pjmedia_stream_get_info(stream, &info) != PJ_SUCCESS || !info.param)
+		return { };
+
+	const auto &codec = info.param->info;
+
+	// Samples per (frmPerPkt * ptime value) would equal samples per frame when frmPerPkt=1
+	const uint64_t packet_samples = static_cast<uint64_t>(codec.clock_rate * codec.channel_cnt * codec.frm_ptime) / (std::max<uint32_t>(1, codec.frm_ptime_denum) * 1000);
+
+	const uint32_t samples_per_frame = PJMEDIA_PIA_SPF(&port->info);
+
+	// Only check concealment tomfoolery when one packet is one frame of samples.
+	// We'd could end up discarding good data in >1 cases if only one of the frames in the packet is synthesized
+	if (packet_samples != samples_per_frame)
+		return { };
+	else
+		// Check the incoming frame for PJMEDIA's concealment (synthesized audio to cover over errors which is normally silence / bulk sample values of 0)
+		return [stream]() -> std::optional<uint32_t>
+		{
+			pjmedia_jb_state stat { };
+
+			if (pjmedia_stream_get_stat_jbuf(stream, &stat) != PJ_SUCCESS)
+				return std::nullopt;
+			else
+				// Return the number of frames without _real_ modem audio
+				return stat.empty;
+		};
+}
+
 void sip_audio_bridge::process_audio(pj_timestamp timestamp) noexcept
 {
 	// RX
@@ -1478,23 +1520,26 @@ void sip_audio_bridge::process_audio(pj_timestamp timestamp) noexcept
 	rx_frame.size = m_rx_sample.size() * sizeof(int16_t);
 	rx_frame.timestamp = timestamp;
 
+	const auto empty_before = m_rx_empty_check ? m_rx_empty_check() : std::nullopt;
 	const auto rx_status = pjmedia_port_get_frame(m_port, &rx_frame);
+	const auto empty_after = m_rx_empty_check ? m_rx_empty_check() : std::nullopt;
 	if (rx_status != PJ_SUCCESS)
 		m_error.store(rx_status);
 
-	if (rx_status != PJ_SUCCESS || rx_frame.type != PJMEDIA_FRAME_TYPE_AUDIO)
-		std::fill(m_rx_sample.begin(), m_rx_sample.end(), 0);
-	else if (rx_frame.size < (m_rx_sample.size() * sizeof(int16_t)))
-		std::fill(m_rx_sample.begin() + rx_frame.size / sizeof(int16_t), m_rx_sample.end(), 0);
-
-	try
-	{
-		m_rx_cb(m_rx_sample.data(), (uint32_t)m_rx_sample.size());
-	}
-	catch (...)
-	{
-		m_error.store(PJ_EUNKNOWN);
-	}
+	const bool is_dead = rx_status != PJ_SUCCESS || rx_frame.type != PJMEDIA_FRAME_TYPE_AUDIO || (empty_before && empty_after && *empty_before != *empty_after);
+	if (!is_dead)
+ 	{
+		try
+		{
+			const auto sample_count = std::min(m_rx_sample.size(), rx_frame.size / sizeof(int16_t));
+			if (sample_count > 0)
+				m_rx_cb(m_rx_sample.data(), (uint32_t)sample_count);
+		}
+		catch (...)
+		{
+			m_error.store(PJ_EUNKNOWN);
+		}
+ 	}
 
 	// TX
 
@@ -1546,7 +1591,8 @@ void sip_call::onStreamCreated(pj::OnStreamCreatedParam &prm)
 			[this](int16_t *sample, unsigned sample_count)
 			{
 				m_sip.sip_audio_pull(sample, sample_count);
-			}
+			},
+			sip_audio_bridge::get_concealment_probe(static_cast<pjmedia_stream *>(prm.stream), port)
 		);
 
 		m_stream = prm.stream;
