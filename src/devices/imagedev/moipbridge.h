@@ -301,6 +301,7 @@ public:
 
 	using rx_cb_fn = std::function<void(const int16_t *, uint32_t)>;
 	using tx_cb_fn = std::function<void(int16_t *, uint32_t)>;
+	using rx_empty_check_fn = std::function<std::optional<uint32_t>()>;
 
 	sip_audio_bridge() = default;
 	sip_audio_bridge(const sip_audio_bridge &) = delete;
@@ -308,7 +309,8 @@ public:
 
 	~sip_audio_bridge();
 
-	void join(pjmedia_port *port, rx_cb_fn rx_cb, tx_cb_fn tx_cb);
+	void join(pjmedia_port *port, rx_cb_fn rx_cb, tx_cb_fn tx_cb, rx_empty_check_fn rx_empty_check = { });
+	static rx_empty_check_fn get_concealment_probe(pjmedia_stream *stream, const pjmedia_port *port);
 	void leave();
 
 	void start();
@@ -338,6 +340,7 @@ private:
 
 	std::vector<int16_t> m_rx_sample;
 	rx_cb_fn m_rx_cb;
+	rx_empty_check_fn m_rx_empty_check;
 
 	std::vector<int16_t> m_tx_sample;
 	tx_cb_fn m_tx_cb;
