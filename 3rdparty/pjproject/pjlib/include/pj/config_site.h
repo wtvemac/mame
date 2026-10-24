@@ -6,12 +6,13 @@
 #ifndef __CONFIG_SITE_H__
 #define __CONFIG_SITE_H__
 
-// L16 8kHz is the best possible codec for MoIP but it's heavier on bandwidth
-// It's essentally raw 8kHz PCM over IP. Should be able to do V90 over this.
+// L16 is the best possible codec for MoIP but it's heavier on bandwidth
+// It's essentally raw PCM over IP. Should be able to do V90 over this.
 // The extra bandwidth is nothing over most modern broadband connections
 // e.g. if you can watch YouTube @ 1080p+ then this is nothing
 #define PJMEDIA_HAS_L16_CODEC            1
 #define PJMEDIA_CODEC_L16_HAS_8KHZ_MONO  1
+#define PJMEDIA_CODEC_L16_HAS_16KHZ_MONO 1
 
 // G.711 is a good (and well-supported) fallback codec we can use for MoIP.
 // compressed logarithmicly (companding to 8-bit which runs @ 8kHz or 64kbps)
