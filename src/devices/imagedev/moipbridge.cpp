@@ -940,18 +940,21 @@ bool sip_client::start_sip(std::string &error)
 		m_endp->libCreate();
 
 		// ms of audio in one packet.
-		uint32_t ptime_ms = sip_client::SIP_PTIME_MS;
+		uint32_t local_ptime_ms = sip_client::SIP_LOCAL_PTIME_MS;
+		uint32_t frame_ptime_ms = sip_client::SIP_FRAME_PTIME_MS;
 
 		pj::EpConfig endpoint_config;
 		endpoint_config.uaConfig.userAgent = sip_client::SIP_USER_AGENT;
 		endpoint_config.medConfig.clockRate = sample_rate;
 		endpoint_config.medConfig.sndClockRate = sample_rate;
 		endpoint_config.medConfig.channelCount = channel_count;
-		// Amount of time a packet of samples contains
-		// lower=lower latency better packet loss protection under low-loss conditions but more data to send
-		// Setting this to 10ms because it works with pjmedia's system, bandwidth is negligble for most users
-		// and it provides good packet loss protection (less sample time lost per datagram/packet)
-		endpoint_config.medConfig.audioFramePtime = ptime_ms;
+		// Amount of time a packet of samples contains to be sent to the sound device and SIP bridge
+		endpoint_config.medConfig.audioFramePtime = local_ptime_ms;
+		// Amount of time a packet of samples contains to be sent to the codec for processing and then sent over the network using SIP
+ 		// lower=lower latency better packet loss protection under low-loss conditions but more data to send
+ 		// Setting this to 10ms because it works with pjmedia's system, bandwidth is negligble for most users
+ 		// and it provides good packet loss protection (less sample time lost per datagram/packet)
+		endpoint_config.medConfig.ptime = frame_ptime_ms;
 		// Voice activity detection is disabled.
 		// There's no voice on this line and this will mess with data transmission
 		endpoint_config.medConfig.noVad = true;
@@ -960,7 +963,7 @@ bool sip_client::start_sip(std::string &error)
 		endpoint_config.medConfig.ecTailLen = 0;
 		// There appears to be no way to disable pjmedia's jitter buffer. =0 sets it to adaptive which is bad for modems that assume a constant delay.
 		// So this allows it to be configured with jitter_ms= in incrments of ptime_ms and have it be fixed, not adaptive.
-		const unsigned prefetch_ms = m_config.jitter_ms ? ((m_config.jitter_ms + (ptime_ms - 1)) / ptime_ms) * ptime_ms : 0;
+		const unsigned prefetch_ms = m_config.jitter_ms ? ((m_config.jitter_ms + (frame_ptime_ms - 1)) / frame_ptime_ms) * frame_ptime_ms : 0;
 		// Jitter buffer prefetch delay in ms
 		endpoint_config.medConfig.jbInit = prefetch_ms;
 		// Jitter buffer minimum prefetch delay in ms
