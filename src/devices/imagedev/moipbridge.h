@@ -60,16 +60,26 @@ class moip_sample_ring_buffer
 public:
 	// There's no hard science behind all these numbers
 	// I just played around and found these work best given the current FIR interpolator/decimator code
-	static constexpr double SRB_DEFAULT_GAIN = 1.08;
+	static constexpr double SRB_DEFAULT_GAIN = 1.0;
 	static constexpr double SRB_DEFAULT_PPM_OFFSET = 0.0;
 	static constexpr uint32_t SRB_DEFAULT_DELAY_SAMPLES = 720;
-	static constexpr uint32_t SRB_DEFAULT_IN_DELAY_SAMPLES = 720;
-	static constexpr uint32_t SRB_DEFAULT_OUT_DELAY_SAMPLES = 320;
 	static constexpr uint32_t SRB_POLYNOMIAL_ORDER = 7;
 	static constexpr uint8_t SRB_DEFAULT_TAP_COUNT = 192;
-	static constexpr double SRB_DEFAULT_CUTOFF_FREQLO = 200.0;
-	static constexpr double SRB_DEFAULT_CUTOFF_FREQHI = 3564.0;
+	static constexpr double SRB_DEFAULT_CUTOFF_FREQLO = 100.0;
+	static constexpr double SRB_DEFAULT_CUTOFF_FREQHI = 3900.0;
 	static constexpr double SRB_DEFAULT_SLATTDB = 90.0;
+
+	static constexpr double SRB_DEFAULT_IN_GAIN = 0.70794578; // -3dB power from gain=sqrt(10^(dB/10)), dB=10*log10(gain^2) to reverse.
+	static constexpr uint32_t SRB_DEFAULT_IN_DELAY_SAMPLES = moip_sample_ring_buffer::SRB_DEFAULT_DELAY_SAMPLES;
+	static constexpr uint8_t SRB_DEFAULT_IN_TAP_COUNT = 31;
+	static constexpr double SRB_DEFAULT_IN_CUTOFF_FREQLO = 0.0;
+	static constexpr double SRB_DEFAULT_IN_CUTOFF_FREQHI = 3600.0;
+
+	static constexpr double SRB_DEFAULT_OUT_GAIN = moip_sample_ring_buffer::SRB_DEFAULT_GAIN;
+	static constexpr uint32_t SRB_DEFAULT_OUT_DELAY_SAMPLES = 320;
+	static constexpr uint8_t SRB_DEFAULT_OUT_TAP_COUNT = moip_sample_ring_buffer::SRB_DEFAULT_TAP_COUNT;
+	static constexpr double SRB_DEFAULT_OUT_CUTOFF_FREQLO = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQLO;
+	static constexpr double SRB_DEFAULT_OUT_CUTOFF_FREQHI = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI;
 
 	enum MoipSampleOwner : uint8_t {
 		SAMPLE_OWNER_SIP = 0,
@@ -190,20 +200,20 @@ class sip_client
 		std::string user = "";
 		std::string password = "";
 
-		double in_gain = moip_sample_ring_buffer::SRB_DEFAULT_GAIN;
+		double in_gain = moip_sample_ring_buffer::SRB_DEFAULT_IN_GAIN;
 		double in_ppm_offset = moip_sample_ring_buffer::SRB_DEFAULT_PPM_OFFSET;
 		uint32_t in_delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_IN_DELAY_SAMPLES;
-		uint32_t out_delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_OUT_DELAY_SAMPLES;
-		uint8_t in_tap_count = moip_sample_ring_buffer::SRB_DEFAULT_TAP_COUNT;
-		double in_cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQLO;
-		double in_cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI;
+		uint8_t in_tap_count = moip_sample_ring_buffer::SRB_DEFAULT_IN_TAP_COUNT;
+		double in_cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_IN_CUTOFF_FREQLO;
+		double in_cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_IN_CUTOFF_FREQHI;
 		double in_slattdb = moip_sample_ring_buffer::SRB_DEFAULT_SLATTDB;
 
-		double out_gain = moip_sample_ring_buffer::SRB_DEFAULT_GAIN;
+		double out_gain = moip_sample_ring_buffer::SRB_DEFAULT_OUT_GAIN;
 		double out_ppm_offset = moip_sample_ring_buffer::SRB_DEFAULT_PPM_OFFSET;
-		uint8_t out_tap_count = moip_sample_ring_buffer::SRB_DEFAULT_TAP_COUNT;
-		double out_cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQLO;
-		double out_cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_CUTOFF_FREQHI;
+		uint32_t out_delay_samples = moip_sample_ring_buffer::SRB_DEFAULT_OUT_DELAY_SAMPLES;
+		uint8_t out_tap_count = moip_sample_ring_buffer::SRB_DEFAULT_OUT_TAP_COUNT;
+		double out_cutoff_freqlo = moip_sample_ring_buffer::SRB_DEFAULT_OUT_CUTOFF_FREQLO;
+		double out_cutoff_freqhi = moip_sample_ring_buffer::SRB_DEFAULT_OUT_CUTOFF_FREQHI;
 		double out_slattdb = moip_sample_ring_buffer::SRB_DEFAULT_SLATTDB;
 
 		uint32_t jitter_ms = sip_client::SIP_FRAME_PTIME_MS;
