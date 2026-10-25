@@ -10,6 +10,7 @@
 #include "wtvsoftmodem_dsp.h"
 
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <functional>
 #include <vector>
@@ -38,7 +39,7 @@ public:
 			m_alaw = alaw;
 		}
 	
-		bool configure(const std::vector<uint8_t> &cp);
+		bool configure(const std::vector<uint8_t> &cp, const std::vector<uint8_t> *shaping = nullptr);
 	
 		void reset();
 	
@@ -194,10 +195,41 @@ public:
 	{
 		m_upstream_rate_cap = rate < 2 ? 2 : rate > 14 ? 14 : rate;
 	}
+	uint32_t upstream_rate_cap() const
+	{
+		return m_upstream_rate_cap;
+	}
+
+	uint32_t peer_upstream_rate_max() const
+	{
+		if (m_cp.size() < 4)
+			return 0;
+
+		return uint32_t(std::bit_width(uint32_t(m_cp[2] & 0xfe) | uint32_t(m_cp[3] & 0x3f) << 8));
+	}
 
 	void set_bit_source(std::function<int32_t()> source)
 	{
 		m_bit_source = std::move(source);
+	}
+
+	void set_downstream_rate_cap(uint32_t bps)
+	{
+		uint32_t rates = 0;
+		if (bps >= 28000)
+			rates = std::min<uint32_t>(22, ((bps - 28000) * 6 + 4000) / 8000 + 1);
+
+		m_downstream_rates = (1u << rates) - 1;
+	}
+
+	void set_wait_peer_cp(bool enabled)
+	{
+		m_wait_peer_cp = enabled;
+	}
+
+	void set_symbol_observer(std::function<void(int16_t)> observer)
+	{
+		m_symbol_observer = std::move(observer);
 	}
 
 	void set_data_callback(std::function<void()> callback)
@@ -279,7 +311,16 @@ private:
 	static constexpr uint64_t SYM_RI_MIN = 192;
 	static constexpr uint64_t SYM_RIBAR = 4 * 6;
 	static constexpr uint64_t SYM_TRN2D = 12000;
+	static constexpr uint64_t SYM_TRN2D_HOLD_MAX = 8 * 8000;
 	static constexpr uint64_t SYM_ED = 12;
+	static constexpr uint64_t SYM_MP_ACK_MIN = 1600;
+	static constexpr uint32_t MP_ACK_MIN_FRAMES = 2; 
+
+	// Jd payload bits (V.90 Table 13)
+	static constexpr uint32_t JD_RATE_MASK = 0x3fffff;
+	static constexpr uint32_t JD_TRAIN_16_POINT = 1u << 28;
+	static constexpr uint32_t JD_RENEG_16_POINT = 1u << 29;
+	static constexpr uint32_t JD_LOOKAHEAD_SHIFT = 30;
 	static constexpr uint64_t SYM_B1 = 288;
 
 	int16_t pcm_level(uint8_t ucode) const
@@ -294,11 +335,16 @@ private:
 	std::vector<uint8_t> m_parameter;
 	std::vector<uint8_t> m_cp;
 	std::vector<uint8_t> m_data_cp;
+	std::vector<uint8_t> m_previous_data_cp;
 	std::function<int32_t()> m_bit_source;
 	std::function<void()> m_data_callback;
+	std::function<void(int16_t)> m_symbol_observer;
+	bool m_wait_peer_cp = false;
+	uint32_t m_downstream_rates = 0x3fffff;
 	size_t m_parameter_index = 0;
 	bool m_mp_ack = false;
 	bool m_sent_mp_ack = false;
+	uint32_t m_sent_mp_ack_frames = 0;
 	bool m_peer_cp_ack = false;
 	mapper m_mapper;
 	std::array<int16_t, 6> m_frame{};
