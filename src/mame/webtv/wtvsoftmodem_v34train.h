@@ -66,8 +66,14 @@ public:
 	point_t gen_pp();
 	point_t gen_trn();
 	point_t gen_trn(bool d0, bool d1);
+	point_t gen_trn_pattern(uint32_t bits);
+
+	// V.34 Table 18 J patterns
+	static constexpr uint16_t J_PATTERN_4_POINT  = 0x8990;
+	static constexpr uint16_t J_PATTERN_16_POINT = 0x89b0;
 
 	point_t gen_j();
+	void set_j_pattern(uint16_t pattern) { m_j_pattern = pattern; }
 	void j_reset()
 	{
 		m_j_bit = 0;
@@ -81,6 +87,9 @@ public:
 	}
 
 	point_t gen_diff4(bool d0, bool d1);
+	point_t gen_diff16(const uint8_t *bits);
+	void set_tx_training16(bool enabled) { m_tx_training16 = enabled; }
+	uint32_t tx_training_bits() const { return m_tx_training16 ? 4 : 2; }
 
 	void mp_rx_reset();
 
@@ -103,6 +112,8 @@ public:
 private:
 
 	config_t m_cfg;
+	uint16_t m_j_pattern = J_PATTERN_4_POINT;
+	bool m_tx_training16 = false;
 
 	int64_t m_s_n = 0;
 	int64_t m_pp_n = 0;
@@ -123,6 +134,7 @@ private:
 	wtvsoftmodem_scrambler m_trn_descram;
 
 	point_t trn_point(uint32_t bits) const;
+	point_t trn_point16(uint32_t bits) const;
 
 public:
 

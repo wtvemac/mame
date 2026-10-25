@@ -24,6 +24,7 @@
 #include <initializer_list>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -328,7 +329,7 @@ public:
 
 	void start();
 	void stop();
-	void request_retrain(bool full = false);
+	void request_retrain(bool full = false, std::string_view reason = "retrain request");
 
 	V34FamState state() const
 	{
@@ -407,18 +408,18 @@ private:
 
 	static constexpr double V34_TRN_CARRIER_BW  = 0.004;
 	static constexpr double V34_TRN_AGC_RATE    = 0.003;
-	static constexpr double V34_DATA_TIMING_BW  = 0.0006;
+	static constexpr double V34_DATA_TIMING_BW  = 0.0002;
+	static constexpr double V90_DATA_TIMING_BW  = 0.0006;
 	static constexpr double V34_DATA_CARRIER_BW = 0.0004;
 	static constexpr double V34_DATA_AGC_RATE   = 0.0003;
 
 	static constexpr double RX_ON_POWER = 2.0e-4;
 
-	static constexpr double   V34_TIMING_BLOCK_SYMBOLS = 48.0 / 8000.0 * V34_SYMBOL_RATE;
-	static constexpr uint32_t V34_CLOCK_EST_SETTLE     = uint32_t(32 * V34_TIMING_BLOCK_SYMBOLS);
-	static constexpr uint32_t V34_CLOCK_EST_MINIMUM    = uint32_t(256 * V34_TIMING_BLOCK_SYMBOLS);
-	static constexpr uint32_t V34_DATA_TIMING_BATCH    = uint32_t(128 * V34_TIMING_BLOCK_SYMBOLS);
+
 	static constexpr uint32_t V34_DATA_TIMING_DIVISOR  = 64;
 	static constexpr double   V34_TRN_TIMING_BW        = 0.006;
+	static constexpr uint32_t V34_TRN_SNR_MIN_SYMBOLS  = 1024;
+	static constexpr uint32_t V34_TRN_SNR_SETTLE       = 512;
 
 	static constexpr double V34_DPSK_OUT_SCALE = 2000.0;
 
@@ -447,12 +448,17 @@ private:
 	static constexpr uint32_t INFO1C_RECOVERY_CANDIDATES = 4;
 	static constexpr int32_t  INFO1_FREQ_OFFSET          = -512;
 
+	static constexpr uint32_t V90_REVERSAL_ZERO_RUN               = 24;
+	static constexpr uint32_t V90_PROBE_WINDOW_MASK               = (1u << 30) - 1;
+	static constexpr int      V90_PROBE_MIN_ONES                  = 8;
+	static constexpr double   V90_INFO1C_QUIET_RETRY_MS           = 3000.0;
 	static constexpr double V90_A_SECOND_ECHO_RETRAIN_MS          = 270.0;
 	static constexpr double V90_A_SECOND_ECHO_MS                  = 600.0;
 	static constexpr double V90_A_SECOND_SILENCE_START_RETRAIN_MS = 150.0;
 	static constexpr double V90_A_SECOND_SILENCE_END_RETRAIN_MS   = 570.0;
 	static constexpr double V90_A_SECOND_SILENCE_START_MS         = 480.0;
 	static constexpr double V90_A_SECOND_SILENCE_END_MS           = 900.0;
+	static constexpr double V90_A_SECOND_SILENCE_MS               = V90_A_SECOND_SILENCE_END_MS - V90_A_SECOND_SILENCE_START_MS;
 	static constexpr double V90_A_SECOND_REV_RETRAIN_MS           = 690.0;
 	static constexpr double V90_A_SECOND_REV_MS                   = 1020.0;
 
@@ -472,10 +478,8 @@ private:
 	static constexpr uint64_t SYM_PH3_PP         = 288;
 	static constexpr uint64_t SYM_PH3_TRN1       = 1152;
 	static constexpr uint64_t SYM_PH3_J          = 48;
-	static constexpr uint64_t SYM_PH3_JWAIT_HOLD = uint64_t(V34_SYMBOL_RATE * 0.4) - 32 + 5 * 16 + uint64_t(V34_SYMBOL_RATE * PH3_STAGE_SETTLE_MS / 1000.0);
 	static constexpr uint64_t SYM_PH3_S2         = 128;
 	static constexpr uint64_t SYM_PH3_SBAR2      = 16;
-	static constexpr uint64_t SYM_PH3_TRN2_CAP   = uint64_t(2000.0 * V34_SYMBOL_RATE / 1000.0);
 	static constexpr uint32_t SYM_PH3_E          = 10;
 
 	static constexpr int32_t JWAIT_FAST_PERSIST = 2;
@@ -508,6 +512,9 @@ private:
 	static constexpr double RETRAIN_SILENCE_MS        = 70.0;
 	static constexpr double RETRAIN_SHORT_TIMEOUT_MS  = 6000.0;
 	static constexpr double RETRAIN_FULL_TIMEOUT_MS   = 30000.0;
+	static constexpr double V90_RETRAIN_SHORT_TIMEOUT_MS = 12000.0;
+	static constexpr uint32_t V90_TRN_SNR_BLOCK      = 64;
+	static constexpr uint32_t V90_TRN_SNR_PERCENTILE = 30;
 	static constexpr double RETRAIN_TONE_MIN_MS       = 50.0;
 	static constexpr double RETRAIN_TONE_MAX_MS       = 10000.0;
 	static constexpr double RETRAIN_SBAR_TO_E_MS      = 1810.0;
@@ -523,13 +530,29 @@ private:
 
 	static constexpr uint32_t BAUD_MAXIMUM[6] = { 9, 11, 11, 12, 13, 14 };
 
+	// V.34 Table 2: arrier frequencies versus symbol rate
+	static constexpr double BAUD_HIGH_CARRIER_RATIO[6] = {
+		// 1800Hz
+		3.0 / 4.0,
+		// 1829Hz
+		2.0 / 3.0,
+		// 1867Hz
+		2.0 / 3.0,
+		// 2000Hz
+		2.0 / 3.0,
+		// 1920Hz
+		3.0 / 5.0,
+		// 1959Hz
+		4.0 / 7.0
+	};
+
 	static constexpr std::array<std::pair<uint32_t, uint16_t>, 32> PEER_J_WINDOWS = []
 	{
 		std::array<std::pair<uint32_t, uint16_t>, 32> t{};
 
 		uint32_t n = 0;
 
-		for (uint16_t pattern : { uint16_t(0x8990), uint16_t(0x89b0) })
+		for (uint16_t pattern : { wtvsoftmodem_v34train::J_PATTERN_4_POINT, wtvsoftmodem_v34train::J_PATTERN_16_POINT })
 		{
 			for (uint32_t phase = 0; phase < 16; phase++)
 			{
@@ -543,6 +566,8 @@ private:
 	}();
 
 	bool m_answer = true;
+	double m_phase3_timeout_ms = PH3_JWAIT_CAP_MS;
+	uint16_t m_last_peer_j_pattern = 0;
 
 	V34FamState m_state = PH_IDLE;
 
@@ -558,6 +583,11 @@ private:
 
 	wtvsoftmodem_dsp::frequency_t m_sr = wtvsoftmodem_dsp::DEFAULT_SAMPLE_RATE;
 	wtvsoftmodem_dsp::frequency_t m_qsr = wtvsoftmodem_dsp::DEFAULT_SAMPLE_RATE;
+
+	int32_t m_v34_baud = V34_BAUD_3429;
+	bool m_v34_high_carrier = true;
+	double m_v34_symbol_rate = V34_SYMBOL_RATE;
+	double m_v34_carrier = V34_CARRIER;
 
 	wtvsoftmodem_pcm m_pcm;
 	uint32_t m_v90_upstream_baud = 4;
@@ -636,6 +666,11 @@ private:
 	bool m_got_info1a = false;
 	std::vector<uint8_t> m_info0a_bits;
 	size_t m_info0a_pos = 0;
+	bool m_info0_recovery = false;
+	bool m_info0_finish = false;
+	uint64_t m_info0_last_try_sample = 0;
+	uint32_t m_info0_recovery_phase = 0;
+	bool m_initial_a_reversed = false;
 	std::vector<uint8_t> m_info1a_bits;
 	size_t m_info1a_pos = 0;
 	std::vector<uint8_t> m_dpsk_rx_bits;
@@ -694,13 +729,37 @@ private:
 	wtvsoftmodem_v34train::retrain_tone_detector m_rt_tone_detector;
 	int32_t m_dm_s_persist = 0;
 	bool m_rt_requesting = false;
+	int32_t m_configured_rate_cap = 14;
+	bool m_rx_nonlinear_requested = false;
+	bool m_rx_precoder_identity = true;
+	int32_t m_rx_preemphasis = -1;
+	int32_t m_tx_preemphasis = -1;
+	bool m_trn_narrowed = false;
+	double m_phase3_snr = 0.0;
+	bool m_v90_silent_lead_in = false;
+	uint32_t m_v90_zero_run = 0;
+	bool m_v90_upstream_cp16 = false;
+	bool m_v90_upstream_capped = false;
+	uint32_t m_v90_upstream_settle = 0;
+	uint32_t m_v90_snr_cap = 14;
+	std::vector<double> m_v90_trn_blocks;
+	uint32_t m_v90_trn_block_start = 0;
+	double m_v90_trn_block_error = 0;
+	double m_v90_trn_block_power = 0;
+	bool m_v90_wait_peer_probe = false;
+	bool m_v90_peer_probe_seen = false;
+	uint32_t m_v90_recent_bits = 0;
+	bool m_trn_snr_settled = false;
 	int32_t m_mp_rate_cap = 14;
 	uint64_t m_rt_last_check = 0;
 	uint32_t m_rt_prev_crc_ok = 0;
 	uint32_t m_rt_prev_crc_fail = 0;
 	uint32_t m_rt_good_run = 0;
 	uint32_t m_rt_bad_run = 0;
+	uint32_t m_rt_upshift_from = 0;
+	uint32_t m_rt_rate_ceiling = 15;
 	std::vector<uint8_t> m_mp_tx_bits;
+	std::vector<uint8_t> m_mp_pending_bits;
 	size_t m_mp_tx_pos = 0;
 	frame_backlog m_mp_rx_bits;
 	bool m_got_mp = false;
@@ -725,6 +784,14 @@ private:
 	uint32_t m_dm_rx_cfg_rate = 0;
 	bool m_rx_j_hold = false;
 
+	double v34_timing_block_symbols() const { return 48.0 / 8000.0 * m_v34_symbol_rate; }
+	uint32_t v34_clock_est_settle() const { return uint32_t(m_v34_symbol_rate); }
+	uint32_t v34_clock_est_minimum() const { return uint32_t(256 * v34_timing_block_symbols()); }
+	uint32_t v34_data_timing_batch() const { return uint32_t(128 * v34_timing_block_symbols()); }
+	uint32_t v34_trn_narrow_symbols() const { return v34_clock_est_minimum() / 2; }
+	uint64_t sym_ph3_jwait_hold() const { return uint64_t(m_v34_symbol_rate * 0.4) - 32 + 5 * 16 + uint64_t(m_v34_symbol_rate * PH3_STAGE_SETTLE_MS / 1000.0); }
+	uint64_t sym_ph3_trn2_cap() const { return uint64_t(2000.0 * m_v34_symbol_rate / 1000.0); }
+
 	static wtvsoftmodem_qam::csymbol_t four_point_decision(wtvsoftmodem_qam::csymbol_t point);
 
 	void enter(V34FamState new_state);
@@ -742,7 +809,7 @@ private:
 
 	void tx_reversal_pause_rx();
 
-	void cap_mp_rate_for_snr(double snr);
+	void cap_mp_rate_for_snr(double snr, std::string_view source);
 
 	void tick_timeout();
 	bool tick_timeout_retrain();
@@ -772,6 +839,8 @@ private:
 	void     rx_ph2(const wtvsoftmodem_dsp::sample_t *sample, uint32_t sample_count);
 
 	void on_dpsk_bit(bool bit, bool reliable);
+	void accept_peer_info0(wtvsoftmodem::v34::info::info0_t got);
+	void recover_initial_info0();
 	void on_qam_symbol(wtvsoftmodem_qam::csymbol_t sym);
 	void rx_watch_short_retrain_sbar(wtvsoftmodem_qam::csymbol_t sym);
 	void rx_watch_round2_trn(wtvsoftmodem_qam::csymbol_t sym);
@@ -790,25 +859,34 @@ private:
 
 	void ph2_queue_info0a();
 
-	void queue_mp_bits();
+	void queue_mp_bits(bool finish_frame = false);
 
-	void begin_retrain();
-	void begin_long_retrain();
-	void begin_v90_retrain(bool requesting);
+	void begin_retrain(std::string_view reason);
+	void begin_long_retrain(std::string_view reason);
+	void begin_v90_retrain(bool requesting, std::string_view reason);
 
 	void finish_rx_transitions();
 
 	void check_retrain_quality();
+	uint32_t rx_rate_ceiling() const;
+	uint32_t v90_upstream_data_rate() const;
 	void finish_retrain();
 
 	void accept_peer_e();
-	bool detect_retrain_peer_e(wtvsoftmodem_qam::csymbol_t sym);
+	bool detect_peer_e(wtvsoftmodem_qam::csymbol_t sym);
 
 	uint16_t detect_peer_j(bool bit);
 
 	void install_data_slicer();
 
 	int32_t shaper_variant() const;
+	bool v34_baud_allowed(int32_t baud, bool high_carrier) const;
+	int32_t select_v34_baud() const;
+	void set_v34_symbol_rate(int32_t baud, bool high_carrier);
+	void init_v34_qam();
+	void narrow_training_rx();
+	void recover_v90_info0();
+	void cap_v90_upstream_rate();
 
 	uint64_t v90_a_second_clock() const
 	{
@@ -818,6 +896,30 @@ private:
 	{
 		return wtvsoftmodem_dsp::ms_to_samples<uint64_t>(m_full_retrain ? retrain_ms : ms, m_sr);
 	}
+	bool v90_a_second_silent() const
+	{
+		if (m_v90_wait_peer_probe && !m_full_retrain)
+		{
+			return !wtvsoftmodem_v34family::state_elapsed(V90_A_SECOND_SILENCE_MS);
+		}
+		else
+		{
+			const uint64_t clock = wtvsoftmodem_v34family::v90_a_second_clock();
+
+			return clock >= wtvsoftmodem_v34family::v90_a_second_samples(V90_A_SECOND_SILENCE_START_RETRAIN_MS, V90_A_SECOND_SILENCE_START_MS)
+				&& clock < wtvsoftmodem_v34family::v90_a_second_samples(V90_A_SECOND_SILENCE_END_RETRAIN_MS, V90_A_SECOND_SILENCE_END_MS);
+		}
+	}
+
+	double data_timing_bw() const
+	{
+		return m_v90_mode && !m_v90_wait_peer_probe ? V90_DATA_TIMING_BW : V34_DATA_TIMING_BW;
+	}
+	double data_agc_rate() const
+	{
+		return m_retraining && !m_rx_frame_locked ? V34_TRN_AGC_RATE : V34_DATA_AGC_RATE;
+	}
+
 	void setup_v90_upstream(const wtvsoftmodem::v34::info::info1a_t &peer);
 	void rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol);
 	void setup_v90_data_rx();
