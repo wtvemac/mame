@@ -889,6 +889,10 @@ std::optional<sip_client::SIPURIConfig> sip_client::parse_uri(const char *sip_ur
 				{
 					config.disable_l16 = stob(val_str);
 				}
+				else if (key == "callee")
+				{
+					config.callee_bypass = val_str;
+				}
 			}
 
 			if (next_semi == std::string_view::npos)
@@ -1150,7 +1154,13 @@ void sip_client::dial(const std::string &number)
 	{
 		std::string transport_param = m_config.transport.empty() ? "" : ";transport=" + m_config.transport;
 
-		std::string dest_uri = std::format("sip:{}@{}:{}{}", number, m_config.host, m_config.port, transport_param);
+		std::string target_callee;
+		if (!m_config.callee_bypass.empty())
+			target_callee = m_config.callee_bypass;
+		else
+			target_callee = number;
+
+		std::string dest_uri = std::format("sip:{}@{}:{}{}", target_callee, m_config.host, m_config.port, transport_param);
 
 		m_call = std::make_unique<sip_call>(*m_acct, *this);
 
