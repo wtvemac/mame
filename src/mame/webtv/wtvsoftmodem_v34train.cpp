@@ -35,6 +35,7 @@ void wtvsoftmodem_v34train::init(const config_t &cfg)
 
 void wtvsoftmodem_v34train::reset()
 {
+	m_tx_training16 = false;
 	m_trn_scram.reset();
 	m_trn_descram.reset();
 
@@ -98,29 +99,29 @@ wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::trn_point(uint32_t bits) c
 
 wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_trn()
 {
-	uint32_t bits = 0;
-
-	for (int32_t b = 0; b < 2; b++)
-		bits |= (m_trn_scram.scramble(true) ? 1U : 0U) << b;
-
-	return trn_point(bits);
+	return gen_trn_pattern(15);
 }
 
 wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_trn(bool d0, bool d1)
 {
-	const uint32_t bits = (m_trn_scram.scramble(d0) ? 1U : 0U) | (m_trn_scram.scramble(d1) ? 2U : 0U);
+	return gen_trn_pattern(uint32_t(d0) | (uint32_t(d1) << 1));
+}
 
-	return trn_point(bits);
+wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_trn_pattern(uint32_t input)
+{
+	uint32_t bits = 0;
+	for (uint32_t b = 0; b < tx_training_bits(); ++b)
+		bits |= uint32_t(m_trn_scram.scramble((input >> b) & 1)) << b;
+
+	return m_tx_training16 ? trn_point16(bits) : trn_point(bits);
 }
 
 wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_j()
 {
-	static const uint16_t J_PATTERN = 0x8990;
-
 	uint32_t v = 0;
 	for (int32_t b = 0; b < 2; b++)
 	{
-		bool pat = (J_PATTERN >> m_j_bit) & 1;
+		bool pat = (m_j_pattern >> m_j_bit) & 1;
 
 		m_j_bit  = (m_j_bit + 1) & 15;
 
@@ -136,7 +137,7 @@ wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_e()
 {
 	uint32_t v = 0;
 
-	for (int32_t b = 0; b < 2; b++)
+	for (uint32_t b = 0; b < tx_training_bits(); b++)
 	{
 		bool pat = true;
 
@@ -147,7 +148,27 @@ wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_e()
 
 	m_j_diff = uint8_t((m_j_diff + v) & 3);
 
-	return trn_point(m_j_diff);
+	return m_tx_training16 ? trn_point16((v & 12) | m_j_diff) : trn_point(m_j_diff);
+}
+
+wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::trn_point16(uint32_t bits) const
+{
+	const auto &p = wtvsoftmodem::v34::constellation::TRN_MAP16[bits & 15];
+
+	const double scale = m_cfg.trn_scale / std::sqrt(5.0);
+
+	return { p[0] * scale, p[1] * scale };
+}
+
+wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_diff16(const uint8_t *bits)
+{
+	uint32_t v = 0;
+	for (uint32_t b = 0; b < 4; ++b)
+		v |= uint32_t(m_trn_scram.scramble(bits[b] != 0)) << b;
+
+	m_j_diff = uint8_t((m_j_diff + v) & 3);
+
+	return trn_point16((v & 12) | m_j_diff);
 }
 
 wtvsoftmodem_v34train::point_t wtvsoftmodem_v34train::gen_diff4(bool d0, bool d1)

@@ -275,6 +275,20 @@ public:
 		}
 	}
 
+	bool past_mp() const
+	{
+		switch (m_state)
+		{
+			case PCMState::ED:
+			case PCMState::B1:
+			case PCMState::DATA:
+				return true;
+
+			default:
+				return false;
+		}
+	}
+
 	static int16_t mulaw_decode(uint8_t octet);
 	static uint8_t mulaw_encode(int16_t sample);
 	static int16_t alaw_decode(uint8_t octet);

@@ -261,13 +261,24 @@ public:
 	void rx_set_paced_timing(double integral_divisor, uint32_t batch_symbols);
 	void rx_clock_estimate_start(uint32_t settle_symbols);
 	bool rx_clock_estimate(uint32_t minimum_symbols, double &frequency);
+	uint32_t rx_clock_estimate_count() const { return m_clk_est_n; }
+
+	void rx_reference_snr_reset()
+	{
+		m_ref_err_sum = 0.0;
+		m_ref_pow_sum = 0.0;
+		m_ref_snr_n = 0;
+	}
+	uint32_t rx_reference_snr_count() const { return m_ref_snr_n; }
+	double rx_reference_error_sum() const { return m_ref_err_sum; }
+	double rx_reference_power_sum() const { return m_ref_pow_sum; }
+	double rx_reference_snr_db() const { return wtvsoftmodem_dsp::power_to_db(m_ref_pow_sum / std::max(m_ref_err_sum, 1e-12)); }
 	void rx_use_feedback_equalizer(bool enabled);
 	bool rx_feedback_equalizer(csymbol_t reference, uint32_t age);
 	double rx_evm() const;
 
 private:
 
-	// V.34 5.2 and Table 1 "Symbol rates" + Table 2 "Carrier frequencies versus symbol rate"
 	static constexpr qam_detail_t DEFAULT_QAM_SPEC_TABLE[] = {
 		{
 			.spec = QAM_V34_2400_LOW,
@@ -434,6 +445,9 @@ private:
 	bool m_dd_latched = false;
 	bool m_hold_clock_frequency = false;
 	double m_evm_acc = 0.0;
+	double m_ref_err_sum = 0.0;
+	double m_ref_pow_sum = 0.0;
+	uint32_t m_ref_snr_n = 0;
 	bool m_rx_frozen = false;
 	bool m_rx_timing_hold = false;
 

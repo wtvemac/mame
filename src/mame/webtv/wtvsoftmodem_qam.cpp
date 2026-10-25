@@ -197,6 +197,7 @@ void wtvsoftmodem_qam::reset()
 	m_clk_est_on = false;
 
 	m_evm_acc = 0.0;
+	rx_reference_snr_reset();
 }
 
 
@@ -617,6 +618,13 @@ void wtvsoftmodem_qam::rx_emit_symbol(csymbol_t on_time)
 		dec      = sl;
 		dpow     = dec.i * dec.i + dec.q * dec.q + 1e-9;
 		err      = { dec.i - d.i, dec.q - d.q };
+	}
+
+	if (have_ref && !m_rx_frozen)
+	{
+		m_ref_err_sum += err.i * err.i + err.q * err.q;
+		m_ref_pow_sum += dpow;
+		m_ref_snr_n++;
 	}
 
 	double slpow = sl.i * sl.i + sl.q * sl.q + 1e-9;

@@ -4,9 +4,11 @@
 // Description here
 
 #include "wtvsoftmodem_v34family.h"
+#include <format>
 #include "wtvsoftmodem_v34filter.h"
 
 #include <algorithm>
+#include <bit>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -41,7 +43,10 @@ wtvsoftmodem_qam::csymbol_t wtvsoftmodem_v34family::four_point_decision(wtvsoftm
 
 int32_t wtvsoftmodem_v34family::shaper_variant() const
 {
-	return m_got_info1c ? m_peer_info1c.rate[V34_BAUD_3429].pre_emphasis : 0;
+	if (m_tx_preemphasis >= 0)
+		return m_tx_preemphasis;
+
+	return m_got_info1c ? m_peer_info1c.rate[m_v34_baud].pre_emphasis : 0;
 }
 
 void wtvsoftmodem_v34family::set_sample_rate(wtvsoftmodem_dsp::frequency_t set_sample_rate)
@@ -56,22 +61,115 @@ void wtvsoftmodem_v34family::set_sample_rate(wtvsoftmodem_dsp::frequency_t set_s
 	m_dpsk.set_tx_channel(info_answer ? wtvsoftmodem_dpsk::V34_INFO_ANSWER_CHANNEL : wtvsoftmodem_dpsk::V34_INFO_CALL_CHANNEL);
 	m_dpsk.set_rx_channel(info_answer ? wtvsoftmodem_dpsk::V34_INFO_CALL_CHANNEL : wtvsoftmodem_dpsk::V34_INFO_ANSWER_CHANNEL);
 
-	wtvsoftmodem_qam::config_t qc;
-	qc.sample_rate      = m_qsr;
-	qc.output_scale     = V34_OUT_SCALE;
-	qc.agc_target_power = 1.0;
-
-	qc.tx_post_fir = filter::shaping::resample(shaper_variant(), m_qsr, V34_CARRIER, V34_SHAPER_TAPS);
-	qc.eq_taps     = V34_EQ_TAPS;
-	qc.eq_mu       = V34_TRN_EQ_RATE;
-
-	m_qam.init(V34_QAM_SPEC, qc);
+	init_v34_qam();
 
 	wtvsoftmodem_v34train::config_t tcfg;
 	tcfg.s_amplitude  = SUBC_AMP;
 	tcfg.trn_scale    = SUBC_AMP;
 	tcfg.answer_mode  = m_answer;
 	m_train.init(tcfg);
+}
+
+void wtvsoftmodem_v34family::init_v34_qam()
+{
+	wtvsoftmodem_qam::config_t qc;
+	qc.sample_rate      = m_qsr;
+	qc.output_scale     = V34_OUT_SCALE;
+	qc.agc_target_power = 1.0;
+
+	qc.tx_post_fir = filter::shaping::resample(shaper_variant(), m_qsr, m_v34_carrier, V34_SHAPER_TAPS, m_v34_baud, m_v34_high_carrier);
+	qc.eq_taps     = V34_EQ_TAPS;
+	qc.eq_mu       = V34_TRN_EQ_RATE;
+
+	if (m_v34_baud == V34_BAUD_3429)
+	{
+		m_qam.init(V34_QAM_SPEC, qc);
+	}
+	else
+	{
+		const auto *spec = wtvsoftmodem_qam::default_spec(UPSTREAM_SPEC[m_v34_baud]);
+		qc.symbol_rate      = spec->symbol_rate;
+		qc.carrier_freq     = m_v34_carrier;
+		qc.rolloff          = spec->rolloff;
+		qc.filter_span_syms = spec->filter_span_syms;
+		m_qam.init(qc);
+	}
+}
+
+bool wtvsoftmodem_v34family::v34_baud_allowed(int32_t baud, bool high_carrier) const
+{
+	if (!m_got_info0c)
+	{
+		return true;
+	}
+	else
+	{
+		switch (baud)
+		{
+			case 0:
+				return true;
+			case 1:
+				return m_peer_info0.sr_2743;
+			case 2:
+				return m_peer_info0.sr_2800;
+			case 3:
+				return high_carrier ? m_peer_info0.sr_3000_high : m_peer_info0.sr_3000_low;
+			case 4:
+				return high_carrier ? m_peer_info0.sr_3200_high : m_peer_info0.sr_3200_low;
+			case 5:
+				return m_peer_info0.sr_3429 && m_peer_info0.rate_3429_allowed;
+			default:
+				return false;
+		}
+	}
+}
+
+int32_t wtvsoftmodem_v34family::select_v34_baud() const
+{
+	if (!m_got_info1c)
+	{
+		return V34_BAUD_3429;
+	}
+	else
+	{
+		int32_t best = -1;
+		for (int32_t baud = V34_BAUD_3429; baud >= 0; baud--)
+		{
+			const auto &rate = m_peer_info1c.rate[baud];
+
+			if (!rate.max_bit_rate || !v34_baud_allowed(baud, rate.use_high_carrier))
+				continue;
+
+			if (best < 0 || rate.max_bit_rate > m_peer_info1c.rate[best].max_bit_rate)
+				best = baud;
+		}
+
+		return best < 0 ? V34_BAUD_3429 : best;
+	}
+}
+
+void wtvsoftmodem_v34family::set_v34_symbol_rate(int32_t baud, bool high_carrier)
+{
+	if (baud == m_v34_baud && high_carrier == m_v34_high_carrier)
+		return;
+
+	m_v34_baud = baud;
+	m_v34_high_carrier = high_carrier;
+
+	if (baud == V34_BAUD_3429)
+	{
+		m_v34_symbol_rate = V34_SYMBOL_RATE;
+		m_v34_carrier = V34_CARRIER;
+	}
+	else
+	{
+		const auto *spec = wtvsoftmodem_qam::default_spec(UPSTREAM_SPEC[baud]);
+
+		m_v34_symbol_rate = spec->symbol_rate;
+		m_v34_carrier = high_carrier ? spec->symbol_rate * BAUD_HIGH_CARRIER_RATIO[baud] : spec->carrier_freq;
+	}
+
+	init_v34_qam();
 }
 
 void wtvsoftmodem_v34family::configure_datamode(int32_t bit_rate_code, int32_t baud_rate_code, bool expanded_shaping)
@@ -125,7 +223,7 @@ void wtvsoftmodem_v34family::setup_datamode_channel()
 		}
 	);
 
-	const uint32_t peer_hw_cap = (m_got_info1c && m_peer_info1c.rate[V34_BAUD_3429].max_bit_rate > 0) ? (uint32_t)m_peer_info1c.rate[V34_BAUD_3429].max_bit_rate : 15U;
+	const uint32_t peer_hw_cap = (m_got_info1c && m_peer_info1c.rate[m_v34_baud].max_bit_rate > 0) ? (uint32_t)m_peer_info1c.rate[m_v34_baud].max_bit_rate : 15U;
 	uint32_t nr = (m_had_mp && m_peer_mp.bit_rate_a_to_c > 0) ? m_peer_mp.bit_rate_a_to_c : std::min<uint32_t>(V34_MAX_RATE, peer_hw_cap);
 
 	if (m_local_mp.bit_rate_a_to_c > 0)
@@ -137,7 +235,7 @@ void wtvsoftmodem_v34family::setup_datamode_channel()
 	if (nr > V34_MAX_RATE)
 		nr = V34_MAX_RATE;
 
-	if (nr > peer_hw_cap)
+	if (!m_had_mp && nr > peer_hw_cap)
 		nr = peer_hw_cap;
 
 	int32_t rc;
@@ -148,7 +246,7 @@ void wtvsoftmodem_v34family::setup_datamode_channel()
 	else
 		rc = 20;
 
-	configure_datamode(rc, V34_BAUD_3429, true);
+	configure_datamode(rc, m_v34_baud, true);
 }
 
 void wtvsoftmodem_v34family::install_data_slicer()
@@ -165,14 +263,15 @@ void wtvsoftmodem_v34family::install_data_slicer()
 
 void wtvsoftmodem_v34family::setup_datamode_rx_channel()
 {
-	const uint32_t peer_hw_cap = (m_got_info1c && m_peer_info1c.rate[V34_BAUD_3429].max_bit_rate > 0) ? (uint32_t)m_peer_info1c.rate[V34_BAUD_3429].max_bit_rate : 15U;
+	const uint32_t peer_hw_cap = (m_got_info1c && m_peer_info1c.rate[m_v34_baud].max_bit_rate > 0) ? (uint32_t)m_peer_info1c.rate[m_v34_baud].max_bit_rate : 15U;
 
 	uint32_t nr = (m_had_mp && m_peer_mp.bit_rate_c_to_a > 0) ? m_peer_mp.bit_rate_c_to_a : std::min<uint32_t>(V34_MAX_RATE, peer_hw_cap);
 
 	if (m_local_mp.bit_rate_c_to_a > 0)
 		nr = std::min<uint32_t>(nr, m_local_mp.bit_rate_c_to_a);
 
-	nr = std::min<uint32_t>(nr, peer_hw_cap);
+	if (!m_had_mp)
+		nr = std::min<uint32_t>(nr, peer_hw_cap);
 
 	if (m_had_mp)
 		nr = std::min<uint32_t>(nr, info::mp_selected_rate(m_local_mp, m_peer_mp, true));
@@ -188,7 +287,7 @@ void wtvsoftmodem_v34family::setup_datamode_rx_channel()
 
 
 	wtvsoftmodem_v34data::config_t cfg;
-	cfg.baud_rate_code = V34_BAUD_3429;
+	cfg.baud_rate_code = m_v34_baud;
 	cfg.bit_rate_code  = int32_t(nr - 1) * 2;
 	cfg.answer_mode = !m_answer;
 	cfg.expanded_shaping = true;
@@ -209,7 +308,10 @@ void wtvsoftmodem_v34family::setup_datamode_rx_channel()
 
 	m_dm_rx_bit_sink = [this](int32_t b)
 	{
-		m_lapm.rx_bit(b != 0);
+		if (m_lapm.rx_bit(b != 0))
+		{
+			m_dm_e_bits = 0;
+		}
 	};
 
 	m_dm_rx.set_bit_sink(m_dm_rx_bit_sink);
@@ -238,31 +340,42 @@ void wtvsoftmodem_v34family::ph2_queue_info0a()
 	m_info0a_pos = 0;
 }
 
-void wtvsoftmodem_v34family::queue_mp_bits()
+void wtvsoftmodem_v34family::queue_mp_bits(bool finish_frame)
 {
 	info::mp_t mp;
 
 	mp.is_answer = m_answer;
-	mp.type = (m_mp_rate_cap >= 3) ? 1 : 0;
-	mp.bit_rate_c_to_a = uint8_t(m_mp_rate_cap);
-	mp.bit_rate_a_to_c = uint8_t(m_mp_rate_cap);
+	const uint32_t mp_rate = std::min(uint32_t(m_mp_rate_cap), BAUD_MAXIMUM[m_v34_baud]);
+	mp.type = (mp_rate >= 3) ? 1 : 0;
+	mp.bit_rate_c_to_a = uint8_t(mp_rate);
+	mp.bit_rate_a_to_c = uint8_t(mp_rate);
 	mp.aux_channel = false;
 	mp.trellis_sel = 0;
-	mp.nonlinear_encoder = false;
+	mp.nonlinear_encoder = m_rx_nonlinear_requested;
 	mp.expanded_shaping = true;
 	mp.mp_acknowledged  = m_mp_prime || m_got_mp;
-	mp.signalling_rate_mask = uint16_t((1U << V34_MAX_RATE) - 1);
+	mp.signalling_rate_mask = uint16_t((1U << m_configured_rate_cap) - 1);
 	mp.asymmetric_rates = false;
 
 	if (mp.type == 1)
 	{
-		mp.long_ext = info::mp_long_ext_template();
+		mp.long_ext = m_rx_precoder_identity ? info::mp_long_ext_identity() : info::mp_long_ext_template();
 		mp.precoding_enabled = true;
 	}
 
 	m_local_mp   = mp;
-	m_mp_tx_bits = info::build_mp(mp);
-	m_mp_tx_pos  = 0;
+	auto bits = info::build_mp(mp);
+	if (finish_frame && m_mp_tx_pos != 0)
+	{
+		m_mp_pending_bits = std::move(bits);
+	}
+	else
+	{
+		m_mp_pending_bits.clear();
+		m_mp_tx_bits = std::move(bits);
+		m_mp_tx_pos = 0;
+		if (finish_frame) m_mp_ack_guard_symbols = 0;
+	}
 }
 
 void wtvsoftmodem_v34family::start()
@@ -274,6 +387,12 @@ void wtvsoftmodem_v34family::start()
 		m_v90_info1_recovery_clock = 0;
 		m_v90_peer_reversal = false;
 		m_v90_p2_bits.clear();
+		m_v90_zero_run = 0;
+		m_v90_snr_cap = 14;
+	}
+	else
+	{
+		set_v34_symbol_rate(V34_BAUD_3429, true);
 	}
 
 	m_qam.tx_flush_pending();
@@ -282,6 +401,8 @@ void wtvsoftmodem_v34family::start()
 	m_rx_training_pending = false;
 	m_rx_data_phase = 0;
 	m_got_info0c = false;
+	m_info0_recovery = false;
+	m_info0_finish = false;
 	m_peer_info0 = {};
 	m_got_info1c = false;
 	m_got_info1a = false;
@@ -301,6 +422,8 @@ void wtvsoftmodem_v34family::start()
 	m_rt_started = 0;
 	m_rt_data_since = 0;
 	m_rt_downshifts = 0;
+	m_rt_upshift_from = 0;
+	m_rt_rate_ceiling = 15;
 	m_rt_full_requested = false;
 	m_rt_pending_full = false;
 	m_rt_saved_clocks = false;
@@ -313,7 +436,7 @@ void wtvsoftmodem_v34family::start()
 	m_rt_tone_detector.reset(m_sr, m_v90_mode ? 2400 : 1200);
 	m_dm_s_persist = 0;
 	m_rt_requesting = false;
-	m_mp_rate_cap = V34_MAX_RATE;
+	m_mp_rate_cap = m_configured_rate_cap;
 	m_rt_last_check = 0;
 	m_rt_prev_crc_ok = 0;
 	m_rt_prev_crc_fail = 0;
@@ -336,7 +459,7 @@ void wtvsoftmodem_v34family::start()
 
 	reset_dpsk_rx();
 
-	enter(PH2_A_INITIAL);
+	enter(m_v90_mode ? PH2_A_INITIAL : PH2_A_INFO);
 }
 
 void wtvsoftmodem_v34family::stop()
@@ -346,20 +469,39 @@ void wtvsoftmodem_v34family::stop()
 
 void wtvsoftmodem_v34family::hold_receiver_after_j()
 {
-	double clock;
+	m_qam.rx_finish_training();
 
-	if (m_qam.rx_clock_estimate(V34_CLOCK_EST_MINIMUM, clock))
+	if (m_qam.rx_reference_snr_count() >= V34_TRN_SNR_MIN_SYMBOLS)
+		m_phase3_snr = m_qam.rx_reference_snr_db();
+	else
+		m_phase3_snr = -wtvsoftmodem_dsp::amplitude_to_db(std::max(m_qam.rx_evm(), TRN_EVM_FLOOR));
+
+	double clock;
+	if (m_qam.rx_clock_estimate(v34_clock_est_minimum(), clock))
 		m_qam.rx_set_clock_frequencies(clock, m_qam.rx_carrier_frequency());
 
 	m_qam.rx_freeze_loops(true);
 	m_rx_j_hold = true;
 }
 
+void wtvsoftmodem_v34family::narrow_training_rx()
+{
+	double clock;
+	m_trn_narrowed = true;
+	if (m_qam.rx_clock_estimate(v34_trn_narrow_symbols(), clock))
+		m_qam.rx_set_clock_frequencies(clock, m_qam.rx_carrier_frequency());
+
+	m_qam.rx_set_tracking_rates(V34_DATA_TIMING_BW, V34_TRN_CARRIER_BW, V34_TRN_AGC_RATE);
+	m_qam.rx_set_equalizer_rate(V34_DATA_EQ_RATE);
+	m_qam.rx_clock_estimate_start(0);
+	m_qam.rx_reference_snr_reset();
+}
+
 void wtvsoftmodem_v34family::set_data_timing(bool seed)
 {
 	double clock;
 
-	if (seed && m_qam.rx_clock_estimate(V34_CLOCK_EST_MINIMUM, clock))
+	if (seed && m_qam.rx_clock_estimate(v34_clock_est_minimum(), clock))
 	{
 		m_qam.rx_set_clock_frequencies(clock, m_qam.rx_carrier_frequency());
 
@@ -367,7 +509,7 @@ void wtvsoftmodem_v34family::set_data_timing(bool seed)
 			m_rt_saved_timing = clock;
 	}
 
-	m_qam.rx_set_paced_timing(V34_DATA_TIMING_DIVISOR, V34_DATA_TIMING_BATCH);
+	m_qam.rx_set_paced_timing(V34_DATA_TIMING_DIVISOR, v34_data_timing_batch());
 }
 
 void wtvsoftmodem_v34family::setup_training_rx()
@@ -376,9 +518,11 @@ void wtvsoftmodem_v34family::setup_training_rx()
 	m_qam.rx_use_feedback_equalizer(false);
 	m_qam.rx_set_equalizer_rate(m_retraining && !m_full_retrain && !m_v90_mode ? V34_DATA_EQ_RATE : V34_TRN_EQ_RATE);
 	m_qam.rx_set_tracking_rates(V34_TRN_TIMING_BW, V34_TRN_CARRIER_BW, V34_TRN_AGC_RATE);
+	m_trn_narrowed = false;
+	m_trn_snr_settled = false;
 
 	if (!m_v90_mode)
-		m_qam.rx_clock_estimate_start(V34_CLOCK_EST_SETTLE);
+		m_qam.rx_clock_estimate_start(v34_clock_est_settle());
 
 	wtvsoftmodem_v34train::config_t peer_config;
 	peer_config.answer_mode = m_v90_mode || !m_answer;
@@ -390,7 +534,7 @@ void wtvsoftmodem_v34family::setup_training_rx()
 	reference.reserve(V34_TRN_REFERENCE_SYMBOLS);
 	for (int32_t k = 0; k < int32_t(V34_TRN_REFERENCE_SYMBOLS); k++)
 	{
-		auto point = (m_retraining && !m_full_retrain && k >= int32_t(V34_SYMBOL_RATE * 0.5)) ? peer_training.gen_trn((k & 1) != 0, (k & 1) != 0) : peer_training.gen_trn();
+		auto point = (m_retraining && !m_full_retrain && k >= int32_t(m_v34_symbol_rate * 0.5)) ? peer_training.gen_trn((k & 1) != 0, (k & 1) != 0) : peer_training.gen_trn();
 
 		reference.push_back({ point.i, point.q });
 	}
@@ -399,7 +543,7 @@ void wtvsoftmodem_v34family::setup_training_rx()
 	m_qam.set_slicer(four_point_decision);
 }
 
-void wtvsoftmodem_v34family::begin_retrain()
+void wtvsoftmodem_v34family::begin_retrain(std::string_view reason)
 {
 	m_rt_saved_clocks  = m_rx_frame_locked;
 	m_rt_saved_timing  = m_qam.rx_timing_frequency();
@@ -441,33 +585,34 @@ void wtvsoftmodem_v34family::begin_retrain()
 	enter(PH3_S);
 }
 
-void wtvsoftmodem_v34family::request_retrain(bool full)
+void wtvsoftmodem_v34family::request_retrain(bool full, std::string_view reason)
 {
 	if (!is_data_mode() || m_retraining)
 		return;
 
+	const std::string cause = "local retrain request: " + std::string(reason);
 	m_rt_requesting = true;
 
 	if (full && m_v90_mode && m_pcm.state() == wtvsoftmodem_pcm::PCMState::DATA)
 	{
 		m_rt_full_requested = true;
-		begin_v90_retrain(true);
+		begin_v90_retrain(true, cause);
 	}
 	else if (full)
 	{
-		begin_long_retrain();
+		begin_long_retrain(cause);
 	}
 	else if (m_v90_mode)
 	{
-		begin_v90_retrain(true);
+		begin_v90_retrain(true, cause);
 	}
 	else
 	{
-		begin_retrain();
+		begin_retrain(cause);
 	}
 }
 
-void wtvsoftmodem_v34family::begin_long_retrain()
+void wtvsoftmodem_v34family::begin_long_retrain(std::string_view reason)
 {
 	const bool     saved_clocks    = m_rx_frame_locked;
 	const auto     equalizer_prior = m_qam.rx_equalizer();
@@ -477,11 +622,15 @@ void wtvsoftmodem_v34family::begin_long_retrain()
 	const bool     connected  = m_v90_connected;
 	const int32_t  rate_cap   = m_mp_rate_cap;
 	const bool     requesting = m_rt_requesting;
+	const uint32_t upshift_from = m_rt_upshift_from;
+	const uint32_t rate_ceiling = m_rt_rate_ceiling;
 
 	m_lapm.retrain();
 	start();
 
 	m_total_samples    = clock;
+	m_rt_upshift_from  = upshift_from;
+	m_rt_rate_ceiling  = rate_ceiling;
 	m_rt_saved_clocks  = saved_clocks;
 	m_rt_saved_timing  = timing;
 	m_rt_saved_carrier = carrier;
@@ -504,7 +653,7 @@ void wtvsoftmodem_v34family::begin_long_retrain()
 	enter(PH_RETRAIN_SILENCE);
 }
 
-void wtvsoftmodem_v34family::begin_v90_retrain(bool requesting)
+void wtvsoftmodem_v34family::begin_v90_retrain(bool requesting, std::string_view reason)
 {
 	m_lapm.retrain();
 	m_pcm.set_upstream_rate_cap(uint32_t(m_mp_rate_cap));
@@ -535,6 +684,13 @@ void wtvsoftmodem_v34family::begin_v90_retrain(bool requesting)
 	m_v90_upstream_bits.clear();
 	m_v90_upstream_bits16.clear();
 	m_train.mp_rx_reset();
+
+	if (m_v90_wait_peer_probe)
+	{
+		m_rx_epoch_valid = false;
+		m_peer_mark_run = 0;
+		m_v90_upstream_capped = false;
+	}
 }
 
 void wtvsoftmodem_v34family::check_retrain_quality()
@@ -564,12 +720,35 @@ void wtvsoftmodem_v34family::check_retrain_quality()
 		return;
 
 	const double snr = -wtvsoftmodem_dsp::amplitude_to_db(std::max(m_qam.rx_evm(), 1e-6));
-	const uint32_t baud = m_v90_mode ? m_v90_upstream_baud : V34_BAUD_3429;
+	const uint32_t baud = m_v90_mode ? m_v90_upstream_baud : uint32_t(m_v34_baud);
 	const bool expanded = !m_v90_mode;
-	const uint32_t sustainable = wtvsoftmodem_v34train::retrain_sustainable_rate(snr, baud, expanded, false, expanded);
+	const bool nonlinear = !m_v90_mode && m_local_mp.nonlinear_encoder;
+	const uint32_t sustainable = wtvsoftmodem_v34train::retrain_sustainable_rate(snr, baud, expanded, nonlinear, expanded);
 	const uint32_t current = m_v90_mode ? m_v90_upstream_rate : std::max<uint32_t>(2, m_dm_rx_cfg_rate);
-	const uint32_t down_rate = m_v90_mode ? sustainable : wtvsoftmodem_v34train::retrain_sustainable_rate(snr + RATE_DOWN_MARGIN_DB, baud, expanded, false, expanded);
-	const uint32_t up_rate = m_v90_mode ? sustainable : wtvsoftmodem_v34train::retrain_sustainable_rate(snr - RATE_UP_MARGIN_DB, baud, expanded, false, expanded);
+	const uint32_t down_rate = m_v90_mode ? sustainable : wtvsoftmodem_v34train::retrain_sustainable_rate(snr + RATE_DOWN_MARGIN_DB, baud, expanded, nonlinear, expanded);
+
+	if (m_rt_upshift_from)
+	{
+		if (current <= m_rt_upshift_from)
+		{
+			m_rt_rate_ceiling = current;
+		}
+
+		m_rt_upshift_from = 0;
+	}
+
+	uint32_t up_rate;
+	if (m_v90_mode)
+		up_rate = std::min<uint32_t>(
+			rx_rate_ceiling(), 
+			sustainable 
+		);
+	else
+		up_rate = std::min<uint32_t>(
+			rx_rate_ceiling(), 
+			wtvsoftmodem_v34train::retrain_sustainable_rate(snr - RATE_UP_MARGIN_DB, baud, expanded, nonlinear, expanded)
+		);
+
 	const bool impaired = m_v90_mode ? dfail != 0 : wtvsoftmodem_v34train::retrain_bad_window(dok, dfail);
 
 	if (down_rate < current && impaired)
@@ -591,24 +770,78 @@ void wtvsoftmodem_v34family::check_retrain_quality()
 	if (m_rt_bad_run >= 2)
 	{
 		m_rt_bad_run = 0;
+		m_rt_upshift_from = 0;
 
-		if (m_rt_downshifts >= MAX_SHORT_DOWNSHIFTS || snr <= FULL_RETRAIN_SNR_DB || sustainable < 2)
+		// Escalate to a full retrain
+		std::string escalation;
+		if (m_rt_downshifts >= MAX_SHORT_DOWNSHIFTS)
+			escalation = "short downshift limit reached";
+		else if (snr <= FULL_RETRAIN_SNR_DB)
+			escalation = std::format("SNR <= {:.2f} dB", FULL_RETRAIN_SNR_DB);
+		else if (sustainable < 2)
+			escalation = "no sustainable data rate";
+
+		if (!escalation.empty())
 		{
-			request_retrain(true);
+			request_retrain(
+				true,
+				std::format("Bad RX quality: 2 bad windows; SNR {:.2f} dB, failed CRC {}/{}, {}", snr, dfail, dok + dfail, escalation)
+			);
 		}
 		else
 		{
 			m_rt_downshifts++;
 			m_mp_rate_cap = int32_t(std::min(sustainable, current - 1));
-			request_retrain();
+
+			request_retrain(
+				false,
+				std::format("Bad RX quality: 2 bad windows; SNR {:.2f} dB, failed CRC {}/{}, rate {} -> {} bps", snr, dfail, dok + dfail, current * 2400, m_mp_rate_cap * 2400));
 		}
 	}
 	else if (m_rt_good_run >= (m_v90_mode ? 2U : 3U) && m_total_samples - (m_v90_mode ? m_rt_started : m_rt_data_since) >= wtvsoftmodem_dsp::ms_to_samples<uint64_t>(m_v90_mode ? V90_UPSHIFT_HOLD_MS : V34_UPSHIFT_HOLD_MS, m_sr))
 	{
 		m_rt_good_run = 0;
-		m_mp_rate_cap = int32_t(std::min(up_rate, uint32_t(V34_MAX_RATE)));
-		request_retrain();
+		m_rt_upshift_from = current;
+		m_mp_rate_cap = int32_t(up_rate);
+
+		request_retrain(
+			false,
+			std::format("Good RX quality: SNR {:.2f} dB, failed CRC {}/{}, rate {} -> {} bps", snr, dfail, dok + dfail, current * 2400, m_mp_rate_cap * 2400)
+		);
 	}
+}
+
+uint32_t wtvsoftmodem_v34family::rx_rate_ceiling() const
+{
+	uint32_t ceiling = std::min<uint32_t>(uint32_t(m_configured_rate_cap), m_rt_rate_ceiling);
+
+	if (m_v90_mode)
+	{
+		ceiling = std::min(ceiling, m_v90_upstream_ceiling);
+		if (const uint32_t peer = m_pcm.peer_upstream_rate_max())
+			ceiling = std::min(ceiling, peer);
+	}
+	else
+	{
+		ceiling = std::min(ceiling, BAUD_MAXIMUM[m_v34_baud]);
+
+		if (m_got_info1c && m_peer_info1c.rate[m_v34_baud].max_bit_rate > 0)
+			ceiling = std::min<uint32_t>(ceiling, uint32_t(m_peer_info1c.rate[m_v34_baud].max_bit_rate));
+
+		if (m_had_mp && m_peer_mp.bit_rate_c_to_a > 0)
+			ceiling = std::min<uint32_t>(ceiling, uint32_t(m_peer_mp.bit_rate_c_to_a));
+	}
+
+	return ceiling;
+}
+
+uint32_t wtvsoftmodem_v34family::v90_upstream_data_rate() const
+{
+	uint32_t rate = std::min(m_v90_upstream_ceiling, m_pcm.upstream_rate_cap());
+	if (const uint32_t peer = m_pcm.peer_upstream_rate_max())
+		rate = std::min(rate, peer);
+
+	return rate;
 }
 
 void wtvsoftmodem_v34family::enter(V34FamState new_state)
@@ -662,6 +895,8 @@ void wtvsoftmodem_v34family::enter_phase2(V34FamState new_state)
 
 		case PH2_A_INFO:
 		{
+			m_info0_last_try_sample = 0;
+			m_info0_recovery_phase = 0;
 			ph2_queue_info0a();
 
 			if (m_v90_mode)
@@ -670,6 +905,9 @@ void wtvsoftmodem_v34family::enter_phase2(V34FamState new_state)
 		}
 
 		case PH2_NOT_A:
+			m_initial_a_reversed = false;
+			break;
+
 		case PH2_A_SECOND:
 		case PH2_V90_PRE_L1:
 		{
@@ -683,8 +921,8 @@ void wtvsoftmodem_v34family::enter_phase2(V34FamState new_state)
 			m_l1l2.start(
 				new_state == PH2_L1 ? wtvsoftmodem_v34probe::L1 : wtvsoftmodem_v34probe::L2,
 				m_sr,
-				!m_v90_mode,
-				m_v90_mode ? 0.5 : 1.0
+				false,
+				0.5
 			);
 
 			if (m_v90_mode && new_state == PH2_L1)
@@ -725,13 +963,19 @@ void wtvsoftmodem_v34family::enter_phase2(V34FamState new_state)
 		{
 			m_dpsk.tx_reversal();
 
+			if (!m_v90_mode)
+			{
+				const int32_t baud = select_v34_baud();
+				set_v34_symbol_rate(baud, m_got_info1c ? m_peer_info1c.rate[baud].use_high_carrier : true);
+			}
+
 			info::info1a_t ia;
-			ia.preemphasis_filter = uint8_t(shaper_variant());
-			ia.max_data_rate      = V34_MAX_RATE;
-			ia.baud_rate_a_to_c   = V34_BAUD_3429;
-			ia.baud_rate_c_to_a   = V34_BAUD_3429;
+			ia.preemphasis_filter = uint8_t(m_rx_preemphasis >= 0 ? m_rx_preemphasis : m_got_info1c ? m_peer_info1c.rate[m_v34_baud].pre_emphasis : 0);
+			ia.max_data_rate      = m_configured_rate_cap;
+			ia.baud_rate_a_to_c   = m_v34_baud;
+			ia.baud_rate_c_to_a   = m_v34_baud;
 			ia.freq_offset        = INFO1_FREQ_OFFSET;
-			ia.use_high_carrier   = m_got_info1c ? m_peer_info1c.rate[V34_BAUD_3429].use_high_carrier : true;
+			ia.use_high_carrier   = m_v34_high_carrier;
 
 			m_info1a_bits = info::build_info1a(ia);
 			m_info1a_pos  = 0;
@@ -772,6 +1016,10 @@ void wtvsoftmodem_v34family::enter_phase3(V34FamState new_state)
 		case PH3_TRN:
 		{
 			m_ph3_sym = 0;
+
+			bool j16 = (m_last_peer_j_pattern == wtvsoftmodem_v34train::J_PATTERN_16_POINT);
+			m_train.set_tx_training16(!m_v90_mode && m_ph3_round && j16);
+
 			m_train.trn_reset();
 			break;
 		}
@@ -785,10 +1033,12 @@ void wtvsoftmodem_v34family::enter_phase3(V34FamState new_state)
 
 		case PH3_JWAIT:
 		{
+			m_peer_s_seen = false;
 			m_peer_j_hold_symbols = 0;
 			m_peer_j_window = 0;
 			m_peer_j_bits = 0;
 			m_peer_j_detected = false;
+			m_last_peer_j_pattern = 0;
 			m_train.mp_rx_reset();
 			m_jwait_peer_up = 0;
 			m_jwait_fast_pwr = 0.0;
@@ -837,20 +1087,25 @@ void wtvsoftmodem_v34family::start_qam_training()
 	m_train.reset();
 	m_qam_started = true;
 
-	m_qam.set_tx_post_fir(filter::shaping::resample(shaper_variant(), m_qsr, V34_CARRIER, V34_SHAPER_TAPS));
+	m_qam.set_tx_post_fir(filter::shaping::resample(shaper_variant(), m_qsr, m_v34_carrier, V34_SHAPER_TAPS, m_v34_baud, m_v34_high_carrier));
 }
 
 void wtvsoftmodem_v34family::enter_ph3_mp()
 {
 	m_qam.rx_freeze_loops(false);
+
 	if (m_full_retrain && m_rt_saved_clocks)
 	{
 		m_qam.rx_set_clock_frequencies(m_rt_saved_timing, m_rt_saved_carrier);
 		m_qam.rx_hold_clock_frequency(true);
 	}
 
-	if (m_qam.rx_reference_trained())
-		cap_mp_rate_for_snr(-wtvsoftmodem_dsp::amplitude_to_db(std::max(m_qam.rx_evm(), TRN_EVM_FLOOR)));
+	if (m_train.tx_training_bits() == 4 && !m_retraining)
+		cap_mp_rate_for_snr(m_phase3_snr, "phase 3 TRN");
+	else if (m_qam.rx_reference_snr_count() >= V34_TRN_SNR_MIN_SYMBOLS)
+		cap_mp_rate_for_snr(std::min(m_qam.rx_reference_snr_db(), -wtvsoftmodem_dsp::amplitude_to_db(TRN_EVM_FLOOR)), "TRN mean");
+	else if (m_qam.rx_reference_trained())
+		cap_mp_rate_for_snr(-wtvsoftmodem_dsp::amplitude_to_db(std::max(m_qam.rx_evm(), TRN_EVM_FLOOR)), "TRN EVM");
 
 	queue_mp_bits();
 
@@ -883,7 +1138,7 @@ void wtvsoftmodem_v34family::enter_phase4(V34FamState new_state, V34FamState pre
 			m_train.j_reset();
 			m_train.mp_rx_reset();
 
-			m_mp2_leadin_left = wtvsoftmodem_dsp::round_nearest<int32_t>(V34_SYMBOL_RATE * (PH4_MP2_LEADIN_MS / 1000.0));
+			m_mp2_leadin_left = wtvsoftmodem_dsp::round_nearest<int32_t>(m_v34_symbol_rate * (PH4_MP2_LEADIN_MS / 1000.0));
 			break;
 		}
 
@@ -922,7 +1177,7 @@ void wtvsoftmodem_v34family::setup_datamode_rx_loops()
 	if (!m_v90_mode)
 		m_qam.rx_set_equalizer_rate(V34_DATA_EQ_RATE);
 
-	m_qam.rx_set_tracking_rates(V34_DATA_TIMING_BW, V34_DATA_CARRIER_BW, (m_retraining && !m_rx_frame_locked) ? V34_TRN_AGC_RATE : V34_DATA_AGC_RATE);
+	m_qam.rx_set_tracking_rates(wtvsoftmodem_v34family::data_timing_bw(), V34_DATA_CARRIER_BW, wtvsoftmodem_v34family::data_agc_rate());
 	m_qam.rx_hold_timing(false);
 
 	if (!m_v90_mode)
@@ -946,18 +1201,16 @@ void wtvsoftmodem_v34family::reset_datamode_link(bool was_retraining, V34FamStat
 	m_rt_prev_crc_ok   = m_lapm.crc_ok_count();
 	m_rt_prev_crc_fail = m_lapm.crc_fail_count();
 
-	if (!(prev_state == PH3_E && m_e_tx_symbols == SYM_PH3_E))
+	if (!(prev_state == PH3_E && m_e_tx_symbols == SYM_PH3_E * 2 / m_train.tx_training_bits()))
 		m_qam.tx_flush_pending();
-
-	m_datamode.set_scrambler_state(was_retraining ? 0 : m_train.trn_scrambler_state());
 }
 
 void wtvsoftmodem_v34family::start_datamode_bit_source(bool was_retraining)
 {
-	m_dm_e_bits = was_retraining ? m_datamode.b() : int32_t(INITIAL_MARK_FILL_MS / 1000.0 * V34_SYMBOL_RATE * 8.0);
+	m_dm_e_bits = was_retraining ? m_datamode.b() : int32_t(INITIAL_MARK_FILL_MS / 1000.0 * m_v34_symbol_rate * 8.0);
 
 	m_datamode.set_bit_source(
-		[this]() -> int32_t
+		[this, adp_started = false]() mutable -> int32_t
 		{
 			if (m_dm_e_bits > 0)
 			{
@@ -965,7 +1218,13 @@ void wtvsoftmodem_v34family::start_datamode_bit_source(bool was_retraining)
 				return 1;
 			}
 
-			return m_lapm.tx_get_bit() ? 1 : 0;
+			const bool sending_adp = m_lapm.sending_adp();
+			if (sending_adp && !adp_started)
+				adp_started = true;
+
+			const bool bit = m_lapm.tx_get_bit();
+
+			return bit ? 1 : 0;
 		}
 	);
 }
@@ -987,15 +1246,14 @@ void wtvsoftmodem_v34family::tx_reversal_pause_rx()
 	m_dpsk.rx_pause_adaptation(PH2_REVERSAL_RX_PAUSE);
 }
 
-void wtvsoftmodem_v34family::cap_mp_rate_for_snr(double snr)
+void wtvsoftmodem_v34family::cap_mp_rate_for_snr(double snr, std::string_view source)
 {
-	const uint32_t rate = wtvsoftmodem_v34train::retrain_sustainable_rate(snr, V34_BAUD_3429, true, false, true);
+	const uint32_t rate = wtvsoftmodem_v34train::retrain_sustainable_rate(snr, m_v34_baud, true, m_rx_nonlinear_requested, true);
 	m_mp_rate_cap = std::min(m_mp_rate_cap, int32_t(std::max(MP_RETRAIN_MIN_RATE, rate)));
 }
 
 uint32_t wtvsoftmodem_v34family::tx(wtvsoftmodem_dsp::sample_t *sample, uint32_t sample_count)
 {
-
 	uint32_t out = 0;
 
 	switch (phase_of(m_state))
@@ -1049,12 +1307,17 @@ uint32_t wtvsoftmodem_v34family::tx_phase2(wtvsoftmodem_dsp::sample_t *sample, u
 		{
 			case PH2_A_INFO:
 			{
-				while (m_dpsk.tx_pending_bits() < 64)
+				while (m_dpsk.tx_pending_bits() < 8)
 				{
-					if (m_info0a_pos < m_info0a_bits.size())
-						m_dpsk.tx_put_bit(m_info0a_bits[m_info0a_pos++] != 0);
-					else
-						m_dpsk.tx_put_bit(false);
+					if (m_info0a_pos == m_info0a_bits.size())
+					{
+						if (!m_info0_recovery || m_info0_finish)
+							break;
+
+						ph2_queue_info0a();
+					}
+
+					m_dpsk.tx_put_bit(m_info0a_bits[m_info0a_pos++] != 0);
 				}
 				break;
 			}
@@ -1106,7 +1369,7 @@ uint32_t wtvsoftmodem_v34family::tx_phase2(wtvsoftmodem_dsp::sample_t *sample, u
 
 uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *sample, uint32_t sample_count)
 {
-	const double sps  = m_qsr / V34_SYMBOL_RATE;
+	const double sps  = m_qsr / m_qam.config().symbol_rate;
 	const size_t need = size_t(sample_count / sps) + 2 * size_t(m_qam.config().filter_span_syms) + 6;
 
 	while (m_qam.tx_pending_symbols() < need)
@@ -1125,7 +1388,7 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 				}
 				else
 				{
-					auto p = m_train.gen_s(m_retraining && (!m_full_retrain || m_ph3_round == 1));
+					auto p = m_train.gen_s(!m_v90_mode || (m_retraining && (!m_full_retrain || m_ph3_round == 1)));
 
 					sym = { p.i, p.q };
 					m_ph3_sym++;
@@ -1143,7 +1406,7 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 				}
 				else
 				{
-					auto p = m_train.gen_sbar(m_retraining && (!m_full_retrain || m_ph3_round == 1));
+					auto p = m_train.gen_sbar(!m_v90_mode || (m_retraining && (!m_full_retrain || m_ph3_round == 1)));
 
 					sym = { p.i, p.q };
 					m_ph3_sym++;
@@ -1174,11 +1437,12 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 				if (m_retraining && m_ph3_round == 1)
 				{
 					bool peer_ready = (m_full_retrain) ? m_peer_round2_trn_ready : m_rt_peer_sbar;
-					training_done = (m_ph3_sym >= uint64_t(V34_SYMBOL_RATE * 1.5) && peer_ready);
+					training_done = (m_ph3_sym >= uint64_t(m_v34_symbol_rate * 1.5) && peer_ready);
 				}
 				else if (m_ph3_round)
 				{
-					training_done = (m_ph3_sym >= 256 && m_peer_round2_trn_ready && m_peer_round2_settle_symbols >= uint64_t(V34_SYMBOL_RATE * PH3_STAGE_SETTLE_MS / 1000.0));
+					const uint64_t minimum = m_train.tx_training_bits() == 4 ? uint64_t(m_v34_symbol_rate * 1.6) : 256;
+					training_done = (m_ph3_sym >= minimum && m_peer_round2_trn_ready && m_peer_round2_settle_symbols >= uint64_t(m_v34_symbol_rate * PH3_STAGE_SETTLE_MS / 1000.0));
 				}
 				else
 				{
@@ -1191,20 +1455,20 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 
 					continue;
 				}
-				else if (m_retraining && !m_full_retrain && m_ph3_sym >= SYM_PH3_TRN2_CAP)
+				else if (m_retraining && !m_full_retrain && m_ph3_sym >= sym_ph3_trn2_cap())
 				{
-					begin_long_retrain();
+					begin_long_retrain("local retrain escalation: short retrain TRN timed out");
 
 					continue;
 				}
 				else
 				{
-					const bool switched_pattern = m_retraining && m_ph3_round == 1 && m_ph3_sym >= uint64_t(V34_SYMBOL_RATE / 2);
-					const uint32_t pattern_bit = uint32_t((2 * (m_ph3_sym - uint64_t(V34_SYMBOL_RATE / 2))) & 15);
+					const bool switched_pattern = m_retraining && m_ph3_round == 1 && m_ph3_sym >= uint64_t(m_v34_symbol_rate / 2);
+					const uint32_t pattern_bit = uint32_t((m_train.tx_training_bits() * (m_ph3_sym - uint64_t(m_v34_symbol_rate / 2))) & 15);
 
 					wtvsoftmodem_v34train::point_t p;
 					if (switched_pattern)
-						p = m_train.gen_trn((0xcccc >> pattern_bit) & 1, (0xcccc >> (pattern_bit + 1)) & 1);
+						p = m_train.gen_trn_pattern(0xcccc >> pattern_bit);
 					else
 						p = m_train.gen_trn();
 
@@ -1232,8 +1496,22 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 			}
 
 			case PH3_JWAIT:
-				sym = { 0.0, 0.0 };
+			{
+				if (!m_v90_mode && !m_jwait_peer_up && m_peer_s_seen && (m_ph3_sym % 8) == 0)
+					m_jwait_peer_up = m_total_samples;
+
+				if (!m_v90_mode && !m_jwait_peer_up)
+				{
+					const auto p = m_train.gen_j();
+					sym = {p.i, p.q};
+					m_ph3_sym++;
+				}
+				else
+				{
+					sym = {0.0, 0.0};
+				}
 				break;
+			}
 
 			case PH4_MPWAIT:
 				if (m_mp2_leadin_left > 0)
@@ -1247,6 +1525,12 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 				[[fallthrough]];
 			case PH3_MP:
 			{
+				if (m_mp_tx_pos == 0 && !m_mp_pending_bits.empty())
+				{
+					m_mp_tx_bits = std::move(m_mp_pending_bits);
+					m_mp_pending_bits.clear();
+					m_mp_ack_guard_symbols = 0;
+				}
 				if (m_state == PH3_MP && m_mp_prime && (m_peer_mp_ack || m_peer_e_received) && m_mp_ack_guard_symbols >= SYM_MP_ACK_GUARD && m_mp_tx_pos == 0 && (!m_retraining || m_total_samples - m_rt_peer_sbar_sample >= wtvsoftmodem_dsp::ms_to_samples<uint64_t>(RETRAIN_SBAR_TO_E_MS, m_sr)))
 				{
 					enter(PH3_E);
@@ -1257,15 +1541,16 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 					if (m_state == PH3_MP && (m_peer_mp_ack || m_peer_e_received))
 						m_mp_ack_guard_symbols++;
 
-					bool b0 = m_mp_tx_bits[m_mp_tx_pos++] & 1;
-					if (m_mp_tx_pos >= m_mp_tx_bits.size())
-						m_mp_tx_pos = 0;
+					uint8_t bits[4];
+					for (uint32_t b = 0; b < m_train.tx_training_bits(); b++)
+					{
+						bits[b] = m_mp_tx_bits[m_mp_tx_pos++] & 1;
 
-					bool b1 = m_mp_tx_bits[m_mp_tx_pos++] & 1;
-					if (m_mp_tx_pos >= m_mp_tx_bits.size())
-						m_mp_tx_pos = 0;
+						if (m_mp_tx_pos >= m_mp_tx_bits.size())
+							m_mp_tx_pos = 0;
+					}
 
-					auto p = m_train.gen_diff4(b0, b1);
+					auto p = m_train.tx_training_bits() == 4 ? m_train.gen_diff16(bits) : m_train.gen_diff4(bits[0], bits[1]);
 
 					sym = { p.i, p.q };
 				}
@@ -1274,7 +1559,7 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 
 			case PH3_E:
 			{
-				if (m_e_tx_symbols == SYM_PH3_E)
+				if (m_e_tx_symbols == SYM_PH3_E * 2 / m_train.tx_training_bits())
 				{
 					enter(PH4_DATA);
 					continue;
@@ -1329,7 +1614,7 @@ void wtvsoftmodem_v34family::rx(const wtvsoftmodem_dsp::sample_t *sample, uint32
 				if (m_rt_tone_detector.put(sample[sample_idx]))
 				{
 					m_rt_requesting = false;
-					begin_long_retrain();
+					begin_long_retrain("peer retrain request: retrain tone detected");
 
 					return;
 				}
@@ -1388,6 +1673,9 @@ void wtvsoftmodem_v34family::rx(const wtvsoftmodem_dsp::sample_t *sample, uint32
 					}
 
 					m_jwait_fast_on = m_jwait_fast_run >= JWAIT_FAST_PERSIST;
+
+					if (!m_v90_mode && m_jwait_fast_on)
+						m_peer_s_seen = true;
 				}
 				break;
 			}
@@ -1405,14 +1693,15 @@ void wtvsoftmodem_v34family::finish_rx_transitions()
 	if (m_rt_pending_full)
 	{
 		m_rt_pending_full = false;
-		begin_long_retrain();
+		begin_long_retrain("peer full-retrain response detected");
 		return;
 	}
+
 	if (m_rt_pending_peer)
 	{
 		m_rt_pending_peer = false;
 		m_rt_requesting   = false;
-		begin_retrain();
+		begin_retrain("peer retrain request: S sequence detected");
 	}
 
 	if (m_rx_training_pending)
@@ -1422,7 +1711,14 @@ void wtvsoftmodem_v34family::finish_rx_transitions()
 		{
 			m_qam.rx_freeze_loops(false);
 			m_qam.rx_finish_training();
-			m_qam.rx_set_tracking_rates(V34_DATA_TIMING_BW, V34_DATA_CARRIER_BW, 0);
+			m_qam.rx_set_tracking_rates(data_timing_bw(), V34_DATA_CARRIER_BW, 0);
+
+			if (m_v90_wait_peer_probe)
+			{
+				m_qam.rx_set_clock_frequencies(0, m_qam.rx_carrier_frequency());
+				m_qam.rx_hold_clock_frequency(true);
+			}
+
 			m_qam.set_slicer(
 				[this](wtvsoftmodem_qam::csymbol_t point)
 				{
@@ -1458,7 +1754,15 @@ void wtvsoftmodem_v34family::finish_rx_transitions()
 		}
 
 		m_qam.rx_freeze_loops(false);
-		m_qam.rx_hold_clock_frequency(m_retraining && m_rt_saved_clocks && !m_rx_frame_locked && (m_full_retrain || phase_of(m_state) != PHASE_PCM));
+		if (m_v90_mode && m_v90_wait_peer_probe)
+		{
+			m_qam.rx_set_clock_frequencies(0, m_qam.rx_carrier_frequency());
+			m_qam.rx_hold_clock_frequency(true);
+		}
+		else
+		{
+			m_qam.rx_hold_clock_frequency(m_retraining && m_rt_saved_clocks && !m_rx_frame_locked && (m_full_retrain || phase_of(m_state) != PHASE_PCM));
+		}
 
 		if (m_rx_frame_locked && m_rx_data_phase != 0)
 		{
@@ -1475,7 +1779,7 @@ void wtvsoftmodem_v34family::finish_rx_transitions()
 			m_qam.rx_use_feedback_equalizer(m_dm_rx.trellis_active());
 		}
 
-		m_qam.rx_set_tracking_rates(V34_DATA_TIMING_BW, V34_DATA_CARRIER_BW, phase_of(m_state) == PHASE_PCM ? 0 : ((m_retraining && !m_rx_frame_locked) ? V34_TRN_AGC_RATE : V34_DATA_AGC_RATE));
+		m_qam.rx_set_tracking_rates(data_timing_bw(), V34_DATA_CARRIER_BW, phase_of(m_state) == PHASE_PCM ? 0 : data_agc_rate());
 
 		if (!m_v90_mode)
 			set_data_timing(false);
@@ -1563,14 +1867,65 @@ void wtvsoftmodem_v34family::on_dpsk_bit(bool bit, bool reliable)
 		{
 			m_dpsk_rx_bits.erase(m_dpsk_rx_bits.begin(), m_dpsk_rx_bits.begin() + consumed);
 			m_dpsk_rx_reliable.erase(m_dpsk_rx_reliable.begin(), m_dpsk_rx_reliable.begin() + consumed);
-			got.is_answer = !m_answer;
-			m_peer_info0 = got;
-			m_info0c_count++;
-			m_got_info0c = true;
-
-			if (m_state == PH2_A_INFO && m_state_samples >= wtvsoftmodem_dsp::ms_to_samples<uint64_t>(1000.0 * m_info0a_bits.size() / m_dpsk.tx_baud_rate() + PH2_REVERSAL_SETTLE_MS, m_sr))
-				enter(PH2_NOT_A);
+			accept_peer_info0(got);
 		}
+	}
+}
+
+void wtvsoftmodem_v34family::accept_peer_info0(info::info0_t got)
+{
+	got.is_answer = !m_answer;
+	m_peer_info0 = got;
+	m_info0c_count++;
+	m_got_info0c = true;
+	if (m_state == PH2_A_INFO && m_info0c_count >= 2 && !m_info0_recovery)
+		m_info0_recovery = true;
+}
+
+void wtvsoftmodem_v34family::recover_initial_info0()
+{
+	if (m_got_info0c || !state_elapsed(150.0) ||
+		!state_elapsed_since(m_info0_last_try_sample, 25.0))
+		return;
+
+	m_info0_last_try_sample = m_state_samples;
+
+	for (unsigned candidate = 0; candidate < 4; candidate++)
+	{
+		const unsigned phase = m_info0_recovery_phase;
+		m_info0_recovery_phase = (phase + 1) % 64;
+		const auto bits = m_dpsk.rx_decode_buffered(0.0, double(phase) / 64.0);
+
+		info::info0_t got;
+		if (!info::parse_info0(bits.data(), uint32_t(bits.size()), got))
+			continue;
+
+		accept_peer_info0(got);
+		return;
+	}
+}
+
+void wtvsoftmodem_v34family::recover_v90_info0()
+{
+	if (m_got_info0c || !state_elapsed_since(m_info0_last_try_sample, 25.0))
+		return;
+
+	m_info0_last_try_sample = m_state_samples;
+	for (unsigned candidate = 0; candidate < 4; candidate++)
+	{
+		const unsigned phase = m_info0_recovery_phase;
+		m_info0_recovery_phase = (phase + 1) % 64;
+
+		const auto bits = m_dpsk.rx_decode_buffered(0.0, double(phase) / 64.0);
+		info::info0_t peer;
+		if (!info::parse_info0(bits.data(), uint32_t(bits.size()), peer))
+			continue;
+
+		peer.is_answer = !m_answer;
+		m_peer_info0 = peer;
+		m_got_info0c = true;
+		m_v90_p2_bits.clear();
+		return;
 	}
 }
 
@@ -1593,7 +1948,8 @@ void wtvsoftmodem_v34family::start_datamode_rx_acquisition()
 	const int32_t phase_steps = (m_full_retrain || (m_rx_hdlc_acquisition && !m_v90_mode)) ? 1 : (!m_retraining && !m_v90_mode ? 2 : 0);
 
 	auto search_cfg = m_dm_rx.config();
-	if (!m_rx_hdlc_acquisition)
+
+	if (m_v90_mode && !m_rx_hdlc_acquisition)
 		search_cfg.nonlin_k = 0.0;
 
 	m_rx_sync.init(search_cfg, true, m_rx_hdlc_acquisition, gain, 12, phase_steps);
@@ -1624,13 +1980,13 @@ void wtvsoftmodem_v34family::receive_datamode_symbol(wtvsoftmodem_qam::csymbol_t
 			if (phase_of(m_state) == PHASE_PCM)
 			{
 				m_rx_data_gain = m_rx_sync.gain();
-				m_qam.rx_set_tracking_rates(V34_DATA_TIMING_BW, V34_DATA_CARRIER_BW, 0);
+				m_qam.rx_set_tracking_rates(data_timing_bw(), V34_DATA_CARRIER_BW, 0);
 			}
 
 			auto decoder = m_rx_sync.take_decoder();
 			m_dm_rx = std::move(*decoder);
 			m_dm_rx.set_exact_demap(true);
-			if (!m_v90_mode && m_rx_hdlc_acquisition && m_rx_epoch_valid)
+			if ((!m_v90_mode || m_v90_wait_peer_probe) && m_rx_hdlc_acquisition && m_rx_epoch_valid)
 			{
 				if (m_dm_rx.enable_trellis(m_rx_epoch_symbols))
 				{
@@ -1647,7 +2003,9 @@ void wtvsoftmodem_v34family::receive_datamode_symbol(wtvsoftmodem_qam::csymbol_t
 							const double c = std::cos(m_rx_data_phase);
 							const double s = std::sin(m_rx_data_phase);
 
-							m_qam.rx_feedback_equalizer({ (point.i * c + point.q * s) / m_rx_data_gain, (point.q * c - point.i * s) / m_rx_data_gain }, uint32_t(age));
+							const wtvsoftmodem_qam::csymbol_t reference { (point.i * c + point.q * s) / m_rx_data_gain, (point.q * c - point.i * s) / m_rx_data_gain };
+
+							m_qam.rx_feedback_equalizer(reference, uint32_t(age));
 						}
 					);
 				}
@@ -1665,7 +2023,11 @@ void wtvsoftmodem_v34family::receive_datamode_symbol(wtvsoftmodem_qam::csymbol_t
 		const double s = std::sin(m_rx_data_phase);
 
 		m_dm_rx.put_symbol({ (sym.i * c - sym.q * s) * gain, (sym.i * s + sym.q * c) * gain });
-		if (!m_v90_mode && !m_lapm.waiting_for_odp() && !m_lapm.connected() && !m_rx_hdlc_acquisition)
+
+		const bool epoch_known = (!m_v90_mode || (m_v90_wait_peer_probe && m_rx_epoch_valid));
+		const bool link_establishing = !m_lapm.waiting_for_odp() && !m_lapm.connected();
+
+		if (epoch_known && link_establishing && !m_rx_hdlc_acquisition)
 		{
 			m_rx_sync.init(m_dm_rx.config(), true, true, 1.0, 12, 1);
 			m_rx_sync.set_bit_sink(m_dm_rx_bit_sink);
@@ -1716,14 +2078,14 @@ void wtvsoftmodem_v34family::on_qam_symbol(wtvsoftmodem_qam::csymbol_t sym)
 
 		case PH3_E:
 		{
-			if (!detect_retrain_peer_e(sym))
+			if (!detect_peer_e(sym))
 				receive_datamode_symbol(sym);
 			break;
 		}
 
 		case PH4_DATA:
 		{
-			if (detect_retrain_peer_e(sym))
+			if (detect_peer_e(sym))
 				break;
 
 			if (!m_retraining && m_rt_s_detector.put(sym.i, sym.q) == wtvsoftmodem_v34train::retrain_s_detector::RetrainSEvent::S && !m_rt_pending_peer)
@@ -1814,14 +2176,20 @@ void wtvsoftmodem_v34family::rx_phase3_jwait(wtvsoftmodem_qam::csymbol_t sym)
 		return;
 	}
 
-	if (!m_qam.rx_reference_trained() || m_qam.rx_training_reference_active())
+	if (!m_qam.rx_reference_trained())
 		return;
 
 	uint8_t bits[2];
 	m_train.detect_diff4({ sym.i, sym.q }, bits);
 
 	for (uint8_t bit : bits)
-		m_peer_j_detected = detect_peer_j(bit);
+	{
+		if (const uint16_t pattern = detect_peer_j(bit))
+		{
+			m_peer_j_detected = true;
+			break;
+		}
+	}
 }
 
 void wtvsoftmodem_v34family::rx_mp_symbol(wtvsoftmodem_qam::csymbol_t sym)
@@ -1912,7 +2280,7 @@ void wtvsoftmodem_v34family::estimate_retrain_mp_channel(bool first_mp)
 		signal += std::norm(channel * decision);
 	}
 
-	cap_mp_rate_for_snr(wtvsoftmodem_dsp::power_to_db(signal / std::max(error, 1e-12)));
+	cap_mp_rate_for_snr(wtvsoftmodem_dsp::power_to_db(signal / std::max(error, 1e-12)), "retrain MP");
 }
 
 void wtvsoftmodem_v34family::detect_diff4_marks(wtvsoftmodem_qam::csymbol_t sym, uint8_t (&bits)[2], uint32_t &run)
@@ -1952,15 +2320,19 @@ uint16_t wtvsoftmodem_v34family::detect_peer_j(bool bit)
 	for (const auto &[window, pattern] : PEER_J_WINDOWS)
 	{
 		if (m_peer_j_window == window)
+		{
+			m_last_peer_j_pattern = pattern;
+
 			return pattern;
+		}
 	}
 
 	return 0;
 }
 
-bool wtvsoftmodem_v34family::detect_retrain_peer_e(wtvsoftmodem_qam::csymbol_t sym)
+bool wtvsoftmodem_v34family::detect_peer_e(wtvsoftmodem_qam::csymbol_t sym)
 {
-	if (m_peer_e_received || !m_retraining)
+	if (m_peer_e_received || !m_got_mp)
 		return false;
 
 	uint8_t bits[2];
@@ -2035,12 +2407,13 @@ inline bool wtvsoftmodem_v34family::tick_timeout_retrain()
 			m_v90_p2_clock = 0;
 	}
 
-	if (m_retraining && m_total_samples - m_rt_started > wtvsoftmodem_dsp::ms_to_samples<uint64_t>(m_full_retrain ? RETRAIN_FULL_TIMEOUT_MS : RETRAIN_SHORT_TIMEOUT_MS, m_sr))
+	const double short_timeout = (m_v90_mode && m_v90_wait_peer_probe) ? V90_RETRAIN_SHORT_TIMEOUT_MS : RETRAIN_SHORT_TIMEOUT_MS;
+	if (m_retraining && m_total_samples - m_rt_started > wtvsoftmodem_dsp::ms_to_samples<uint64_t>(m_full_retrain ? RETRAIN_FULL_TIMEOUT_MS : short_timeout, m_sr))
 	{
 		if (m_full_retrain)
 			enter(PH_FAILED);
 		else
-			begin_long_retrain();
+			begin_long_retrain("local escalation: short retrain timed out");
 
 		return true;
 	}
@@ -2091,14 +2464,33 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase2()
 
 		case PH2_A_INFO:
 		{
-			if ((m_got_info0c && state_elapsed(1000.0 * m_info0a_bits.size() / m_dpsk.tx_baud_rate() + PH2_REVERSAL_SETTLE_MS)) || state_elapsed(PH2_A_INFO_MAX_MS))
+			recover_initial_info0();
+
+			if (m_got_info0c && (m_peer_info0.ack || m_clean_run >= 30))
+				m_info0_finish = true;
+
+			if (m_info0_finish && m_info0a_pos == m_info0a_bits.size() &&
+				m_dpsk.tx_pending_bits() == 0 && state_elapsed(PH2_A_INITIAL_MS))
+			{
 				enter(PH2_NOT_A);
+			}
+			else if (state_elapsed(5000.0))
+			{
+				enter(PH_FAILED);
+			}
 			break;
 		}
 
 		case PH2_NOT_A:
 		{
-			if (m_peer_rev_events >= 1 || state_elapsed(PH2_NOT_A_MAX_MS))
+			if (!m_initial_a_reversed && state_elapsed(50.0))
+			{
+				m_dpsk.tx_reversal();
+				m_initial_a_reversed = true;
+				m_peer_rev_events = 0;
+			}
+
+			if (m_initial_a_reversed && (m_peer_rev_events >= 1 || state_elapsed(PH2_NOT_A_MAX_MS)))
 				enter(PH2_NOT_A_REV);
 			break;
 		}
@@ -2249,14 +2641,24 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase3()
 	{
 		case PH3_TRN:
 		{
-			if (m_ph3_round == 1 && state_elapsed(PH3_JWAIT_CAP_MS))
+			if (m_ph3_round == 1 && state_elapsed(m_phase3_timeout_ms))
 				handle_phase3_timeout();
 			break;
 		}
 
 		case PH3_JWAIT:
 		{
-			if (m_peer_j_detected && m_peer_j_hold_symbols >= SYM_PH3_JWAIT_HOLD)
+			if (!m_trn_narrowed && !m_retraining && !m_v90_mode && m_qam.rx_reference_trained() && m_qam.rx_clock_estimate_count() >= v34_trn_narrow_symbols())
+			{
+				narrow_training_rx();
+			}
+			else if (m_trn_narrowed && !m_trn_snr_settled && m_qam.rx_clock_estimate_count() >= V34_TRN_SNR_SETTLE)
+			{
+				m_trn_snr_settled = true;
+				m_qam.rx_reference_snr_reset();
+			}
+
+			if (m_peer_j_detected && m_peer_j_hold_symbols >= sym_ph3_jwait_hold())
 			{
 				m_ph3_round = 1;
 				if (!m_retraining && !m_v90_mode)
@@ -2264,7 +2666,7 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase3()
 
 				enter(PH3_S);
 			}
-			else if (state_elapsed(PH3_JWAIT_CAP_MS))
+			else if (state_elapsed(m_phase3_timeout_ms))
 			{
 				handle_phase3_timeout();
 			}
@@ -2276,7 +2678,7 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase3()
 			if (!m_mp_prime && m_got_mp)
 			{
 				m_mp_prime = true;
-				queue_mp_bits();
+				queue_mp_bits(true);
 			}
 			break;
 		}
@@ -2303,7 +2705,7 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase4()
 			{
 				m_mp2_acked      = true;
 				m_mp2_ack_sample = m_state_samples;
-				queue_mp_bits();
+				queue_mp_bits(true);
 			}
 			if ((m_mp2_acked && state_elapsed_since(m_mp2_ack_sample, PH4_MP_ACK_HOLD_MS)) || state_elapsed(PH4_MPWAIT_MAX_MS))
 				enter(PH4_DATA);
@@ -2328,6 +2730,8 @@ void wtvsoftmodem_v34family::rx_v90_bit(bool bit, bool reliable)
 	}
 
 	m_v90_p2_bits.push_back(bit ? 1 : 0);
+	const uint32_t zero_run = m_v90_zero_run;
+	m_v90_zero_run = bit ? 0 : m_v90_zero_run + 1;
 	if (m_v90_p2_bits.size() > 4096)
 		m_v90_p2_bits.erase(m_v90_p2_bits.begin(), m_v90_p2_bits.begin() + 2048);
 
@@ -2342,12 +2746,27 @@ void wtvsoftmodem_v34family::rx_v90_bit(bool bit, bool reliable)
 			m_v90_p2_bits.clear();
 		}
 
-		if (m_got_info0c && reliable && bit && m_v90_p2_clock > uint64_t(m_sr * 0.2))
+		const bool tone_reversal = bit && zero_run >= V90_REVERSAL_ZERO_RUN;
+		if (m_got_info0c && (reliable || tone_reversal) && bit && m_v90_p2_clock > uint64_t(m_sr * 0.2))
 			m_v90_peer_reversal = true;
 	}
 
-	if (m_state == PH2_A_SECOND && bit)
-		m_v90_peer_reversal = v90_a_second_clock() > v90_a_second_samples(V90_A_SECOND_REV_RETRAIN_MS, V90_A_SECOND_REV_MS);
+	if (m_state == PH2_A_SECOND)
+	{
+		if (m_v90_wait_peer_probe)
+		{
+			m_v90_recent_bits = (m_v90_recent_bits << 1) | (bit ? 1 : 0);
+			if (std::popcount(m_v90_recent_bits & V90_PROBE_WINDOW_MASK) >= V90_PROBE_MIN_ONES)
+				m_v90_peer_probe_seen = true;
+
+			if (m_v90_peer_probe_seen && bit && zero_run >= V90_REVERSAL_ZERO_RUN)
+				m_v90_peer_reversal = true;
+		}
+		else if (bit)
+		{
+			m_v90_peer_reversal = v90_a_second_clock() > v90_a_second_samples(V90_A_SECOND_REV_RETRAIN_MS, V90_A_SECOND_REV_MS);
+		}
+	}
 
 	if (m_state == PH2_V90_INFO1A_WAIT)
 	{
@@ -2415,6 +2834,8 @@ uint32_t wtvsoftmodem_v34family::tx_v90_phase2(wtvsoftmodem_dsp::sample_t *sampl
 
 		case PH2_A_INFO:
 		{
+			recover_v90_info0();
+
 			if (m_v90_peer_reversal && elapsed > 1000.0 * m_info0a_bits.size() / 600.0)
 				enter(PH2_NOT_A);
 			break;
@@ -2425,6 +2846,9 @@ uint32_t wtvsoftmodem_v34family::tx_v90_phase2(wtvsoftmodem_dsp::sample_t *sampl
 			if (elapsed >= 40.0)
 			{
 				m_v90_peer_reversal = false;
+				m_v90_peer_probe_seen = false;
+				m_v90_recent_bits = 0;
+
 				enter(PH2_A_SECOND);
 			}
 			break;
@@ -2490,9 +2914,11 @@ uint32_t wtvsoftmodem_v34family::tx_v90_phase2(wtvsoftmodem_dsp::sample_t *sampl
 				row.pre_emphasis     = 0;
 				row.use_high_carrier = false;
 			}
+
 			info.freq_offset = INFO1_FREQ_OFFSET;
 			auto bits        = info::build_info1c(info);
 			m_dpsk.tx_put_bits(bits.data(), uint32_t(bits.size()));
+
 			enter(PH2_V90_INFO1A_WAIT);
 			break;
 		}
@@ -2515,7 +2941,7 @@ uint32_t wtvsoftmodem_v34family::tx_v90_phase2(wtvsoftmodem_dsp::sample_t *sampl
 				}
 			}
 
-			if (elapsed >= 220.0 && phase_of(m_state) == PHASE_2)
+			if (phase_of(m_state) == PHASE_2 && elapsed >= (m_v90_wait_peer_probe ? V90_INFO1C_QUIET_RETRY_MS : 220.0))
 				enter(PH2_V90_INFO1C);
 			break;
 		}
@@ -2533,13 +2959,14 @@ uint32_t wtvsoftmodem_v34family::tx_v90_phase2(wtvsoftmodem_dsp::sample_t *sampl
 		if (m_state == PH2_RETRAIN_TONE && !m_rt_periodic_peer && std::fmod(elapsed, 600.0) >= 500.0)
 			wtvsoftmodem_dsp::clear_samples(sample, sample_count);
 
-		if (m_state == PH2_A_SECOND)
-		{
-			const uint64_t clock = v90_a_second_clock();
+		if (m_state == PH2_A_INITIAL && m_v90_silent_lead_in)
+			wtvsoftmodem_dsp::clear_samples(sample, sample_count);
 
-			if (clock >= v90_a_second_samples(V90_A_SECOND_SILENCE_START_RETRAIN_MS, V90_A_SECOND_SILENCE_START_MS) && clock < v90_a_second_samples(V90_A_SECOND_SILENCE_END_RETRAIN_MS, V90_A_SECOND_SILENCE_END_MS))
-				wtvsoftmodem_dsp::clear_samples(sample, sample_count);
-		}
+		if (m_state == PH2_V90_INFO1A_WAIT && m_v90_wait_peer_probe && m_dpsk.tx_pending_bits() == 0)
+			wtvsoftmodem_dsp::clear_samples(sample, sample_count);
+
+		if (m_state == PH2_A_SECOND && wtvsoftmodem_v34family::v90_a_second_silent())
+			wtvsoftmodem_dsp::clear_samples(sample, sample_count);
 	}
 
 	m_v90_p2_clock += sample_count;
@@ -2608,6 +3035,7 @@ void wtvsoftmodem_v34family::setup_v90_upstream(const info::info1a_t &peer)
 	m_v90_upstream_bits16.clear();
 	m_v90_upstream_symbols = 0;
 	m_v90_upstream_trained = false;
+	m_v90_upstream_capped = false;
 	m_v90_upstream_s_run   = 0;
 	m_qam.set_rx_symbol_callback(
 		[this](wtvsoftmodem_qam::csymbol_t point)
@@ -2624,8 +3052,44 @@ void wtvsoftmodem_v34family::rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol)
 	if (!m_v90_upstream_trained && m_qam.rx_reference_trained() && m_qam.rx_evm() < 0.15)
 	{
 		m_v90_upstream_trained = true;
+		m_v90_upstream_settle = 0;
+		m_v90_trn_blocks.clear();
 		m_train.mp_rx_reset();
+		m_qam.rx_reference_snr_reset();
+
+		if (m_v90_wait_peer_probe)
+		{
+			m_qam.rx_set_clock_frequencies(0.0, m_qam.rx_carrier_frequency());
+			m_qam.rx_hold_clock_frequency(true);
+			m_qam.rx_set_tracking_rates(V34_DATA_TIMING_BW, V34_TRN_CARRIER_BW, V34_TRN_AGC_RATE);
+		}
 	}
+
+	if (m_v90_upstream_trained && m_v90_upstream_settle < V34_TRN_SNR_SETTLE)
+	{
+		m_v90_upstream_settle++;
+
+		if (m_v90_upstream_settle == V34_TRN_SNR_SETTLE)
+		{
+			m_qam.rx_reference_snr_reset();
+			m_v90_trn_blocks.clear();
+			m_v90_trn_block_start = 0;
+			m_v90_trn_block_error = 0;
+			m_v90_trn_block_power = 0;
+		}
+	}
+
+	if (m_v90_upstream_trained && m_v90_upstream_settle == V34_TRN_SNR_SETTLE && m_qam.rx_reference_snr_count() >= (m_v90_trn_block_start + V90_TRN_SNR_BLOCK))
+	{
+		const double error = m_qam.rx_reference_error_sum() - m_v90_trn_block_error;
+		const double power = m_qam.rx_reference_power_sum() - m_v90_trn_block_power;
+
+		m_v90_trn_blocks.push_back(wtvsoftmodem_dsp::power_to_db(power / std::max(error, 1e-12)));
+		m_v90_trn_block_start = m_qam.rx_reference_snr_count();
+		m_v90_trn_block_error = m_qam.rx_reference_error_sum();
+		m_v90_trn_block_power = m_qam.rx_reference_power_sum();
+	}
+
 
 	if ((!m_retraining && m_pcm.state() == wtvsoftmodem_pcm::PCMState::DATA) || (m_retraining && !m_full_retrain))
 	{
@@ -2635,7 +3099,7 @@ void wtvsoftmodem_v34family::rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol)
 			m_rt_pending_full = true;
 
 		if (m_pcm.state() == wtvsoftmodem_pcm::PCMState::DATA && event == wtvsoftmodem_v34train::retrain_s_detector::RetrainSEvent::S)
-			begin_v90_retrain(false);
+			begin_v90_retrain(false, "peer retrain request: V.90 upstream S sequence detected");
 
 		if (event == wtvsoftmodem_v34train::retrain_s_detector::RetrainSEvent::SBAR)
 		{
@@ -2644,16 +3108,37 @@ void wtvsoftmodem_v34family::rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol)
 
 			m_v90_retrain16       = true;
 			m_rx_training_pending = true;
+			m_rt_s_detector.reset();
 		}
 	}
 
 	if (m_pcm.upstream_s_expected())
 	{
-		const auto detected = m_train.detect({ symbol.i, symbol.q });
+		if (m_v90_wait_peer_probe)
+		{
+			const auto event = m_rt_s_detector.put(symbol.i, symbol.q);
+			switch (event)
+			{
+				case wtvsoftmodem_v34train::retrain_s_detector::RetrainSEvent::S:
+					m_pcm.observe_upstream_s(false);
+					break;
 
-		m_v90_upstream_s_run = detected.confidence > 0.40 ? m_v90_upstream_s_run + 1 : 0;
-		if (m_v90_upstream_s_run >= 8 || detected.reversal)
-			m_pcm.observe_upstream_s(detected.reversal);
+				case wtvsoftmodem_v34train::retrain_s_detector::RetrainSEvent::SBAR:
+					m_pcm.observe_upstream_s(true);
+					m_rt_s_detector.reset();
+					break;
+
+				default:
+					break;
+			}
+		}
+		else
+		{
+			const auto detected = m_train.detect({ symbol.i, symbol.q });
+			m_v90_upstream_s_run = detected.confidence > 0.40 ? m_v90_upstream_s_run + 1 : 0;
+			if (m_v90_upstream_s_run >= 8 || detected.reversal)
+				m_pcm.observe_upstream_s(detected.reversal);
+		}
 	}
 
 	if (m_v90_data_rx)
@@ -2666,6 +3151,28 @@ void wtvsoftmodem_v34family::rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol)
 
 		receive_datamode_symbol(symbol);
 		notify_v90_connected();
+
+		if (m_v90_wait_peer_probe && !m_rx_epoch_valid)
+		{
+			if (m_v90_upstream_cp16)
+			{
+				uint8_t bits16[4];
+				m_train.detect_diff16({ symbol.i, symbol.q }, bits16);
+				for (uint8_t bit : bits16)
+					m_peer_mark_run = bit ? m_peer_mark_run + 1 : 0;
+			}
+			else
+			{
+				uint8_t bits[2];
+				detect_diff4_marks(symbol, bits, m_peer_mark_run);
+			}
+
+			if (m_peer_mark_run >= E_MARK_RUN)
+			{
+				m_rx_epoch_valid   = true;
+				m_rx_epoch_symbols = 0;
+			}
+		}
 
 		return;
 	}
@@ -2682,7 +3189,8 @@ void wtvsoftmodem_v34family::rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol)
 	if (m_pcm.state() == wtvsoftmodem_pcm::PCMState::WAIT_JA && wtvsoftmodem_pcm::parse_ja(m_v90_upstream_bits.bits, ja, &m_v90_upstream_bits.ja_resume))
 		m_pcm.accept_ja(ja);
 
-	if ((m_v90_upstream_symbols % 16) == 0 && m_pcm.cp_expected())
+	const bool late_cp = m_v90_wait_peer_probe && m_pcm.past_mp();
+	if ((m_v90_upstream_symbols % 16) == 0 && (m_pcm.cp_expected() || late_cp))
 	{
 		std::vector<uint8_t> cp;
 
@@ -2692,13 +3200,17 @@ void wtvsoftmodem_v34family::rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol)
 		const bool sixteen_point = !four_point && wtvsoftmodem_pcm::parse_cp(m_v90_upstream_bits16.bits, cp, &consumed, &m_v90_upstream_bits16.resume);
 		if (four_point || sixteen_point)
 		{
+			if (m_v90_wait_peer_probe && !m_v90_upstream_capped && cp.size() > 1 && (cp[0] & 2))
+				cap_v90_upstream_rate();
+
 			m_pcm.accept_cp(cp);
+			m_v90_upstream_cp16 = sixteen_point;
 			m_qam.rx_freeze_loops(false);
 
 			auto &stream = four_point ? m_v90_upstream_bits : m_v90_upstream_bits16;
 			stream.drop_front(consumed);
 
-			if ((cp[0] & 2) && (cp[1] & 128))
+			if ((cp[0] & 2) && ((cp[1] & 128) || m_v90_wait_peer_probe))
 				setup_v90_data_rx();
 		}
 	}
@@ -2710,12 +3222,43 @@ void wtvsoftmodem_v34family::rx_v90_upstream(wtvsoftmodem_qam::csymbol_t symbol)
 		m_v90_upstream_bits.drop_front(4096);
 }
 
+void wtvsoftmodem_v34family::cap_v90_upstream_rate()
+{
+	m_v90_upstream_capped = true;
+	if (m_v90_trn_blocks.size() * V90_TRN_SNR_BLOCK < V34_TRN_SNR_MIN_SYMBOLS)
+	{
+		const uint32_t cap = std::clamp<uint32_t>(
+			std::min({ m_v90_snr_cap, m_v90_upstream_ceiling, uint32_t(m_mp_rate_cap) }),
+			MP_RETRAIN_MIN_RATE, 
+			14
+		);
+		m_pcm.set_upstream_rate_cap(cap);
+	}
+	else
+	{
+		auto blocks = m_v90_trn_blocks;
+		auto pick = blocks.begin() + std::ptrdiff_t(blocks.size() * V90_TRN_SNR_PERCENTILE / 100);
+		std::nth_element(blocks.begin(), pick, blocks.end());
+
+		const double snr = *pick;
+		const uint32_t rate = wtvsoftmodem_v34train::retrain_sustainable_rate(snr, m_v90_upstream_baud, false, false, false);
+		m_v90_snr_cap = rate;
+
+		const uint32_t cap = std::clamp<uint32_t>(
+			std::min({ rate, m_v90_upstream_ceiling, uint32_t(m_mp_rate_cap) }),
+			MP_RETRAIN_MIN_RATE,
+			14
+		);
+		m_pcm.set_upstream_rate_cap(cap);
+	}
+}
+
 void wtvsoftmodem_v34family::setup_v90_data_rx()
 {
 	if (m_v90_data_rx)
 		return;
 
-	m_v90_upstream_rate  = std::min(m_v90_upstream_ceiling, uint32_t(m_mp_rate_cap));
+	m_v90_upstream_rate  = v90_upstream_data_rate();
 
 	wtvsoftmodem_v34data::config_t cfg;
 	cfg.baud_rate_code   = int32_t(m_v90_upstream_baud);
@@ -2761,7 +3304,15 @@ void wtvsoftmodem_v34family::setup_v90_data_rx()
 
 	m_v90_data_rx       = true;
 
-	m_qam.rx_set_tracking_rates(V34_DATA_TIMING_BW, V34_DATA_CARRIER_BW, m_retraining ? 0 : V34_DATA_AGC_RATE);
+	m_peer_mark_run = 0;
+
+	m_qam.rx_set_tracking_rates(data_timing_bw(), V34_DATA_CARRIER_BW, m_retraining ? 0 : V34_DATA_AGC_RATE);
+
+	if (m_v90_wait_peer_probe)
+	{
+		m_qam.rx_set_clock_frequencies(0.0, m_qam.rx_carrier_frequency());
+		m_qam.rx_hold_clock_frequency(true);
+	}
 }
 
 void wtvsoftmodem_v34family::notify_v90_connected()
