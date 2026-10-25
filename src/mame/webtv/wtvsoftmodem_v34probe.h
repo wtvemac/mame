@@ -25,7 +25,7 @@ public:
 		L2
 	};
 
-	static constexpr double L1_MS = 192.0;
+	static constexpr double L1_MS = 160.0;
 	static constexpr double L2_MS = 480.0;
 
 	void start(signal_t signal, wtvsoftmodem_dsp::frequency_t sample_rate, bool predistort, double scale = 1.0);
