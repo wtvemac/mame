@@ -999,7 +999,7 @@ bool sip_client::start_sip(std::string &error)
 
 		pj::TransportConfig transport_config;
 		transport_config.port = 0;
-		m_endp->transportCreate(PJSIP_TRANSPORT_UDP, transport_config);
+		m_endp->transportCreate((m_config.transport == "tcp") ? PJSIP_TRANSPORT_TCP : PJSIP_TRANSPORT_UDP, transport_config);
 
 		m_endp->libStart();
 
