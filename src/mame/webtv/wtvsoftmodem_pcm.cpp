@@ -28,9 +28,11 @@ void wtvsoftmodem_pcm::start(wtvsoftmodem_dsp::frequency_t sample_rate, uint8_t 
 	m_parameter.clear();
 	m_cp.clear();
 	m_data_cp.clear();
+	m_previous_data_cp.clear();
 	m_parameter_index = 0;
 	m_mp_ack = false;
 	m_sent_mp_ack = false;
+	m_sent_mp_ack_frames = 0;
 	m_peer_cp_ack = false;
 	m_data_sign = 0;
 	m_upstream_s = false;
@@ -71,9 +73,9 @@ inline int16_t wtvsoftmodem_pcm::ucode_level(uint8_t ucode, bool alaw)
 		return int16_t((((u & 15) * 2 + 33) << (u >> 4)) * 4 - 132);
 }
 
-bool wtvsoftmodem_pcm::mapper::configure(const std::vector<uint8_t> &cp)
+bool wtvsoftmodem_pcm::mapper::configure(const std::vector<uint8_t> &cp, const std::vector<uint8_t> *shaping)
 {
-	if (cp.size() < 30 || (cp[2] & 1))
+	if (cp.size() < 30 || (cp[2] & 1) || (shaping && shaping->size() < 10))
 		return false;
 
 	uint64_t product = 1;
@@ -98,7 +100,9 @@ bool wtvsoftmodem_pcm::mapper::configure(const std::vector<uint8_t> &cp)
 		product *= m_codes[i].size();
 	}
 
-	m_s = 6 - ((cp[1] >> 5) & 3);
+	const uint32_t original_sign_bits = 6 - ((cp[1] >> 5) & 3);
+	const auto &spectral = shaping ? *shaping : cp;
+	m_s = 6 - ((spectral[1] >> 5) & 3);
 
 	const uint32_t drn = (cp[0] >> 2) & 31;
 	if (!drn || drn > 22)
@@ -106,12 +110,12 @@ bool wtvsoftmodem_pcm::mapper::configure(const std::vector<uint8_t> &cp)
 
 	const uint32_t frame_bits = drn + ((cp[0] & 2) ? 20 : 8);
 
-	m_k = frame_bits - m_s;
+	m_k = frame_bits - original_sign_bits;
 	if ((uint64_t(1) << m_k) > product)
 		return false;
 
 	for (uint32_t i = 0; i < 4; i++)
-		m_filter[i] = double(int8_t(cp[6 + i])) / 64;
+		m_filter[i] = double(int8_t(spectral[6 + i])) / 64;
 
 	reset();
 
@@ -516,7 +520,15 @@ inline bool wtvsoftmodem_pcm::advance_state()
 		{
 			if (m_stage_symbol == SYM_TRN1D)
 			{
-				m_parameter = build_parameter_frame({ 0xff, 0xff, 0x3f, 0x60 });
+				const uint32_t jd = (m_downstream_rates & JD_RATE_MASK) | JD_RENEG_16_POINT | (1u << JD_LOOKAHEAD_SHIFT);
+
+				m_parameter = build_parameter_frame({
+					uint8_t(jd),
+					uint8_t(jd >> 8),
+					uint8_t(jd >> 16),
+					uint8_t(jd >> 24),
+				});
+
 				m_parameter.insert(m_parameter.end(), 3, 0);
 
 				m_data_sign = (m_bits >> 7) & 1;
@@ -554,7 +566,8 @@ inline bool wtvsoftmodem_pcm::advance_state()
 		{
 			if (m_stage_symbol == SYM_RDBAR)
 			{
-				if (!m_mapper.configure(m_cp))
+				// V.90 8.6: rate renegotiation keeps the previous spectral shaping parameters
+				if (!m_mapper.configure(m_cp, &m_previous_data_cp))
 					return false;
 
 				enter_trn2d();
@@ -578,7 +591,8 @@ inline bool wtvsoftmodem_pcm::advance_state()
 
 		case PCMState::TRN2D:
 		{
-			if (m_stage_symbol == SYM_TRN2D)
+			const bool hold = m_wait_peer_cp && m_data_cp.empty() && m_stage_symbol < SYM_TRN2D + SYM_TRN2D_HOLD_MAX;
+			if (m_stage_symbol >= SYM_TRN2D && !hold)
 			{
 				enter_state(PCMState::MP);
 				prepare_mp(!m_data_cp.empty());
@@ -834,9 +848,11 @@ void wtvsoftmodem_pcm::observe_upstream_s(bool reversal)
 
 		set_state(PCMState::RENEG_WAIT);
 		m_upstream_s = false;
+		m_previous_data_cp = std::move(m_data_cp);
 		m_data_cp.clear();
 		m_mp_ack = false;
 		m_sent_mp_ack = false;
+		m_sent_mp_ack_frames = 0;
 		m_peer_cp_ack = false;
 	}
 
@@ -985,9 +1001,15 @@ int16_t wtvsoftmodem_pcm::next_mapped_symbol()
 			if (m_state == PCMState::MP && m_parameter_index == m_parameter.size())
 			{
 				if (m_mp_ack)
+				{
 					m_sent_mp_ack = true;
+					m_sent_mp_ack_frames++;
+				}
 
-				if (m_sent_mp_ack && m_peer_cp_ack)
+				const bool peer_acked = m_sent_mp_ack && m_peer_cp_ack;
+				const bool ack_timeout = m_wait_peer_cp && m_sent_mp_ack_frames >= MP_ACK_MIN_FRAMES && m_stage_symbol >= SYM_MP_ACK_MIN;
+
+				if (peer_acked || ack_timeout)
 				{
 					enter_state(PCMState::ED);
 				}
