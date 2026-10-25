@@ -223,6 +223,8 @@ class sip_client
 		bool bypass_resampler = false;
 		double disable_ulaw = false;
 		double disable_l16 = false;
+
+		std::string callee_bypass = "";
 	};
 
 	sip_client(const char *sip_uri, double machine_sample_rate = MOIP_DEFAULT_SAMPLE_RATE, sip_client::SipLoggingLevel logging_level = sip_client::SipLoggingLevel::SIP_LOG_NONE);
