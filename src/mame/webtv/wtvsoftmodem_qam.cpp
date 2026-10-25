@@ -562,16 +562,24 @@ void wtvsoftmodem_qam::rx_process_t2(csymbol_t x)
 		if (m_tl_ctrl < -0.25)
 			m_tl_ctrl = -0.25;
 
-		m_clk_est_skip++;
-		if (m_clk_est_on && m_ref_aligned && m_clk_est_skip > m_clk_est_settle)
+		if (m_ref_aligned)
 		{
-			m_clk_est_phase += m_tl_ctrl;
-			const double n = double(m_clk_est_n++);
+			m_clk_est_skip++;
 
-			m_clk_est_sn += n;
-			m_clk_est_snn += n * n;
-			m_clk_est_sp += m_clk_est_phase;
-			m_clk_est_snp += n * m_clk_est_phase;
+			if (m_clk_est_on && m_clk_est_skip > m_clk_est_settle)
+			{
+				m_clk_est_phase += m_tl_ctrl;
+				const double n = double(m_clk_est_n++);
+
+				m_clk_est_sn += n;
+				m_clk_est_snn += n * n;
+				m_clk_est_sp += m_clk_est_phase;
+				m_clk_est_snp += n * m_clk_est_phase;
+			}
+		}
+		else
+		{
+			m_clk_est_skip = 0;
 		}
 	}
 
