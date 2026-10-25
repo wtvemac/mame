@@ -237,15 +237,12 @@ void wtvsoftmodem_dpsk::rx(const wtvsoftmodem_dsp::sample_t *sample, uint32_t sa
 				if (m_rx_pause > 0)
 					m_rx_pause--;
 
-				if (m_settle >= m_rx_settle_syms)
-				{
-					if (m_rx_cb)
-						m_rx_cb(bit, bit_reliable);
-				}
-				else
-				{
+				const bool settled = m_settle >= m_rx_settle_syms;
+				if (m_rx_cb)
+					m_rx_cb(bit, bit_reliable && settled);
+
+				if (!settled)
 					m_settle++;
-				}
 			}
 
 			m_prev_i = zi;
