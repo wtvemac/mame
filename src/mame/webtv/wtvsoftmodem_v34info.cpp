@@ -37,7 +37,6 @@ std::vector<uint8_t> wtvsoftmodem_v34dpsk::rx_decode_buffered(double rate_trim, 
 	double prev_i = 0.0;
 	double prev_q = 0.0;
 	bool have_prev = false;
-	int32_t settle = 0;
 
 	std::vector<uint8_t> bits;
 	bits.reserve(m_rx_history.size() / std::max(1.0, rx_sps()));
@@ -66,12 +65,8 @@ std::vector<uint8_t> wtvsoftmodem_v34dpsk::rx_decode_buffered(double rate_trim, 
 			if (have_prev)
 			{
 				const double dot_re = zi * prev_i + zq * prev_q;
-				const bool bit = dot_re < 0.0;
 
-				if (settle >= rx_settle_symbols())
-					bits.push_back(bit ? 1 : 0);
-				else
-					settle++;
+				bits.push_back(dot_re < 0.0 ? 1 : 0);
 			}
 
 			prev_i = zi;
