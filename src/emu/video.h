@@ -58,6 +58,10 @@ public:
 	void set_output_changed() { m_output_changed = true; }
 	void set_speed_factor(int speed) { m_speed = speed; }
 
+	void add_realtime_audio_source();
+	void remove_realtime_audio_source();
+	uint64_t realtime_audio_skipped_frames() const;
+
 	// misc
 	void toggle_record_movie(movie_recording::format format);
 	std::error_condition open_next(emu_file &file, const char *extension, uint32_t index = 0);
@@ -122,6 +126,8 @@ private:
 	attotime            m_throttle_realtime;        // real time the last call to throttle
 	attotime            m_throttle_emutime;         // emulated time the last call to throttle
 	u32                 m_throttle_history;         // history of frames where we were fast enough
+	uint32_t            m_rtimeaud_sources;         // the number of real time audio sources registered
+	uint64_t            m_rtimeaud_skipped_frames;  // a log of the amount of skipped frames
 
 	// dynamic speed computation
 	osd_ticks_t         m_speed_last_realtime;      // real time at the last speed calculation
@@ -166,6 +172,8 @@ private:
 
 	static const attoseconds_t ATTOSECONDS_PER_SPEED_UPDATE = ATTOSECONDS_PER_SECOND / 4;
 	static const int PAUSED_REFRESH_RATE = 30;
+	static constexpr attotime RTIMEAUD_MAX_DEFICIT = attotime::from_msec(20);
+	static constexpr attoseconds_t RTIMEAUD_RESYNC_LIMIT = ATTOSECONDS_PER_SECOND / 2;
 };
 
 #endif // MAME_EMU_VIDEO_H

@@ -428,7 +428,11 @@ private:
 	
 	std::unique_ptr<sip_client> m_sip;
 
+	bool m_realtime_audio = false;
+
 	double m_machine_sample_rate;
+
+	void set_realtime_audio(bool enabled);
 };
 
 DECLARE_DEVICE_TYPE(MOIPBRIDGE, moipbridge_device)

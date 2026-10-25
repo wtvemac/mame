@@ -87,6 +87,8 @@ video_manager::video_manager(running_machine &machine)
 	, m_throttle_realtime(attotime::zero)
 	, m_throttle_emutime(attotime::zero)
 	, m_throttle_history(0)
+	, m_rtimeaud_sources(0)
+	, m_rtimeaud_skipped_frames(0)
 	, m_speed_last_realtime(0)
 	, m_speed_last_emutime(attotime::zero)
 	, m_speed_percent(1.0)
@@ -765,10 +767,16 @@ void video_manager::update_throttle(attotime emutime)
 		// we want to track time over a longer duration than a single update
 		attoseconds_t real_is_ahead_attoseconds = (m_throttle_emutime - m_throttle_realtime).as_attoseconds();
 
-		// if we're more than 1/10th of a second out, or if we are behind at all and emulation
-		// is taking longer than the real frame, we just need to resync
-		if (real_is_ahead_attoseconds < -ATTOSECONDS_PER_SECOND / 10 ||
-			(real_is_ahead_attoseconds < 0 && std::popcount(m_throttle_history & 0xff) < 6))
+		bool do_resync;
+		if (m_rtimeaud_sources > 0)
+			// When there's a real time audio source, don't wait longer than RTIMEAUD_RESYNC_LIMIT to resync.
+			do_resync = real_is_ahead_attoseconds < -RTIMEAUD_RESYNC_LIMIT;
+		else
+			// if we're more than 1/10th of a second out, or if we are behind at all and emulation
+			// is taking longer than the real frame, we just need to resync
+			do_resync = real_is_ahead_attoseconds < -ATTOSECONDS_PER_SECOND / 10 ||
+				(real_is_ahead_attoseconds < 0 && std::popcount(m_throttle_history & 0xff) < 6);
+		if (do_resync)
 		{
 			if (LOG_THROTTLE)
 				machine().logerror("Resync due to being behind: %s (history=%08X)\n", attotime(0, -real_is_ahead_attoseconds).as_string(18), m_throttle_history);
@@ -894,6 +902,16 @@ void video_manager::update_frameskip()
 	// increment the frameskip counter and determine if we will skip the next frame
 	m_frameskip_counter = (m_frameskip_counter + 1) % FRAMESKIP_LEVELS;
 	m_skipping_this_frame = s_skiptable[effective_frameskip()][m_frameskip_counter];
+
+	if (m_rtimeaud_sources > 0 && !m_skipping_this_frame && effective_throttle() && effective_autoframeskip())
+	{
+		// If we have a realtime audio source (and autoframeskip) then force a frame skip if we're falling behind the RTIMEAUD_MAX_DEFICIT deadline.
+		if (m_throttle_realtime > (m_throttle_emutime + RTIMEAUD_MAX_DEFICIT))
+		{
+			m_skipping_this_frame = true;
+			m_rtimeaud_skipped_frames++;
+		}
+	}
 }
 
 
@@ -1221,6 +1239,26 @@ std::error_condition video_manager::open_next(emu_file &file, const char *extens
 	return file.open(fname);
 }
 
+//-------------------------------------------------
+//  Realtime audio - realtime audio throttle
+//-------------------------------------------------
+
+void video_manager::add_realtime_audio_source()
+{
+	m_rtimeaud_skipped_frames = 0;
+	m_rtimeaud_sources++;
+}
+
+void video_manager::remove_realtime_audio_source()
+{
+	if (m_rtimeaud_sources > 0)
+		m_rtimeaud_sources--;
+}
+
+uint64_t video_manager::realtime_audio_skipped_frames() const
+{
+	return m_rtimeaud_skipped_frames;
+}
 
 //-------------------------------------------------
 //  record_frame - record a frame of a movie

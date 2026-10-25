@@ -6,6 +6,7 @@
 #include "emu.h"
 #include "emuopts.h"
 #include "moipbridge.h"
+#include "video.h"
 #include <stdexcept>
 
 DEFINE_DEVICE_TYPE(VOIPBRIDGE, moipbridge_device, "moipbridge", "MoIP (SIP) Bridge")
@@ -30,6 +31,8 @@ void moipbridge_device::device_start()
 
 void moipbridge_device::device_stop()
 {
+	moipbridge_device::set_realtime_audio(false);
+
 	if (m_sip)
 		m_sip->shutdown();
 }
@@ -59,6 +62,8 @@ std::pair<std::error_condition, std::string> moipbridge_device::call_load()
 
 void moipbridge_device::call_unload()
 {
+	moipbridge_device::set_realtime_audio(false);
+
 	if (m_sip)
 		m_sip->shutdown();
 }
@@ -66,13 +71,33 @@ void moipbridge_device::call_unload()
 void moipbridge_device::dial(const std::string &number)
 {
 	if (m_sip)
+	{
+		moipbridge_device::set_realtime_audio(true);
+
 		m_sip->dial(number);
+	}
 }
 
 void moipbridge_device::hangup()
 {
+	moipbridge_device::set_realtime_audio(false);
+
 	if (m_sip)
 		m_sip->hangup();
+}
+
+void moipbridge_device::set_realtime_audio(bool enabled)
+{
+	if (enabled == m_realtime_audio)
+		return;
+
+	m_realtime_audio = enabled;
+
+	if (m_realtime_audio)
+		machine().video().add_realtime_audio_source();
+	else
+		machine().video().remove_realtime_audio_source();
+
 }
 
 const bool moipbridge_device::call_active()
