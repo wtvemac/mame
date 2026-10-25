@@ -33,8 +33,8 @@ public:
 	struct config_t
 	{
 		wtvsoftmodem_dsp::frequency_t sample_rate = 16000.0;
-		double symbol_rate = 3429.0;
-		double carrier_freq = 1959.0;
+		double symbol_rate = 24000.0 / 7.0;
+		double carrier_freq = 96000.0 / 49.0;
 		double rolloff = 0.20;
 		int32_t filter_span_syms = 8;
 		double output_scale = 6000.0;
@@ -267,6 +267,7 @@ public:
 
 private:
 
+	// V.34 5.2 and Table 1 "Symbol rates" + Table 2 "Carrier frequencies versus symbol rate"
 	static constexpr qam_detail_t DEFAULT_QAM_SPEC_TABLE[] = {
 		{
 			.spec = QAM_V34_2400_LOW,
@@ -311,8 +312,8 @@ private:
 		},
 		{
 			.spec = QAM_V34_PRIMARY,
-			.symbol_rate = 3429.0,
-			.carrier_freq = 1959.0,
+			.symbol_rate = 24000.0 / 7.0,
+			.carrier_freq = 96000.0 / 49.0,
 			.rolloff = 0.14,
 			.filter_span_syms = 18
 		}
