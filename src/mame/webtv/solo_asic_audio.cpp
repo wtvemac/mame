@@ -789,11 +789,6 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modout_samples)
 
 		if (m_mod_ocvalid)
 		{
-#if MOD_AUDIO_DEBUG && MOD_PLAY_OUT
-			// Temporarily (maybe) disabled, new channels need to be created for this.
-			//m_dac[0]->write((m_hostram[m_mod_occnt >> 0x02] >> 0x00) & 0xffff);
-#endif
-
 			m_mod_occnt += 4;
 
 			if (m_mod_occnt >= m_mod_ocend)
@@ -824,11 +819,6 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 
 		if (m_mod_icvalid)
 		{
-#if MOD_AUDIO_DEBUG && MOD_PLAY_IN
-			// Temporarily (maybe) disabled, new channels need to be created for this.
-			//m_dac[1]->write((m_hostram[m_mod_iccnt >> 0x02] >> 0x00) & 0xffff);
-#endif
-
 			m_mod_iccnt += 4;
 
 			if (m_mod_iccnt >= m_mod_icend)
