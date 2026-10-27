@@ -13,10 +13,6 @@
 
 #pragma once
 
-#define MOD_AUDIO_DEBUG false
-#define MOD_PLAY_IN     true
-#define MOD_PLAY_OUT    true
-
 constexpr uint32_t BUS_INT_AUD_SPDIFOUT  = 1 << 7; // UltimateTV's S/PDIF out
 constexpr uint32_t BUS_INT_AUD_SMODEMIN  = 1 << 6; // Soft modem DMA in
 constexpr uint32_t BUS_INT_AUD_SMODEMOUT = 1 << 5; // Soft modem DMA out
