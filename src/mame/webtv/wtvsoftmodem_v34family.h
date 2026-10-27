@@ -376,14 +376,6 @@ public:
 		return m_rx_frame_locked && !m_lapm.waiting_for_odp();
 	}
 
-	bool hybrid_echo_active() const
-	{
-		if (m_v90_mode)
-			return m_state == PH2_A_SECOND && v90_a_second_clock() < v90_a_second_samples(V90_A_SECOND_ECHO_RETRAIN_MS, V90_A_SECOND_ECHO_MS);
-
-		return m_a2_echo_window && (m_state == PH2_POST_L2_NOT_A || m_state == PH2_POST_L2_A2);
-	}
-
 	uint32_t tx(wtvsoftmodem_dsp::sample_t *sample, uint32_t sample_count);
 	void rx(const wtvsoftmodem_dsp::sample_t *sample, uint32_t sample_count);
 
@@ -436,7 +428,6 @@ private:
 	static constexpr double  PH2_POST_A_WATCH_MS     = 60.0;
 	static constexpr double  PH2_POST_NOT_A_MS       = 15.0;
 	static constexpr double  PH2_A2_CAP_MS           = 12000.0;
-	static constexpr double  PH2_A2_ECHO_WINDOW_MS   = 500.0;
 	static constexpr double  PH2_A2_RECOVERY_LEAD_MS = 2000.0;
 	static constexpr double  PH2_INFO1_FLUSH_MS      = 24.0;
 	static constexpr int32_t PH2_REVERSAL_RX_PAUSE   = 20;
@@ -452,8 +443,6 @@ private:
 	static constexpr uint32_t V90_PROBE_WINDOW_MASK               = (1u << 30) - 1;
 	static constexpr int      V90_PROBE_MIN_ONES                  = 8;
 	static constexpr double   V90_INFO1C_QUIET_RETRY_MS           = 3000.0;
-	static constexpr double V90_A_SECOND_ECHO_RETRAIN_MS          = 270.0;
-	static constexpr double V90_A_SECOND_ECHO_MS                  = 600.0;
 	static constexpr double V90_A_SECOND_SILENCE_START_RETRAIN_MS = 150.0;
 	static constexpr double V90_A_SECOND_SILENCE_END_RETRAIN_MS   = 570.0;
 	static constexpr double V90_A_SECOND_SILENCE_START_MS         = 480.0;
@@ -698,7 +687,6 @@ private:
 	int32_t m_probe_watch = 0;
 	uint64_t m_probe_start_sample = 0;
 	uint64_t m_a2_last_rev_sample = 0;
-	bool m_a2_echo_window = false;
 	bool m_a2_silent = false;
 	bool m_qam_started = false;
 

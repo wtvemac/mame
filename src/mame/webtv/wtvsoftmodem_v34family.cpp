@@ -446,7 +446,6 @@ void wtvsoftmodem_v34family::start()
 	m_ph3_round = 0;
 	m_ph3_sym = 0;
 	m_jwait_peer_up = 0;
-	m_a2_echo_window = false;
 	m_a2_silent = false;
 	m_info1c_settle.reset();
 	m_l1l2.rx_reset();
@@ -946,7 +945,6 @@ void wtvsoftmodem_v34family::enter_phase2(V34FamState new_state)
 		case PH2_POST_L2_NOT_A:
 		{
 			tx_reversal_pause_rx();
-			m_a2_echo_window = true;
 			break;
 		}
 
@@ -2547,9 +2545,6 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase2()
 
 		case PH2_POST_L2_A2:
 		{
-			if (m_a2_echo_window && state_elapsed(PH2_A2_ECHO_WINDOW_MS))
-				m_a2_echo_window = false;
-
 			const bool peer_probing_now = m_l1l2.detect(m_rx_on, m_rx_pwr, m_state_samples, m_sr, false);
 			const bool settled = m_info1c_settle.update(m_dpsk_rx_reliable, m_state_samples, m_l1l2.peer_probe_ended(), m_l1l2.peer_probe_end_sample(), m_sr);
 			const bool want_info1a = settled && !m_got_info1c;
