@@ -543,8 +543,7 @@ uint32_t wtvsoftmodem_device::pull(T* buffer, uint32_t sample_count)
 				break;
 		}
 
-		const bool v90_echo_window = (m_state == ModemState::V90 && m_v34fam.is_v90_mode() && m_v34fam.hybrid_echo_active());
-		if (m_can_echo || v90_echo_window)
+		if (m_can_echo)
 		{
 			const uint32_t base = (m_echo_idx - tx_sample_count - wtvsoftmodem_device::ECHO_DELAY_SAMPLE_CNT);
 			if (base > 0)
@@ -708,11 +707,10 @@ void wtvsoftmodem_device::push(const T* buffer, uint32_t sample_count)
 		return;
 	}
 
-	// AltoCom's V.90 needs a hear an echo at the end of training to continue into data mode.
-	// I also add an echo so audible dialing doesn't sound too weird on a zero-echo channel (things like hearing the dialed digit)
+	// Add an echo so audible dialing doesn't sound too weird on a zero-echo channel (things like hearing the dialed digit)
 	// Echo gets turned off after V.8 to not disturb training.
 	// These samples are mixed with pull()'d samples to generage the echo.
-	if (m_can_echo || (m_state == ModemState::V90 && m_v34fam.is_v90_mode()))
+	if (m_can_echo)
 	{
 		for (uint32_t sample_idx = 0; sample_idx < sample_count; sample_idx++)
 			m_echo[m_echo_idx++ & (wtvsoftmodem_device::ECHO_SAMPLE_CNT - 1)] = sample[sample_idx];
