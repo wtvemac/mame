@@ -501,6 +501,8 @@ protected:
 	uint32_t m_pot_draw_hintline;
 
 private:
+	static constexpr size_t GFX_FRAME_CACHE_MAX_WORDS = 0x100000;
+
 	required_device<mips3_device> m_hostcpu;
 	required_shared_ptr<uint32_t> m_hostram;
 	required_device<screen_device> m_screen;
@@ -508,19 +510,160 @@ private:
 	devcb_write_line m_int_enable_cb;
 	devcb_write_line m_int_irq_cb;
 
+	enum gfx_blend_t : uint8_t
+	{
+		GFX_BLEND_OPAQUE,
+		GFX_BLEND_BLEND,
+		GFX_BLEND_BG_OPAQUE,
+		GFX_BLEND_BG_TRANSPARENT,
+		GFX_BLEND_BRIGHTEN
+	};
+
+	struct gfx_tables
+	{
+		static constexpr int32_t CLAMP_BIAS = 512;
+
+		int16_t y422[256];
+		int16_t y444[256];
+		int16_t cr_r[256];
+		int16_t cb_b[256];
+		uint32_t clamp_r[1024];
+		uint32_t clamp_g[1024];
+		uint32_t clamp_b[1024];
+
+		gfx_tables()
+		{
+			for (int32_t i = 0; i < 256; i++)
+			{
+				y422[i] = ((((i - Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
+				y444[i] = ((((i + Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
+				cr_r[i] = ((0x166 * (i - UV_OFFSET)) + UV_OFFSET) >> 0x08;
+				cb_b[i] = ((0x1C7 * (i - UV_OFFSET)) + UV_OFFSET) >> 0x08;
+			}
+
+			for (int32_t i = 0; i < 1024; i++)
+			{
+				uint32_t c = std::clamp(i - CLAMP_BIAS, 0x00, 0xff);
+				clamp_r[i] = c << 0x10;
+				clamp_g[i] = c << 0x08;
+				clamp_b[i] = c << 0x00;
+			}
+		}
+	};
+
+	static inline const gfx_tables s_gfx_tables;
+
+	struct gfx_texel
+	{
+		int32_t r;
+		int32_t g;
+		int32_t b;
+		uint32_t packed;
+		uint8_t a;
+	};
+
+	struct gfx_cel_rasterctx
+	{
+		const uint32_t *ram;
+		uint32_t read_lo = UINT32_MAX;
+		uint32_t read_hi = 0;
+		uint32_t ram_words;
+
+		uint8_t global_alpha;
+		int32_t texdata_base;
+		int32_t rowbytes;
+		uint8_t umask;
+		uint8_t vmask;
+		int32_t dux;
+		int32_t dvx;
+		float dux_float;
+		float dvx_float;
+		int32_t brighten[3] = { 0, 0, 0 };
+		gfx_texel codebook[256];
+
+		void track_read(uint32_t first, uint32_t last)
+		{
+			read_lo = std::min(read_lo, first);
+			read_hi = std::max(read_hi, last);
+		}
+
+		uint32_t read(uint32_t word)
+		{
+			track_read(word, word);
+			return ram[word];
+		}
+
+		void advance_x(auto &u, auto &v) const
+		{
+			if constexpr (std::is_same_v<std::decay_t<decltype(u)>, float>)
+			{
+				u += dux_float;
+				v += dvx_float;
+			}
+			else
+			{
+				u += dux;
+				v += dvx;
+			}
+		}
+	};
+	
+	struct gfx_frame_state
+	{
+		uint32_t screen_width;
+		uint32_t screen_height;
+		bool screen_enabled;
+		bool draw_cels;
+		uint32_t draw_hstart;
+		uint32_t draw_hsize;
+		uint32_t draw_vstart;
+		uint32_t draw_vsize;
+		uint32_t blank_rgb32[2];
+		uint32_t ymap_base_master;
+		uint32_t cels_base_master;
+
+		bool operator==(const gfx_frame_state &) const = default;
+	};
+
+	std::vector<std::pair<uint32_t, uint32_t>> m_gfx_frame_reads;
+	std::vector<uint32_t> m_gfx_frame_snapshot;
+	gfx_frame_state m_gfx_frame_state;
+	bool m_gfx_frame_valid = false;
+
 	void vblank_irq(int state);
 	void set_video_irq(uint32_t mask, uint32_t sub_mask, int state);
 
+	static inline uint32_t gfx_pack(int32_t r, int32_t g, int32_t b);
+	static inline int32_t gfx_masked(int32_t fx, uint8_t mask);
+	static inline int32_t gfx_masked(float f, uint8_t mask);
+	inline void gfx_add_read(uint32_t first, uint32_t last);
+
 	inline void draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out);
+	template <gfx_blend_t Blend> static inline void draw_pixel(uint32_t *out, int32_t r, int32_t g, int32_t b, uint8_t a, uint32_t packed, const int32_t *brighten);
+	
+	template <gfx_texdata_type_t Type> static inline uint32_t texdata_index(const gfx_cel_rasterctx &ctx, auto u, auto v);
+	template <gfx_texdata_type_t Type> static inline gfx_texel fetch_texel(gfx_cel_rasterctx &ctx, auto &u, auto &v);
+	template <gfx_texdata_type_t Type, gfx_blend_t Blend> static inline void draw_pair(gfx_cel_rasterctx &ctx, uint32_t *out, auto &u, auto &v, auto second);
+	template <gfx_texdata_type_t Type, gfx_blend_t Blend> static inline void draw_span(gfx_cel_rasterctx &ctx, uint32_t *out, uint32_t const *out_pairs_end, bool odd, auto &u, auto &v);
+	template <gfx_blend_t Blend> static inline uint32_t *draw_unscaled422(gfx_cel_rasterctx &ctx, uint32_t *out, uint32_t const *out_pairs_end, int32_t &u, int32_t v);
+	template <gfx_texdata_type_t Type, gfx_blend_t Blend> void draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, int32_t y_top, int32_t y_bottom);
+	template <gfx_texdata_type_t Type> void draw_lines_by_alpha(gfx_cel_t *cel, bitmap_rgb32 &bitmap, int32_t y_top, int32_t y_bottom);
+
 	inline void draw444(gfx_cel_t *cel, int8_t offset, uint32_t in0, uint32_t in1, uint32_t **out);
+	static inline gfx_texel fetch444(uint32_t in, uint8_t global_alpha);
+	
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
+	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten);
+
+	bool gfxunit_frame_unchanged();
+	bool gfxunit_frame_snapshot();
 
 	void cache_blank_rgb32();
 	void blank_fill(uint32_t **dest, uint32_t count, bool update_cursor = false);
 
-	inline void gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t *cel, screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	inline void gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t *cel, bitmap_rgb32 &bitmap);
 	inline void gfxunit_exec_cel_loaddata(gfx_cel_t *cel);
-	inline void gfxunit_draw_cels(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	inline void gfxunit_draw_cels(bitmap_rgb32 &bitmap);
 
 	uint32_t gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	uint32_t vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
