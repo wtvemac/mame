@@ -87,14 +87,23 @@ constexpr uint32_t NVCNTL_WRITE_EN = 1 << 2;
 constexpr uint32_t NVCNTL_SDA_W    = 1 << 1;
 constexpr uint32_t NVCNTL_SDA_R    = 1 << 0;
 
-// Used to set or clear the hook state on boxes before the UTV
-constexpr uint32_t GPIO_UTV_SOFTMODEM_HOOK_STATE       = 1 << 10;
-// Used in the UTV, not sure if names are correct. These names are based on reverse-engineered behaviour.
-// UTV seems to start with setting the modem off hook, then checking if their a line voltage to know if the line is ready.
-constexpr uint32_t GPIO_UTV_SOFTMODEM_RESET            = 1 <<  5; // Called before the modem is opened and after the modem is closed.
-constexpr uint32_t GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE = 1 <<  6; // GPIO IRQ indicating line voltage is available.
-constexpr uint32_t GPIO_UTV_SOFTMODEM_LINE_CHECK       = 1 << 14; // Called every so often, looks like it requests the modem to IRQ if there's line voltage.
-constexpr uint32_t GPIO_SOFTMODEM_RESET                = 1 << 14; // Modem reset for boxes before the UTV
+// UTV modem phone line GPIO bits
+//
+// On the UTV there's an AltoCom binary blob (/System/GCC_SM.mod) that calls into modem.dll to set these bits below:
+//
+// This bit is 0 (low) when the hook relay activates on the UTV.
+constexpr uint32_t GPIO_UTV_SOFTMODEM_LINE_CHECK       = 1 << 14;
+// Some other bit that may control anothe relay, not sure yet
+constexpr uint32_t GPIO_UTV_SOFTMODEM_UNKNOWN1         = 1 <<  5;
+// This bit alternates between 0 and 1 and is checked while the line is off hook.
+constexpr uint32_t GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE = 1 <<  6;
+// The UTV gives up if GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE doesn't alternate within 1 second (via modem.dll dissasembly)
+// I'm just satisfying software with a change rate that's less than 1s but not so low it causes performance issues with MAME.
+// This probably fires based on the polarity of the line waveform, which would change much faster than this.
+constexpr uint32_t UTV_LINE_VOLTAGE_CHECKER_USEC       = 250000; // 250ms
+//
+// Non-UTV hook relay toggle GPIO bit. 0=off hook, 1=on hook
+constexpr uint32_t GPIO_SOFTMODEM_RESET                = 1 << 14;
 
 constexpr uint8_t  INS8250_LSR_TSRE = 0x40;
 constexpr uint8_t  INS8250_LSR_THRE = 0x20;
@@ -294,6 +303,9 @@ private:
 
 	emu_timer *compare_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(timer_irq);
+
+	emu_timer *utv_line_voltage_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(utv_line_voltage_checker);
 
 	void int_enable_vid_w(int state);
 	void irq_vid_w(int state);
