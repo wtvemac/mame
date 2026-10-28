@@ -3299,6 +3299,10 @@ void wtvsoftmodem_v34family::setup_v90_data_rx()
 
 	m_v90_data_rx       = true;
 
+	m_qam.rx_finish_training();
+	m_qam.rx_set_equalizer_rate(V34_DATA_EQ_RATE);
+	install_data_slicer();
+
 	m_peer_mark_run = 0;
 
 	m_qam.rx_set_tracking_rates(data_timing_bw(), V34_DATA_CARRIER_BW, m_retraining ? 0 : V34_DATA_AGC_RATE);
