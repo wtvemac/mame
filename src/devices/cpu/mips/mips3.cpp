@@ -467,6 +467,9 @@ void mips3_device::device_start()
 	uint32_t flags = 0;
 	m_drcuml.initialize(flags, 8, 32, 2, COMPILE_FORWARDS_BYTES);
 
+	// Enable faster page variant SMC check. Not available on R4640 and R4650 since it doesn't do TLB lookups here.
+	m_page_variants_enabled = (m_flavor != MIPS3_TYPE_R4640 && m_flavor != MIPS3_TYPE_R4650);
+
 	/* allocate the implementation-specific state from the full cache */
 	m_core = m_drcuml.cache_alloc_near<internal_mips3_state>();
 	/* alloc_near() asserts on a zero size, and most drivers never configure one */

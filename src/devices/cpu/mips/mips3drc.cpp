@@ -53,6 +53,7 @@
 // Should be fine since that used for kseg indication which gets stripped for our use.
 static constexpr uint32_t MEM_DIAG_WRITE_FLAG = 0x80000000;
 
+#include <algorithm>
 #include <chrono>
 
 /***************************************************************************
@@ -260,6 +261,10 @@ void mips3_device::code_flush_cache()
 	m_drcuml.reset();
 	std::fill_n(m_dcache_code_pages.get(), 1U << 17, 0);
 
+	// empty the page variant table
+	m_page_variants.clear();
+	m_last_variant_reuse = ~uint64_t(0);
+
 	try
 	{
 		if (!(m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM))
@@ -361,6 +366,83 @@ void mips3_device::generate_invariant()
 
 
 /*-------------------------------------------------
+    make_page_variant - records a blocks' TLBs and
+    SMC signature.
+-------------------------------------------------*/
+
+mips3_device::page_variant_entry mips3_device::make_page_variant(drcuml_state::hash_codeptr code, const opcode_desc *desclist)
+{
+	const vtlb_entry *tlbtable = vtlb_table();
+
+	page_variant_entry variant {
+		.code = code,
+		.sig = 0,
+		.pages = {},
+		.physpcs = {} 
+	};
+
+	auto add = [this, &variant, tlbtable] (const opcode_desc *desc)
+	{
+		const bool addr_can_tlb_map = (desc->pc < 0x80000000 || desc->pc >= 0xc0000000);
+		if (addr_can_tlb_map)
+		{
+			const uint32_t page_index = desc->pc >> MIPS3_MIN_PAGE_SHIFT;
+
+			const bool missing = std::none_of(
+				variant.pages.begin(),
+				variant.pages.end(),
+				[page_index] (const auto &p)
+				{
+					return p.first == page_index;
+				}
+			);
+			if (missing)
+				variant.pages.emplace_back(page_index, tlbtable[page_index]);
+		}
+
+		if (!desc->compiler_page_fault() && (desc->physpc & 3) == 0)
+		{
+			variant.physpcs.push_back(desc->physpc);
+			variant.sig = (variant.sig * 31) ^ desc->opptr;
+		}
+	};
+
+	for (const opcode_desc *desc = desclist; desc != nullptr; desc = desc->next())
+	{
+		add(desc);
+
+		if (desc->delay.first() != nullptr)
+			add(desc->delay.first());
+	}
+
+	return variant;
+}
+
+
+/*-------------------------------------------------
+    page_variant_matches - checks if a variant isn't 
+	dirty. It checks if a block and its TLBs still 
+	match. If so, check the SMC signature too.
+-------------------------------------------------*/
+
+bool mips3_device::page_variant_matches(const page_variant_entry &variant)
+{
+	const vtlb_entry *tlbtable = vtlb_table();
+	for (const auto &page : variant.pages)
+	{
+		if (tlbtable[page.first] != page.second)
+			return false;
+	}
+
+	uint32_t sig = 0;
+	for (offs_t physpc : variant.physpcs)
+		sig = (sig * 31) ^ m_pr32(physpc);
+
+	return sig == variant.sig;
+}
+
+
+/*-------------------------------------------------
     code_compile_block - compile a block of the
     given mode at the specified pc
 -------------------------------------------------*/
@@ -374,6 +456,36 @@ void mips3_device::code_compile_block(uint8_t mode, offs_t pc)
 	bool override = false;
 
 	auto profile = g_profiler.start(PROFILER_DRC_COMPILE);
+
+	const bool addr_can_tlb_map = (pc < 0x80000000 || pc >= 0xc0000000);
+	const bool can_use_page_variants = (addr_can_tlb_map && m_page_variants_enabled && (m_drcoptions & MIPS3DRC_INVARIANT_FASTRAM));
+
+	const uint64_t variantkey = (uint64_t(mode) << 32) | pc;
+	const uint64_t lastreuse = m_last_variant_reuse;
+	m_last_variant_reuse = ~uint64_t(0);
+
+	if (can_use_page_variants && variantkey != lastreuse)
+	{
+		auto variant_it = m_page_variants.find(variantkey);
+		if (variant_it != m_page_variants.end())
+		{
+			std::vector<page_variant_entry> &variants = variant_it->second;
+			for (size_t i = 0; i < variants.size(); i++)
+			{
+				if (!page_variant_matches(variants[i]))
+					continue;
+
+				if (!m_drcuml.hash_set_codeptr(mode, pc, variants[i].code))
+					break;
+
+				if (i != 0)
+					std::rotate(variants.begin(), variants.begin() + i, variants.begin() + i + 1);
+
+				m_last_variant_reuse = variantkey;
+				return;
+			}
+		}
+	}
 
 	/* get a description of this sequence */
 	desclist = m_drcfe->describe_code(pc);
@@ -473,6 +585,32 @@ void mips3_device::code_compile_block(uint8_t mode, offs_t pc)
 		catch (drcuml_block::abort_compilation &)
 		{
 			code_flush_cache();
+		}
+	}
+
+	if (can_use_page_variants && desclist != nullptr)
+	{
+		drcuml_state::hash_codeptr const code = m_drcuml.hash_get_codeptr(mode, pc);
+		if (code)
+		{
+			std::vector<page_variant_entry> &variants = m_page_variants[variantkey];
+			page_variant_entry variant = make_page_variant(code, desclist);
+
+			auto existing = std::find_if(
+					variants.begin(),
+					variants.end(),
+					[&variant] (const page_variant_entry &e)
+					{
+						return e.pages == variant.pages;
+					}
+				);
+
+			if (existing != variants.end())
+				variants.erase(existing);
+			else if (variants.size() >= MAX_PAGE_VARIANTS)
+				variants.pop_back();
+
+			variants.insert(variants.begin(), std::move(variant));
 		}
 	}
 }
