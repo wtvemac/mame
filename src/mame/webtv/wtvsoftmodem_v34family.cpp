@@ -1465,14 +1465,8 @@ uint32_t wtvsoftmodem_v34family::tx_qam_symbols(wtvsoftmodem_dsp::sample_t *samp
 				}
 				else
 				{
-					const bool switched_pattern = m_retraining && m_ph3_round == 1 && m_ph3_sym >= uint64_t(m_v34_symbol_rate / 2);
-					const uint32_t pattern_bit = uint32_t((m_train.tx_training_bits() * (m_ph3_sym - uint64_t(m_v34_symbol_rate / 2))) & 15);
-
-					wtvsoftmodem_v34train::point_t p;
-					if (switched_pattern)
-						p = m_train.gen_trn_pattern(0xcccc >> pattern_bit);
-					else
-						p = m_train.gen_trn();
+					// V.34 10.1.3.8: TRN scrambles binary ones.
+					const auto p = m_train.gen_trn();
 
 					sym = { p.i, p.q };
 					m_ph3_sym++;
