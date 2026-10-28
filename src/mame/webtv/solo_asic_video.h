@@ -370,8 +370,8 @@ typedef struct gfx_cel // 384 bits / 48 bytes
 	{
 		y_offset += amount;
 
-		u = c.ustart + (y_offset * c.durow_adjust * amount);
-		v = c.vstart + (y_offset * c.dvrow_adjust * amount);
+		u = c.ustart + (y_offset * c.durow_adjust);
+		v = c.vstart + (y_offset * c.dvrow_adjust);
 	}
 } gfx_cel_t;
 
