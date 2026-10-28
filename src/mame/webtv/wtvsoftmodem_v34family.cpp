@@ -1016,7 +1016,11 @@ void wtvsoftmodem_v34family::enter_phase3(V34FamState new_state)
 			m_ph3_sym = 0;
 
 			bool j16 = (m_last_peer_j_pattern == wtvsoftmodem_v34train::J_PATTERN_16_POINT);
-			m_train.set_tx_training16(!m_v90_mode && m_ph3_round && j16);
+
+			// NOTE: V.34 11.6: rate renegotiation always uses 4-point constellation (even if @ startup the J pattern/sequence wants 16-point constellation)
+			const bool rate_renegotiation = m_retraining && !m_full_retrain;
+
+			m_train.set_tx_training16(!m_v90_mode && m_ph3_round && j16 && !rate_renegotiation);
 
 			m_train.trn_reset();
 			break;
