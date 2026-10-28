@@ -309,6 +309,7 @@ void solo_asic_device::device_start()
 
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
 	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
+	utv_line_voltage_timer = timer_alloc(FUNC(solo_asic_device::utv_line_voltage_checker), this);
 
 	solo_asic_device::device_reset();
 
@@ -379,6 +380,9 @@ void solo_asic_device::device_reset()
 			m_hostcpu->set_endianness(ENDIANNESS_LITTLE);
 		}
 	}
+
+	if (m_softmodem_enabled && m_is_utv)
+		utv_line_voltage_timer->adjust(attotime::from_usec(UTV_LINE_VOLTAGE_CHECKER_USEC), 0, attotime::from_usec(UTV_LINE_VOLTAGE_CHECKER_USEC));
 
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
@@ -1360,12 +1364,8 @@ void solo_asic_device::reg_4014_w(uint32_t data)
 	{
 		if(m_is_utv)
 		{
-			if (data & GPIO_UTV_SOFTMODEM_HOOK_STATE)
-				m_softmodem_uart->set_off_hook();
-			else if (data & GPIO_UTV_SOFTMODEM_RESET)
-				m_softmodem_uart->restart();
-			else if (data & GPIO_UTV_SOFTMODEM_LINE_CHECK)
-				solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+			if (data & GPIO_UTV_SOFTMODEM_LINE_CHECK)
+				m_softmodem_uart->set_on_hook();
 		}
 		else
 		{
@@ -1390,12 +1390,8 @@ void solo_asic_device::reg_4114_w(uint32_t data)
 	{
 		if(m_is_utv)
 		{
-			if (data & GPIO_UTV_SOFTMODEM_HOOK_STATE)
-				m_softmodem_uart->set_on_hook();
-
-			// NOTE: currently there is a bug where the UTV doesn't reset properly after the first dial. Need to look into this.
-			// This is the current workaround
-			solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
+			if (data & GPIO_UTV_SOFTMODEM_LINE_CHECK)
+				m_softmodem_uart->set_off_hook();
 		}
 		else
 		{
@@ -2292,6 +2288,12 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::flush_modem_buffer)
 
 	if (modem_txbuff_size > 0 || modem_should_threint)
 		modem_buffer_timer->adjust(attotime::from_usec(MBUFF_FLUSH_TIME));
+}
+
+TIMER_CALLBACK_MEMBER(solo_asic_device::utv_line_voltage_checker)
+{
+	m_dev_gpio_in ^= GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE;
+	solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::timer_irq)
