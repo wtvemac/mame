@@ -405,6 +405,9 @@ void mips3_device::device_start()
 	m_isdrc = allow_drc();
 	m_drc_cache.allocate_cache(mconfig().options().drc_rwx());
 
+	// Enable faster page variant SMC check. Not available on R4640 and R4650 since it doesn't do TLB lookups here.
+	m_page_variants_enabled = (m_flavor != MIPS3_TYPE_R4640 && m_flavor != MIPS3_TYPE_R4650);
+
 	/* allocate the implementation-specific state from the full cache */
 	m_core = m_drc_cache.alloc_near<internal_mips3_state>();
 	m_icache = (uint8_t *)m_drc_cache.alloc_near(c_dcache_size, std::align_val_t(alignof(uint64_t)));

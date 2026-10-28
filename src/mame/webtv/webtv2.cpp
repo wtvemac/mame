@@ -425,7 +425,9 @@ void webtv2_state::device_resolve_objects()
 
 	uint32_t drcopts = MIPS3DRC_FASTEST_OPTIONS;
 	if(strcmp(driver.name, "wtv2utv") != 0)
-		drcopts |= MIPS3DRC_INVARIANT_FASTRAM;
+		drcopts |= MIPS3DRC_INVARIANT_FASTRAM | MIPS3DRC_SMC_CHECK_PVARI;
+	else if(strcmp(driver.name, "wtv2wld") != 0)
+		drcopts |= MIPS3DRC_SMC_CHECK_PVARI;
 
 	m_maincpu->mips3drc_set_options(drcopts);
 

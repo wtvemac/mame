@@ -21,6 +21,9 @@ MIPS III/IV emulator.
 #include "divtlb.h"
 
 #include <bitset>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 
 DECLARE_DEVICE_TYPE(R4000BE, r4000be_device)
@@ -501,6 +504,20 @@ protected:
 
 												/* internal stuff */
 	std::vector<uint32_t> m_cacheinval_skip_pcs;       /* locations of cache instructions to skip */
+
+	static constexpr size_t MAX_PAGE_VARIANTS = 4;
+	struct page_variant_entry
+	{
+		drccodeptr code;
+		uint32_t sig;
+		std::vector<std::pair<uint32_t, vtlb_entry>> pages;
+		std::vector<offs_t> physpcs;
+	};
+	std::unordered_map<uint64_t, std::vector<page_variant_entry>> m_page_variants;
+	uint64_t m_last_variant_reuse = ~uint64_t(0);
+	bool m_page_variants_enabled = true;
+	page_variant_entry make_page_variant(drccodeptr code, const opcode_desc *desclist);
+	bool page_variant_matches(const page_variant_entry &variant);
 
 												/* tables */
 	uint8_t         m_fpmode[4];                /* FPU mode table */
@@ -1098,6 +1115,7 @@ COMPILER-SPECIFIC OPTIONS
 #define MIPS3DRC_ACCURATE_DIVZERO   0x0040          /* load correct values into HI/LO on integer divide-by-zero */
 #define MIPS3DRC_EXTRA_INSTR_CHECK  0x0080          /* adds the last instruction value to all validation entry locations, used with STRICT_VERIFY */
 #define MIPS3DRC_INVARIANT_FASTRAM  0x0100          /* causes memory accessor blocks only to be cached once but prevents fastram modification after start */
+#define MIPS3DRC_SMC_CHECK_PVARI    0x40000000      /* Self-modified-code check during page mode using faster page variant check */
 
 #define MIPS3DRC_COMPATIBLE_OPTIONS (MIPS3DRC_STRICT_VERIFY | MIPS3DRC_STRICT_COP1 | MIPS3DRC_STRICT_COP0 | MIPS3DRC_STRICT_COP2)
 #define MIPS3DRC_FASTEST_OPTIONS    (0)
