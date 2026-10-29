@@ -440,6 +440,7 @@ private:
 	static constexpr double   INFO1C_RETRY_MS            = 25.0;
 	static constexpr size_t   INFO1C_BITS                = 109;
 	static constexpr uint32_t INFO1C_RECOVERY_PHASES     = 200;
+	static constexpr uint32_t INFO1C_RECOVERY_PHASE_STRIDE = 51;
 	static constexpr uint32_t INFO1C_RECOVERY_CANDIDATES = 4;
 	static constexpr int32_t  INFO1_FREQ_OFFSET          = -512;
 
