@@ -193,7 +193,25 @@ namespace wtvsoftmodem::v34::info
 	{
 		const uint8_t ca = std::min(local.bit_rate_c_to_a, peer.bit_rate_c_to_a);
 		const uint8_t ac = std::min(local.bit_rate_a_to_c, peer.bit_rate_a_to_c);
-		return local.asymmetric_rates && peer.asymmetric_rates ? (c_to_a ? ca : ac) : std::min(ca, ac);
+
+		uint8_t rate;
+		if (local.asymmetric_rates && peer.asymmetric_rates)
+			rate = std::min<uint8_t>(
+				14,
+				c_to_a ? ca : ac
+			);
+		else
+			rate = std::min<uint8_t>(
+				14,
+				std::min(ca, ac)
+			);
+
+		// V.34 11.4.1: choose the highest rate enabled by both modems
+		const uint16_t enabled = local.signalling_rate_mask & peer.signalling_rate_mask;
+		while (rate && !(enabled & (1 << (rate - 1))))
+			--rate;
+
+		return rate;
 	}
 
 	precoder_t mp_precoder(const mp_t &mp);
