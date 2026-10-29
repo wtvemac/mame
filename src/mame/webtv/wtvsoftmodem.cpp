@@ -66,6 +66,7 @@ void wtvsoftmodem_device::device_reset()
 	});
 
 	m_v34fam.set_answer_mode(true);
+	m_v34fam.set_shared_sample_clock(true);
 	m_v34fam.set_rx_byte_callback([this] (uint8_t byte)
 	{
 		m_dte_pending.push_back(byte);

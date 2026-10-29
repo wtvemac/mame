@@ -251,6 +251,10 @@ public:
 
 	void set_sample_rate(wtvsoftmodem_dsp::frequency_t set_sample_rate);
 
+	void set_shared_sample_clock(bool shared_sample_clock)
+	{
+		m_shared_sample_clock = shared_sample_clock;
+	}
 	void set_answer_mode(bool answer)
 	{
 		m_answer = answer;
@@ -554,6 +558,7 @@ private:
 	}();
 
 	bool m_answer = true;
+	bool m_shared_sample_clock = false;
 	double m_phase3_timeout_ms = PH3_JWAIT_CAP_MS;
 	uint16_t m_last_peer_j_pattern = 0;
 
