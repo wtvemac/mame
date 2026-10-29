@@ -119,8 +119,9 @@ public:
 
 	void tx_flush_pending()
 	{
-		m_tx_syms.clear();
-		m_tx_sym0_index = int64_t(std::floor(m_tx_sym_time - m_cfg.filter_span_syms));
+		const int64_t next_symbol = int64_t(std::ceil(m_tx_sym_time - 1e-6));
+
+		m_tx_syms.resize(size_t(std::max<int64_t>(0, next_symbol - m_tx_sym0_index)));
 	}
 
 	void tx_put_symbol(csymbol_t s)
