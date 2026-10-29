@@ -654,6 +654,9 @@ void wtvsoftmodem_v34family::begin_long_retrain(std::string_view reason)
 
 void wtvsoftmodem_v34family::begin_v90_retrain(bool requesting, std::string_view reason)
 {
+	if (m_shared_sample_clock)
+		m_qam.rx_hold_timing(false);
+
 	m_lapm.retrain();
 	m_pcm.set_upstream_rate_cap(uint32_t(m_mp_rate_cap));
 
@@ -3301,7 +3304,12 @@ void wtvsoftmodem_v34family::setup_v90_data_rx()
 
 	m_qam.rx_set_tracking_rates(data_timing_bw(), V34_DATA_CARRIER_BW, m_retraining ? 0 : V34_DATA_AGC_RATE);
 
-	if (m_v90_wait_peer_probe)
+	if (m_shared_sample_clock)
+	{
+		m_qam.rx_set_clock_frequencies(0.0, m_qam.rx_carrier_frequency());
+		m_qam.rx_hold_timing(true);
+	}
+	else if (m_v90_wait_peer_probe)
 	{
 		m_qam.rx_set_clock_frequencies(0.0, m_qam.rx_carrier_frequency());
 		m_qam.rx_hold_clock_frequency(true);
