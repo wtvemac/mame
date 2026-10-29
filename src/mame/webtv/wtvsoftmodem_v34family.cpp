@@ -2552,7 +2552,7 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase2()
 			const bool want_info1a = settled && !m_got_info1c;
 			const bool time_for_periodic_try = state_elapsed_since(m_info1c_last_try_sample, INFO1C_RETRY_MS);
 			const bool near_cap = state_elapsed(PH2_A2_CAP_MS - PH2_A2_RECOVERY_LEAD_MS);
-			const bool run_full_recovery = want_info1a || (near_cap && (!m_info1c_full_recovery_tried || m_info1c_recovery_phase != 0));
+			const bool run_full_recovery = !m_rx_on || want_info1a || (near_cap && (!m_info1c_full_recovery_tried || m_info1c_recovery_phase != 0));
 
 			if (!m_got_info1c && m_dpsk_rx_bits.size() >= INFO1C_BITS && time_for_periodic_try)
 			{
@@ -2621,7 +2621,7 @@ inline std::optional<info::info1c_t> wtvsoftmodem_v34family::decode_info1c(bool 
 	for (uint32_t candidate = 0; candidate < INFO1C_RECOVERY_CANDIDATES; candidate++)
 	{
 		const double phase      = double(m_info1c_recovery_phase) / INFO1C_RECOVERY_PHASES;
-		m_info1c_recovery_phase = (m_info1c_recovery_phase + 1) % INFO1C_RECOVERY_PHASES;
+		m_info1c_recovery_phase = (m_info1c_recovery_phase + INFO1C_RECOVERY_PHASE_STRIDE) % INFO1C_RECOVERY_PHASES;
 
 		const std::vector<uint8_t> bits = m_dpsk.rx_decode_buffered(0.0, phase);
 
