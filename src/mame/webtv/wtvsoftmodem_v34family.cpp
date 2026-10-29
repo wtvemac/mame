@@ -345,7 +345,11 @@ void wtvsoftmodem_v34family::queue_mp_bits(bool finish_frame)
 	info::mp_t mp;
 
 	mp.is_answer = m_answer;
-	const uint32_t mp_rate = std::min(uint32_t(m_mp_rate_cap), BAUD_MAXIMUM[m_v34_baud]);
+	const uint32_t mp_rate = std::min({
+		uint32_t(m_mp_rate_cap),
+		uint32_t(m_configured_rate_cap),
+		BAUD_MAXIMUM[m_v34_baud] 
+	});
 	mp.type = (mp_rate >= 3) ? 1 : 0;
 	mp.bit_rate_c_to_a = uint8_t(mp_rate);
 	mp.bit_rate_a_to_c = uint8_t(mp_rate);
@@ -2640,7 +2644,7 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase3()
 
 		case PH3_JWAIT:
 		{
-			if (!m_trn_narrowed && !m_retraining && !m_v90_mode && m_qam.rx_reference_trained() && m_qam.rx_clock_estimate_count() >= v34_trn_narrow_symbols())
+			if (!m_trn_narrowed && (!m_retraining || m_full_retrain) && !m_v90_mode && m_qam.rx_reference_trained() && m_qam.rx_clock_estimate_count() >= v34_trn_narrow_symbols())
 			{
 				narrow_training_rx();
 			}
@@ -2653,7 +2657,7 @@ inline void wtvsoftmodem_v34family::tick_timeout_phase3()
 			if (m_peer_j_detected && m_peer_j_hold_symbols >= sym_ph3_jwait_hold())
 			{
 				m_ph3_round = 1;
-				if (!m_retraining && !m_v90_mode)
+				if ((!m_retraining || m_full_retrain) && !m_v90_mode)
 					hold_receiver_after_j();
 
 				enter(PH3_S);
