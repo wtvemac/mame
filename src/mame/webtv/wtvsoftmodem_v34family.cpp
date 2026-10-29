@@ -736,17 +736,10 @@ void wtvsoftmodem_v34family::check_retrain_quality()
 		m_rt_upshift_from = 0;
 	}
 
-	uint32_t up_rate;
-	if (m_v90_mode)
-		up_rate = std::min<uint32_t>(
-			rx_rate_ceiling(), 
-			sustainable 
-		);
-	else
-		up_rate = std::min<uint32_t>(
-			rx_rate_ceiling(), 
-			wtvsoftmodem_v34train::retrain_sustainable_rate(snr - RATE_UP_MARGIN_DB, baud, expanded, nonlinear, expanded)
-		);
+	const uint32_t up_rate = std::min<uint32_t>(
+		rx_rate_ceiling(), 
+		wtvsoftmodem_v34train::retrain_sustainable_rate(snr - RATE_UP_MARGIN_DB, baud, expanded, nonlinear, expanded)
+	);
 
 	const bool impaired = m_v90_mode ? dfail != 0 : wtvsoftmodem_v34train::retrain_bad_window(dok, dfail);
 
@@ -797,7 +790,7 @@ void wtvsoftmodem_v34family::check_retrain_quality()
 				std::format("Bad RX quality: 2 bad windows; SNR {:.2f} dB, failed CRC {}/{}, rate {} -> {} bps", snr, dfail, dok + dfail, current * 2400, m_mp_rate_cap * 2400));
 		}
 	}
-	else if (m_rt_good_run >= (m_v90_mode ? 2U : 3U) && m_total_samples - (m_v90_mode ? m_rt_started : m_rt_data_since) >= wtvsoftmodem_dsp::ms_to_samples<uint64_t>(m_v90_mode ? V90_UPSHIFT_HOLD_MS : V34_UPSHIFT_HOLD_MS, m_sr))
+	else if (m_rt_good_run >= 3 && m_total_samples - m_rt_data_since >= wtvsoftmodem_dsp::ms_to_samples<uint64_t>(RATE_UPSHIFT_HOLD_MS, m_sr))
 	{
 		m_rt_good_run = 0;
 		m_rt_upshift_from = current;
@@ -2347,6 +2340,9 @@ bool wtvsoftmodem_v34family::detect_peer_e(wtvsoftmodem_qam::csymbol_t sym)
 
 void wtvsoftmodem_v34family::finish_retrain()
 {
+	m_rt_data_since = m_total_samples;
+	m_rt_good_run = 0;
+	m_rt_bad_run = 0;
 	m_retraining = false;
 	m_full_retrain = false;
 	m_rt_requesting = false;

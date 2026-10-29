@@ -512,8 +512,7 @@ private:
 	static constexpr double   RATE_UP_MARGIN_DB    = 2.0;
 	static constexpr double   FULL_RETRAIN_SNR_DB  = 10.0;
 	static constexpr uint32_t MAX_SHORT_DOWNSHIFTS = 3;
-	static constexpr double   V34_UPSHIFT_HOLD_MS  = 30000.0;
-	static constexpr double   V90_UPSHIFT_HOLD_MS  = 4000.0;
+	static constexpr double   RATE_UPSHIFT_HOLD_MS  = 30000.0;
 
 	static constexpr wtvsoftmodem_qam::qam_spec_t UPSTREAM_SPEC[] = { wtvsoftmodem_qam::QAM_V34_2400_LOW, wtvsoftmodem_qam::QAM_V34_2743_LOW, wtvsoftmodem_qam::QAM_V34_2800_LOW, wtvsoftmodem_qam::QAM_V34_3000_LOW, wtvsoftmodem_qam::QAM_V34_3200_LOW, wtvsoftmodem_qam::QAM_V34_3429_LOW };
 
