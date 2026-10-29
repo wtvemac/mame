@@ -815,6 +815,10 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 
 			m_mod_icvalid = true;
 
+			if ((m_mod_idmacntl & MOD_DMACNTL_NVF) == 0x0)
+				m_mod_idmacntl &= (~MOD_DMACNTL_NV);
+
+			solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_SMODEMIN, ASSERT_LINE);
 		}
 
 		if (m_mod_icvalid)
@@ -824,13 +828,6 @@ TIMER_CALLBACK_MEMBER(solo_asic_audio_device::play_modin_samples)
 			if (m_mod_iccnt >= m_mod_icend)
 			{
 				m_softmodem->pull(&m_hostram[m_mod_icstart >> 0x02], (m_mod_icsize >> 2));
-
-				if ((m_mod_idmacntl & MOD_DMACNTL_NVF) == 0x0)
-				{
-					m_mod_idmacntl &= (~MOD_DMACNTL_NV);
-				}
-
-				solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_SMODEMIN, ASSERT_LINE);
 
 				m_mod_icvalid = false;
 			}
