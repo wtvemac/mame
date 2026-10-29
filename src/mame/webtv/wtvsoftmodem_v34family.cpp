@@ -401,6 +401,7 @@ void wtvsoftmodem_v34family::start()
 
 	m_qam.tx_flush_pending();
 	m_total_samples = 0;
+	m_dm_rx_ready = false;
 	m_rx_tracking_pending = false;
 	m_rx_training_pending = false;
 	m_rx_data_phase = 0;
