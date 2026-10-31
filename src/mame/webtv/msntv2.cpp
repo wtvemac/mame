@@ -745,12 +745,12 @@ ROM_START(msntv2)
 	//             417       callback @ 0x00816620
 	//             1200      callback @ 0x008162d8
 	//
-	ROM_SYSTEM_BIOS(0, "emac", "RM4100 emac-mod BIOS (v1.387)")
+	ROM_SYSTEM_BIOS(0, "bios-emac", "RM4100 emac-mod BIOS (v1.387)")
 	ROMX_LOAD("bios-emac-mame-only.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(0))
 	//
 	// bios-retail.bin is the stock MSNTV2 BIOS. This will boot fine, just not with the modified HackTV CF image because of the RSA SHA1 gate.
 	//
-	ROM_SYSTEM_BIOS(1, "retail", "RM4100 Retail BIOS (v1.387)")
+	ROM_SYSTEM_BIOS(1, "bios-retail", "RM4100 Retail BIOS (v1.387)")
 	ROMX_LOAD("bios-retail.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(1))
 	//
 	// This isn't included since the Thomson IP1000 doesn't seem to be a MSNTV2 box. Might be worth adding another machine for this since it's the same tech as the MSNTV2. Uncomment to add this yourself for now.
@@ -771,7 +771,7 @@ ROM_START(msntv2)
 	//     - This mod is from toc2rta. Details: https://wiki.webtv.zone/mediawiki/index.php/Installing_Linux_on_the_MSN_TV_2_(RM4100)
 	//     - Video out isn't working in toc2rta's version of Linux. Linux does support most of MSNTV2's hardware out-of-the-box so it's possible to get it working if you put in the work.
 	//
-	ROM_SYSTEM_BIOS(2, "toc2rta", "RM4100 toc2rta-mod BIOS (v1.387)")
+	ROM_SYSTEM_BIOS(2, "bios-toc2rta", "RM4100 toc2rta-mod BIOS (v1.387)")
 	ROMX_LOAD("bios-toc2rta.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(2))
 	//
 	// Note: bios-pc.bin and bios-coreboot.bin might be split into a separate machine config since they work best with modified hardware.
@@ -779,7 +779,7 @@ ROM_START(msntv2)
 	// bios-pc.bin:
 	//     - Regular PC BIOS. Turns the MSNTV2 into a PC.
 	//
-	ROM_SYSTEM_BIOS(3, "pc", "PC BIOS")
+	ROM_SYSTEM_BIOS(3, "bios-pc", "PC BIOS")
 	ROMX_LOAD("bios-pc.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(3))
 	//
 	// bios-coreboot.bin:
@@ -787,7 +787,7 @@ ROM_START(msntv2)
 	//     - It requres Linux to be placed in its own partition. Loaded using FILO.
 	//     - Similar to bios-pc.bin, the MSNTV2 is treated like a PC.
 	//
-	ROM_SYSTEM_BIOS(4, "coreboot", "Coreboot BIOS")
+	ROM_SYSTEM_BIOS(4, "bios-coreboot", "Coreboot BIOS")
 	ROMX_LOAD("bios-coreboot.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(4))
 
 	DISK_REGION("ata:0:hdd")
