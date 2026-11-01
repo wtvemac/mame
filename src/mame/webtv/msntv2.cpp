@@ -790,7 +790,7 @@ ROM_START(msntv2)
 	ROM_SYSTEM_BIOS(4, "bios-coreboot", "Coreboot BIOS")
 	ROMX_LOAD("bios-coreboot.bin", 0x000000, 0x100000, NO_DUMP, ROM_BIOS(4))
 
-	DISK_REGION("ata:0:hdd")
+	DISK_REGION("pci:1f.1:ide0:0:cf")
 	DISK_IMAGE("tv2hdd", 0x0000, NO_DUMP )
 ROM_END
 
