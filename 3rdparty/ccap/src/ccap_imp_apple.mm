@@ -9,6 +9,7 @@
 #if __APPLE__
 
 #include "ccap_imp_apple.h"
+#include "ccap_file_reader_apple.h"
 
 #include "ccap_convert.h"
 #include "ccap_convert_frame.h"
@@ -236,6 +237,10 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
 
 @end
 
+// Identity key for tagging _captureQueue so destroy can detect re-entrant calls
+// arriving from the capture callback itself (the address is the key, not the value).
+static const void* const kCcapCaptureQueueKey = &kCcapCaptureQueueKey;
+
 @implementation CameraCaptureObjc
 
 - (instancetype)initWithProvider:(ProviderApple*)provider {
@@ -251,21 +256,17 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
     AVAuthorizationStatus authStatus = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
     if (authStatus == AVAuthorizationStatusNotDetermined) {
         dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-        void (^requestAccess)(void) = ^(void) {
-            [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted) {
-                CCAP_NSLOG_I(@"ccap: Camera access %@", granted ? @"granted" : @"denied");
-                dispatch_semaphore_signal(sema);
-            }];
-        };
-
-        // Permission must be requested on the main thread
-        if (![NSThread isMainThread]) {
-            dispatch_async(dispatch_get_main_queue(), ^{ requestAccess(); });
-        } else {
-            requestAccess();
-        }
-
         CCAP_NSLOG_I(@"ccap: Waiting for camera access permission...");
+        // Request authorization on the calling thread. requestAccessForMediaType: may be
+        // called from any thread and delivers its completion on an internal queue, so we
+        // do NOT bounce the request onto the main queue: that deadlocks whenever no run
+        // loop is servicing the main queue (e.g. a ccap::Provider opened from a worker
+        // thread in a process without a CFRunLoop, such as a Node.js/Electron addon).
+        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
+                                 completionHandler:^(BOOL granted) {
+                                     CCAP_NSLOG_I(@"ccap: Camera access %@", granted ? @"granted" : @"denied");
+                                     dispatch_semaphore_signal(sema);
+                                 }];
         dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
         authStatus = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
     }
@@ -463,6 +464,7 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
 
     // Set output queue
     _captureQueue = dispatch_queue_create("ccap.queue", DISPATCH_QUEUE_SERIAL);
+    dispatch_queue_set_specific(_captureQueue, kCcapCaptureQueueKey, (__bridge void*)_captureQueue, NULL);
     [_videoOutput setSampleBufferDelegate:self queue:_captureQueue];
 
     // Add output device to session
@@ -800,6 +802,11 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
         CCAP_NSLOG_V(@"ccap: CameraCaptureObjc stop");
         [_session stopRunning];
     }
+    
+    // Notify waiting grab() calls that camera has stopped
+    if (_provider) {
+        _provider->notifyGrabWaiters();
+    }
 }
 
 - (BOOL)isRunning {
@@ -816,6 +823,24 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
             }
 
             [_videoOutput setSampleBufferDelegate:nil queue:dispatch_get_main_queue()];
+
+            // setSampleBufferDelegate:queue: does not guarantee that captureOutput:
+            // blocks already enqueued on the previous capture queue have finished by
+            // the time it returns, especially when the new queue differs from the
+            // old one. Drain the original queue explicitly so ProviderImp (and its
+            // mutexes) cannot be torn down under an in-flight callback. Observed as
+            // crashes inside std::mutex::lock() in getFreeFrame() on macOS 26's
+            // AVCaptureVideoDataOutput_Tundra pipeline.
+            //
+            // Skip the drain if we're already executing on _captureQueue (e.g. user
+            // code called close() from inside the new-frame callback). dispatch_sync
+            // onto the current serial queue would deadlock, and the drain isn't
+            // needed: the in-flight callback that re-entered us is the only one that
+            // could touch the provider, and it's about to return.
+            if (_captureQueue && dispatch_get_specific(kCcapCaptureQueueKey) != (__bridge void*)_captureQueue) {
+                dispatch_sync(_captureQueue, ^{
+                });
+            }
 
             [_session beginConfiguration];
 
@@ -867,6 +892,9 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
     CMTime timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
     auto internalFormat = _provider->getFrameProperty().cameraPixelFormat;
     auto outputFormat = _provider->getFrameProperty().outputPixelFormat;
+    if (outputFormat == PixelFormat::Unknown) {
+        outputFormat = internalFormat;
+    }
 
     newFrame->timestamp = (uint64_t)(CMTimeGetSeconds(timestamp) * 1e9);
     newFrame->width = (uint32_t)CVPixelBufferGetWidth(imageBuffer);
@@ -899,6 +927,8 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
     }
 
     /// iOS/macOS does not support i420, and we do not intend to support nv12 to i420 conversion here.
+    /// When both internal and output formats are YUV, zeroCopy is used regardless of subtype differences
+    /// (e.g., NV12 vs I420). The frame will carry the actual camera format, not the requested output format.
     bool zeroCopy = ((internalFormat & kPixelFormatYUVColorBit) && (outputFormat & kPixelFormatYUVColorBit)) ||
         (internalFormat == outputFormat && _provider->frameOrientation() == kDefaultFrameOrientation);
 
@@ -918,7 +948,10 @@ NSArray<AVCaptureDevice*>* findAllDeviceName() {
 
         zeroCopy = !inplaceConvertFrame(newFrame.get(), outputFormat, (int)(newFrame->orientation != kDefaultFrameOrientation));
 
-        CVPixelBufferUnlockBaseAddress(imageBuffer, kCVPixelBufferLock_ReadOnly);
+        if (!zeroCopy) {
+            CVPixelBufferUnlockBaseAddress(imageBuffer, kCVPixelBufferLock_ReadOnly);
+            newFrame->nativeHandle = nullptr;
+        }
 
         if (verboseLogEnabled()) {
 #ifdef DEBUG
@@ -1025,11 +1058,23 @@ std::vector<std::string> ProviderApple::findDeviceNames() {
     }
 }
 
-bool ProviderApple::open(std::string_view deviceName) {
-    if (m_imp != nil) {
-        reportError(ErrorCode::DeviceOpenFailed, "Camera is already opened");
+bool ProviderApple::open(std::string_view deviceNameOrFilePath) {
+#ifdef CCAP_ENABLE_FILE_PLAYBACK
+    // Check if this looks like a file path
+    if (looksLikeFilePath(deviceNameOrFilePath)) {
+        return openFile(deviceNameOrFilePath);
+    }
+#endif
+    return openCamera(deviceNameOrFilePath);
+}
+
+bool ProviderApple::openCamera(std::string_view deviceName) {
+    if (m_imp != nil || m_fileReader) {
+        reportError(ErrorCode::DeviceOpenFailed, "Camera or file is already opened");
         return false;
     }
+
+    m_isFileMode = false;
 
     @autoreleasepool {
         m_imp = [[CameraCaptureObjc alloc] initWithProvider:this];
@@ -1041,10 +1086,44 @@ bool ProviderApple::open(std::string_view deviceName) {
     }
 }
 
-bool ProviderApple::isOpened() const { return m_imp && m_imp.session && m_imp.opened; }
+bool ProviderApple::openFile(std::string_view filePath) {
+    if (m_imp != nil || m_fileReader) {
+        reportError(ErrorCode::DeviceOpenFailed, "Camera or file is already opened");
+        return false;
+    }
+
+    m_isFileMode = true;
+    m_fileReader = std::make_unique<FileReaderApple>(this);
+    
+    if (!m_fileReader->open(filePath)) {
+        m_fileReader.reset();
+        m_isFileMode = false;
+        return false;
+    }
+    
+    return true;
+}
+
+bool ProviderApple::isOpened() const {
+    if (m_isFileMode) {
+        return m_fileReader && m_fileReader->isOpened();
+    }
+    return m_imp && m_imp.session && m_imp.opened;
+}
 
 std::optional<DeviceInfo> ProviderApple::getDeviceInfo() const {
     std::optional<DeviceInfo> deviceInfo;
+    
+    if (m_isFileMode && m_fileReader) {
+        // For file mode, return basic info
+        deviceInfo.emplace();
+        deviceInfo->deviceName = "Video File";
+        deviceInfo->supportedPixelFormats.push_back(PixelFormat::BGRA32);
+        deviceInfo->supportedPixelFormats.push_back(PixelFormat::NV12f);
+        deviceInfo->supportedResolutions.push_back({(uint32_t)m_fileReader->getWidth(), (uint32_t)m_fileReader->getHeight()});
+        return deviceInfo;
+    }
+    
     if (m_imp && m_imp.videoOutput) {
         @autoreleasepool {
             NSString* deviceName = [m_imp.device localizedName];
@@ -1078,18 +1157,35 @@ std::optional<DeviceInfo> ProviderApple::getDeviceInfo() const {
 }
 
 void ProviderApple::close() {
+    if (m_fileReader) {
+        m_fileReader->close();
+        m_fileReader.reset();
+        m_isFileMode = false;
+    }
     if (m_imp) {
         [m_imp destroy];
         m_imp = nil;
-        ccap::resetSharedAllocator();
     }
+    
+    // Clear any pending frames from the queue to prevent stale frames
+    // from previous session being grabbed in the next session
+    {
+        std::lock_guard<std::mutex> lock(m_availableFrameMutex);
+        m_availableFrames = {};
+    }
+    
+    ccap::resetSharedAllocator();
 }
 
 bool ProviderApple::start() {
     if (!isOpened()) {
-        CCAP_NSLOG_W(@"ccap: camera start called with no device opened");
-        reportError(ErrorCode::DeviceStartFailed, "Camera start called with no device opened");
+        CCAP_NSLOG_W(@"ccap: start called with no device/file opened");
+        reportError(ErrorCode::DeviceStartFailed, "Start called with no device/file opened");
         return false;
+    }
+
+    if (m_isFileMode && m_fileReader) {
+        return m_fileReader->start();
     }
 
     @autoreleasepool {
@@ -1098,6 +1194,10 @@ bool ProviderApple::start() {
 }
 
 void ProviderApple::stop() {
+    if (m_isFileMode && m_fileReader) {
+        m_fileReader->stop();
+        return;
+    }
     if (m_imp) {
         @autoreleasepool {
             [m_imp stop];
@@ -1105,7 +1205,50 @@ void ProviderApple::stop() {
     }
 }
 
-bool ProviderApple::isStarted() const { return m_imp && [m_imp isRunning]; }
+bool ProviderApple::isStarted() const {
+    if (m_isFileMode && m_fileReader) {
+        return m_fileReader->isStarted();
+    }
+    return m_imp && [m_imp isRunning];
+}
+
+bool ProviderApple::setFileProperty(PropertyName prop, double value) {
+    if (!m_isFileMode || !m_fileReader) {
+        return false;
+    }
+    
+    switch (prop) {
+    case PropertyName::CurrentTime:
+        return m_fileReader->seekToTime(value);
+    case PropertyName::PlaybackSpeed:
+        return m_fileReader->setPlaybackSpeed(value);
+    case PropertyName::CurrentFrameIndex:
+        return m_fileReader->seekToFrame(static_cast<int64_t>(value));
+    default:
+        return false;
+    }
+}
+
+double ProviderApple::getFileProperty(PropertyName prop) const {
+    if (!m_isFileMode || !m_fileReader) {
+        return NAN;
+    }
+    
+    switch (prop) {
+    case PropertyName::Duration:
+        return m_fileReader->getDuration();
+    case PropertyName::CurrentTime:
+        return m_fileReader->getCurrentTime();
+    case PropertyName::PlaybackSpeed:
+        return m_fileReader->getPlaybackSpeed();
+    case PropertyName::FrameCount:
+        return m_fileReader->getFrameCount();
+    case PropertyName::CurrentFrameIndex:
+        return m_fileReader->getCurrentFrameIndex();
+    default:
+        return NAN;
+    }
+}
 
 ProviderImp* createProviderApple() { return new ProviderApple(); }
 

@@ -14,13 +14,18 @@
 int main() {
     // Set error callback to receive error notifications
     ccap::setErrorCallback([](ccap::ErrorCode errorCode, std::string_view description) {
-        std::cerr << "Error occurred - Code: " << static_cast<int>(errorCode) 
+        std::cerr << "Error occurred - Code: " << static_cast<int>(errorCode)
                   << ", Description: " << description << std::endl;
     });
-    
+
+#if defined(_WIN32) || defined(_WIN64)
+    // On Windows, you can force a backend like this:
+    // ccap::Provider cameraProvider(-1, "msmf");
+    // ccap::Provider cameraProvider(-1, "dshow");
+#endif
     ccap::Provider cameraProvider;
-    
-    cameraProvider.open(selectCamera(cameraProvider), true);
+
+    cameraProvider.open(selectCamera(cameraProvider, nullptr), true);
 
     cameraProvider.start();
 

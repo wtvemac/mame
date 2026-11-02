@@ -232,6 +232,45 @@ end
 			}
 		end
 	end
+	if ccap_supported() then
+		links {
+			"ccap",
+			"ccap_avx2",
+		}
+		if _OPTIONS["targetos"]=="windows" then
+			links {
+				"mf",
+				"mfplat",
+				"mfreadwrite",
+				"mfuuid",
+				"ole32",
+				"oleaut32",
+			}
+			configuration { "vs*" }
+				-- keep the DirectShow path working on systems without Media Foundation
+				links {
+					"delayimp",
+				}
+				linkoptions {
+					"/DELAYLOAD:mf.dll",
+					"/DELAYLOAD:mfplat.dll",
+					"/DELAYLOAD:mfreadwrite.dll",
+				}
+			configuration { }
+		elseif _OPTIONS["targetos"]=="macosx" then
+			linkoptions {
+				"-framework Accelerate",
+				"-framework AVFoundation",
+				"-framework CoreMedia",
+				"-framework CoreVideo",
+				"-framework Foundation",
+			}
+		else
+			links {
+				"pthread",
+			}
+		end
+	end
 	links {
 		"bgfx",
 		"bimg",

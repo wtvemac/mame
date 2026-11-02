@@ -8,18 +8,34 @@ set(DESKTOP_EXAMPLES_DIR ${CMAKE_CURRENT_LIST_DIR}/desktop)
 set(GLFW_AVAILABLE OFF)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    if(NOT GLFW_AVAILABLE)
-        find_package(glfw3 QUIET)
+    # Check if we're building standalone CLI - if so, use bundled GLFW
+    if(CCAP_BUILD_CLI_STANDALONE)
+        # For standalone builds, use bundled static GLFW to avoid system dependencies
+        set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "Build GLFW example programs" FORCE)
+        set(GLFW_BUILD_TESTS OFF CACHE BOOL "Build GLFW test programs" FORCE)
+        set(GLFW_BUILD_DOCS OFF CACHE BOOL "Build GLFW documentation" FORCE)
+        set(GLFW_INSTALL OFF CACHE BOOL "Generate installation target" FORCE)
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)  # Force static GLFW
 
-        if(glfw3_FOUND)
-            set(GLFW_AVAILABLE ON)
-            set(GLFW_TARGET glfw)
+        add_subdirectory(${DESKTOP_EXAMPLES_DIR}/glfw)
+        set(GLFW_AVAILABLE ON)
+        set(GLFW_TARGET glfw)
+        message(STATUS "ccap: Using bundled GLFW for standalone build")
+    else()
+        # For non-standalone builds, prefer system GLFW
+        if(NOT GLFW_AVAILABLE)
+            find_package(glfw3 QUIET)
+
+            if(glfw3_FOUND)
+                set(GLFW_AVAILABLE ON)
+                set(GLFW_TARGET glfw)
+            endif()
         endif()
-    endif()
 
-    if(NOT GLFW_AVAILABLE)
-        message(STATUS "ccap: GLFW not found on system. GLFW-dependent examples will be disabled.")
-        message(STATUS "ccap: Install GLFW with: sudo apt-get install libglfw3-dev (Ubuntu/Debian) or equivalent")
+        if(NOT GLFW_AVAILABLE)
+            message(STATUS "ccap: GLFW not found on system. GLFW-dependent examples will be disabled.")
+            message(STATUS "ccap: Install GLFW with: sudo apt-get install libglfw3-dev (Ubuntu/Debian) or equivalent")
+        endif()
     endif()
 else()
     # On non-Linux platforms, use bundled GLFW
@@ -40,6 +56,13 @@ add_library(common_utils STATIC ${DESKTOP_EXAMPLES_DIR}/utils/helper.cpp)
 target_include_directories(common_utils PRIVATE ${DESKTOP_EXAMPLES_DIR}/utils)
 target_compile_definitions(common_utils PUBLIC _CRT_SECURE_NO_WARNINGS=1)
 target_link_libraries(common_utils PUBLIC ccap)
+
+# MSVC-specific settings for examples
+if (MSVC)
+    target_compile_options(common_utils PUBLIC
+        /source-charset:utf-8
+    )
+endif ()
 
 file(GLOB EXAMPLE_SOURCE ${DESKTOP_EXAMPLES_DIR}/*.cpp ${DESKTOP_EXAMPLES_DIR}/*.c)
 
@@ -83,3 +106,31 @@ foreach(EXAMPLE ${EXAMPLE_SOURCE})
         message(STATUS "ccap: Add example: ${EXAMPLE_NAME}")
     endif()
 endforeach()
+
+# Link built-in test video for video examples
+set(TEST_VIDEO_PATH "${CMAKE_SOURCE_DIR}/tests/test-data/test.mp4")
+
+if(EXISTS "${TEST_VIDEO_PATH}")
+    message(STATUS "ccap: Built-in test video found at ${TEST_VIDEO_PATH}")
+    
+    foreach(EXAMPLE ${EXAMPLE_SOURCE})
+        get_filename_component(EXAMPLE_NAME ${EXAMPLE} NAME)
+        string(REGEX REPLACE "\\.(cpp|c)$" "" EXAMPLE_NAME ${EXAMPLE_NAME})
+        
+        # Check if example name contains "video"
+        if(${EXAMPLE_NAME} MATCHES "video")
+            # Create a custom command to copy test video to output directory after build
+            add_custom_command(
+                TARGET ${EXAMPLE_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${TEST_VIDEO_PATH}"
+                    "$<TARGET_FILE_DIR:${EXAMPLE_NAME}>/test.mp4"
+                COMMENT "Copying test video to ${EXAMPLE_NAME} output directory"
+                VERBATIM
+            )
+            message(STATUS "ccap: Will copy test video for example: ${EXAMPLE_NAME}")
+        endif()
+    endforeach()
+else()
+    message(WARNING "ccap: Built-in test video not found at ${TEST_VIDEO_PATH}")
+endif()

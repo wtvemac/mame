@@ -453,6 +453,11 @@ if not _OPTIONS["NO_USE_PJSUA2"] then
 	_OPTIONS["NO_USE_PJSUA2"] = "0"
 end
 
+-- 3rdparty/ccap (host video capture) for V4L2 on Linux, AVFoundation on macOS and DirectShow/Media Foundation backends on Windows
+function ccap_supported()
+	return _OPTIONS["targetos"]=="linux" or _OPTIONS["targetos"]=="macosx" or _OPTIONS["targetos"]=="windows"
+end
+
 dofile ("extlib.lua")
 
 if _OPTIONS["SHLIB"]=="1" then

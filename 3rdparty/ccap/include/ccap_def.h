@@ -35,7 +35,7 @@ namespace ccap {
 enum PixelFormatConstants : uint32_t {
     /// `kPixelFormatRGBBit` indicates that the pixel format is RGB or RGBA.
     kPixelFormatRGBBit = 1 << 3,
-    /// `kPixelFormatRGBBit` indicates that the pixel format is BGR or BGRA.
+    /// `kPixelFormatBGRBit` indicates that the pixel format is BGR or BGRA.
     kPixelFormatBGRBit = 1 << 4,
 
     /// Color Bit Mask
@@ -82,7 +82,6 @@ enum class PixelFormat : uint32_t {
      *    In software design, you can implement a toggle option to allow users to choose whether
      *    the received Frame is FullRange or VideoRange based on what they observe.
      * @note This format is also known by other names, such as YUV420P or IYUV.
-     * @refitem #NV12
      */
     I420 = 1 << 2 | kPixelFormatYUVColorBit,
 
@@ -191,10 +190,14 @@ enum class PropertyName {
 
     /**
      * @brief The output pixel format of ccap. Can be different from PixelFormatInternal.
-     * @note If PixelFormatInternal is RGB(A), PixelFormatOutput cannot be set to a YUV format.
+     * @note If PixelFormatInternal is RGB(A), PixelFormatOutput cannot be set to a YUV format (RGB->YUV conversion is not supported).
+     *       If PixelFormatInternal is YUV and PixelFormatOutput is a different YUV subtype, conversion requires libyuv;
+     *       without it the frame will keep the camera format and no conversion is performed.
      *       If PixelFormatInternal is YUV and PixelFormatOutput is RGB(A), BT.601 will be used for conversion.
-     *       For other cases, there are no issues.
-     *       If PixelFormatInternal and PixelFormatOutput are the same format, data conversion will be skipped and the original data will be used directly.
+     *       If PixelFormatOutput is set to PixelFormat::Unknown (or not set), the camera's native format is used as-is
+     *       and no conversion is performed.
+     *       If PixelFormatInternal and PixelFormatOutput are the same format AND the camera natively supports
+     *       PixelFormatInternal, data conversion will be skipped and the original data will be used directly.
      *       In general, setting both PixelFormatInternal and PixelFormatOutput to YUV formats can achieve better performance.
      */
     PixelFormatOutput = 0x30002,
@@ -205,6 +208,48 @@ enum class PropertyName {
      *      It is recommended that users do not set this option, but instead adapt to the orientation information obtained from the Frame.
      */
     FrameOrientation = 0x40000,
+
+    // ============== File Playback Properties (only valid in file mode) ==============
+
+    /**
+     * @brief Video total duration in seconds. Read-only.
+     * @note Only valid when Provider is in file mode (opened with a video file path).
+     *       Returns NaN for camera mode.
+     */
+    Duration = 0x50001,
+
+    /**
+     * @brief Current playback position in seconds. Read/Write.
+     * @note Set this property to seek to a specific time position.
+     *       Only valid in file mode. Returns NaN for camera mode.
+     */
+    CurrentTime = 0x50002,
+
+    /**
+     * @brief Playback speed multiplier. Read/Write. Default is 0.0 (no frame rate control).
+     * @note When set to 0.0 (default), frames are returned immediately without any delay,
+     *       similar to OpenCV's cv::VideoCapture behavior. This is useful for processing
+     *       video frames as fast as possible.
+     *       When set to a positive value:
+     *       - 1.0 = normal speed (matches video's original frame rate)
+     *       - > 1.0 = speeds up playback (e.g., 2.0 = 2x speed)
+     *       - < 1.0 = slows down playback (e.g., 0.5 = half speed)
+     *       Only valid in file mode. Returns NaN for camera mode.
+     */
+    PlaybackSpeed = 0x50003,
+
+    /**
+     * @brief Total number of frames in the video. Read-only.
+     * @note Only valid in file mode. Returns NaN for camera mode.
+     */
+    FrameCount = 0x50004,
+
+    /**
+     * @brief Current frame index (0-based). Read/Write.
+     * @note Set this property to seek to a specific frame.
+     *       Only valid in file mode. Returns NaN for camera mode.
+     */
+    CurrentFrameIndex = 0x50005,
 };
 
 /**
@@ -252,6 +297,34 @@ enum class ErrorCode {
 
     /// Memory allocation failed
     MemoryAllocationFailed = 0x4001,
+
+    // ============== File Playback Errors ==============
+
+    /// Failed to open video file
+    FileOpenFailed = 0x5001,
+
+    /// Video format is not supported
+    UnsupportedVideoFormat = 0x5002,
+
+    /// Seek operation failed
+    SeekFailed = 0x5003,
+
+    // ============== Video Writer Errors ==============
+
+    /// Failed to open video writer
+    WriterOpenFailed = 0x6001,
+
+    /// Failed to write frame
+    WriterWriteFailed = 0x6002,
+
+    /// Failed to finalize file
+    WriterCloseFailed = 0x6003,
+
+    /// Writer not opened
+    WriterNotOpened = 0x6004,
+
+    /// Codec not supported on this platform
+    UnsupportedCodec = 0x6005,
 
     /// Unknown or internal error
     InternalError = 0x9999,
@@ -340,14 +413,15 @@ struct CCAP_EXPORT VideoFrame {
      */
     std::shared_ptr<Allocator> allocator;
 
-    /**
-     * @brief Native handle for the frame, used for platform-specific operations.
-     *        This field is optional and may be nullptr if not needed.
-     * @note Currently defined as follows:
-     *     - Windows: When the backend is DirectShow, the actual type of nativeHandle is `IMediaSample*`
-     *     - macOS/iOS: The actual type of nativeHandle is `CMSampleBufferRef`
-     *     - Linux: The actual type is uint32_t, stands for `v4l2_buffer::index`.
-     */
+     /**
+      * @brief Native handle for the frame, used for platform-specific operations.
+      *        This field is optional and may be nullptr if not needed.
+      * @note Currently defined as follows:
+      *     - Windows: When the backend is DirectShow, the actual type of nativeHandle is `IMediaSample*`
+      *     - Windows: When the backend is Media Foundation, the actual type of nativeHandle is `IMFSample*`
+      *     - macOS/iOS: The actual type of nativeHandle is `CMSampleBufferRef`
+      *     - Linux: The actual type is uint32_t, stands for `v4l2_buffer::index`.
+      */
     void* nativeHandle = nullptr; ///< Native handle for the frame, used for platform-specific operations
 
     /**

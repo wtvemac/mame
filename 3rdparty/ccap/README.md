@@ -1,8 +1,11 @@
 # ccap (CameraCapture)
 
+[![Contributors](https://img.shields.io/github/contributors/wysaid/CameraCapture?style=flat-square)](https://github.com/wysaid/CameraCapture/graphs/contributors)
+[![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/wysaid/CameraCapture/pulls)
 [![Windows Build](https://github.com/wysaid/CameraCapture/actions/workflows/windows-build.yml/badge.svg)](https://github.com/wysaid/CameraCapture/actions/workflows/windows-build.yml)
 [![macOS Build](https://github.com/wysaid/CameraCapture/actions/workflows/macos-build.yml/badge.svg)](https://github.com/wysaid/CameraCapture/actions/workflows/macos-build.yml)
 [![Linux Build](https://github.com/wysaid/CameraCapture/actions/workflows/linux-build.yml/badge.svg)](https://github.com/wysaid/CameraCapture/actions/workflows/linux-build.yml)
+[![Rust CI](https://github.com/wysaid/CameraCapture/actions/workflows/rust.yml/badge.svg)](https://github.com/wysaid/CameraCapture/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++17](https://img.shields.io/badge/C++-17-blue.svg)](https://isocpp.org/)
 [![C99](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
@@ -10,7 +13,7 @@
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
-A high-performance, lightweight cross-platform camera capture library with hardware-accelerated pixel format conversion, providing complete C++ and pure C language interfaces.
+A high-performance, lightweight cross-platform camera capture library with hardware-accelerated pixel format conversion, supporting both camera capture and video file playback (Windows/macOS). On Windows, ccap now fully supports both DirectShow and Media Foundation, with DirectShow remaining the default for strong virtual-camera compatibility. Provides complete C++ and pure C interfaces, plus Rust bindings.
 
 > 🌐 **Official Website:** [ccap.work](https://ccap.work)
 
@@ -23,19 +26,41 @@ A high-performance, lightweight cross-platform camera capture library with hardw
 - [API Reference](#api-reference)
 - [Testing](#testing)
 - [Build and Install](#build-and-install)
+- [Contributors](#contributors)
 - [License](#license)
 
 ## Features
 
 - **High Performance**: Hardware-accelerated pixel format conversion with up to 10x speedup (AVX2, Apple Accelerate, NEON)
-- **Lightweight**: Zero external dependencies - uses only system frameworks
-- **Cross Platform**: Windows (DirectShow), macOS/iOS (AVFoundation), Linux (V4L2)
+- **Lightweight**: No third-party dependencies - uses only system frameworks
+- **Cross Platform**: Windows (dual backends: DirectShow by default, Media Foundation fully supported), macOS/iOS (AVFoundation), Linux (V4L2)
+- **Windows Dual Backends**: DirectShow stays the default on Windows for compatibility with OBS Virtual Camera and other virtual devices, while Media Foundation is also fully supported through `auto`, environment overrides, and explicit backend selection
 - **Multiple Formats**: RGB, BGR, YUV (NV12/I420) with automatic conversion
 - **Dual Language APIs**: ✨ **Complete Pure C Interface** - Both modern C++ API and traditional C99 interface for various project integration and language bindings
+- **Video File Playback**: 🎬 Play video files (MP4, AVI, MOV, etc.) using the same API as camera capture - supports Windows and macOS
+- **Video Writing / Recording**: 🎥 Write MP4/MOV files from camera frames via `ccap::VideoWriter`, `ccap_video_writer_*`, or CLI `--record` (Windows/macOS, `CCAP_ENABLE_VIDEO_WRITER=ON`)
+- **CLI Tool**: Ready-to-use command-line tool for quick camera operations and video processing - list devices, capture images, real-time preview, video playback ([Documentation](./docs/content/cli.md))
 - **Production Ready**: Comprehensive test suite with 95%+ accuracy validation
-- **Virtual Camera Support**: Compatible with OBS Virtual Camera and similar tools
+- **Virtual Camera Support**: Compatible with OBS Virtual Camera and similar tools through the default DirectShow path on Windows
 
 ## Quick Start
+
+### Agent Skill
+
+This repository also includes a standalone agent skill for `ccap`, which can be used as a standard skill entry for installation, device inspection, capture, and video inspection workflows.
+
+- Skill folder: [skills/ccap](./skills/ccap)
+- Skill definition: [skills/ccap/SKILL.md](./skills/ccap/SKILL.md)
+
+Use this skill when you want an agent to work through the practical `ccap` flows instead of reading the source tree first, for example:
+
+- install `ccap` on the current machine
+- list available camera devices
+- inspect device capabilities
+- capture frames or preview video with the CLI
+- inspect video metadata with structured output when available
+
+The skill guides agents to choose among an existing installation, Homebrew on macOS, source builds, and release-binary fallback, then prefer the `ccap` CLI with `--json` where supported.
 
 ### Installation
 
@@ -205,16 +230,106 @@ int main() {
 }
 ```
 
+### Windows Backend Selection
+
+On Windows, camera capture now uses DirectShow by default. This keeps OBS Virtual Camera and other virtual cameras working reliably after upgrades, while Media Foundation remains available when you explicitly request it. In `auto` mode, camera enumeration merges results from both Windows backends and `Provider::open()` routes the selected device to a compatible backend automatically: DirectShow-only devices stay on DirectShow, Media Foundation-only devices go straight to Media Foundation, and devices visible in both backends prefer DirectShow with Media Foundation as the secondary fallback.
+
+For most Windows applications, staying in `auto` mode is recommended. ccap normalizes the public capture API, frame orientation handling, and output pixel-format conversion across both backends so callers usually do not need backend-specific code.
+
+For video writing, backend selection is a separate axis: on Windows, `VideoWriter` uses Media Foundation's writer stack regardless of camera capture backend (`auto` / `dshow` / `msmf`).
+
+- Pass `extraInfo` as `"auto"`, `"msmf"`, `"dshow"`, or `"backend=<value>"` in the C++/C constructors that accept it.
+- Set the environment variable `CCAP_WINDOWS_BACKEND=auto|msmf|dshow` to affect the whole process, including the CLI and Rust bindings.
+
+```powershell
+# PowerShell: opt into Media Foundation for the current process
+$env:CCAP_WINDOWS_BACKEND = "msmf"
+.\ccap --list-devices
+```
+
+```cpp
+// Force Media Foundation explicitly on Windows
+ccap::Provider msmfProvider("", "msmf");
+
+// Force DirectShow explicitly on Windows
+ccap::Provider dshowProvider("", "dshow");
+```
+
+### Rust Bindings
+
+Rust bindings are available as a crate on crates.io:
+
+- Crate: [ccap-rs on crates.io](https://crates.io/crates/ccap-rs)
+- Docs: [docs.rs/ccap-rs](https://docs.rs/ccap-rs)
+- Source: `bindings/rust/`
+
+Quick install:
+
+```bash
+cargo add ccap-rs
+```
+
+Or, if you want the crate name in code to be `ccap`:
+
+```toml
+[dependencies]
+ccap = { package = "ccap-rs", version = "<latest>" }
+```
+
+## CLI Tool
+
+ccap includes a powerful command-line tool for quick camera operations and video processing without writing code:
+
+```bash
+# Build with CLI tool enabled
+mkdir build && cd build
+cmake .. -DCCAP_BUILD_CLI=ON
+cmake --build .
+
+# List available cameras
+./ccap --list-devices
+
+# Capture 5 images from default camera
+./ccap -c 5 -o ./captures
+
+# Real-time preview (requires GLFW)
+./ccap --preview
+
+# Play video file and extract frames
+./ccap -i video.mp4 -c 30 -o ./frames
+
+# Video preview with playback controls
+./ccap -i video.mp4 --preview --speed 1.0
+
+# Record camera stream to MP4 (Windows/macOS)
+./ccap -d 0 --record ./camera_capture.mp4 --timeout 5
+```
+
+**Key Features:**
+
+- 📷 List and select camera devices
+- 🎯 Capture single or multiple images
+- 👁️ Real-time preview window (with GLFW)
+- 🎬 Video file playback and frame extraction
+- 🎥 Record camera stream to MP4/MOV (`--record`)
+- ⚙️ Configure resolution, format, and frame rate
+- 💾 Save images in various formats (JPEG, PNG, BMP, etc.)
+- ⏱️ Duration-based or count-based capture modes
+- 🔁 Video looping and playback speed control
+
+
+For complete CLI documentation, see [CLI Tool Guide](./docs/content/cli.md).
+
 ## System Requirements
 
 | Platform | Compiler | System Requirements |
-|----------|----------|---------------------|
-| **Windows** | MSVC 2019+ | DirectShow |
+| -------- | -------- | ------------------- |
+| **Windows** | MSVC 2019+ (including 2026) / MinGW-w64 | DirectShow (default) + Media Foundation support |
 | **macOS** | Xcode 11+ | macOS 10.13+ |
 | **iOS** | Xcode 11+ | iOS 13.0+ |
 | **Linux** | GCC 7+ / Clang 6+ | V4L2 (Linux 2.6+) |
 
-**Build Requirements**: CMake 3.14+, C++17 (C++ interface), C99 (C interface)
+**Build Requirements**: CMake 3.14+ (3.31+ recommended for MSVC 2026), C++17 (C++ interface), C99 (C interface)
 
 ### Supported Linux Distributions
 
@@ -228,12 +343,14 @@ int main() {
 ## Examples
 
 | Example | Description | Language | Platform |
-|---------|-------------|----------|----------|
+| ------- | ----------- | -------- | -------- |
 | [0-print_camera](./examples/desktop/0-print_camera.cpp) / [0-print_camera_c](./examples/desktop/0-print_camera_c.c) | List available cameras | C++ / C | Desktop |
 | [1-minimal_example](./examples/desktop/1-minimal_example.cpp) / [1-minimal_example_c](./examples/desktop/1-minimal_example_c.c) | Basic frame capture | C++ / C | Desktop |
 | [2-capture_grab](./examples/desktop/2-capture_grab.cpp) / [2-capture_grab_c](./examples/desktop/2-capture_grab_c.c) | Continuous capture | C++ / C | Desktop |
 | [3-capture_callback](./examples/desktop/3-capture_callback.cpp) / [3-capture_callback_c](./examples/desktop/3-capture_callback_c.c) | Callback-based capture | C++ / C | Desktop |
 | [4-example_with_glfw](./examples/desktop/4-example_with_glfw.cpp) / [4-example_with_glfw_c](./examples/desktop/4-example_with_glfw_c.c) | OpenGL rendering | C++ / C | Desktop |
+| [5-play_video](./examples/desktop/5-play_video.cpp) / [5-play_video_c](./examples/desktop/5-play_video_c.c) | Video file playback | C++ / C | Windows/macOS |
+| [6-record_video](./examples/desktop/6-record_video.cpp) | Video recording with `VideoWriter` | C++ | Windows/macOS |
 | [iOS Demo](./examples/) | iOS application | Objective-C++ | iOS |
 
 ### Build and Run Examples
@@ -295,6 +412,7 @@ public:
     
     // Device info and advanced configuration
     std::optional<DeviceInfo> getDeviceInfo() const;
+    bool isFileMode() const;  // Check if playing video file vs camera
     void setFrameAllocator(std::function<std::shared_ptr<Allocator>()> allocatorFactory);
     void setMaxAvailableFrameSize(uint32_t size);
     void setMaxCacheFrameSize(uint32_t size);
@@ -332,7 +450,13 @@ enum class PropertyName {
     Width, Height, FrameRate,
     PixelFormatInternal,        // Camera's internal format
     PixelFormatOutput,          // Output format (with conversion)
-    FrameOrientation
+    FrameOrientation,
+    
+    // Video file playback properties (file mode only)
+    Duration,                   // Video duration in seconds (read-only)
+    CurrentTime,                // Current playback time in seconds
+    FrameCount,                 // Total frame count (read-only)
+    PlaybackSpeed               // Playback speed multiplier (1.0 = normal speed)
 };
 
 enum class PixelFormat : uint32_t {
@@ -343,6 +467,41 @@ enum class PixelFormat : uint32_t {
     RGBA32, BGRA32             // 32-bit RGBA/BGRA
 };
 ```
+
+### Video Writing (Windows/macOS)
+
+Video writing is available on Windows and macOS when `CCAP_ENABLE_VIDEO_WRITER=ON`.
+
+```cpp
+#include <ccap.h>
+#include <ccap_writer.h>
+
+ccap::Provider provider;
+ccap::VideoWriter writer;
+
+if (provider.open("", true)) {
+    ccap::WriterConfig cfg;
+    cfg.width = 1280;
+    cfg.height = 720;
+    cfg.frameRate = 30.0;
+    cfg.codec = ccap::VideoCodec::H264;
+    cfg.container = ccap::VideoFormat::MP4;
+
+    if (writer.open("camera_record.mp4", cfg)) {
+        while (auto frame = provider.grab(3000)) {
+            // timestampNs == 0 means auto timestamp generation from frameRate.
+            writer.writeFrame(*frame, 0);
+        }
+        writer.close();
+    }
+}
+```
+
+Notes:
+
+- Writer input supports `NV12`, `I420`, `BGR24`, and `BGRA32`.
+- `VideoFrame::orientation` is honored by the writer path (including `BottomToTop` frames common on Windows RGB capture).
+- `CCAP_ENABLE_VIDEO_WRITER` is independent from `CCAP_ENABLE_FILE_PLAYBACK`.
 
 ### Utility Functions
 
@@ -368,6 +527,42 @@ namespace ccap {
     void setLogLevel(LogLevel level);
 }
 ```
+
+### Video File Playback
+
+ccap supports playing video files using the same API as camera capture (Windows and macOS only):
+
+```cpp
+#include <ccap.h>
+
+ccap::Provider provider;
+
+// Open video file - same API as camera
+if (provider.open("/path/to/video.mp4", true)) {
+    // Check if in file mode
+    if (provider.isFileMode()) {
+        // Get video properties
+        double duration = provider.get(ccap::PropertyName::Duration);
+        double frameCount = provider.get(ccap::PropertyName::FrameCount);
+        double frameRate = provider.get(ccap::PropertyName::FrameRate);
+        
+        // Set playback speed (1.0 = normal speed)
+        provider.set(ccap::PropertyName::PlaybackSpeed, 1.0);
+        
+        // Seek to specific time
+        provider.set(ccap::PropertyName::CurrentTime, 10.0);  // Seek to 10 seconds
+    }
+    
+    // Grab frames - same API as camera
+    while (auto frame = provider.grab(3000)) {
+        // Process frame...
+    }
+}
+```
+
+**Supported video formats**: MP4, AVI, MOV, MKV, and other formats supported by the platform's media framework.
+
+**Note**: Video playback is currently not supported on Linux. This feature is available on Windows and macOS only.
 
 ### OpenCV Integration
 
@@ -422,6 +617,20 @@ bool ccap_provider_start(CcapProvider* provider);
 void ccap_provider_stop(CcapProvider* provider);
 bool ccap_provider_is_started(CcapProvider* provider);
 ```
+
+##### Video Writer API (C)
+
+```c
+CcapVideoWriter* ccap_video_writer_create(void);
+void ccap_video_writer_destroy(CcapVideoWriter* writer);
+bool ccap_video_writer_open(CcapVideoWriter* writer, const char* filePath, const CcapWriterConfig* config);
+bool ccap_video_writer_write_frame(CcapVideoWriter* writer, const CcapVideoFrameInfo* frameInfo, uint64_t timestampNs);
+void ccap_video_writer_close(CcapVideoWriter* writer);
+bool ccap_video_writer_is_opened(const CcapVideoWriter* writer);
+CcapVideoCodec ccap_video_writer_actual_codec(const CcapVideoWriter* writer);
+```
+
+`timestampNs == 0` is treated as an auto-timestamp sentinel (derived from configured frame rate), not a literal timeline timestamp.
 
 ##### Frame Capture and Processing
 
@@ -563,7 +772,7 @@ gcc -std=c99 your_code.c -o your_app \
 
 #### Complete Documentation
 
-For detailed usage instructions and examples of the C interface, see: [C Interface Documentation](./docs/C_Interface.md)
+For detailed usage instructions and examples of the C interface, see: [C Interface Documentation](./docs/content/c-interface.md)
 
 **Additional C Utilities**: For pixel format string conversion and file I/O functions, also include:
 
@@ -577,6 +786,7 @@ Comprehensive test suite with 50+ test cases covering all functionality:
 - Multi-backend testing (CPU, AVX2, Apple Accelerate, NEON)
 - Performance benchmarks and accuracy validation  
 - 95%+ precision for pixel format conversions
+- Video writer regression tests (`ccap_video_writer_test`) covering C++ and C APIs, codec fallback, MOV container, `BottomToTop` orientation, and transcode duration checks
 
 ```bash
 ./scripts/run_tests.sh
@@ -591,6 +801,12 @@ git clone https://github.com/wysaid/CameraCapture.git
 cd CameraCapture
 ./scripts/build_and_install.sh
 ```
+
+## Contributors
+
+This project is built with help from the open-source community. Contributions of code, documentation, tests, bug reports, and reviews are all welcome.
+
+[![Contributors](https://contrib.rocks/image?repo=wysaid/CameraCapture)](https://github.com/wysaid/CameraCapture/graphs/contributors)
 
 ## License
 

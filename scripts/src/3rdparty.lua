@@ -2347,3 +2347,102 @@ project "pjproject"
 	end
 end
 end
+
+
+--------------------------------------------------
+-- ccap (host video capture) library objects
+--------------------------------------------------
+
+if ccap_supported() then
+project "ccap"
+	uuid "b1f3c0a6-6d0e-4b57-8f5e-3a9c2e7d4f10"
+	kind "StaticLib"
+
+	configuration { "vs*" }
+		buildoptions {
+			"/W0",
+		}
+
+	configuration { "gmake or ninja" }
+		buildoptions {
+			"-w",
+		}
+
+	configuration { }
+
+	includedirs {
+		MAME_DIR .. "3rdparty/ccap/include",
+		MAME_DIR .. "3rdparty/ccap/src",
+	}
+
+	files {
+		MAME_DIR .. "3rdparty/ccap/src/ccap_c.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_convert.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_convert_c.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_convert_frame.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_convert_neon.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_core.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_imp.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_utils.cpp",
+		MAME_DIR .. "3rdparty/ccap/src/ccap_utils_c.cpp",
+	}
+
+	if _OPTIONS["targetos"]=="linux" then
+		files {
+			MAME_DIR .. "3rdparty/ccap/src/ccap_imp_linux.cpp",
+		}
+	elseif _OPTIONS["targetos"]=="macosx" then
+		buildoptions_objcpp {
+			"-fobjc-arc",
+		}
+		files {
+			MAME_DIR .. "3rdparty/ccap/src/ccap_convert_apple.cpp",
+			MAME_DIR .. "3rdparty/ccap/src/ccap_file_reader_apple.mm",
+			MAME_DIR .. "3rdparty/ccap/src/ccap_imp_apple.mm",
+		}
+	elseif _OPTIONS["targetos"]=="windows" then
+		files {
+			MAME_DIR .. "3rdparty/ccap/src/ccap_imp_windows.cpp",
+			MAME_DIR .. "3rdparty/ccap/src/ccap_imp_windows_msmf.cpp",
+		}
+	end
+
+--------------------------------------------------
+-- ccap's AVX2 converters
+--------------------------------------------------
+
+project "ccap_avx2"
+	uuid "e7a2d94c-1c3b-4e8a-9d26-5f0b8c6a7e32"
+	kind "StaticLib"
+
+	configuration { "vs*" }
+		buildoptions {
+			"/W0",
+			"/arch:AVX2",
+		}
+
+	configuration { "gmake or ninja" }
+		buildoptions {
+			"-w",
+		}
+
+	configuration { }
+
+	if _OPTIONS["PLATFORM"]=="x86" then
+		configuration { "gmake or ninja" }
+			buildoptions {
+				"-mavx2",
+				"-mfma",
+			}
+		configuration { }
+	end
+
+	includedirs {
+		MAME_DIR .. "3rdparty/ccap/include",
+		MAME_DIR .. "3rdparty/ccap/src",
+	}
+
+	files {
+		MAME_DIR .. "3rdparty/ccap/src/ccap_convert_avx2.cpp",
+	}
+end

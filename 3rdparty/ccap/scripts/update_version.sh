@@ -91,4 +91,39 @@ update_file "s/version = \".*\"/version = \"$NEW_VERSION\"/" "$PROJECT_ROOT/cona
 # 4. Update BUILD_AND_INSTALL.md (documentation)
 update_file "s/Current version: .*/Current version: $NEW_VERSION/" "$PROJECT_ROOT/BUILD_AND_INSTALL.md" "BUILD_AND_INSTALL.md"
 
+# 5. Update Rust crate version (Cargo.toml)
+update_file "s/^version = \".*\"$/version = \"$NEW_VERSION\"/" "$PROJECT_ROOT/bindings/rust/Cargo.toml" "Rust crate version (Cargo.toml)"
+
+# 6. Update Rust lockfile entry for Rust package (Cargo.lock)
+RUST_LOCKFILE="$PROJECT_ROOT/bindings/rust/Cargo.lock"
+if [ -f "$RUST_LOCKFILE" ]; then
+    python3 - "$RUST_LOCKFILE" "$NEW_VERSION" <<'PY'
+import pathlib, re, sys
+
+path = pathlib.Path(sys.argv[1])
+new_ver = sys.argv[2]
+text = path.read_text()
+patterns = [
+    r'(?m)(^name = "ccap-rs"\nversion = ")[^"]+("\n)',
+    r'(?m)(^name = "ccap"\nversion = ")[^"]+("\n)',
+]
+
+new_text = text
+count = 0
+for pattern in patterns:
+    replacement = lambda match: f"{match.group(1)}{new_ver}{match.group(2)}"
+    new_text, n = re.subn(pattern, replacement, new_text, count=1)
+    if n:
+        count += n
+        break
+if count:
+    path.write_text(new_text)
+    print(f"✅ Updated Rust lockfile package version to {new_ver}")
+else:
+    print(f"⚠️  Rust package entry not found in {path}, lockfile not modified")
+PY
+else
+    echo "⚠️  $RUST_LOCKFILE not found, skipping Rust lockfile update"
+fi
+
 echo "Version update complete!"

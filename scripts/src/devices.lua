@@ -81,6 +81,19 @@ function devicesProject(_target, _subtarget)
 		end
 	end
 
+	-- ccap (3rdparty only) for host video capture
+	if ccap_supported() then
+		configuration { "gmake or ninja" }
+			buildoptions {
+				"-isystem " .. MAME_DIR .. "3rdparty/ccap/include",
+			}
+		configuration { "vs*" }
+			includedirs {
+				MAME_DIR .. "3rdparty/ccap/include",
+			}
+		configuration { }
+	end
+
 	dofile(path.join("src", "cpu.lua"))
 
 	dofile(path.join("src", "sound.lua"))

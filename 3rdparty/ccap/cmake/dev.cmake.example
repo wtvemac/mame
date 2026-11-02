@@ -1,0 +1,19 @@
+# dev.cmake.example
+# Copy this file to dev.cmake for local development overrides (git-ignored)
+
+# Build options (uncomment to override defaults)
+# set(CCAP_BUILD_CLI ON)                   # Build CLI tool
+# set(CCAP_BUILD_CLI_STANDALONE ON)        # Build standalone CLI with static runtime
+# set(CCAP_BUILD_EXAMPLES ON)              # Build examples
+# set(CCAP_BUILD_TESTS ON)                 # Build tests
+# set(CCAP_BUILD_SHARED ON)                # Build as shared library
+
+# CLI options (when CCAP_BUILD_CLI=ON)
+# set(CCAP_CLI_WITH_GLFW ON)               # Enable preview window
+# set(CCAP_CLI_WITH_STB_IMAGE ON)          # Enable JPG/PNG support
+
+# Platform/debug options
+# set(CCAP_NO_LOG ON)                      # Disable logging
+# set(CCAP_WIN_NO_DEVICE_VERIFY ON)        # Skip Windows device verification
+# set(CCAP_FORCE_ARM64 ON)                 # Force ARM64 build
+
