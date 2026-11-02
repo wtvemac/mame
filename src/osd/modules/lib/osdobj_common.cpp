@@ -152,6 +152,7 @@ const options_entry osd_options::s_option_entries[] =
 
 	{ nullptr,                                   nullptr,          core_options::option_type::HEADER,    "OSD EMULATED NETWORKING OPTIONS" },
 	{ OSDOPTION_NETWORK_PROVIDER,                OSDOPTVAL_AUTO,   core_options::option_type::STRING,    "Emulated networking provider: " },
+	{ OSDOPTION_NETWORK_SOCKET,                  "127.0.0.1:16150", core_options::option_type::STRING,    "host:port to connect to when using the socket networking provider" },
 
 	{ nullptr,                                   nullptr,           core_options::option_type::HEADER,   "BGFX POST-PROCESSING OPTIONS" },
 	{ OSDOPTION_BGFX_PATH,                       "bgfx",            core_options::option_type::PATH,     "path to BGFX-related files" },
@@ -288,6 +289,7 @@ void osd_common_t::register_options()
 
 	REGISTER_MODULE(m_mod_man, NETDEV_TAPTUN);
 	REGISTER_MODULE(m_mod_man, NETDEV_PCAP);
+	REGISTER_MODULE(m_mod_man, NETDEV_SOCKET);
 	REGISTER_MODULE(m_mod_man, NETDEV_NONE);
 
 #ifndef NO_USE_MIDI

@@ -83,6 +83,7 @@
 #define OSDOPTION_MIDI_PROVIDER         "midiprovider"
 
 #define OSDOPTION_NETWORK_PROVIDER      "networkprovider"
+#define OSDOPTION_NETWORK_SOCKET        "network_socket"
 
 #define OSDOPTION_BGFX_PATH             "bgfx_path"
 #define OSDOPTION_BGFX_BACKEND          "bgfx_backend"
@@ -160,6 +161,9 @@ public:
 	// sound options
 	const char *sound() const { return value(OSDOPTION_SOUND); }
 	float audio_latency() const { return float_value(OSDOPTION_AUDIO_LATENCY); }
+
+	// network options
+	const char *network_socket() const { return value(OSDOPTION_NETWORK_SOCKET); }
 
 	// BGFX specific options
 	const char *bgfx_path() const { return value(OSDOPTION_BGFX_PATH); }
