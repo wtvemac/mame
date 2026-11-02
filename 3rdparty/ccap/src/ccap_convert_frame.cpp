@@ -10,6 +10,7 @@
 
 #include "ccap_convert.h"
 #include "ccap_imp.h"
+#include "ccap_utils.h"
 
 #include <cassert>
 #include <cstring>
@@ -21,9 +22,8 @@ bool inplaceConvertFrameYUV2RGBColor(VideoFrame* frame, PixelFormat toFormat, bo
 
     // ASSERTION: Ensure frame->data[0] points to EXTERNAL memory, not allocator->data()
     // This validates the design constraint: VideoFrame should only be converted once
-    assert(frame->allocator == nullptr || frame->data[0] != frame->allocator->data() && 
-           "DESIGN VIOLATION: frame->data[0] must point to external memory (e.g., camera buffer), not allocator memory. "
-           "Each VideoFrame should only be converted ONCE using inplaceConvertFrame*() functions.");
+    assert(frame->allocator == nullptr || frame->data[0] != frame->allocator->data() && "DESIGN VIOLATION: frame->data[0] must point to external memory (e.g., camera buffer), not allocator memory. "
+                                                                                        "Each VideoFrame should only be converted ONCE using inplaceConvertFrame*() functions.");
 
     auto inputFormat = frame->pixelFormat;
     assert((inputFormat & kPixelFormatYUVColorBit) != 0 && (toFormat & kPixelFormatYUVColorBit) == 0);
@@ -128,12 +128,11 @@ bool inplaceConvertFrameYUV2RGBColor(VideoFrame* frame, PixelFormat toFormat, bo
 
 bool inplaceConvertFrameRGB(VideoFrame* frame, PixelFormat toFormat, bool verticalFlip) {
     // RGB(A) interconversion
-    
+
     // ASSERTION: Ensure frame->data[0] points to EXTERNAL memory, not allocator->data()
     // This validates the design constraint: VideoFrame should only be converted once
-    assert(frame->allocator == nullptr || frame->data[0] != frame->allocator->data() && 
-           "DESIGN VIOLATION: frame->data[0] must point to external memory (e.g., camera buffer), not allocator memory. "
-           "Each VideoFrame should only be converted ONCE using inplaceConvertFrame*() functions.");
+    assert(frame->allocator == nullptr || frame->data[0] != frame->allocator->data() && "DESIGN VIOLATION: frame->data[0] must point to external memory (e.g., camera buffer), not allocator memory. "
+                                                                                        "Each VideoFrame should only be converted ONCE using inplaceConvertFrame*() functions.");
 
     uint8_t* inputBytes = frame->data[0];
     int inputLineSize = frame->stride[0];
@@ -195,9 +194,8 @@ bool inplaceConvertFrameRGB(VideoFrame* frame, PixelFormat toFormat, bool vertic
 inline bool inplaceConvertFrameImp(VideoFrame* frame, PixelFormat toFormat, bool verticalFlip) {
     // ASSERTION: Ensure frame->data[0] points to EXTERNAL memory, not allocator->data()
     // This validates the design constraint: VideoFrame should only be converted once
-    assert(frame->allocator == nullptr || frame->data[0] != frame->allocator->data() && 
-           "DESIGN VIOLATION: frame->data[0] must point to external memory (e.g., camera buffer), not allocator memory. "
-           "Each VideoFrame should only be converted ONCE using inplaceConvertFrame*() functions.");
+    assert(frame->allocator == nullptr || frame->data[0] != frame->allocator->data() && "DESIGN VIOLATION: frame->data[0] must point to external memory (e.g., camera buffer), not allocator memory. "
+                                                                                        "Each VideoFrame should only be converted ONCE using inplaceConvertFrame*() functions.");
 
     if (frame->pixelFormat == toFormat) {
         if (verticalFlip && (toFormat & kPixelFormatRGBColorBit)) { // flip upside down
@@ -232,8 +230,25 @@ inline bool inplaceConvertFrameImp(VideoFrame* frame, PixelFormat toFormat, bool
             return inplaceConvertFrameYUV2YUV(frame, toFormat, verticalFlip);
 #endif
 
+        if (isInputYUV && isOutputYUV) {
+            // Best-effort log suppression only; occasional duplicate warnings are acceptable.
+            static bool sLoggedYuv2YuvUnsupported = false;
+            if (!sLoggedYuv2YuvUnsupported) {
+                CCAP_LOG_W("ccap: YUV to different YUV subtype conversion is not supported without libyuv, skipping conversion\n");
+                sLoggedYuv2YuvUnsupported = true;
+            }
+            return false;
+        }
+
         if (isInputYUV) // yuv -> BGR
             return inplaceConvertFrameYUV2RGBColor(frame, toFormat, verticalFlip);
+
+        // Best-effort log suppression only; occasional duplicate warnings are acceptable.
+        static bool sLoggedRgbToYuvUnsupported = false;
+        if (!sLoggedRgbToYuvUnsupported) {
+            CCAP_LOG_W("ccap: RGB to YUV conversion is not supported, skipping conversion\n");
+            sLoggedRgbToYuvUnsupported = true;
+        }
         return false; // no rgb -> yuv
     }
 
@@ -245,7 +260,7 @@ bool inplaceConvertFrame(VideoFrame* frame, PixelFormat toFormat, bool verticalF
     if (ret) {
         assert(frame->pixelFormat == toFormat);
         assert(frame->allocator != nullptr && frame->data[0] == frame->allocator->data());
-        frame->sizeInBytes = frame->allocator->size();
+        frame->sizeInBytes = static_cast<uint32_t>(frame->allocator->size());
     }
     return ret;
 }

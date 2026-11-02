@@ -64,7 +64,13 @@ typedef enum {
     CCAP_PROPERTY_FRAME_RATE = 0x20000,
     CCAP_PROPERTY_PIXEL_FORMAT_INTERNAL = 0x30001,
     CCAP_PROPERTY_PIXEL_FORMAT_OUTPUT = 0x30002,
-    CCAP_PROPERTY_FRAME_ORIENTATION = 0x40000
+    CCAP_PROPERTY_FRAME_ORIENTATION = 0x40000,
+    /* File playback properties (only valid in file mode) */
+    CCAP_PROPERTY_DURATION = 0x50001,           /**< Video total duration in seconds (read-only) */
+    CCAP_PROPERTY_CURRENT_TIME = 0x50002,       /**< Current playback position in seconds (read/write for seek) */
+    CCAP_PROPERTY_PLAYBACK_SPEED = 0x50003,     /**< Playback speed multiplier (read/write, default 1.0) */
+    CCAP_PROPERTY_FRAME_COUNT = 0x50004,        /**< Total number of frames (read-only) */
+    CCAP_PROPERTY_CURRENT_FRAME_INDEX = 0x50005 /**< Current frame index (read/write for seek) */
 } CcapPropertyName;
 
 /** @brief Error codes for camera capture operations */
@@ -83,6 +89,16 @@ typedef enum {
     CCAP_ERROR_FRAME_CAPTURE_TIMEOUT = 0x3001, /**< Frame capture timeout */
     CCAP_ERROR_FRAME_CAPTURE_FAILED = 0x3002,  /**< Frame capture failed */
     CCAP_ERROR_MEMORY_ALLOCATION_FAILED = 0x4001, /**< Memory allocation failed */
+    /* File playback error codes */
+    CCAP_ERROR_FILE_OPEN_FAILED = 0x5001,      /**< Failed to open video file */
+    CCAP_ERROR_UNSUPPORTED_VIDEO_FORMAT = 0x5002, /**< Video format is not supported */
+    CCAP_ERROR_SEEK_FAILED = 0x5003,           /**< Seek operation failed */
+    /* Video writer error codes */
+    CCAP_ERROR_WRITER_OPEN_FAILED = 0x6001,    /**< Failed to open video writer */
+    CCAP_ERROR_WRITER_WRITE_FAILED = 0x6002,   /**< Failed to write frame */
+    CCAP_ERROR_WRITER_CLOSE_FAILED = 0x6003,   /**< Failed to finalize file */
+    CCAP_ERROR_WRITER_NOT_OPENED = 0x6004,     /**< Writer not opened */
+    CCAP_ERROR_UNSUPPORTED_CODEC = 0x6005,     /**< Codec not supported on this platform */
     CCAP_ERROR_INTERNAL_ERROR = 0x9999,        /**< Unknown or internal error */
 } CcapErrorCode;
 
@@ -142,7 +158,10 @@ CCAP_EXPORT CcapProvider* ccap_provider_create(void);
 /**
  * @brief Create a camera provider and open specified device
  * @param deviceName Device name to open (NULL for default device)
- * @param extraInfo Extra information (currently unused, can be NULL)
+ * @param extraInfo Extra backend hint (can be NULL).
+ *        On Windows, accepted values include `auto`, `msmf`, `dshow`, and `backend=<value>`.
+ *        `auto` enumerates both Windows backends and routes each device to a compatible backend automatically.
+ *        Other platforms ignore this parameter.
  * @return Pointer to CcapProvider instance, or NULL on failure
  */
 CCAP_EXPORT CcapProvider* ccap_provider_create_with_device(const char* deviceName, const char* extraInfo);
@@ -150,7 +169,10 @@ CCAP_EXPORT CcapProvider* ccap_provider_create_with_device(const char* deviceNam
 /**
  * @brief Create a camera provider and open device by index
  * @param deviceIndex Device index (negative for default device)
- * @param extraInfo Extra information (currently unused, can be NULL)
+ * @param extraInfo Extra backend hint (can be NULL).
+ *        On Windows, accepted values include `auto`, `msmf`, `dshow`, and `backend=<value>`.
+ *        `auto` enumerates both Windows backends and routes each device to a compatible backend automatically.
+ *        Other platforms ignore this parameter.
  * @return Pointer to CcapProvider instance, or NULL on failure
  */
 CCAP_EXPORT CcapProvider* ccap_provider_create_with_index(int deviceIndex, const char* extraInfo);
@@ -197,6 +219,13 @@ CCAP_EXPORT bool ccap_provider_open_by_index(CcapProvider* provider, int deviceI
  * @return true if opened, false otherwise
  */
 CCAP_EXPORT bool ccap_provider_is_opened(const CcapProvider* provider);
+
+/**
+ * @brief Check if provider is in file playback mode
+ * @param provider Pointer to CcapProvider instance
+ * @return true if opened with a video file, false if opened with a camera device
+ */
+CCAP_EXPORT bool ccap_provider_is_file_mode(const CcapProvider* provider);
 
 /**
  * @brief Get device information
