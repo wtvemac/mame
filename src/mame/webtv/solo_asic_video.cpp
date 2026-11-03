@@ -16,6 +16,7 @@ solo_asic_video_device::solo_asic_video_device(const machine_config &mconfig, co
 	m_hostcpu(*this, finder_base::DUMMY_TAG),
 	m_hostram(*this, finder_base::DUMMY_TAG),
 	m_screen(*this, "screen"),
+	m_vidcap(*this, "vidcap"),
 	m_int_enable_cb(*this),
 	m_int_irq_cb(*this)
 {
@@ -23,6 +24,12 @@ solo_asic_video_device::solo_asic_video_device(const machine_config &mconfig, co
 
 void solo_asic_video_device::device_start()
 {
+	// divUnit needs set_raw() to be called for its field timer.
+	if (!m_screen->started())
+		throw device_missing_dependencies();
+
+	m_div_field_timer = timer_alloc(FUNC(solo_asic_video_device::div_field_end), this);
+
 	solo_asic_video_device::device_reset();
 
 	save_item(NAME(m_busvid_intenable));
@@ -80,12 +87,14 @@ void solo_asic_video_device::device_start()
 	save_item(NAME(m_div_gpio_out));
 	save_item(NAME(m_div_gpio_in_mask));
 	save_item(NAME(m_div_gpio_out_mask));
+	save_item(NAME(m_div_dmacntl));
+	save_item(NAME(m_div_nextcfg));
+	save_item(NAME(m_div_currcfg));
+	save_item(NAME(m_div_field));
+	save_item(NAME(m_div_irq_pending));
 
 	save_item(NAME(m_dve_unknown1));
 	save_item(NAME(m_dve_unknown2));
-
-	save_item(NAME(m_div_intenable));
-	save_item(NAME(m_div_intstat));
 
 	save_item(NAME(m_pot_vstart));
 	save_item(NAME(m_pot_vsize));
@@ -165,12 +174,17 @@ void solo_asic_video_device::device_reset()
 	m_div_gpio_out = 0x0;
 	m_div_gpio_in_mask = 0x0;
 	m_div_gpio_out_mask = (~m_div_gpio_in_mask);
+	m_div_dmacntl = 0x0;
+	m_div_nextcfg = 0x0;
+	m_div_currcfg = 0x0;
+	m_div_field = 0;
+	m_div_irq_pending = false;
+
+	const attotime field_time = m_screen->frame_period();
+	m_div_field_timer->adjust(field_time, 0, field_time);
 
 	m_dve_unknown1 = 0x0;
 	m_dve_unknown2 = 0x0;
-
-	m_div_intenable = 0x0;
-	m_div_intstat = 0x0;
 
 	m_pot_vstart = POT_DEFAULT_VSTART;
 	m_pot_vsize = POT_DEFAULT_VSIZE;
@@ -200,6 +214,8 @@ void solo_asic_video_device::device_stop()
 
 void solo_asic_video_device::device_add_mconfig(machine_config &config)
 {
+	VIDEO_CAPTURE(config, m_vidcap);
+
 	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
 	m_screen->set_screen_update(FUNC(solo_asic_video_device::screen_update));
 	m_screen->screen_vblank().set(FUNC(solo_asic_video_device::vblank_irq));
@@ -286,7 +302,7 @@ void solo_asic_video_device::div_unit_map(address_map &map)
 	map(0x02c, 0x02f).r(FUNC(solo_asic_video_device::reg_802c_r));                                            // DIV_CURRVBIADDR
 	map(0x030, 0x033).r(FUNC(solo_asic_video_device::reg_8030_r));                                            // DIV_CURRTB
 	map(0x034, 0x037).r(FUNC(solo_asic_video_device::reg_8034_r));                                            // DIV_CURRLR
-	map(0x038, 0x03b).r(FUNC(solo_asic_video_device::reg_8038_r));                                            // DIV_CURRCFG
+	map(0x038, 0x03b).rw(FUNC(solo_asic_video_device::reg_8038_r), FUNC(solo_asic_video_device::reg_8038_w)); // DIV_CURRCFG
 	map(0x03c, 0x03f).r(FUNC(solo_asic_video_device::reg_803c_r));                                            // DlV_CURRADDR
 	map(0x060, 0x063).r(FUNC(solo_asic_video_device::reg_8060_r));                                            // DIV_SYNCPHASE
 	map(0x064, 0x067).rw(FUNC(solo_asic_video_device::reg_8064_r), FUNC(solo_asic_video_device::reg_8064_w)); // DIV_GPOIOEN
@@ -337,6 +353,12 @@ void solo_asic_video_device::busvid_intenable_set(uint32_t data)
 	{
 		m_int_enable_cb(1);
 	}
+
+	if ((data & BUS_INT_VID_DIVUNIT) && m_div_irq_pending)
+	{
+		m_div_irq_pending = false;
+		solo_asic_video_device::set_video_irq(BUS_INT_VID_DIVUNIT, 0, 1);
+	}
 }
 
 void solo_asic_video_device::busvid_intenable_clear(uint32_t data)
@@ -360,10 +382,6 @@ void solo_asic_video_device::busvid_intstat_clear(uint32_t data)
 
 	switch (data)
 	{
-		case BUS_INT_VID_DIVUNIT:
-			check_intstat = m_div_intstat;
-			break;
-
 		case BUS_INT_VID_GFXUNIT:
 			check_intstat = m_gfx_intstat;
 			break;
@@ -847,6 +865,16 @@ uint32_t solo_asic_video_device::reg_8004_r()
 void solo_asic_video_device::reg_8004_w(uint32_t data)
 {
 	m_div_dmacntl = data;
+
+	if (data & DIV_DMACNTL_RESET)
+	{
+		m_div_currcfg &= (~DIV_CFG_ENABLES);
+		m_div_irq_pending = false;
+	}
+	else
+	{
+		solo_asic_video_device::div_load_curr();
+	}
 }
 
 uint32_t solo_asic_video_device::reg_8008_r()
@@ -948,6 +976,12 @@ uint32_t solo_asic_video_device::reg_8038_r()
 	return m_div_currcfg;
 }
 
+// The WebTV OS sets the enable bits here on start and needs them to read back, and clears them on shutdown.
+void solo_asic_video_device::reg_8038_w(uint32_t data)
+{
+	m_div_currcfg = data;
+}
+
 uint32_t solo_asic_video_device::reg_803c_r()
 {
 	return m_div_cstart;
@@ -984,6 +1018,79 @@ void solo_asic_video_device::reg_8068_w(uint32_t data)
 uint32_t solo_asic_video_device::reg_806c_r()
 {
 	return (m_div_gpio_in & m_div_gpio_in_mask);
+}
+
+void solo_asic_video_device::div_load_curr()
+{
+	if (m_div_currcfg & DIV_CFG_ENABLES)
+		return;
+
+	if (!(m_div_dmacntl & DIV_DMACNTL_DMAEN) || !(m_div_dmacntl & (DIV_DMACNTL_NV | DIV_DMACNTL_NVF)))
+		return;
+
+	if (m_div_dmacntl & DIV_DMACNTL_PINGPONG)
+	{
+		std::swap(m_div_cvbitb, m_div_nvbitb);
+		std::swap(m_div_cvbilr, m_div_nvbilr);
+		std::swap(m_div_cvbistart, m_div_nvbistart);
+		std::swap(m_div_ctb, m_div_ntb);
+		std::swap(m_div_clr, m_div_nlr);
+		std::swap(m_div_cstart, m_div_nstart);
+		std::swap(m_div_currcfg, m_div_nextcfg);
+	}
+	else
+	{
+		m_div_cvbitb = m_div_nvbitb;
+		m_div_cvbilr = m_div_nvbilr;
+		m_div_cvbistart = m_div_nvbistart;
+		m_div_ctb = m_div_ntb;
+		m_div_clr = m_div_nlr;
+		m_div_cstart = m_div_nstart;
+		m_div_currcfg = m_div_nextcfg;
+	}
+}
+
+void solo_asic_video_device::div_capture_field()
+{
+	// video DMA for one field using divUnit's scaling parameters
+
+	const uint32_t first_line = (m_div_ctb >> 16) & DIV_TB_LINE_MASK;
+	const uint32_t last_line = m_div_ctb & DIV_TB_LINE_MASK;
+
+	if (last_line >= first_line)
+	{
+		const uint32_t width = (m_div_clr & DIV_LR_WIDTH_MASK) << 4;
+		const uint32_t lines = last_line - first_line + 1;
+		const uint32_t stride = m_div_currcfg & DIV_CFG_STRIDE;
+
+		m_vidcap->copy_field(m_div_field, width, lines, stride, m_div_cstart & DIV_ADDR_MASK, &m_hostram[0], m_hostram.length());
+	}
+}
+
+TIMER_CALLBACK_MEMBER(solo_asic_video_device::div_field_end)
+{
+	// Latch once per frame so both fields come from the same host frame. Latching per field could mix two host frames and leave jagged edges on anything moving.
+	if (m_div_field == 0 && (m_div_currcfg & DIV_CFG_VIDEO_EN))
+		m_vidcap->latch_frame();
+
+	bool field_matches = (((m_div_currcfg & DIV_CFG_FIELD) != 0) == (m_div_field != 0));
+
+	if ((m_div_currcfg & DIV_CFG_ENABLES) && field_matches)
+	{
+		// Nothing is written for VBI. The WebTV OS only needs the interrupt.
+		if (m_div_currcfg & DIV_CFG_VIDEO_EN)
+			solo_asic_video_device::div_capture_field();
+
+		m_div_currcfg &= (~DIV_CFG_ENABLES);
+		solo_asic_video_device::div_load_curr();
+
+		if (m_busvid_intenable & BUS_INT_VID_DIVUNIT)
+			solo_asic_video_device::set_video_irq(BUS_INT_VID_DIVUNIT, 0, 1);
+		else
+			m_div_irq_pending = true;
+	}
+
+	m_div_field ^= 1;
 }
 
 // potUnit registers
@@ -1146,18 +1253,7 @@ void solo_asic_video_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int
 		switch (mask)
 		{
 			case BUS_INT_VID_DIVUNIT:
-				if (m_div_intenable & sub_mask)
-				{
-					if (state)
-						m_div_intstat |= sub_mask;
-					else
-						m_div_intstat &= (~sub_mask);
-				}
-				else
-				{
-					state = 0;
-				}
-				sub_intstat = m_div_intstat;
+				// The divUnit has no interrupt status bits, it's only the bus bit.
 				break;
 
 			case BUS_INT_VID_GFXUNIT:
@@ -1983,7 +2079,6 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
-	m_div_currcfg = m_div_nextcfg;
 
 	m_vid_cline = screen_height - 1;
 	if (m_pot_draw_hintline < screen_height)
@@ -2068,7 +2163,6 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
 	m_vid_ccnt = m_vid_draw_nstart;
-	m_div_currcfg = m_div_nextcfg;
 
 	uint32_t active_x_start = std::min(screen_width, (m_pot_draw_hstart + 1)                    & ~1u);
 	uint32_t active_x_end   = std::min(screen_width, (m_pot_draw_hstart + m_pot_draw_hsize + 1) & ~1u);
