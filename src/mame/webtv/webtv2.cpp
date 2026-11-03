@@ -308,7 +308,7 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	}
 
 	if (m_device_config & webtv2_state::NTSCM_CBL_TUNER || m_device_config & webtv2_state::NTSCJ_CBL_TUNER)
-		TUNER(config, m_tuner, 0x88); // Works for now but need to correct.
+		TUNER(config, m_tuner, 0xc2);
 
 	if (m_device_config & webtv2_state::BT827_MEDIA_IN)
 		BT827(config, m_bt827_in, 0x88);
