@@ -295,6 +295,96 @@ constexpr uint32_t HAN_MSGSIZE_INDEX = 0x0000;
 constexpr uint32_t HAN_MSGTYPE_INDEX = 0x0001;
 constexpr uint32_t HAN_MSGSUBTYPE_INDEX = 0x0002;
 constexpr uint32_t HAN_MSG_START_INDEX = 0x0003;
+constexpr uint8_t HAN_PENDING_MAX = 4;
+
+// Signal strength reply (SRA2EPC_GET_SIGNAL_STRENGTH)
+constexpr uint32_t HAN_SIGNAL_MAX_SCALE   = 0x08; // uint32_t
+constexpr uint32_t HAN_SIGNAL_TONE        = 0x0c; // uint32_t
+constexpr uint32_t HAN_SIGNAL_LOCKED      = 0x10; // uint8_t, what SignalLocked() returns during a signal strength session
+constexpr uint32_t HAN_SIGNAL_STRENGTH    = 0x12; // uint16_t
+constexpr uint32_t HAN_SIGNAL_NEGATIVE    = 0x14; // uint8_t, strength is reported negated when set
+constexpr uint32_t HAN_SIGNAL_NAME        = 0x1c; // 0x20 byte string
+constexpr uint32_t HAN_SIGNAL2_LOCKED     = 0x3c; // second satellite (Dish 500)
+constexpr uint32_t HAN_SIGNAL2_STRENGTH   = 0x3e;
+constexpr uint32_t HAN_SIGNAL2_NEGATIVE   = 0x40;
+constexpr uint32_t HAN_SIGNAL2_NAME       = 0x48;
+
+// Data DMA
+constexpr uint32_t HAN_DMA_REGS_START   = 0x200;
+constexpr uint32_t HAN_DMA_REGS_COUNT   = 0x200 >> 2;
+constexpr uint32_t HAN_DMA_ADDR         = 0x0; // +0x8 for the chained buffer
+constexpr uint32_t HAN_DMA_LEN          = 0x4; // +0x8 for the chained buffer
+constexpr uint32_t HAN_DMA_LEN_ENABLE   = 1 << 31;
+constexpr uint32_t HAN_DMA_LEN_CHAIN    = 1 << 30;
+constexpr uint32_t HAN_DMA_LEN_MASK     = 0x03ffffff;
+constexpr uint32_t HAN_DMA_ADDR_MASK    = 0x03ffffe0;
+constexpr uint8_t  HAN_DMA_DATA_CHANNEL = 8; // HanDataDMA: service list, EPG and memory reads
+
+// A packet in a data DMA buffer. Packets start on 32 byte boundaries.
+constexpr uint32_t HAN_DATA_MAGIC         = 0x4b4c5547; // "KLUG"
+constexpr uint32_t HAN_DATA_HEADER_SIZE   = 0x18;       // magic, length - 0x10 is the payload size, type, then padding. Little endian.
+constexpr uint32_t HAN_DATA_SERVICE_LIST  = 0x04b3;
+
+// One channel in the service list
+struct han_service_t
+{
+	uint16_t channel;     // HAN_SERVICE_CHANNEL
+	const char *name;     // HAN_SERVICE_NAME, up to 16 bytes
+	const char *callsign; // HAN_SERVICE_CALLSIGN, 5 bytes
+};
+
+// Service list payload, little endian
+constexpr uint32_t HAN_SERVICES_COUNT     = 0x01; // uint16_t
+constexpr uint32_t HAN_SERVICES_START     = 0x09;
+constexpr uint32_t HAN_SERVICE_SIZE       = 0x38;
+constexpr uint32_t HAN_SERVICE_CHANNEL    = 0x00; // uint16_t, the channel number
+constexpr uint32_t HAN_SERVICE_TYPE       = 0x02; // uint8_t, EStarService::GetServiceType: 1 TV, 2 audio
+constexpr uint32_t HAN_SERVICE_NAME       = 0x09; // 16 bytes
+constexpr uint32_t HAN_SERVICE_NETWORK    = 0x29; // uint16_t, checked against the hidden network list
+constexpr uint32_t HAN_SERVICE_CALLSIGN   = 0x33; // 5 bytes
+constexpr uint8_t  HAN_SERVICE_TYPE_TV    = 0x01;
+constexpr uint16_t HAN_EMU_NETWORK_ID     = 0x0000; // every emulated service is on this network
+
+// SRA2EPC_GET_NETWORK_HIDDEN_STATUS reply
+constexpr uint32_t HAN_HIDDEN_COUNT       = 0x10; // little endian uint16_t
+constexpr uint32_t HAN_HIDDEN_ENTRIES     = 0x12; // 4 bytes each: little endian network id, hidden byte, pad
+
+// The DMA status message (IPC_CLASS_DMA)
+constexpr uint32_t HAN_DMA_STATUS_RECEIVED = 0x44; // little endian long
+
+// SRA2EPC_GET_TIME (GMT) and SRA2EPC_GET_LOCAL_TIME replies
+constexpr uint32_t HAN_TIME_MONTH  = 0x10; // 1-12
+constexpr uint32_t HAN_TIME_DAY    = 0x11;
+constexpr uint32_t HAN_TIME_YEAR   = 0x12; // little endian uint16_t, WebTV OS wants 1999 or later
+constexpr uint32_t HAN_TIME_HOUR   = 0x16;
+constexpr uint32_t HAN_TIME_MINUTE = 0x17;
+constexpr uint32_t HAN_TIME_SECOND = 0x18;
+
+// EPC2SRA_CHANNEL_CHANGE_STATUS
+constexpr uint32_t HAN_TUNE_STATUS_AUTHORIZED = 1 << 2;
+
+// One string in the SRA2EPC_GET_SYSTEM_INFO reply (queue_system_info).
+struct han_sysinfo_field_t
+{
+	uint32_t offset; // HAN_SYSINFO_*
+	uint32_t size;   // bytes the field has, including the terminator
+	const char *value;
+};
+
+// SRA2EPC_GET_SYSTEM_INFO reply
+constexpr uint32_t HAN_SYSINFO_RECEIVER_ID   = 0x10; // 0x19 bytes, wtv-echostar-receiver, Sat Info page
+constexpr uint32_t HAN_SYSINFO_CARD_ID       = 0x29; // 0x19 bytes, wtv-echostar-smartcard with the card version
+constexpr uint32_t HAN_SYSINFO_CARD_VERSION  = 0x42; // 0x10 bytes
+constexpr uint32_t HAN_SYSINFO_ROM_VERSION1  = 0x52; // 0x0c bytes, wtv-echostar-rom with ROM version 2
+constexpr uint32_t HAN_SYSINFO_ROM_VERSION2  = 0x5e; // 0x0c bytes
+constexpr uint32_t HAN_SYSINFO_CUST_SVC      = 0x6a; // 0x16 bytes, customer service number
+constexpr uint32_t HAN_SYSINFO_INTERNET_ADDR = 0x80; // 0x1e bytes
+constexpr uint32_t HAN_SYSINFO_LOCATION_ID   = 0x9e; // 0x20 bytes
+
+constexpr uint32_t HAN_CAPABILITY_DVR = 1 << 3; // WEB2SRC_GET_CAPABILITIES flag
+
+constexpr uint32_t HAN_EMU_SIGNAL_MAX_SCALE = 125;
+constexpr uint16_t HAN_EMU_SIGNAL_STRENGTH  = 100; // must stay below 0x80
 
 class han_asic_device : public device_t
 {
@@ -336,7 +426,35 @@ private:
 	uint32_t m_han_msgbuff_index;
 	uint8_t m_han_startup_step;
 
+	// Replies that have to go out one after another, sent as the message buffer frees up.
+	uint16_t m_han_pending[HAN_PENDING_MAX][HAN_MSGBUFF_SIZE >> 1];
+	uint8_t m_han_pending_count;
+
+	uint32_t m_han_channel; // last channel the WebTV side tuned, for SRA2EPC_GET_CURRENT_CHANNEL
+
+	uint32_t m_han_dma_regs[HAN_DMA_REGS_COUNT];
+	uint32_t m_han_dma_received; // bytes sent over data DMA since the WebTV OS booted
+
 	bool have_queued_han_message();
+	uint16_t *queue_han_mailbox(uint16_t msg_subtype);
+	uint16_t *queue_han_message(uint16_t msg_type, uint16_t msg_subtype);
+	uint32_t han_dma_reg(uint8_t channel, uint32_t reg);
+	bool send_data_dma(uint32_t type, const std::vector<uint8_t> &payload);
+	bool send_service_list();
+	static void set_han_msg_uint8(uint16_t *msg, uint32_t offset, uint8_t data);
+	static void set_han_msg_uint16(uint16_t *msg, uint32_t offset, uint16_t data);
+	static void set_han_msg_uint32(uint16_t *msg, uint32_t offset, uint32_t data);
+	static void set_han_msg_string(uint16_t *msg, uint32_t offset, const char *str, uint32_t size);
+	bool send_pending_han_message();
+	void queue_tune_complete();
+	void queue_signal_strength();
+	void queue_mailbox_long(uint16_t msg_subtype, uint32_t data);
+	void queue_mailbox_long(uint16_t msg_subtype, uint32_t offset, uint32_t data);
+	void queue_date_time(uint16_t msg_subtype, bool local);
+	void queue_network_hidden_status();
+	void queue_system_info();
+	uint32_t reg_han_dma_r(offs_t offset);
+	void reg_han_dma_w(offs_t offset, uint32_t data);
 	bool can_send_han_message();
 	bool send_han_message(uint16_t msg_type, uint16_t msg_subtype, uint8_t* msg, uint16_t msg_size);
 	uint32_t arrange_han_data(uint32_t data);
