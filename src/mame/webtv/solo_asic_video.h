@@ -7,6 +7,7 @@
 #define MAME_WEBTV_SOLO_ASIC_VIDEO_H
 
 #include "cpu/mips/mips3.h"
+#include "imagedev/videocap.h"
 
 #pragma once
 
@@ -110,6 +111,21 @@ constexpr uint32_t POT_INT_VSYNCE = 1 << 5; // even field VSYNC
 constexpr uint32_t POT_INT_VSYNCO = 1 << 4; // odd field VSYNC
 constexpr uint32_t POT_INT_HSYNC  = 1 << 3; // HSYNC on line specified by VID_HINTLINE
 constexpr uint32_t POT_INT_SHIFT  = 1 << 2; // when shiftage occures (no valid pixels from vidUnit when read)
+
+constexpr uint32_t DIV_DMACNTL_RESET    = 1 << 16; // Reset the divUnit
+constexpr uint32_t DIV_DMACNTL_PINGPONG = 1 << 3;  // nextxxx and CURR swap when a field completes
+constexpr uint32_t DIV_DMACNTL_DMAEN    = 1 << 2;  // gates loading CURR, a field in progress still finishes
+constexpr uint32_t DIV_DMACNTL_NV       = 1 << 1;  // nextValid, doesn't chain on its own (errata 019911)
+constexpr uint32_t DIV_DMACNTL_NVF      = 1 << 0;  // nextValidForever
+
+constexpr uint32_t DIV_CFG_VBI_EN    = 1 << 29;
+constexpr uint32_t DIV_CFG_VIDEO_EN  = 1 << 28;
+constexpr uint32_t DIV_CFG_ENABLES   = (DIV_CFG_VBI_EN | DIV_CFG_VIDEO_EN);
+constexpr uint32_t DIV_CFG_FIELD     = 1 << 24;
+constexpr uint32_t DIV_CFG_STRIDE    = 0x0000ffe0; // in 32-byte chunks, so masking leaves bytes
+constexpr uint32_t DIV_ADDR_MASK     = 0x03ffffe0;
+constexpr uint32_t DIV_LR_WIDTH_MASK = 0x000001ff; // software writes width >> 4 here, not the pixel pairs the docs say
+constexpr uint32_t DIV_TB_LINE_MASK  = 0x000003ff;
 
 constexpr uint32_t BUS_INT_VID_DIVUNIT = 1 << 5;
 constexpr uint32_t BUS_INT_VID_GFXUNIT = 1 << 4;
@@ -460,6 +476,11 @@ protected:
 	uint32_t m_div_gpio_out;
 	uint32_t m_div_gpio_in_mask;
 	uint32_t m_div_gpio_out_mask;
+	uint32_t m_div_dmacntl;
+	uint32_t m_div_nextcfg;
+	uint32_t m_div_currcfg;
+	uint8_t m_div_field;
+	bool m_div_irq_pending;
 
 	uint32_t m_dve_unknown1;
 	uint32_t m_dve_unknown2;
@@ -475,11 +496,6 @@ protected:
 	uint32_t m_vid_intenable;
 	uint32_t m_vid_intstat;
 	
-	uint32_t m_div_intenable;
-	uint32_t m_div_intstat;
-	uint32_t m_div_dmacntl;
-	uint32_t m_div_nextcfg;
-	uint32_t m_div_currcfg;
 	
 	uint8_t m_pot_cntl;
 	uint32_t m_pot_hintline;
@@ -506,6 +522,7 @@ private:
 	required_device<mips3_device> m_hostcpu;
 	required_shared_ptr<uint32_t> m_hostram;
 	required_device<screen_device> m_screen;
+	required_device<video_capture_device> m_vidcap;
 
 	devcb_write_line m_int_enable_cb;
 	devcb_write_line m_int_irq_cb;
@@ -671,6 +688,11 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void validate_active_area();
+	void div_load_curr();
+	void div_capture_field();
+
+	emu_timer *m_div_field_timer;
+	TIMER_CALLBACK_MEMBER(div_field_end);
 
 	/* gfxUnit registers */
 
@@ -777,6 +799,7 @@ private:
 	uint32_t reg_8030_r();          // DIV_CURRTB (read)
 	uint32_t reg_8034_r();          // DIV_CURRLR (read)
 	uint32_t reg_8038_r();          // DIV_CURRCFG (read)
+	void reg_8038_w(uint32_t data); // DIV_CURRCFG (write)
 	uint32_t reg_803c_r();          // DlV_CURRADDR (read)
 	uint32_t reg_8060_r();          // DIV_SYNCPHASE (read)
 	uint32_t reg_8064_r();          // DIV_GPOIOEN (read)
