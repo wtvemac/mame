@@ -54,6 +54,10 @@ u8 bt835_decoder_device::read_data(u16 offset)
 {
 	switch (offset)
 	{
+		// BT835VideoDecoderHW::GetNextVBIChar
+		case 0x1f: // caption status
+			return 0x00; // nothing pending
+
 		default:
 			return 0xff;
 	}
@@ -85,6 +89,10 @@ u8 bt827_decoder_device::read_data(u16 offset)
 {
 	switch (offset)
 	{
+		// BT835VideoDecoderHW::GetNextVBIChar
+		case 0x1f: // caption status
+			return 0x00; // nothing pending
+
 		default:
 			return 0xff;
 	}
