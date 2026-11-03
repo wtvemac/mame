@@ -83,6 +83,9 @@ function devicesProject(_target, _subtarget)
 
 	-- ccap (3rdparty only) for host video capture
 	if ccap_supported() then
+		defines {
+			"MAME_HAVE_CCAP",
+		}
 		configuration { "gmake or ninja" }
 			buildoptions {
 				"-isystem " .. MAME_DIR .. "3rdparty/ccap/include",
