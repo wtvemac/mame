@@ -362,7 +362,7 @@ void webtv2_state::base_addrmap(address_map &map)
 	if (m_device_config & webtv2_state::DISK)
 	{
 		if (m_device_config & webtv2_state::HAN)
-			map(0x10000000, 0x10000303).m(m_hanasic, FUNC(han_asic_device::map));
+			map(0x10000000, 0x100003ff).m(m_hanasic, FUNC(han_asic_device::map));
 		else
 			map(0x1e400000, 0x1e80001f).m(m_soloasic, FUNC(solo_asic_device::ide_map));
 
