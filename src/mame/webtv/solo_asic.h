@@ -13,6 +13,8 @@
 #include "cpu/mips/mips3.h"
 #include "solo_asic_video.h"
 #include "solo_asic_audio.h"
+#include "utv_sc.h"
+#include "utv_ca_card.h"
 #include "wtvir.h"
 #include "wtvdbg.h"
 #include "wtvsoftmodem.h"
@@ -157,6 +159,7 @@ public:
 
 	void irq_ide1_w(int state);
 	void irq_ide2_w(int state);
+	int ca_card_present() { return m_is_utv && m_utv_sc.m_present; }
 	void dmarq_ide1_w(int state);
 
 	uint8_t sda_r();
@@ -297,6 +300,8 @@ private:
 	devcb_read8 m_iic_sda_in_cb;
 	devcb_write8 m_iic_sda_out_cb;
 
+	utv_ca_card m_utv_ca_card;
+	utv_sc m_utv_sc;
 
 	emu_timer *modem_buffer_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
@@ -307,12 +312,16 @@ private:
 	emu_timer *utv_line_voltage_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(utv_line_voltage_checker);
 
+	emu_timer *m_utv_sc_tx_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(utv_sc_tx_tick);
+
 	void int_enable_vid_w(int state);
 	void irq_vid_w(int state);
 	void int_enable_aud_w(int state);
 	void irq_aud_w(int state);
 	void irq_modem_w(int state);
 	void irq_uart_w(int state);
+	void irq_smc_w(int state);
 	void irq_pport_w(int state);
 	void dmarq_dmaread(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size);
 	void dmarq_dmawrite(uint32_t* dmarq_state, uint32_t ide_device_base, uint32_t buf_start, uint32_t buf_size);
@@ -524,6 +533,9 @@ private:
 	uint32_t reg_a04c_r();          // SUCGPU_RFFCNT (read)
 	uint32_t reg_a050_r();          // SUCGPU_RFFMAX (read)
 	uint32_t reg_aab8_r();          // SUCSC0_GPIOVAL (read)
+
+	uint32_t utv_sc_r(offs_t offset);
+	void utv_sc_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U);
 
 	/* modUnit registers */
 
