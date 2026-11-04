@@ -341,7 +341,10 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	}
 
 	if (m_device_config & webtv2_state::FUD)
+	{
 		FUD_ASIC(config, m_fudasic, FUD_GPIO_BASE);
+		m_fudasic->ca_card_present_callback().set(m_soloasic, FUNC(solo_asic_device::ca_card_present));
+	}
 
 	if (m_device_config & webtv2_state::PEKOE)
 		WTV_PEKOEDBG(config, m_pekoe);
@@ -389,6 +392,7 @@ void webtv2_state::base_addrmap(address_map &map)
 		map(0x00800cf0, 0x00800cff).m(m_fudasic, FUNC(fud_asic_device::cntl_map));
 		map(0x10000cf0, 0x10000cff).m(m_fudasic, FUNC(fud_asic_device::cntl_map));
 		map(FUD_GPIO_BASE, FUD_GPIO_BASE + 0x3f).m(m_fudasic, FUNC(fud_asic_device::gpio_map));
+		map(fud_asic_device::TP_BASE, fud_asic_device::TP_BASE + fud_asic_device::TP_SIZE - 1).m(m_fudasic, FUNC(fud_asic_device::transport_map));
 	}
 
 	if (m_flash_size > 0)

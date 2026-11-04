@@ -193,7 +193,10 @@ void solo_asic_device::suc_unit_map(address_map &map)
 	map(0x040, 0x043).r(FUNC(solo_asic_device::reg_a040_r)); // SUCGPU_RFFHR
 	map(0x04c, 0x04f).r(FUNC(solo_asic_device::reg_a04c_r)); // SUCGPU_RFFCNT
 	map(0x050, 0x053).r(FUNC(solo_asic_device::reg_a050_r)); // SUCGPU_RFFMAX
-	map(0xab8, 0xabb).r(FUNC(solo_asic_device::reg_aab8_r)); // SUCSC0_GPIOVAL
+	if (m_is_utv)
+		map(0x800, 0xaff).rw(FUNC(solo_asic_device::utv_sc_r), FUNC(solo_asic_device::utv_sc_w));
+	else
+		map(0xab8, 0xabb).r(FUNC(solo_asic_device::reg_aab8_r)); // SUCSC0_GPIOVAL
 }
 
 void solo_asic_device::mod_unit_map(address_map &map)
@@ -310,8 +313,12 @@ void solo_asic_device::device_start()
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
 	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
 	utv_line_voltage_timer = timer_alloc(FUNC(solo_asic_device::utv_line_voltage_checker), this);
+	m_utv_sc_tx_timer = timer_alloc(FUNC(solo_asic_device::utv_sc_tx_tick), this);
 
 	solo_asic_device::device_reset();
+
+	if (m_is_utv)
+		m_utv_sc.insert_card(m_utv_ca_card);
 
 	save_item(NAME(m_bus_intenable));
 	save_item(NAME(m_bus_intstat));
@@ -380,6 +387,12 @@ void solo_asic_device::device_reset()
 			m_hostcpu->set_endianness(ENDIANNESS_LITTLE);
 		}
 	}
+
+	m_utv_sc.reset();
+	if (m_is_utv)
+		m_utv_sc_tx_timer->adjust(attotime::from_msec(1), 0, attotime::from_msec(1));
+	else
+		m_utv_sc_tx_timer->adjust(attotime::never);
 
 	if (m_softmodem_enabled && m_is_utv)
 		utv_line_voltage_timer->adjust(attotime::from_usec(UTV_LINE_VOLTAGE_CHECKER_USEC), 0, attotime::from_usec(UTV_LINE_VOLTAGE_CHECKER_USEC));
@@ -909,6 +922,9 @@ void solo_asic_device::reg_007c_w(uint32_t data)
 	m_busdev_intenable |= data;
 	if (m_busdev_intenable != 0x0)
 		m_bus_intenable |= BUS_INT_DEV;
+
+	if (m_is_utv && (data & BUS_INT_DEV_SMARTCARD))
+		solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
 }
 
 uint32_t solo_asic_device::reg_017c_r()
@@ -1744,6 +1760,23 @@ uint32_t solo_asic_device::reg_aab8_r()
 	return (0x1 << 4);
 }
 
+uint32_t solo_asic_device::utv_sc_r(offs_t offset)
+{
+	const auto data = m_utv_sc.read(offset * 4, !machine().side_effects_disabled());
+	if (!machine().side_effects_disabled())
+	{
+		solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
+	}
+	return data;
+}
+
+void solo_asic_device::utv_sc_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_utv_sc.write(offset * 4, data, mem_mask);
+
+	solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
+}
+
 // UTV dmaUnit
 
 uint32_t solo_asic_device::reg_c020_r()
@@ -2296,6 +2329,13 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::utv_line_voltage_checker)
 	solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
 }
 
+TIMER_CALLBACK_MEMBER(solo_asic_device::utv_sc_tx_tick)
+{
+	m_utv_sc.tick();
+
+	solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
+}
+
 TIMER_CALLBACK_MEMBER(solo_asic_device::timer_irq)
 {
 	if (m_tcompare > 0x0)
@@ -2342,6 +2382,11 @@ void solo_asic_device::irq_modem_w(int state)
 void solo_asic_device::irq_uart_w(int state)
 {
 	solo_asic_device::set_dev_irq(BUS_INT_DEV_UART, state);
+}
+
+void solo_asic_device::irq_smc_w(int state)
+{
+	solo_asic_device::set_dev_irq(BUS_INT_DEV_SMARTCARD, state);
 }
 
 void solo_asic_device::irq_pport_w(int state)
