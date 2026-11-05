@@ -695,7 +695,7 @@ private:
 	bool generate_special(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
 	bool generate_regimm(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
 	bool generate_idt(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
-	bool generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
+	virtual bool generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
 
 	bool generate_set_cop0_reg(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc, uint8_t reg);
 	bool generate_get_cop0_reg(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc, uint8_t reg);
@@ -835,7 +835,7 @@ protected:
 
 	virtual void set_cop0_reg(int idx, uint64_t val) override;
 
-	bool generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc);
+	virtual bool generate_cache(drcuml_block &block, compiler_state &compiler, const opcode_desc *desc) override;
 };
 
 class r4640be_device : public r4650_device {
