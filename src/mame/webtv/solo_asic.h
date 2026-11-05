@@ -17,6 +17,7 @@
 #include "utv_ca_card.h"
 #include "wtvir.h"
 #include "wtvdbg.h"
+#include "wtvsc.h"
 #include "wtvsoftmodem.h"
 #include "machine/ds2401.h"
 #include "machine/i2cmem.h"
@@ -157,7 +158,7 @@ public:
 
 	void irq_ide1_w(int state);
 	void irq_ide2_w(int state);
-	int ca_card_present() { return m_is_utv && m_utv_sc.m_present; }
+	int ca_card_present() { return m_is_utv && !m_main_sc->mounted() && m_sc0.m_present; }
 	void dmarq_ide1_w(int state);
 
 	uint8_t sda_r();
@@ -282,6 +283,8 @@ private:
 	optional_device<ns16550_device> m_modem_uart;
 	optional_device<wtvsoftmodem_device> m_softmodem_uart;
 	required_device<wtvdbg_rs232_device> m_debug_uart;
+	required_device<wtvsc_device> m_main_sc; // SUCSC0: the WebTV Smart Card on non-UTV boxes, the CA card on the UTV
+	optional_device<wtvsc_device> m_utv_sc; // SUCGPU in WebTV Smart Card on UTV boxes
 	required_device<ecp_lpt_device> m_pport;
 	required_device<watchdog_timer_device> m_watchdog;
 
@@ -295,8 +298,9 @@ private:
 	devcb_read8 m_iic_sda_in_cb;
 	devcb_write8 m_iic_sda_out_cb;
 
-	utv_ca_card m_utv_ca_card;
-	utv_sc m_utv_sc;
+	utv_sc m_sc0;
+	utv_sc m_gpu_sc;
+	bool m_gpu_sc_mode = false; // SUCGPU is a Smart Card interface instead of the debug serial port (UTV only)
 
 	emu_timer *modem_buffer_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
@@ -307,8 +311,15 @@ private:
 	emu_timer *utv_line_voltage_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(utv_line_voltage_checker);
 
-	emu_timer *m_utv_sc_tx_timer = nullptr;
-	TIMER_CALLBACK_MEMBER(utv_sc_tx_tick);
+	emu_timer *m_sc_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(sc_tick);
+
+	void main_sc_mounted(int state);
+	void utv_sc_mounted(int state);
+	void update_sc0_card();
+	void update_gpu_card();
+	void update_sc_timer();
+	void update_sucunit_irqs();
 
 	void int_enable_vid_w(int state);
 	void irq_vid_w(int state);
@@ -497,16 +508,73 @@ private:
 
 	/* sucUnit registers */
 
-	void reg_a000_w(uint32_t data); // SUCGPU_TFFHR (write)
-	uint32_t reg_a00c_r();          // SUCGPU_TFFCNT (read)
-	uint32_t reg_a010_r();          // SUCGPU_TFFMAX (read)
-	uint32_t reg_a040_r();          // SUCGPU_RFFHR (read)
-	uint32_t reg_a04c_r();          // SUCGPU_RFFCNT (read)
-	uint32_t reg_a050_r();          // SUCGPU_RFFMAX (read)
-	uint32_t reg_aab8_r();          // SUCSC0_GPIOVAL (read)
+	// SUCGPU is the debug serial port (FIFO registers only) or on the UTV with a -bitb Smart Card it's the WebTV Smart Card interface
 
-	uint32_t utv_sc_r(offs_t offset);
-	void utv_sc_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U);
+	void reg_a000_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_TFFHR (write)
+	uint32_t reg_a00c_r();                                                  // SUCGPU_TFFCNT (read)
+	uint32_t reg_a010_r();                                                  // SUCGPU_TFFMAX (read)
+	uint32_t reg_a040_r();                                                  // SUCGPU_RFFHR (read)
+	uint32_t reg_a04c_r();                                                  // SUCGPU_RFFCNT (read)
+	uint32_t reg_a050_r();                                                  // SUCGPU_RFFMAX (read)
+	uint32_t reg_a054_r();                                                  // SUCGPU_RFFCR (read)
+	void reg_a054_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_RFFCR (write)
+	uint32_t reg_a0c0_r();                                                  // SUCGPU_RSRCR (read)
+	void reg_a0c0_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_RSRCR (write)
+	uint32_t reg_a100_r();                                                  // SUCGPU_MCD (read)
+	void reg_a100_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_MCD (write)
+	uint32_t reg_a104_r();                                                  // SUCGPU_SCD0 (read)
+	void reg_a104_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_SCD0 (write)
+	uint32_t reg_a108_r();                                                  // SUCGPU_SCD1 (read)
+	void reg_a108_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_SCD1 (write)
+	uint32_t reg_a184_r();                                                  // SUCGPU_LSCR (read)
+	void reg_a184_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_LSCR (write)
+	uint32_t reg_a188_r();                                                  // SUCGPU_LSTPBITS (read)
+	void reg_a188_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_LSTPBITS (write)
+	uint32_t reg_a200_r();                                                  // SUCGPU_ISR (read)
+	void reg_a200_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_ISR (write)
+	uint32_t reg_a204_r();                                                  // SUCGPU_ISR_R (read)
+	uint32_t reg_a208_r();                                                  // SUCGPU_IER_S (read)
+	void reg_a208_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_IER_S (write)
+	uint32_t reg_a20c_r();                                                  // SUCGPU_IER_C (read)
+	void reg_a20c_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_IER_C (write)
+	void reg_a210_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_IER (write)
+	void reg_a2b0_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_GPIOVAL_S (write)
+	void reg_a2b4_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_GPIOVAL_C (write)
+	uint32_t reg_a2b8_r();                                                  // SUCGPU_GPIOVAL (read)
+	void reg_a2b8_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCGPU_GPIOVAL (write)
+
+	void reg_a800_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_TFFHR (write)
+	uint32_t reg_a80c_r();                                                  // SUCSC0_TFFCNT (read)
+	uint32_t reg_a810_r();                                                  // SUCSC0_TFFMAX (read)
+	uint32_t reg_a840_r();                                                  // SUCSC0_RFFHR (read)
+	uint32_t reg_a84c_r();                                                  // SUCSC0_RFFCNT (read)
+	uint32_t reg_a850_r();                                                  // SUCSC0_RFFMAX (read)
+	uint32_t reg_a854_r();                                                  // SUCSC0_RFFCR (read)
+	void reg_a854_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_RFFCR (write)
+	uint32_t reg_a8c0_r();                                                  // SUCSC0_RSRCR (read)
+	void reg_a8c0_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_RSRCR (write)
+	uint32_t reg_a900_r();                                                  // SUCSC0_MCD (read)
+	void reg_a900_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_MCD (write)
+	uint32_t reg_a904_r();                                                  // SUCSC0_SCD0 (read)
+	void reg_a904_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_SCD0 (write)
+	uint32_t reg_a908_r();                                                  // SUCSC0_SCD1 (read)
+	void reg_a908_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_SCD1 (write)
+	uint32_t reg_a984_r();                                                  // SUCSC0_LSCR (read)
+	void reg_a984_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_LSCR (write)
+	uint32_t reg_a988_r();                                                  // SUCSC0_LSTPBITS (read)
+	void reg_a988_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_LSTPBITS (write)
+	uint32_t reg_aa00_r();                                                  // SUCSC0_ISR (read)
+	void reg_aa00_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_ISR (write)
+	uint32_t reg_aa04_r();                                                  // SUCSC0_ISR_R (read)
+	uint32_t reg_aa08_r();                                                  // SUCSC0_IER_S (read)
+	void reg_aa08_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_IER_S (write)
+	uint32_t reg_aa0c_r();                                                  // SUCSC0_IER_C (read)
+	void reg_aa0c_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_IER_C (write)
+	void reg_aa10_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_IER (write)
+	void reg_aab0_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_GPIOVAL_S (write)
+	void reg_aab4_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_GPIOVAL_C (write)
+	uint32_t reg_aab8_r();                                                  // SUCSC0_GPIOVAL (read)
+	void reg_aab8_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0U); // SUCSC0_GPIOVAL (write)
 
 	/* modUnit registers */
 
