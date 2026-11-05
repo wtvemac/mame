@@ -15,7 +15,10 @@ ecp_lpt_device::ecp_lpt_device(const machine_config &mconfig, const char *tag, d
 	m_dev2hst_pdata(*this, "dev2hst_pdata"),
 	m_hst2dev_pdata_w(*this),
 	m_hst2dev_cntl_w(*this),
-	m_solo_interface(false)
+	m_solo_interface(false),
+	m_centronics(nullptr),
+	m_link(nullptr),
+	m_link_data_dir(-1)
 {
 	//
 }
@@ -38,6 +41,10 @@ void ecp_lpt_device::device_start()
 	m_hs_rerun = false;
 
 	m_hs_timer = timer_alloc(FUNC(ecp_lpt_device::hs_timer_tick), this);
+
+	m_link = nullptr;
+	if (m_centronics)
+		m_link = dynamic_cast<device_ecp_lpt_link_interface *>(m_centronics->get_card_device());
 
 	save_item(NAME(m_hst2dev_pdata));
 	save_item(NAME(m_dev2hst_status));
@@ -67,6 +74,7 @@ void ecp_lpt_device::device_start()
 void ecp_lpt_device::device_reset()
 {
 	m_irq_state = false;
+	m_link_data_dir = -1;
 
 	if (m_solo_interface)
 	{
@@ -119,6 +127,8 @@ void ecp_lpt_device::device_add_mconfig(machine_config &config)
 
 void ecp_lpt_device::connect_centronics(centronics_device &centronics)
 {
+	m_centronics = &centronics;
+
 	centronics.set_data_input_buffer(m_dev2hst_pdata);
 
 	centronics.fault_handler().set(*this, FUNC(ecp_lpt_device::dev2hst_status_wbit<STATUS_BIT_FAULT>));
@@ -146,6 +156,21 @@ void ecp_lpt_device::drive_data_pins(uint8_t data)
 {
 	signal_changed_bits(m_hst2dev_pdata_w, m_hst2dev_pdata, data);
 	m_hst2dev_pdata = data;
+}
+
+void ecp_lpt_device::link_data_dir(bool host_drives)
+{
+	if (!m_link || m_link_data_dir == int(host_drives))
+		return;
+
+	m_link_data_dir = int(host_drives);
+	m_link->host_data_dir(host_drives);
+}
+
+void ecp_lpt_device::link_sample_lines()
+{
+	if (m_link && !machine().side_effects_disabled())
+		m_link->host_sample_lines();
 }
 
 void ecp_lpt_device::drive_cntl_pins(uint8_t levels)
@@ -229,6 +254,8 @@ void ecp_lpt_device::write(offs_t offset, uint8_t data)
 
 uint8_t ecp_lpt_device::data_r()
 {
+	link_sample_lines();
+
 	return m_hst2dev_pdata & m_dev2hst_pdata->read();
 }
 
@@ -239,6 +266,8 @@ void ecp_lpt_device::data_w(uint8_t data)
 
 uint8_t ecp_lpt_device::status_r()
 {
+	link_sample_lines();
+
 	return m_dev2hst_status;
 }
 
@@ -250,6 +279,8 @@ uint8_t ecp_lpt_device::control_r()
 
 void ecp_lpt_device::control_w(uint8_t data)
 {
+	link_data_dir(!(data & lpt_spp_cntl::BIDIRECTIONAL));
+
 	// The control register is inverted from the pins, except for nInit.
 	data = ~(data ^ lpt_spp_cntl::INITIALISE);
 
@@ -317,6 +348,8 @@ bool ecp_lpt_device::solo_reverse_in_flight() const
 
 uint32_t ecp_lpt_device::solo_data_r()
 {
+	link_sample_lines();
+
 	if (!solo_ecp_reverse())
 	{
 		return m_hst2dev_pdata & peripheral_data();
@@ -380,6 +413,8 @@ void ecp_lpt_device::solo_ctrl_w(uint32_t data)
 
 uint32_t ecp_lpt_device::solo_stat_r()
 {
+	link_sample_lines();
+
 	const uint8_t status = m_dev2hst_status;
 	uint32_t stat = 0;
 
@@ -449,6 +484,9 @@ void ecp_lpt_device::solo_fifoctrl_w(uint32_t data)
 
 uint32_t ecp_lpt_device::solo_fifostat_r()
 {
+	// Polled while the hardware handshake runs, which moves on the peripheral's lines.
+	link_sample_lines();
+
 	uint32_t stat = fifo_free() & SOLO_FIFOSTAT_AVAIL;
 	if (m_hs_terminating)
 		stat |= SOLO_FIFOSTAT_TIP;
@@ -499,6 +537,8 @@ void ecp_lpt_device::solo_ien_w(uint32_t data)
 
 uint32_t ecp_lpt_device::solo_ist_r()
 {
+	link_sample_lines();
+
 	return m_solo_ist;
 }
 
@@ -570,6 +610,9 @@ void ecp_lpt_device::solo_update_pins()
 		levels |= PIN_INIT_N;
 	if (m_solo_ctrl & SOLO_CTRL_SELIN_N)
 		levels |= PIN_SELECTIN_N;
+
+	// Turn the bus around before anything goes on it.
+	link_data_dir(solo_dir_out());
 
 	uint8_t data = DATA_RELEASED;
 	if (solo_dir_out() && hardware)
