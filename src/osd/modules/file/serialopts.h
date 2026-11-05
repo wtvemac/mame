@@ -19,6 +19,8 @@
 //    crtscts[=0|1]         RTS/CTS hardware flow control
 //    ixon[=0|1]            XON/XOFF flow control on output
 //    ixoff[=0|1]           XON/XOFF flow control on input
+//    dtr=0|1               DTR state set right after opening
+//    rts=0|1               RTS state set right after opening (not with crtscts)
 //
 //  Defaults to 9600 baud, 8 data bits, no parity, 1 stop bit and no flow control.
 //
@@ -30,6 +32,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -47,6 +50,8 @@ struct osd_serial_options
 	bool rtscts = false;
 	bool xon_output = false;
 	bool xon_input = false;
+	std::optional<bool> dtr;
+	std::optional<bool> rts;
 
 	static bool is_serial_path(std::string_view path) noexcept
 	{
@@ -65,7 +70,11 @@ struct osd_serial_options
 		if (device.empty())
 			return false;
 
-		rest = (comma == std::string_view::npos) ? std::string_view() : rest.substr(comma + 1);
+		return parse_format((comma == std::string_view::npos) ? std::string_view() : rest.substr(comma + 1));
+	}
+
+	bool parse_format(std::string_view rest)
+	{
 		while (!rest.empty())
 		{
 			auto const next = rest.find(',');
@@ -76,7 +85,12 @@ struct osd_serial_options
 				return false;
 		}
 
-		return !parity_odd || parity;
+		return valid();
+	}
+
+	bool valid() const noexcept
+	{
+		return (!parity_odd || parity) && !(rtscts && rts.has_value());
 	}
 
 private:
@@ -132,6 +146,18 @@ private:
 		if (option.size() == 3 && option.substr(0, 2) == "cs" && option[2] >= '5' && option[2] <= '8')
 		{
 			data_bits = std::uint8_t(option[2] - '0');
+			return true;
+		}
+
+		if (option == "dtr=0" || option == "dtr=1")
+		{
+			dtr = option[4] == '1';
+			return true;
+		}
+
+		if (option == "rts=0" || option == "rts=1")
+		{
+			rts = option[4] == '1';
 			return true;
 		}
 

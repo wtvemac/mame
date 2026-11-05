@@ -66,6 +66,11 @@ public:
 	virtual int vprintf(util::format_argument_pack<char> const &args) override { return m_file.vprintf(args); }
 	virtual std::error_condition truncate(std::uint64_t offset) override { return m_file.truncate(offset); }
 
+	virtual std::error_condition set_serial_lines(std::uint32_t mask, std::uint32_t value) noexcept override { return m_file.set_serial_lines(mask, value); }
+	virtual std::error_condition get_serial_lines(std::uint32_t &lines) noexcept override { return m_file.get_serial_lines(lines); }
+	virtual std::error_condition set_serial_format(std::string_view options) noexcept override { return m_file.set_serial_format(options); }
+	virtual std::error_condition purge_serial() noexcept override { return m_file.purge_serial(); }
+
 private:
 	core_file &m_file;
 };
@@ -228,6 +233,11 @@ public:
 	virtual std::error_condition truncate(std::uint64_t offset) override;
 
 	virtual int fileno() noexcept override;
+
+	virtual std::error_condition set_serial_lines(std::uint32_t mask, std::uint32_t value) noexcept override { return m_file ? m_file->set_serial_lines(mask, value) : std::errc::bad_file_descriptor; }
+	virtual std::error_condition get_serial_lines(std::uint32_t &lines) noexcept override { return m_file ? m_file->get_serial_lines(lines) : std::errc::bad_file_descriptor; }
+	virtual std::error_condition set_serial_format(std::string_view options) noexcept override { return m_file ? m_file->set_serial_format(options) : std::errc::bad_file_descriptor; }
+	virtual std::error_condition purge_serial() noexcept override;
 
 protected:
 	bool is_buffered(std::uint64_t offset) const noexcept { return (offset >= m_bufferbase) && (offset < (m_bufferbase + m_bufferbytes)); }
@@ -822,6 +832,26 @@ std::error_condition core_osd_file::truncate(std::uint64_t offset)
 int core_osd_file::fileno() noexcept
 {
 	return m_file->fileno();
+}
+
+//-------------------------------------------------
+//  purge_serial - discard unsent and unread
+//  serial data, including what we've buffered
+//-------------------------------------------------
+
+std::error_condition core_osd_file::purge_serial() noexcept
+{
+	if (!m_file)
+		return std::errc::bad_file_descriptor;
+
+	std::error_condition const err = m_file->purge_serial();
+	if (!err)
+	{
+		clear_putback();
+		m_bufferbytes = 0U;
+	}
+
+	return err;
 }
 
 //-------------------------------------------------
