@@ -36,6 +36,8 @@ solo_asic_device::solo_asic_device(const machine_config &mconfig, const char *ta
     m_modem_uart(*this, "modem_uart"),
 	m_softmodem_uart(*this, "smodem_uart"),
 	m_debug_uart(*this, "debug"),
+	m_main_sc(*this, "mainsc"),
+	m_utv_sc(*this, "utvsc"),
 	m_pport(*this, "pport"),
 	m_watchdog(*this, "watchdog"),
     m_power_led(*this, "power_led"),
@@ -176,16 +178,49 @@ void solo_asic_device::mem_unit_map(address_map &map)
 
 void solo_asic_device::suc_unit_map(address_map &map)
 {
-	map(0x000, 0x003).w(FUNC(solo_asic_device::reg_a000_w)); // SUCGPU_TFFHR
-	map(0x00c, 0x00f).r(FUNC(solo_asic_device::reg_a00c_r)); // SUCGPU_TFFCNT
-	map(0x010, 0x013).r(FUNC(solo_asic_device::reg_a010_r)); // SUCGPU_TFFMAX
-	map(0x040, 0x043).r(FUNC(solo_asic_device::reg_a040_r)); // SUCGPU_RFFHR
-	map(0x04c, 0x04f).r(FUNC(solo_asic_device::reg_a04c_r)); // SUCGPU_RFFCNT
-	map(0x050, 0x053).r(FUNC(solo_asic_device::reg_a050_r)); // SUCGPU_RFFMAX
-	if (m_is_utv)
-		map(0x800, 0xaff).rw(FUNC(solo_asic_device::utv_sc_r), FUNC(solo_asic_device::utv_sc_w));
-	else
-		map(0xab8, 0xabb).r(FUNC(solo_asic_device::reg_aab8_r)); // SUCSC0_GPIOVAL
+	map(0x000, 0x003).w(FUNC(solo_asic_device::reg_a000_w));                                      // SUCGPU_TFFHR
+	map(0x00c, 0x00f).r(FUNC(solo_asic_device::reg_a00c_r));                                      // SUCGPU_TFFCNT
+	map(0x010, 0x013).r(FUNC(solo_asic_device::reg_a010_r));                                      // SUCGPU_TFFMAX
+	map(0x040, 0x043).r(FUNC(solo_asic_device::reg_a040_r));                                      // SUCGPU_RFFHR
+	map(0x04c, 0x04f).r(FUNC(solo_asic_device::reg_a04c_r));                                      // SUCGPU_RFFCNT
+	map(0x050, 0x053).r(FUNC(solo_asic_device::reg_a050_r));                                      // SUCGPU_RFFMAX
+	map(0x054, 0x057).rw(FUNC(solo_asic_device::reg_a054_r), FUNC(solo_asic_device::reg_a054_w)); // SUCGPU_RFFCR
+	map(0x0c0, 0x0c3).rw(FUNC(solo_asic_device::reg_a0c0_r), FUNC(solo_asic_device::reg_a0c0_w)); // SUCGPU_RSRCR
+	map(0x100, 0x103).rw(FUNC(solo_asic_device::reg_a100_r), FUNC(solo_asic_device::reg_a100_w)); // SUCGPU_MCD
+	map(0x104, 0x107).rw(FUNC(solo_asic_device::reg_a104_r), FUNC(solo_asic_device::reg_a104_w)); // SUCGPU_SCD0
+	map(0x108, 0x10b).rw(FUNC(solo_asic_device::reg_a108_r), FUNC(solo_asic_device::reg_a108_w)); // SUCGPU_SCD1
+	map(0x184, 0x187).rw(FUNC(solo_asic_device::reg_a184_r), FUNC(solo_asic_device::reg_a184_w)); // SUCGPU_LSCR
+	map(0x188, 0x18b).rw(FUNC(solo_asic_device::reg_a188_r), FUNC(solo_asic_device::reg_a188_w)); // SUCGPU_LSTPBITS
+	map(0x200, 0x203).rw(FUNC(solo_asic_device::reg_a200_r), FUNC(solo_asic_device::reg_a200_w)); // SUCGPU_ISR
+	map(0x204, 0x207).r(FUNC(solo_asic_device::reg_a204_r));                                      // SUCGPU_ISR_R
+	map(0x208, 0x20b).rw(FUNC(solo_asic_device::reg_a208_r), FUNC(solo_asic_device::reg_a208_w)); // SUCGPU_IER_S
+	map(0x20c, 0x20f).rw(FUNC(solo_asic_device::reg_a20c_r), FUNC(solo_asic_device::reg_a20c_w)); // SUCGPU_IER_C
+	map(0x210, 0x213).w(FUNC(solo_asic_device::reg_a210_w));                                      // SUCGPU_IER
+	map(0x2b0, 0x2b3).w(FUNC(solo_asic_device::reg_a2b0_w));                                      // SUCGPU_GPIOVAL_S
+	map(0x2b4, 0x2b7).w(FUNC(solo_asic_device::reg_a2b4_w));                                      // SUCGPU_GPIOVAL_C
+	map(0x2b8, 0x2bb).rw(FUNC(solo_asic_device::reg_a2b8_r), FUNC(solo_asic_device::reg_a2b8_w)); // SUCGPU_GPIOVAL
+
+	map(0x800, 0x803).w(FUNC(solo_asic_device::reg_a800_w));                                      // SUCSC0_TFFHR
+	map(0x80c, 0x80f).r(FUNC(solo_asic_device::reg_a80c_r));                                      // SUCSC0_TFFCNT
+	map(0x810, 0x813).r(FUNC(solo_asic_device::reg_a810_r));                                      // SUCSC0_TFFMAX
+	map(0x840, 0x843).r(FUNC(solo_asic_device::reg_a840_r));                                      // SUCSC0_RFFHR
+	map(0x84c, 0x84f).r(FUNC(solo_asic_device::reg_a84c_r));                                      // SUCSC0_RFFCNT
+	map(0x850, 0x853).r(FUNC(solo_asic_device::reg_a850_r));                                      // SUCSC0_RFFMAX
+	map(0x854, 0x857).rw(FUNC(solo_asic_device::reg_a854_r), FUNC(solo_asic_device::reg_a854_w)); // SUCSC0_RFFCR
+	map(0x8c0, 0x8c3).rw(FUNC(solo_asic_device::reg_a8c0_r), FUNC(solo_asic_device::reg_a8c0_w)); // SUCSC0_RSRCR
+	map(0x900, 0x903).rw(FUNC(solo_asic_device::reg_a900_r), FUNC(solo_asic_device::reg_a900_w)); // SUCSC0_MCD
+	map(0x904, 0x907).rw(FUNC(solo_asic_device::reg_a904_r), FUNC(solo_asic_device::reg_a904_w)); // SUCSC0_SCD0
+	map(0x908, 0x90b).rw(FUNC(solo_asic_device::reg_a908_r), FUNC(solo_asic_device::reg_a908_w)); // SUCSC0_SCD1
+	map(0x984, 0x987).rw(FUNC(solo_asic_device::reg_a984_r), FUNC(solo_asic_device::reg_a984_w)); // SUCSC0_LSCR
+	map(0x988, 0x98b).rw(FUNC(solo_asic_device::reg_a988_r), FUNC(solo_asic_device::reg_a988_w)); // SUCSC0_LSTPBITS
+	map(0xa00, 0xa03).rw(FUNC(solo_asic_device::reg_aa00_r), FUNC(solo_asic_device::reg_aa00_w)); // SUCSC0_ISR
+	map(0xa04, 0xa07).r(FUNC(solo_asic_device::reg_aa04_r));                                      // SUCSC0_ISR_R
+	map(0xa08, 0xa0b).rw(FUNC(solo_asic_device::reg_aa08_r), FUNC(solo_asic_device::reg_aa08_w)); // SUCSC0_IER_S
+	map(0xa0c, 0xa0f).rw(FUNC(solo_asic_device::reg_aa0c_r), FUNC(solo_asic_device::reg_aa0c_w)); // SUCSC0_IER_C
+	map(0xa10, 0xa13).w(FUNC(solo_asic_device::reg_aa10_w));                                      // SUCSC0_IER
+	map(0xab0, 0xab3).w(FUNC(solo_asic_device::reg_aab0_w));                                      // SUCSC0_GPIOVAL_S
+	map(0xab4, 0xab7).w(FUNC(solo_asic_device::reg_aab4_w));                                      // SUCSC0_GPIOVAL_C
+	map(0xab8, 0xabb).rw(FUNC(solo_asic_device::reg_aab8_r), FUNC(solo_asic_device::reg_aab8_w)); // SUCSC0_GPIOVAL
 }
 
 void solo_asic_device::mod_unit_map(address_map &map)
@@ -286,6 +321,21 @@ void solo_asic_device::device_add_mconfig(machine_config &config)
 	WTV_RS232DBG(config, m_debug_uart);
 	m_debug_uart->serial_rx_handler().set(FUNC(solo_asic_device::irq_uart_w));
 
+	// On the UTV, this is used as the CA card.
+	// On Non-UTV boxes this is the WebTV Smart Card.
+	// The UTV will use an internal mock card if this -bitb slot isn't mounted.
+	WTVSC(config, m_main_sc);
+	m_main_sc->set_internal_card(m_is_utv);
+	m_main_sc->mounted_callback().set(FUNC(solo_asic_device::main_sc_mounted));
+
+	// This is the WebTV Smart Card slot on the UTV. If not mounted it's the UART debug port.
+	// Non-UTV doesn't have a Smart Card here so it's always the UART debug port.
+	if (m_is_utv)
+	{
+		WTVSC(config, m_utv_sc);
+		m_utv_sc->mounted_callback().set(FUNC(solo_asic_device::utv_sc_mounted));
+	}
+
 	ECP_LPT(config, m_pport);
 	m_pport->set_solo_interface(true);
 	m_pport->irq_handler().set(FUNC(solo_asic_device::irq_pport_w));
@@ -310,12 +360,9 @@ void solo_asic_device::device_start()
 	modem_buffer_timer = timer_alloc(FUNC(solo_asic_device::flush_modem_buffer), this);
 	compare_timer = timer_alloc(FUNC(solo_asic_device::timer_irq), this);
 	utv_line_voltage_timer = timer_alloc(FUNC(solo_asic_device::utv_line_voltage_checker), this);
-	m_utv_sc_tx_timer = timer_alloc(FUNC(solo_asic_device::utv_sc_tx_tick), this);
+	m_sc_timer = timer_alloc(FUNC(solo_asic_device::sc_tick), this);
 
 	solo_asic_device::device_reset();
-
-	if (m_is_utv)
-		m_utv_sc.insert_card(m_utv_ca_card);
 
 	save_item(NAME(m_bus_intenable));
 	save_item(NAME(m_bus_intstat));
@@ -382,11 +429,12 @@ void solo_asic_device::device_reset()
 		}
 	}
 
-	m_utv_sc.reset();
-	if (m_is_utv)
-		m_utv_sc_tx_timer->adjust(attotime::from_msec(1), 0, attotime::from_msec(1));
-	else
-		m_utv_sc_tx_timer->adjust(attotime::never);
+	m_sc0.reset(false);
+	solo_asic_device::update_sc0_card();
+	m_gpu_sc.reset(false);
+	m_gpu_sc_mode = false;
+	solo_asic_device::update_gpu_card();
+	solo_asic_device::update_sc_timer();
 
 	if (m_softmodem_enabled && m_is_utv)
 		utv_line_voltage_timer->adjust(attotime::from_usec(UTV_LINE_VOLTAGE_CHECKER_USEC), 0, attotime::from_usec(UTV_LINE_VOLTAGE_CHECKER_USEC));
@@ -914,8 +962,8 @@ void solo_asic_device::reg_007c_w(uint32_t data)
 	if (m_busdev_intenable != 0x0)
 		m_bus_intenable |= BUS_INT_DEV;
 
-	if (m_is_utv && (data & BUS_INT_DEV_SMARTCARD))
-		solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
+	if (data & (BUS_INT_DEV_SMARTCARD | BUS_INT_DEV_UART))
+		solo_asic_device::update_sucunit_irqs();
 }
 
 uint32_t solo_asic_device::reg_017c_r()
@@ -1522,56 +1570,537 @@ void solo_asic_device::reg_5010_w(uint32_t data)
 
 // sucUnit registers
 
-void solo_asic_device::reg_a000_w(uint32_t data)
+void solo_asic_device::reg_a000_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-	m_debug_uart->serial_tx_byte_w(data & 0xff);
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_TX_DATA, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+	else
+	{
+		m_debug_uart->serial_tx_byte_w(data & 0xff);
+	}
 }
 
 uint32_t solo_asic_device::reg_a00c_r()
 {
-	return m_debug_uart->serial_rx_buffcnt_r();
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_TX_COUNT);
+	else
+		return m_debug_uart->serial_rx_buffcnt_r();
 }
 
 uint32_t solo_asic_device::reg_a010_r()
 {
-	return m_debug_uart->serial_tx_buffmax_r();
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_TX_CAPACITY);
+	else
+		return m_debug_uart->serial_tx_buffmax_r();
 }
 
 uint32_t solo_asic_device::reg_a040_r()
 {
-	return m_debug_uart->serial_rx_byte_r();
+	if (!m_gpu_sc_mode)
+	{
+		return machine().side_effects_disabled() ? 0 : m_debug_uart->serial_rx_byte_r();
+	}
+	else
+	{
+		const uint32_t data = m_gpu_sc.read(utv_sc::REG_RX_DATA, !machine().side_effects_disabled());
+		if (!machine().side_effects_disabled())
+			solo_asic_device::update_sucunit_irqs();
+
+		return data;
+	}
 }
 
 uint32_t solo_asic_device::reg_a04c_r()
 {
-	return m_debug_uart->serial_rx_buffcnt_r();
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_RX_COUNT);
+	else
+		return m_debug_uart->serial_rx_buffcnt_r();
 }
 
 uint32_t solo_asic_device::reg_a050_r()
 {
-	return m_debug_uart->serial_rx_buffmax_r();
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_RX_CAPACITY);
+	else
+		return m_debug_uart->serial_rx_buffmax_r();
+}
+
+uint32_t solo_asic_device::reg_a054_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_RX_CONTROL);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a054_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_RX_CONTROL, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a0c0_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_RX_ENABLE);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a0c0_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_RX_ENABLE, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a100_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_CLOCK_DIVIDER);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a100_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_CLOCK_DIVIDER, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a104_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_BAUD_DIVIDER_LOW);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a104_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_BAUD_DIVIDER_LOW, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a108_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_BAUD_DIVIDER_HIGH);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a108_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_BAUD_DIVIDER_HIGH, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a184_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_CONVENTION);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a184_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_CONVENTION, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a188_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_CLOCK_FREQUENCY);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a188_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_CLOCK_FREQUENCY, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a200_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_IRQ_MASKED);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a200_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_IRQ_MASKED, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a204_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_IRQ_RAW);
+	else
+		return 0;
+}
+
+uint32_t solo_asic_device::reg_a208_r()
+{
+	if (m_gpu_sc_mode)
+		return m_gpu_sc.read(utv_sc::REG_IRQ_ENABLE);
+	else
+		return 0;
+}
+
+void solo_asic_device::reg_a208_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_IRQ_ENABLE, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a20c_r()
+{
+	if (!m_gpu_sc_mode)
+		return 0;
+	else
+		return m_gpu_sc.read(utv_sc::REG_IRQ_DISABLE);
+}
+
+void solo_asic_device::reg_a20c_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_IRQ_DISABLE, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+void solo_asic_device::reg_a210_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_IRQ_ACK, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+void solo_asic_device::reg_a2b0_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_GPIO_SET, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+void solo_asic_device::reg_a2b4_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_GPIO_CLEAR, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+uint32_t solo_asic_device::reg_a2b8_r()
+{
+	if (!m_gpu_sc_mode)
+		return 0;
+	else
+		return m_gpu_sc.read(utv_sc::REG_GPIO_VALUE);
+}
+
+void solo_asic_device::reg_a2b8_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.write(utv_sc::REG_GPIO_VALUE, data, mem_mask);
+		solo_asic_device::update_sucunit_irqs();
+	}
+}
+
+void solo_asic_device::reg_a800_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_TX_DATA, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_a80c_r()
+{
+	return m_sc0.read(utv_sc::REG_TX_COUNT);
+}
+
+uint32_t solo_asic_device::reg_a810_r()
+{
+	return m_sc0.read(utv_sc::REG_TX_CAPACITY);
+}
+
+uint32_t solo_asic_device::reg_a840_r()
+{
+	const uint32_t data = m_sc0.read(utv_sc::REG_RX_DATA, !machine().side_effects_disabled());
+	if (!machine().side_effects_disabled())
+		solo_asic_device::update_sucunit_irqs();
+
+	return data;
+}
+
+uint32_t solo_asic_device::reg_a84c_r()
+{
+	return m_sc0.read(utv_sc::REG_RX_COUNT);
+}
+
+uint32_t solo_asic_device::reg_a850_r()
+{
+	return m_sc0.read(utv_sc::REG_RX_CAPACITY);
+}
+
+uint32_t solo_asic_device::reg_a854_r()
+{
+	return m_sc0.read(utv_sc::REG_RX_CONTROL);
+}
+
+void solo_asic_device::reg_a854_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_RX_CONTROL, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_a8c0_r()
+{
+	return m_sc0.read(utv_sc::REG_RX_ENABLE);
+}
+
+void solo_asic_device::reg_a8c0_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_RX_ENABLE, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_a900_r()
+{
+	return m_sc0.read(utv_sc::REG_CLOCK_DIVIDER);
+}
+
+void solo_asic_device::reg_a900_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_CLOCK_DIVIDER, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_a904_r()
+{
+	return m_sc0.read(utv_sc::REG_BAUD_DIVIDER_LOW);
+}
+
+void solo_asic_device::reg_a904_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_BAUD_DIVIDER_LOW, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_a908_r()
+{
+	return m_sc0.read(utv_sc::REG_BAUD_DIVIDER_HIGH);
+}
+
+void solo_asic_device::reg_a908_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_BAUD_DIVIDER_HIGH, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_a984_r()
+{
+	return m_sc0.read(utv_sc::REG_CONVENTION);
+}
+
+void solo_asic_device::reg_a984_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_CONVENTION, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_a988_r()
+{
+	return m_sc0.read(utv_sc::REG_CLOCK_FREQUENCY);
+}
+
+void solo_asic_device::reg_a988_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_CLOCK_FREQUENCY, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_aa00_r()
+{
+	return m_sc0.read(utv_sc::REG_IRQ_MASKED);
+}
+
+void solo_asic_device::reg_aa00_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_IRQ_MASKED, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_aa04_r()
+{
+	return m_sc0.read(utv_sc::REG_IRQ_RAW);
+}
+
+uint32_t solo_asic_device::reg_aa08_r()
+{
+	return m_sc0.read(utv_sc::REG_IRQ_ENABLE);
+}
+
+void solo_asic_device::reg_aa08_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_IRQ_ENABLE, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+uint32_t solo_asic_device::reg_aa0c_r()
+{
+	return m_sc0.read(utv_sc::REG_IRQ_DISABLE);
+}
+
+void solo_asic_device::reg_aa0c_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_IRQ_DISABLE, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+void solo_asic_device::reg_aa10_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_IRQ_ACK, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+void solo_asic_device::reg_aab0_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_GPIO_SET, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+void solo_asic_device::reg_aab4_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	m_sc0.write(utv_sc::REG_GPIO_CLEAR, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
 }
 
 uint32_t solo_asic_device::reg_aab8_r()
 {
-	return (0x1 << 4);
+	return m_sc0.read(utv_sc::REG_GPIO_VALUE);
 }
 
-uint32_t solo_asic_device::utv_sc_r(offs_t offset)
+void solo_asic_device::reg_aab8_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-	const auto data = m_utv_sc.read(offset * 4, !machine().side_effects_disabled());
-	if (!machine().side_effects_disabled())
+	m_sc0.write(utv_sc::REG_GPIO_VALUE, data, mem_mask);
+	solo_asic_device::update_sucunit_irqs();
+}
+
+void solo_asic_device::main_sc_mounted(int state)
+{
+	// device_reset picks this up if the machine isn't running yet
+	if (machine().phase() != machine_phase::RUNNING)
+		return;
+
+	solo_asic_device::update_sc0_card();
+	solo_asic_device::update_sc_timer();
+	solo_asic_device::update_sucunit_irqs();
+}
+
+void solo_asic_device::utv_sc_mounted(int state)
+{
+	if (machine().phase() != machine_phase::RUNNING)
+		return;
+
+	const bool was_sc_mode = m_gpu_sc_mode;
+
+	solo_asic_device::update_gpu_card();
+
+	// Back to the UART debug port, which only interrupts on received bytes
+	if (was_sc_mode && !m_gpu_sc_mode)
+		solo_asic_device::set_dev_irq(BUS_INT_DEV_UART, CLEAR_LINE);
+
+	solo_asic_device::update_sucunit_irqs();
+}
+
+void solo_asic_device::update_sc0_card()
+{
+	// wtvsc switches between the internal CA card and the bitbanger itself
+	m_sc0.set_card(m_main_sc.target());
+	m_sc0.set_present(m_main_sc->present());
+}
+
+void solo_asic_device::update_gpu_card()
+{
+	const bool sc_mode = m_utv_sc.found() && m_utv_sc->mounted();
+
+	// Switching between the UART debug port and Smart Card starts the interface over
+	if (sc_mode != m_gpu_sc_mode)
+		m_gpu_sc.reset(false);
+
+	m_gpu_sc_mode = sc_mode;
+
+	m_gpu_sc.set_present(m_gpu_sc_mode && m_utv_sc->present());
+	m_gpu_sc.set_card(m_gpu_sc_mode ? m_utv_sc.target() : nullptr);
+}
+
+void solo_asic_device::update_sc_timer()
+{
+	// Check if the card is inserted (mounted)
+	// Internal card is always inserted, otherwise check if the -bitb Smart Card is mounted.
+	if (m_is_utv || m_main_sc->mounted())
 	{
-		solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
+		if (m_sc_timer->expire().is_never())
+			m_sc_timer->adjust(attotime::from_msec(1), 0, attotime::from_msec(1));
 	}
-	return data;
+	else
+	{
+		m_sc_timer->adjust(attotime::never);
+	}
 }
 
-void solo_asic_device::utv_sc_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+void solo_asic_device::update_sucunit_irqs()
 {
-	m_utv_sc.write(offset * 4, data, mem_mask);
+	solo_asic_device::irq_smc_w(m_sc0.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
 
-	solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
+	if (m_gpu_sc_mode)
+		solo_asic_device::set_dev_irq(BUS_INT_DEV_UART, m_gpu_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
 }
 
 // UTV dmaUnit
@@ -2126,11 +2655,20 @@ TIMER_CALLBACK_MEMBER(solo_asic_device::utv_line_voltage_checker)
 	solo_asic_device::set_gpio_irq(GPIO_UTV_SOFTMODEM_HAS_LINE_VOLTAGE, ASSERT_LINE);
 }
 
-TIMER_CALLBACK_MEMBER(solo_asic_device::utv_sc_tx_tick)
+TIMER_CALLBACK_MEMBER(solo_asic_device::sc_tick)
 {
-	m_utv_sc.tick();
+	// Cards in a host reader can be inserted and removed at any time
+	m_sc0.set_present(m_main_sc->present());
 
-	solo_asic_device::irq_smc_w(m_utv_sc.have_irq_pending() ? ASSERT_LINE : CLEAR_LINE);
+	m_sc0.tick();
+
+	if (m_gpu_sc_mode)
+	{
+		m_gpu_sc.set_present(m_utv_sc->present());
+		m_gpu_sc.tick();
+	}
+
+	solo_asic_device::update_sucunit_irqs();
 }
 
 TIMER_CALLBACK_MEMBER(solo_asic_device::timer_irq)
@@ -2178,7 +2716,9 @@ void solo_asic_device::irq_modem_w(int state)
 
 void solo_asic_device::irq_uart_w(int state)
 {
-	solo_asic_device::set_dev_irq(BUS_INT_DEV_UART, state);
+	// The UART debug port isn't connected while SUCGPU is a -bitb Smart Card
+	if (!m_gpu_sc_mode)
+		solo_asic_device::set_dev_irq(BUS_INT_DEV_UART, state);
 }
 
 void solo_asic_device::irq_smc_w(int state)

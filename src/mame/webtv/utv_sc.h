@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "utv_ca_card.h"
+#include "wtvsc.h"
 
 #include <cstdint>
 
@@ -80,37 +80,35 @@ public:
 	uint32_t m_gpio_outputs = 0;
 	bool m_present = false;
 
-	void insert_card(utv_ca_card &card)
+	void set_card(wtvsc_device *card)
 	{
-		remove_card();
+		if (card == m_card)
+			return;
 
-		m_card = &card;
-		m_card->clear();
-
-		set_present(true);
-	}
-
-	void remove_card()
-	{
-		set_present(false);
-
+		const bool was_active = card_active();
 		if (m_card)
 			m_card->clear();
 
-		m_card = nullptr;
+		m_card = card;
+		if (m_card)
+			m_card->clear();
+
+		// A card that's already powered and out of reset needs a new ATR
+		if (was_active && m_card)
+			m_card->start();
 	}
 
-	void reset()
+	void reset(bool present)
 	{
 		auto *card = m_card;
 		*this = utv_sc{};
 		m_card = card;
 
 		if (m_card)
-		{
 			m_card->clear();
+
+		if (present)
 			set_present(true);
-		}
 	}
 
 	void tick()
@@ -119,10 +117,10 @@ public:
 		bool clock_pulse;
 
 		if (transmit(data, &clock_pulse) && card_active() && m_card && !clock_pulse)
-			m_card->write(data);
+			m_card->write(data, inverse_convention());
 
-		if (card_active() && m_card && m_card->m_reply_count && receive_card(m_card->m_reply[m_card->m_reply_head]))
-			m_card->take(data);
+		if (card_active() && m_card && rx_enabled() && m_card->peek(data, inverse_convention()) && receive(data))
+			m_card->pop();
 	}
 
 
@@ -153,20 +151,14 @@ public:
 		update_card(was_active);
 	}
 
-	static constexpr uint8_t inverse(uint8_t value)
+	bool inverse_convention() const
 	{
-		value = ((value & 0x55) << 1) | ((value >> 1) & 0x55);
-		value = ((value & 0x33) << 2) | ((value >> 2) & 0x33);
-
-		return ~((value << 4) | (value >> 4));
+		return (m_regs[REG_CONVENTION >> REGISTER_SHIFT] & CONVENTION_INVERSE) == CONVENTION_INVERSE;
 	}
 
-	bool receive_card(uint8_t data)
+	bool rx_enabled() const
 	{
-		if (!(m_regs[REG_RX_ENABLE >> REGISTER_SHIFT] & RX_ENABLE) || !(m_regs[REG_RX_CONTROL >> REGISTER_SHIFT] & RX_ENABLE))
-			return false;
-		else
-			return receive((m_regs[REG_CONVENTION >> REGISTER_SHIFT] & CONVENTION_INVERSE) == CONVENTION_INVERSE ? data : inverse(data));
+		return (m_regs[REG_RX_ENABLE >> REGISTER_SHIFT] & RX_ENABLE) && (m_regs[REG_RX_CONTROL >> REGISTER_SHIFT] & RX_ENABLE);
 	}
 
 	bool receive(uint8_t data)
@@ -325,7 +317,7 @@ public:
 
 private:
 
-	utv_ca_card *m_card = nullptr;
+	wtvsc_device *m_card = nullptr;
 
 	void update_card(bool was_active)
 	{
