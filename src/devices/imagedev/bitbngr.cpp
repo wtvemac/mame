@@ -28,6 +28,7 @@ DEFINE_DEVICE_TYPE(BITBANGER, bitbanger_device, "bitbanger", "Bitbanger")
 bitbanger_device::bitbanger_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, BITBANGER, tag, owner, clock),
 	device_image_interface(mconfig, *this),
+	m_mounted_cb(*this),
 	m_interface(nullptr),
 	m_is_readonly(false)
 {
@@ -61,6 +62,44 @@ uint32_t bitbanger_device::input(void *buffer, uint32_t length)
 
 
 /*-------------------------------------------------
+    host serial port control
+-------------------------------------------------*/
+
+util::core_file *bitbanger_device::serial_file()
+{
+	if (!is_open() || loaded_through_softlist())
+		return nullptr;
+
+	return &image_core_file();
+}
+
+std::error_condition bitbanger_device::set_lines(u32 mask, u32 value)
+{
+	util::core_file *const file = serial_file();
+	return file ? file->set_serial_lines(mask, value) : std::errc::bad_file_descriptor;
+}
+
+std::error_condition bitbanger_device::get_lines(u32 &lines)
+{
+	util::core_file *const file = serial_file();
+	return file ? file->get_serial_lines(lines) : std::errc::bad_file_descriptor;
+}
+
+std::error_condition bitbanger_device::set_format(std::string_view options)
+{
+	util::core_file *const file = serial_file();
+	return file ? file->set_serial_format(options) : std::errc::bad_file_descriptor;
+}
+
+std::error_condition bitbanger_device::purge()
+{
+	util::core_file *const file = serial_file();
+	return file ? file->purge_serial() : std::errc::bad_file_descriptor;
+}
+
+
+
+/*-------------------------------------------------
     device_start
 -------------------------------------------------*/
 
@@ -87,13 +126,13 @@ const software_list_loader &bitbanger_device::get_software_list_loader() const
 
 std::pair<std::error_condition, std::string> bitbanger_device::call_load()
 {
-	// we don't need to do anything special
+	m_mounted_cb(1);
 	return std::make_pair(std::error_condition(), std::string());
 }
 
 std::pair<std::error_condition, std::string> bitbanger_device::call_create(int format_type, util::option_resolution *format_options)
 {
-	// we don't need to do anything special
+	m_mounted_cb(1);
 	return std::make_pair(std::error_condition(), std::string());
 }
 
@@ -103,5 +142,5 @@ std::pair<std::error_condition, std::string> bitbanger_device::call_create(int f
 
 void bitbanger_device::call_unload()
 {
-	// we don't need to do anything special
+	m_mounted_cb(0);
 }
