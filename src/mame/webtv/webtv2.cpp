@@ -15,6 +15,7 @@
 #include "han_asic.h"
 #include "fud_asic.h"
 #include "wtvdbg.h"
+#include "wtvlptprinter.h"
 #include "wtvtuner.h"
 #include "wtvvidstream.h"
 
@@ -333,6 +334,12 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	m_soloasic->reset_hack_callback().set(FUNC(webtv2_state::reset_hack));
 	m_soloasic->sda_r_callback().set(FUNC(webtv2_state::iic_sda_r));
 	m_soloasic->sda_w_callback().set(FUNC(webtv2_state::iic_sda_w));
+
+	auto pport_device_options = [] (device_slot_interface &slot) {
+		centronics_devices(slot);
+		slot.option_add("deskjet6xx", WTV_LPT_DESKJET);
+	};
+	m_soloasic->connect_pport_centronics(config, "pport", pport_device_options, nullptr);
 
 	if (m_device_config & webtv2_state::HAN)
 	{
