@@ -15,8 +15,19 @@ class bitbanger_device : public device_t,
 	public device_image_interface
 {
 public:
+	// modem lines for set_lines()/get_lines() on host serial ports
+	static constexpr u32 LINE_DTR = SERIAL_LINE_DTR; // output
+	static constexpr u32 LINE_RTS = SERIAL_LINE_RTS; // output
+	static constexpr u32 LINE_CTS = SERIAL_LINE_CTS; // input
+	static constexpr u32 LINE_DSR = SERIAL_LINE_DSR; // input
+	static constexpr u32 LINE_DCD = SERIAL_LINE_DCD; // input
+	static constexpr u32 LINE_RI  = SERIAL_LINE_RI;  // input
+
 	void set_interface(const char *interface) { m_interface = interface; }
 	void set_readonly(bool is_readonly) { m_is_readonly = is_readonly; }
+
+	// called with 1 after an image is mounted and 0 after it's unmounted
+	auto mounted_callback() { return m_mounted_cb.bind(); }
 
 	// construction/destruction
 	bitbanger_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
@@ -39,6 +50,12 @@ public:
 	void output(uint8_t data);
 	uint32_t input(void *buffer, uint32_t length);
 
+	// Host serial port control.
+	std::error_condition set_lines(u32 mask, u32 value);       // LINE_DTR/LINE_RTS
+	std::error_condition get_lines(u32 &lines);                // all LINE_* that are asserted
+	std::error_condition set_format(std::string_view options); // e.g. "b19200,parenb,cstopb"
+	std::error_condition purge();                              // drop unsent and unread data
+
 protected:
 	// device_t implementation
 	virtual void device_start() override ATTR_COLD;
@@ -47,6 +64,9 @@ protected:
 	virtual software_list_loader const &get_software_list_loader() const override;
 
 private:
+	util::core_file *serial_file();
+
+	devcb_write_line m_mounted_cb;
 	char const *m_interface;
 	bool m_is_readonly;
 };
