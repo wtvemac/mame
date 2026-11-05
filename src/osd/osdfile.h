@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -53,6 +54,18 @@ constexpr uint32_t OPEN_FLAG_NO_PRELOAD     = 0x0010;
 
 /// \}
 
+/// \defgroup Serial port modem control and status lines
+/// \{
+
+/// DTR and RTS are outputs; CTS, DSR, DCD and RI are inputs.
+constexpr uint32_t SERIAL_LINE_DTR = 0x01;
+constexpr uint32_t SERIAL_LINE_RTS = 0x02;
+constexpr uint32_t SERIAL_LINE_CTS = 0x04;
+constexpr uint32_t SERIAL_LINE_DSR = 0x08;
+constexpr uint32_t SERIAL_LINE_DCD = 0x10;
+constexpr uint32_t SERIAL_LINE_RI  = 0x20;
+
+/// \}
 
 /// \brief Interface to file-like resources
 ///
@@ -155,6 +168,30 @@ public:
 	///
 	/// \return file descriptor number or -1 if unavailable
 	virtual int fileno() noexcept { return -1; }
+
+	/// \brief Set serial port output lines
+	///
+	/// Only meaningful for host serial ports; other files return std::errc::not_supported.
+	/// \param [in] mask Output lines (#SERIAL_LINE_DTR and/or #SERIAL_LINE_RTS) to change.
+	/// \param [in] value New state of the lines in mask (set bit = asserted).
+	/// \return Result of the operation.
+	virtual std::error_condition set_serial_lines(std::uint32_t mask, std::uint32_t value) noexcept { return std::errc::not_supported; }
+
+	/// \brief Get serial port line states
+	///
+	/// \param [out] lines Receives the asserted lines (inputs and outputs) if the operation succeeds.
+	///
+	/// \return Result of the operation.
+	virtual std::error_condition get_serial_lines(std::uint32_t &lines) noexcept { return std::errc::not_supported; }
+
+	/// \brief Change serial port format
+	/// \param [in] options Comma-separated options
+	/// \return Result of the operation.
+	virtual std::error_condition set_serial_format(std::string_view options) noexcept { return std::errc::not_supported; }
+
+	/// \brief Discard unsent and unread serial port data
+	/// \return Result of the operation.
+	virtual std::error_condition purge_serial() noexcept { return std::errc::not_supported; }
 
 	/// \brief Delete a file
 	///

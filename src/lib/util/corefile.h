@@ -79,6 +79,17 @@ public:
 	// open a file with the specified filename, read it into memory, and return a pointer
 	static std::error_condition load(std::string_view filename, void **data, std::size_t &length) noexcept;
 	static std::error_condition load(std::string_view filename, std::vector<uint8_t> &data) noexcept;
+
+
+	// ----- serial port operations -----
+
+	// returns not_supported for anything not serial
+
+	virtual std::error_condition set_serial_lines(std::uint32_t mask, std::uint32_t value) noexcept { return std::errc::not_supported; }
+	virtual std::error_condition get_serial_lines(std::uint32_t &lines) noexcept { return std::errc::not_supported; }
+	virtual std::error_condition set_serial_format(std::string_view options) noexcept { return std::errc::not_supported; }
+	virtual std::error_condition purge_serial() noexcept { return std::errc::not_supported; }
+
 };
 
 } // namespace util
