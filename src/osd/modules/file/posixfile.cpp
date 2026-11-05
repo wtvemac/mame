@@ -236,6 +236,8 @@ std::error_condition osd_file::open(std::string const &path, std::uint32_t openf
 		return posix_open_ptty(openflags, file, filesize, dst);
 	else if (posix_check_domain_path(path))
 		return posix_open_domain(path, openflags, file, filesize);
+	else if (posix_check_serial_path(path))
+		return posix_open_serial(path, openflags, file, filesize);
 
 	// select the file open modes
 	int access;
