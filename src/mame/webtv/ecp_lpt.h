@@ -11,6 +11,21 @@
 #include "bus/centronics/ctronics.h"
 #include "machine/buffer.h"
 
+// Interface that provide's more information than MAME's standard centronics slot.
+// The centronics slot doesn't say who drives D0-D7, and a real peripheral's lines change without telling anyone.
+// This reports its data direction and asks for a fresh sample of the peripheral-driven lines before the host reads them.
+class device_ecp_lpt_link_interface
+{
+public:
+	virtual ~device_ecp_lpt_link_interface() = default;
+
+	// true: the host drives D0-D7; false: it has released them for the peripheral
+	virtual void host_data_dir(bool host_drives) = 0;
+
+	// the host is about to look at the status or data lines
+	virtual void host_sample_lines() = 0;
+};
+
 class ecp_lpt_device : public device_t
 {
 
@@ -276,6 +291,14 @@ private:
 	}
 	void status_changed(uint8_t old_status);
 	void set_parallel_irq();
+
+	// device_ecp_lpt_link_interface card, if the slot holds one
+	void link_data_dir(bool host_drives);
+	void link_sample_lines();
+
+	centronics_device *m_centronics;
+	device_ecp_lpt_link_interface *m_link;
+	int m_link_data_dir; // last direction told to m_link, -1 = not told yet
 
 	// SOLO engine
 	bool solo_dir_out() const;
