@@ -12,6 +12,7 @@
 #include "bus/rs232/rs232.h"
 #include "cpu/mips/mips3.h"
 #include "wtvdbg.h"
+#include "wtvsc.h"
 #include "machine/8042kbdc.h"
 #include "machine/at_keybc.h"
 #include "machine/ds2401.h"
@@ -53,6 +54,15 @@ constexpr uint32_t BUS_INT_DEVKBD = 1 << 6; // keyboard IRQ
 constexpr uint32_t BUS_INT_DEVMOD = 1 << 5; // modem IRQ
 constexpr uint32_t BUS_INT_DEVIR  = 1 << 4; // IR data ready to read
 constexpr uint32_t BUS_INT_DEVSMC = 1 << 3; // SmartCard inserted
+
+// DEV_SCCNTL bits. The debug serial port also uses SCCLK as its transmit line.
+constexpr uint32_t SCCNTL_SCCLK      = 1 << 5; // SMC_CLK
+constexpr uint32_t SCCNTL_SCDATAOEN  = 1 << 4; // drive SMC_DATA with SCDATAO
+constexpr uint32_t SCCNTL_SCDATAO    = 1 << 3;
+constexpr uint32_t SCCNTL_SCDATAI    = 1 << 2; // SMC_DATA (read-only)
+constexpr uint32_t SCCNTL_SCRESET    = 1 << 1; // SMC_RESET
+constexpr uint32_t SCCNTL_SCINSERT   = 1 << 0; // SMC_INSERT (read-only)
+constexpr uint32_t SCCNTL_OUTPUTS    = SCCNTL_SCCLK | SCCNTL_SCDATAOEN | SCCNTL_SCDATAO | SCCNTL_SCRESET;
 constexpr uint32_t BUS_INT_AUDDMA = 1 << 2; // audUnit DMA completion
 
 // These are guessed pixel clocks. They were chosen because they cause expected behaviour in emulation.
@@ -273,6 +283,9 @@ protected:
 	uint32_t modem_txbuff_size;
 	uint32_t modem_txbuff_index;
 
+	uint32_t m_sccntl;
+	bool m_sc_inserted;
+
 private:
 
 	typedef union {
@@ -304,6 +317,7 @@ private:
 	required_device<ns16550_device> m_modem_uart;
 
 	required_device<wtvdbg_rs232_device> m_debug_uart;
+	required_device<wtvsc_device> m_main_sc; // replaces the debug port on the Smart Card connector when mounted
 	required_device<watchdog_timer_device> m_watchdog;
 
 	output_finder<> m_power_led;
@@ -318,6 +332,12 @@ private:
 
 	emu_timer *modem_buffer_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(flush_modem_buffer);
+
+	emu_timer *m_sc_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(sc_tick);
+
+	void main_sc_mounted(int state);
+	void update_sc_insert();
 
 	void irq_uart_w(int state);
 	void vblank_irq(int state);

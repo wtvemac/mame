@@ -31,6 +31,7 @@ spot_asic_device::spot_asic_device(const machine_config &mconfig, const char *ta
 	m_rspeaker(*this, "rspeaker"),
 	m_modem_uart(*this, "modem_uart"),
 	m_debug_uart(*this, "debug"),
+	m_main_sc(*this, "mainsc"),
 	m_watchdog(*this, "watchdog"),
 	m_power_led(*this, "power_led"),
 	m_connect_led(*this, "connect_led"),
@@ -201,6 +202,9 @@ void spot_asic_device::device_add_mconfig(machine_config &config)
 	WTV_RS232DBG(config, m_debug_uart);
 	m_debug_uart->serial_rx_handler().set(FUNC(spot_asic_device::irq_uart_w));
 
+	WTVSC(config, m_main_sc);
+	m_main_sc->mounted_callback().set(FUNC(spot_asic_device::main_sc_mounted));
+
 	WATCHDOG_TIMER(config, m_watchdog);
 	spot_asic_device::watchdog_enable(0);
 }
@@ -210,6 +214,7 @@ void spot_asic_device::device_start()
 	m_aud_stream = stream_alloc(0, 2, AUD_DEFAULT_CLK);
 
 	modem_buffer_timer = timer_alloc(FUNC(spot_asic_device::flush_modem_buffer), this);
+	m_sc_timer = timer_alloc(FUNC(spot_asic_device::sc_tick), this);
 
 	spot_asic_device::device_reset();
 
@@ -218,6 +223,8 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_errenable));
 	save_item(NAME(m_chpcntl));
 	save_item(NAME(m_wdenable));
+	save_item(NAME(m_sccntl));
+	save_item(NAME(m_sc_inserted));
 	save_item(NAME(m_errstat));
 	save_item(NAME(m_vid_nstart));
 	save_item(NAME(m_vid_nsize));
@@ -269,6 +276,8 @@ void spot_asic_device::device_reset()
 	m_errenable = 0x0;
 	m_chpcntl = 0x0;
 	m_wdenable = 0x0;
+	m_sccntl = 0x0;
+	m_sc_inserted = false;
 	m_errstat = 0x0;
 	m_timeout_compare = 0xffff;
 	m_iiccntl = 0x0;
@@ -334,6 +343,7 @@ void spot_asic_device::device_reset()
 	spot_asic_device::validate_active_area();
 	spot_asic_device::watchdog_enable(m_wdenable);
 	spot_asic_device::cache_blank_rgb32();
+	spot_asic_device::main_sc_mounted(m_main_sc->mounted());
 }
 
 void spot_asic_device::device_stop()
@@ -987,12 +997,72 @@ void spot_asic_device::reg_400c_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_4010_r()
 {
-	return 0;
+	// The debug port doesn't drive anything back
+	if (!m_main_sc->mounted())
+		return 0;
+
+	if (!machine().side_effects_disabled())
+		spot_asic_device::update_sc_insert();
+
+	uint32_t data = m_sccntl & SCCNTL_OUTPUTS;
+	if (m_main_sc->line_data_r())
+		data |= SCCNTL_SCDATAI;
+	if (m_sc_inserted)
+		data |= SCCNTL_SCINSERT;
+
+	return data;
 }
 
 void spot_asic_device::reg_4010_w(uint32_t data)
 {
-	m_debug_uart->serial_tx_bitbang_w(data);
+	m_sccntl = data & SCCNTL_OUTPUTS;
+
+	if (m_main_sc->mounted())
+	{
+		m_main_sc->line_data_w(BIT(data, 4), BIT(data, 3));
+		m_main_sc->line_reset_w(BIT(data, 1));
+		m_main_sc->line_clock_w(BIT(data, 5));
+	}
+	else
+	{
+		m_debug_uart->serial_tx_bitbang_w(data);
+	}
+}
+
+void spot_asic_device::main_sc_mounted(int state)
+{
+	// The card's contacts start out idle
+	m_main_sc->line_reset_w(0);
+	m_main_sc->line_clock_w(0);
+	m_main_sc->line_data_w(0, 1);
+
+	if (state)
+	{
+		m_sc_timer->adjust(attotime::from_msec(1), 0, attotime::from_msec(1));
+	}
+	else
+	{
+		m_sc_timer->adjust(attotime::never);
+		m_sc_inserted = false;
+	}
+}
+
+TIMER_CALLBACK_MEMBER(spot_asic_device::sc_tick)
+{
+	spot_asic_device::update_sc_insert();
+}
+
+void spot_asic_device::update_sc_insert()
+{
+	const bool inserted = m_main_sc->present();
+	if (inserted == m_sc_inserted)
+		return;
+
+	m_sc_inserted = inserted;
+
+	// Only inserting the card interrupts
+	if (m_sc_inserted)
+		spot_asic_device::irq_smartcard_w(ASSERT_LINE);
 }
 
 uint32_t spot_asic_device::reg_4014_r()

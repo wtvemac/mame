@@ -8,6 +8,8 @@
 #include "emu.h"
 #include "wtvsc.h"
 
+#include <bit>
+
 DEFINE_DEVICE_TYPE(WTVSC, wtvsc_device, "wtvsc", "WebTV Smart Card Reader")
 
 wtvsc_device::wtvsc_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
@@ -20,7 +22,20 @@ wtvsc_device::wtvsc_device(const machine_config &mconfig, const char *tag, devic
 	m_mounted(false),
 	m_have_rx(false),
 	m_rx(0),
-	m_echo(0)
+	m_echo(0),
+	m_line_reset(false),
+	m_line_clock(false),
+	m_line_host_enable(false),
+	m_line_host_data(true),
+	m_line_card_data(true),
+	m_line_host_bit(LINE_IDLE),
+	m_line_host_count(0),
+	m_line_host_shift(0),
+	m_line_card_bit(LINE_IDLE),
+	m_line_card_count(0),
+	m_line_card_frame(0),
+	m_line_first(true),
+	m_line_inverse(false)
 {
 }
 
@@ -63,11 +78,30 @@ void wtvsc_device::device_start()
 	save_item(NAME(m_have_rx));
 	save_item(NAME(m_rx));
 	save_item(NAME(m_echo));
+	save_item(NAME(m_line_reset));
+	save_item(NAME(m_line_clock));
+	save_item(NAME(m_line_host_enable));
+	save_item(NAME(m_line_host_data));
+	save_item(NAME(m_line_card_data));
+	save_item(NAME(m_line_host_bit));
+	save_item(NAME(m_line_host_count));
+	save_item(NAME(m_line_host_shift));
+	save_item(NAME(m_line_card_bit));
+	save_item(NAME(m_line_card_count));
+	save_item(NAME(m_line_card_frame));
+	save_item(NAME(m_line_first));
+	save_item(NAME(m_line_inverse));
 }
 
 void wtvsc_device::device_reset()
 {
 	clear();
+
+	m_line_reset = false;
+	m_line_clock = false;
+	m_line_host_enable = false;
+	m_line_host_data = true;
+	line_idle();
 }
 
 bool wtvsc_device::present()
@@ -206,6 +240,7 @@ void wtvsc_device::bitb_mounted(int state)
 	m_mounted = state;
 	m_have_rx = false;
 	m_echo = 0;
+	line_idle();
 
 	// Hold the card in reset until the interface activates it
 	if (m_mounted)
@@ -253,4 +288,144 @@ void wtvsc_device::drop_input()
 
 	m_have_rx = false;
 	m_echo = 0;
+}
+
+void wtvsc_device::line_reset_w(int state)
+{
+	if (bool(state) == m_line_reset)
+		return;
+
+	m_line_reset = state;
+	line_idle();
+
+	if (m_line_reset)
+		start();
+	else
+		clear();
+}
+
+void wtvsc_device::line_clock_w(int state)
+{
+	const bool rising = state && !m_line_clock;
+	m_line_clock = state;
+
+	if (rising && m_line_reset && m_mounted)
+		line_clock_edge();
+}
+
+void wtvsc_device::line_data_w(int enable, int state)
+{
+	m_line_host_enable = enable;
+	m_line_host_data = state;
+}
+
+int wtvsc_device::line_data_r()
+{
+	// Open drain, either side can pull the line low
+	return (!m_line_host_enable || m_line_host_data) && m_line_card_data;
+}
+
+void wtvsc_device::line_idle()
+{
+	m_line_card_data = true;
+	m_line_host_bit = LINE_IDLE;
+	m_line_host_count = 0;
+	m_line_host_shift = 0;
+	m_line_card_bit = LINE_IDLE;
+	m_line_card_count = 0;
+	m_line_card_frame = 0;
+	m_line_first = true;
+	m_line_inverse = false;
+}
+
+void wtvsc_device::line_clock_edge()
+{
+	const bool host_line = !m_line_host_enable || m_line_host_data;
+
+	// Host to card: sample in the middle of each etu after the start bit's falling edge
+	if (m_line_host_bit == LINE_IDLE)
+	{
+		// The card listens unless it's sending a character (guard time included)
+		if (!host_line && (m_line_card_bit == LINE_IDLE || m_line_card_bit > LINE_PARITY_BIT))
+		{
+			m_line_host_bit = 0;
+			m_line_host_count = LINE_ETU_CLOCKS / 2;
+			m_line_host_shift = 0;
+		}
+	}
+	else if (m_line_host_bit == LINE_HOST_WAIT_HIGH)
+	{
+		if (host_line)
+			m_line_host_bit = LINE_IDLE;
+	}
+	else if (!--m_line_host_count)
+	{
+		m_line_host_count = LINE_ETU_CLOCKS;
+
+		if (m_line_host_bit == 0 && host_line)
+		{
+			// Glitch, not a start bit
+			m_line_host_bit = LINE_IDLE;
+		}
+		else if (m_line_host_bit < LINE_PARITY_BIT)
+		{
+			if (m_line_host_bit)
+				m_line_host_shift |= uint16_t(host_line) << (m_line_host_bit - 1);
+
+			m_line_host_bit++;
+		}
+		else
+		{
+			// The reader makes its own parity, the line byte is sent as is
+			m_bitb->output(uint8_t(m_line_host_shift));
+			if (m_config->read() & CONFIG_ECHO)
+				m_echo++;
+
+			m_line_host_bit = LINE_HOST_WAIT_HIGH;
+		}
+	}
+
+	// Card to host: one character at a time while the host isn't sending
+	if (m_line_card_bit == LINE_IDLE)
+	{
+		uint8_t data;
+		if (m_line_host_bit == LINE_IDLE && host_line && peek(data, false))
+		{
+			pop();
+
+			// The reader gives the line as a direct convention byte, so the TS of an inverse
+			// card reads 0x03 and its parity (inverted with the data) comes out odd.
+			if (m_line_first)
+			{
+				m_line_inverse = data == TS_INVERSE;
+				m_line_first = false;
+			}
+
+			const bool parity = (std::popcount(data) & 1) != m_line_inverse;
+
+			m_line_card_frame = uint16_t(data) << 1 | uint16_t(parity) << LINE_PARITY_BIT;
+			m_line_card_bit = 0;
+			m_line_card_count = LINE_ETU_CLOCKS;
+			m_line_card_data = false;
+		}
+	}
+	else if (!--m_line_card_count)
+	{
+		m_line_card_count = LINE_ETU_CLOCKS;
+		m_line_card_bit++;
+
+		if (m_line_card_bit <= LINE_PARITY_BIT)
+		{
+			m_line_card_data = BIT(m_line_card_frame, m_line_card_bit);
+		}
+		else if (m_line_card_bit < LINE_CARD_END)
+		{
+			m_line_card_data = true;
+		}
+		else
+		{
+			m_line_card_data = true;
+			m_line_card_bit = LINE_IDLE;
+		}
+	}
 }

@@ -41,6 +41,12 @@ public:
 	bool peek(uint8_t &data, bool inverse_convention);
 	void pop();
 
+	// Line level interface, for hosts that bit-bang the card contacts (Spot asic)
+	void line_reset_w(int state);            // SMC_RESET, low holds the card in reset
+	void line_clock_w(int state);            // SMC_CLK, the card is advanced on rising edges
+	void line_data_w(int enable, int state); // SMC_DATA, driven by the host while enable is set
+	int line_data_r();                       // SMC_DATA as seen by the host
+
 	// Converts between direct and inverse convention (bit order reversed, levels inverted)
 	static constexpr uint8_t inverse(uint8_t value)
 	{
@@ -75,6 +81,13 @@ private:
 		CONFIG_ECHO             = 0x40  // the reader echoes what's sent (single I/O line)
 	};
 
+	static constexpr uint32_t LINE_ETU_CLOCKS = 372; // ISO 7816-3 default (Fi=372, Di=1)
+	static constexpr int LINE_IDLE            = -1;
+	static constexpr int LINE_PARITY_BIT      = 9;   // start bit 0, data bits 1-8 (LSB first), parity 9
+	static constexpr int LINE_HOST_WAIT_HIGH  = 10;  // host character done, waiting for the line to go idle
+	static constexpr int LINE_CARD_END        = 12;  // card character done after 2 etu of guard time
+	static constexpr uint8_t TS_INVERSE       = 0x03; // TS of an inverse convention card, read as direct
+
 	required_device<bitbanger_device> m_bitb;
 	required_ioport m_config;
 	devcb_write_line m_mounted_cb;
@@ -87,7 +100,24 @@ private:
 	uint8_t m_rx;
 	uint32_t m_echo;
 
+	// Line level state
+	bool m_line_reset;
+	bool m_line_clock;
+	bool m_line_host_enable;
+	bool m_line_host_data;
+	bool m_line_card_data;
+	int m_line_host_bit;
+	uint32_t m_line_host_count;
+	uint16_t m_line_host_shift;
+	int m_line_card_bit;
+	uint32_t m_line_card_count;
+	uint16_t m_line_card_frame;
+	bool m_line_first;
+	bool m_line_inverse;
+
 	void bitb_mounted(int state);
+	void line_idle();
+	void line_clock_edge();
 	void set_reset(bool reset);
 	void drop_input();
 };
