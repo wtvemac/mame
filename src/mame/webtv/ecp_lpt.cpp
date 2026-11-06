@@ -156,6 +156,8 @@ void ecp_lpt_device::drive_data_pins(uint8_t data)
 {
 	signal_changed_bits(m_hst2dev_pdata_w, m_hst2dev_pdata, data);
 	m_hst2dev_pdata = data;
+	if (m_link)
+		m_link->host_output_changed();
 }
 
 void ecp_lpt_device::link_data_dir(bool host_drives)
@@ -178,6 +180,8 @@ void ecp_lpt_device::drive_cntl_pins(uint8_t levels)
 	const uint8_t data = (m_hst2dev_cntl & ~PIN_CNTL_MASK) | (levels & PIN_CNTL_MASK);
 	signal_changed_bits(m_hst2dev_cntl_w, m_hst2dev_cntl, data);
 	m_hst2dev_cntl = data;
+	if (m_link)
+		m_link->host_output_changed();
 }
 
 void ecp_lpt_device::status_changed(uint8_t old_status)
