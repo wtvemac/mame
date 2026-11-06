@@ -11,6 +11,9 @@
 
 #include "posixfile.h"
 
+#include <algorithm>
+#include <climits>
+#include <poll.h>
 #include <cassert>
 #include <cerrno>
 #include <cstdio>
@@ -42,9 +45,10 @@ public:
 	posix_osd_socket& operator=(posix_osd_socket const &) = delete;
 	posix_osd_socket& operator=(posix_osd_socket &&) = delete;
 
-	posix_osd_socket(int sock, bool listening) noexcept
+	posix_osd_socket(int sock, bool listening, bool nonblocking) noexcept
 		: m_sock(sock)
 		, m_listening(listening)
+		, m_nonblocking(nonblocking)
 	{
 		assert(m_sock >= 0);
 	}
@@ -54,8 +58,50 @@ public:
 		::close(m_sock);
 	}
 
+	virtual std::error_condition wait(bool writing, std::chrono::milliseconds timeout) noexcept override
+	{
+		pollfd descriptor = {
+			m_sock,
+			short(writing ? POLLOUT : POLLIN),
+			0
+		};
+		const int milliseconds = int(std::clamp<int64_t>(timeout.count(), 0, INT_MAX));
+		const int result = ::poll(&descriptor, 1, milliseconds);
+
+		// System error
+		if (result < 0)
+			return std::error_condition(errno, std::generic_category());
+		// Timeout
+		else if (!result)
+			return std::errc::operation_would_block;
+		// Invalid pollfd descriptor
+		else if (descriptor.revents & POLLNVAL)
+			return std::errc::bad_file_descriptor;
+		// Success (socket is ready or has an error for read()/write() to return)
+		else
+			return std::error_condition();
+	}
+
 	virtual std::error_condition read(void *buffer, std::uint64_t offset, std::uint32_t count, std::uint32_t &actual) noexcept override
 	{
+		if (m_nonblocking && !m_listening)
+		{
+			// When m_nonblocking and not acting as a server (listening) this skips select() and executes the 'if (!m_listening)' (repeated from code below)
+			actual = 0;
+			ssize_t const result = ::read(m_sock, buffer, count);
+
+			if (result < 0)
+			{
+				return std::error_condition(errno, std::generic_category());
+			}
+			else
+			{
+				actual = std::uint32_t(size_t(result));
+
+				return std::error_condition();
+			}
+		}
+
 		fd_set readfds;
 		FD_ZERO(&readfds);
 		FD_SET(m_sock, &readfds);
@@ -93,12 +139,23 @@ public:
 				}
 				else
 				{
-					::close(m_sock);
-					m_sock = accepted;
-					m_listening = false;
-					actual = 0;
+					if (m_nonblocking && (fcntl(accepted, F_SETFL, fcntl(accepted, F_GETFL) | O_NONBLOCK) < 0))
+					{
+						std::error_condition const err(errno, std::generic_category());
 
-					return std::error_condition();
+						::close(accepted);
+
+						return err;
+					}
+					else
+					{
+						::close(m_sock);
+						m_sock = accepted;
+						m_listening = false;
+						actual = 0;
+
+						return std::error_condition();
+					}
 				}
 			}
 		}
@@ -149,6 +206,7 @@ public:
 private:
 	int     m_sock;
 	bool    m_listening;
+	bool    m_nonblocking;
 };
 
 
@@ -176,7 +234,7 @@ std::error_condition create_socket(T const &sa, int sock, std::uint32_t openflag
 		}
 
 		// mark socket as "listening"
-		result.reset(new (std::nothrow) posix_osd_socket(sock, true));
+		result.reset(new (std::nothrow) posix_osd_socket(sock, true, bool(openflags & OPEN_FLAG_NONBLOCK)));
 	}
 	else
 	{
@@ -186,7 +244,7 @@ std::error_condition create_socket(T const &sa, int sock, std::uint32_t openflag
 			::close(sock);
 			return connerr;
 		}
-		result.reset(new (std::nothrow) posix_osd_socket(sock, false));
+		result.reset(new (std::nothrow) posix_osd_socket(sock, false, bool(openflags & OPEN_FLAG_NONBLOCK)));
 	}
 
 	if (!result)

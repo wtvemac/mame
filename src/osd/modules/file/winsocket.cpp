@@ -14,6 +14,8 @@
 // MAME headers
 #include "osdcore.h"
 
+#include <algorithm>
+#include <climits>
 #include <cassert>
 #include <cstdio>
 #include <cstring>
@@ -39,9 +41,10 @@ public:
 	win_osd_socket& operator=(win_osd_socket const &) = delete;
 	win_osd_socket& operator=(win_osd_socket &&) = delete;
 
-	win_osd_socket(SOCKET s, bool l) noexcept
+	win_osd_socket(SOCKET s, bool l, bool nonblocking) noexcept
 		: m_socket(s)
 		, m_listening(l)
+		, m_nonblocking(nonblocking)
 	{
 		assert(INVALID_SOCKET != m_socket);
 	}
@@ -51,8 +54,56 @@ public:
 		closesocket(m_socket);
 	}
 
+	virtual std::error_condition wait(bool writing, std::chrono::milliseconds timeout) noexcept override
+	{
+		fd_set descriptors;
+		FD_ZERO(&descriptors);
+		FD_SET(m_socket, &descriptors);
+
+		fd_set errors;
+		FD_ZERO(&errors);
+		FD_SET(m_socket, &errors);
+
+		timeval interval;
+		const int64_t milliseconds = std::clamp<int64_t>(timeout.count(), 0, INT_MAX);
+		interval.tv_sec = long(milliseconds / 1000);
+		interval.tv_usec = long((milliseconds % 1000) * 1000);
+
+		int result;
+		if (writing)
+			result = select(0, nullptr, &descriptors, &errors, &interval);
+		else
+			result = select(0, &descriptors, nullptr, &errors, &interval);
+
+		// System error
+		if (result < 0)
+			return wsa_error_to_file_error(WSAGetLastError());
+		// Timeout
+		else if (!result)
+			return std::errc::operation_would_block;
+		// Success (socket is ready or has an error for read()/write() to return)
+		else
+			return std::error_condition();
+	}
+
 	virtual std::error_condition read(void *buffer, std::uint64_t offset, std::uint32_t length, std::uint32_t &actual) noexcept override
 	{
+		if (m_nonblocking && !m_listening)
+		{
+			// When m_nonblocking and not acting as a server (listening) this skips select() and executes the 'if (!m_listening)' (repeated from code below)
+			actual = 0;
+			int const result = recv(m_socket, (char*)buffer, length, 0);
+			if (result < 0)
+			{
+				return wsa_error_to_file_error(WSAGetLastError());
+			}
+			else
+			{
+				actual = result;
+				return std::error_condition();
+			}
+		}
+
 		fd_set readfds;
 		FD_ZERO(&readfds);
 		FD_SET(m_socket, &readfds);
@@ -90,12 +141,24 @@ public:
 				}
 				else
 				{
-					closesocket(m_socket);
-					m_socket = accepted;
-					m_listening = false;
-					actual = 0;
+					u_long enabled = 1;
+					if (m_nonblocking && ioctlsocket(accepted, FIONBIO, &enabled) != 0)
+					{
+						std::error_condition const err = wsa_error_to_file_error(WSAGetLastError());
+						
+						closesocket(accepted);
 
-					return std::error_condition();
+						return err;
+					}
+					else
+					{
+						closesocket(m_socket);
+						m_socket = accepted;
+						m_listening = false;
+						actual = 0;
+
+						return std::error_condition();
+					}
 				}
 			}
 		}
@@ -177,6 +240,7 @@ public:
 private:
 	SOCKET  m_socket;
 	bool    m_listening;
+	bool    m_nonblocking;
 };
 
 } // anonymous namespace
@@ -272,7 +336,7 @@ std::error_condition win_open_socket(std::string const &path, std::uint32_t open
 		}
 
 		// mark socket as "listening"
-		result.reset(new (std::nothrow) win_osd_socket(sock, true));
+		result.reset(new (std::nothrow) win_osd_socket(sock, true, bool(openflags & OPEN_FLAG_NONBLOCK)));
 	}
 	else
 	{
@@ -283,21 +347,22 @@ std::error_condition win_open_socket(std::string const &path, std::uint32_t open
 			closesocket(sock);
 			return win_osd_socket::wsa_error_to_file_error(err);
 		}
-		result.reset(new (std::nothrow) win_osd_socket(sock, false));
+		result.reset(new (std::nothrow) win_osd_socket(sock, false, bool(openflags & OPEN_FLAG_NONBLOCK)));
 	}
 
-	if (openflags & OPEN_FLAG_NONBLOCK)
+	if (!result)
+	{
+		closesocket(sock);
+
+		return std::errc::not_enough_memory;
+	}
+	else if (openflags & OPEN_FLAG_NONBLOCK)
 	{
 		u_long enabled = 1;
 		if (ioctlsocket(sock, FIONBIO, &enabled) == SOCKET_ERROR)
 			return win_osd_socket::wsa_error_to_file_error(WSAGetLastError());
 	}
 
-	if (!result)
-	{
-		closesocket(sock);
-		return std::errc::not_enough_memory;
-	}
 	file = std::move(result);
 	filesize = 0;
 	return std::error_condition();

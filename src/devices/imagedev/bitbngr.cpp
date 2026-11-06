@@ -164,6 +164,14 @@ void bitbanger_device::call_unload()
 	m_stream.reset();
 }
 
+std::error_condition bitbanger_device::stream_wait(bool writing, std::chrono::milliseconds timeout)
+{
+	if (m_stream)
+		return m_stream->wait(writing, timeout);
+	else
+		return std::errc::not_connected;
+}
+
 std::error_condition bitbanger_device::stream_read(void *buffer, uint32_t length, uint32_t &actual)
 {
 	actual = 0;
