@@ -286,6 +286,13 @@ std::error_condition win_open_socket(std::string const &path, std::uint32_t open
 		result.reset(new (std::nothrow) win_osd_socket(sock, false));
 	}
 
+	if (openflags & OPEN_FLAG_NONBLOCK)
+	{
+		u_long enabled = 1;
+		if (ioctlsocket(sock, FIONBIO, &enabled) == SOCKET_ERROR)
+			return win_osd_socket::wsa_error_to_file_error(WSAGetLastError());
+	}
+
 	if (!result)
 	{
 		closesocket(sock);
