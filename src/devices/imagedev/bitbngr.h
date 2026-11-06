@@ -23,6 +23,9 @@ public:
 	static constexpr u32 LINE_DCD = SERIAL_LINE_DCD; // input
 	static constexpr u32 LINE_RI  = SERIAL_LINE_RI;  // input
 
+	void set_stream_mode(bool enabled) { m_stream_mode = enabled; }
+	virtual bool core_opens_image_file() const noexcept override { return !m_stream_mode; }
+
 	void set_interface(const char *interface) { m_interface = interface; }
 	void set_readonly(bool is_readonly) { m_is_readonly = is_readonly; }
 
@@ -39,14 +42,16 @@ public:
 
 	virtual bool is_readable()  const noexcept override { return true; }
 	virtual bool is_writeable() const noexcept override { return !m_is_readonly; }
-	virtual bool is_creatable() const noexcept override { return !m_is_readonly; }
+	virtual bool is_creatable() const noexcept override { return !m_is_readonly && !m_stream_mode; }
 	virtual bool is_reset_on_load() const noexcept override { return false; }
-	virtual bool support_command_line_image_creation() const noexcept override { return !m_is_readonly; }
+	virtual bool support_command_line_image_creation() const noexcept override { return !m_is_readonly && !m_stream_mode; }
 	virtual const char *image_interface() const noexcept override { return m_interface; }
 	virtual const char *file_extensions() const noexcept override { return ""; }
 	virtual const char *image_type_name() const noexcept override { return "bitbanger"; }
 	virtual const char *image_brief_type_name() const noexcept override { return "bitb"; }
 
+	std::error_condition stream_read(void *buffer, uint32_t length, uint32_t &actual);
+	std::error_condition stream_write(void const *buffer, uint32_t length, uint32_t &actual);
 	void output(uint8_t data);
 	uint32_t input(void *buffer, uint32_t length);
 
@@ -69,6 +74,8 @@ private:
 	devcb_write_line m_mounted_cb;
 	char const *m_interface;
 	bool m_is_readonly;
+	bool m_stream_mode = false;
+	osd_file::ptr m_stream;
 };
 
 

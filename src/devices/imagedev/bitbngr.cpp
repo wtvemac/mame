@@ -126,14 +126,32 @@ const software_list_loader &bitbanger_device::get_software_list_loader() const
 
 std::pair<std::error_condition, std::string> bitbanger_device::call_load()
 {
+	if (m_stream_mode)
+	{
+		if (std::strncmp(filename(), "socket.", 7) && std::strncmp(filename(), "domain.", 7))
+			return { image_error::UNSUPPORTED, "Stream mode requires a socket. or domain. connection" };
+
+		uint64_t size;
+		auto err = osd_file::open(filename(), OPEN_FLAG_READ | OPEN_FLAG_WRITE | OPEN_FLAG_NONBLOCK, m_stream, size);
+		if (err)
+			return { err, err.message() };
+	}
+
 	m_mounted_cb(1);
 	return std::make_pair(std::error_condition(), std::string());
 }
 
 std::pair<std::error_condition, std::string> bitbanger_device::call_create(int format_type, util::option_resolution *format_options)
 {
-	m_mounted_cb(1);
-	return std::make_pair(std::error_condition(), std::string());
+	if (m_stream_mode)
+	{
+		return { image_error::UNSUPPORTED, "Stream mode connects to an existing endpoint" };
+	}
+	else
+	{
+		m_mounted_cb(1);
+		return std::make_pair(std::error_condition(), std::string());
+	}
 }
 
 /*-------------------------------------------------
@@ -143,4 +161,25 @@ std::pair<std::error_condition, std::string> bitbanger_device::call_create(int f
 void bitbanger_device::call_unload()
 {
 	m_mounted_cb(0);
+	m_stream.reset();
+}
+
+std::error_condition bitbanger_device::stream_read(void *buffer, uint32_t length, uint32_t &actual)
+{
+	actual = 0;
+
+	if (m_stream)
+		return m_stream->read(buffer, 0, length, actual);
+	else
+		return std::make_error_condition(std::errc::not_connected);
+}
+
+std::error_condition bitbanger_device::stream_write(void const *buffer, uint32_t length, uint32_t &actual)
+{
+	actual = 0;
+
+	if (m_stream)
+		return m_stream->write(buffer, 0, length, actual);
+	else
+		return std::make_error_condition(std::errc::not_connected);
 }
