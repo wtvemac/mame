@@ -154,6 +154,15 @@ public:
 	/// \return Result of the operation.
 	virtual std::error_condition write(void const *buffer, std::uint64_t offset, std::uint32_t length, std::uint32_t &actual) noexcept = 0;
 
+	/// \brief Wait for socket read or write readiness
+	///
+	/// Socket implementations wait until ready or the timeout expires.
+	/// Other file types return success immediately without waiting.
+	/// \param [in] writing True to wait for writing, false for reading.
+	/// \param [in] timeout Maximum time to wait.
+	/// \return Result of the operation
+	virtual std::error_condition wait(bool writing, std::chrono::milliseconds timeout) noexcept { return std::error_condition(); }
+
 	/// \brief Change the size of an open file
 	///
 	/// \param [in] offset Desired size of the file.

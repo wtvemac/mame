@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <chrono>
+
 class bitbanger_device : public device_t,
 	public device_image_interface
 {
@@ -50,6 +52,7 @@ public:
 	virtual const char *image_type_name() const noexcept override { return "bitbanger"; }
 	virtual const char *image_brief_type_name() const noexcept override { return "bitb"; }
 
+	std::error_condition stream_wait(bool writing, std::chrono::milliseconds timeout);
 	std::error_condition stream_read(void *buffer, uint32_t length, uint32_t &actual);
 	std::error_condition stream_write(void const *buffer, uint32_t length, uint32_t &actual);
 	void output(uint8_t data);
