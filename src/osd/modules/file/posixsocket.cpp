@@ -115,7 +115,11 @@ public:
 		if (!m_listening)
 		{
 			// connected socket
+#if defined(MSG_NOSIGNAL)
+			ssize_t const result = ::send(m_sock, buffer, count, MSG_NOSIGNAL);
+#else
 			ssize_t const result = ::write(m_sock, buffer, count);
+#endif
 			if (result < 0)
 				return std::error_condition(errno, std::generic_category());
 
@@ -190,6 +194,9 @@ std::error_condition create_socket(T const &sa, int sock, std::uint32_t openflag
 		::close(sock);
 		return std::errc::not_enough_memory;
 	}
+	if ((openflags & OPEN_FLAG_NONBLOCK) && (fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) | O_NONBLOCK) < 0))
+		return std::error_condition(errno, std::generic_category());
+
 	file = std::move(result);
 	filesize = 0;
 	return std::error_condition();
@@ -248,6 +255,9 @@ std::error_condition posix_open_socket(std::string const &path, std::uint32_t op
 		return sockopterr;
 	}
 
+#if defined(SO_NOSIGPIPE)
+	::setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &flag, sizeof(flag));
+#endif
 	return create_socket(sai, sock, openflags, file, filesize);
 }
 
@@ -270,5 +280,9 @@ std::error_condition posix_open_domain(std::string const &path, std::uint32_t op
 		return cntlerr;
 	}
 
+#if defined(SO_NOSIGPIPE)
+	int const flag = 1;
+	::setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &flag, sizeof(flag));
+#endif
 	return create_socket(sau, sock, openflags, file, filesize);
 }

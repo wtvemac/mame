@@ -52,6 +52,9 @@ constexpr uint32_t OPEN_FLAG_CREATE_PATHS   = 0x0008;
 /// Do not decompress into memory on open.
 constexpr uint32_t OPEN_FLAG_NO_PRELOAD     = 0x0010;
 
+/// Request nonblocking I/O (sockets only)
+constexpr uint32_t OPEN_FLAG_NONBLOCK       = 0x0020;
+
 /// \}
 
 /// \defgroup Serial port modem control and status lines
