@@ -452,6 +452,30 @@ void solo_asic_video_device::validate_active_area()
 		m_pot_draw_vstart = 0;
 }
 
+bool solo_asic_video_device::screen_to_frame(int32_t screen_x, int32_t screen_y, int32_t &frame_x, int32_t &frame_y, const rectangle &guest_viewport) const
+{
+	// Maps a screen pixel to the pixel of the active area. false if outside the active area.
+
+	if (screen_x < (int32_t)m_pot_draw_hstart || screen_x >= (int32_t)(m_pot_draw_hstart + m_pot_draw_hsize))
+		return false;
+	else if (screen_y < (int32_t)m_pot_draw_vstart || screen_y >= (int32_t)(m_pot_draw_vstart + m_pot_draw_vsize))
+		return false;
+
+
+	frame_x = screen_x - m_pot_draw_hstart;
+	frame_y = screen_y - m_pot_draw_vstart;
+
+	if ((m_pot_cntl & POT_FCNTL_USEGFX) && !guest_viewport.empty())
+	{
+		frame_x -= int32_t(m_pot_draw_hsize / 2) - guest_viewport.width() / 2 + guest_viewport.left();
+		frame_y -= int32_t(m_pot_draw_vsize / 2) - guest_viewport.height() / 2 + guest_viewport.top();
+	}
+	if (!(m_pot_cntl & POT_FCNTL_USEGFX) && m_pot_draw_hsize != 0)
+		frame_y += (m_vid_draw_nstart - m_vid_nstart) / (m_pot_draw_hsize * BYTES_PER_PIXEL);
+
+	return true;
+}
+
 void solo_asic_video_device::vblank_irq(int state)
 {
 	solo_asic_video_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_VSYNCO, 1);

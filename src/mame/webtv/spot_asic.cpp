@@ -384,6 +384,24 @@ void spot_asic_device::validate_active_area()
 		m_vid_draw_vstart = 0;
 }
 
+bool spot_asic_device::screen_to_frame(int32_t screen_x, int32_t screen_y, int32_t &frame_x, int32_t &frame_y, const rectangle &) const
+{
+	// Maps a screen pixel to the pixel of the active area. false if outside the active area.
+
+	if (screen_x < int32_t(m_vid_draw_hstart) || screen_x >= int32_t(m_vid_draw_hstart + m_vid_draw_hsize))
+		return false;
+	else if (screen_y < int32_t(m_vid_draw_vstart) || screen_y >= int32_t(m_vid_draw_vstart + m_vid_draw_vsize))
+		return false;
+
+	frame_x = screen_x - m_vid_draw_hstart;
+	frame_y = screen_y - m_vid_draw_vstart;
+
+	if (m_vid_draw_hsize != 0)
+		frame_y += (m_vid_draw_nstart - m_vid_nstart) / (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
+
+	return true;
+}
+
 void spot_asic_device::set_aout_clock(uint32_t clock)
 {
 	m_aud_stream->set_sample_rate(clock);
