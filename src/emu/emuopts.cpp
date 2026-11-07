@@ -151,6 +151,7 @@ const options_entry emu_options::s_option_entries[] =
 	{ nullptr,                                           nullptr,     core_options::option_type::HEADER,     "CORE INPUT OPTIONS" },
 	{ OPTION_COIN_LOCKOUT ";coinlock",                   "1",         core_options::option_type::BOOLEAN,    "ignore coin inputs if coin lockout output is active" },
 	{ OPTION_CTRLR,                                      nullptr,     core_options::option_type::STRING,     "preconfigure for specified controller" },
+	{ OPTION_WTVNET,                                     "0",         core_options::option_type::BOOLEAN,    "enable IP network support for pre-patched WebTV ROMs" },
 	{ OPTION_WTVPOINTER,                                 "0",         core_options::option_type::BOOLEAN,    "enable pointer support for pre-patched WebTV ROMs" },
 	{ OPTION_MOUSE,                                      "0",         core_options::option_type::BOOLEAN,    "enable mouse input" },
 	{ OPTION_JOYSTICK ";joy",                            "1",         core_options::option_type::BOOLEAN,    "enable joystick input" },

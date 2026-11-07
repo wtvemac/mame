@@ -13,6 +13,7 @@
 #include "spot_asic.h"
 #include "wtvdbg.h"
 #include "wtvpointer.h"
+#include "wtvnet.h"
 
 #include "webtv.lh"
 
@@ -228,6 +229,11 @@ void webtv1_state::build_webtv_device(machine_config &config, webtv1_state::cpu_
 
 	if (m_device_config & webtv1_state::PEKOE)
 		WTV_PEKOEDBG(config, m_pekoe);
+
+	if (config.options().wtvnet())
+	{
+		WTVNET(config, "wtvnet").set_hostcpu(m_maincpu);
+	}
 
 	if (config.options().wtvpointer())
 	{

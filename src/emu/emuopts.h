@@ -131,6 +131,7 @@
 #define OPTION_COIN_LOCKOUT         "coin_lockout"
 #define OPTION_CTRLR                "ctrlr"
 #define OPTION_MOUSE                "mouse"
+#define OPTION_WTVNET               "wtvnet"
 #define OPTION_WTVPOINTER           "wtvpointer"
 #define OPTION_JOYSTICK             "joystick"
 #define OPTION_LIGHTGUN             "lightgun"
@@ -427,6 +428,7 @@ public:
 	bool coin_lockout() const { return bool_value(OPTION_COIN_LOCKOUT); }
 	const char *ctrlr() const { return value(OPTION_CTRLR); }
 	bool mouse() const { return bool_value(OPTION_MOUSE); }
+	bool wtvnet() const { return bool_value(OPTION_WTVNET); }
 	bool wtvpointer() const { return bool_value(OPTION_WTVPOINTER); }
 	bool joystick() const { return bool_value(OPTION_JOYSTICK); }
 	bool lightgun() const { return bool_value(OPTION_LIGHTGUN); }
