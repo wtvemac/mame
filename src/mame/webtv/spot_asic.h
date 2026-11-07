@@ -181,6 +181,8 @@ public:
 	auto sda_r_callback() { return m_iic_sda_in_cb.bind(); }
 	auto sda_w_callback() { return m_iic_sda_out_cb.bind(); }
 
+	bool screen_to_frame(int32_t screen_x, int32_t screen_y, int32_t &frame_x, int32_t &frame_y, const rectangle &guest_viewport) const;
+
 	uint8_t sda_r();
 	void sda_w(uint8_t state);
 	uint8_t scl_r();

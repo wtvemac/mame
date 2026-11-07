@@ -422,6 +422,8 @@ public:
 	void busvid_intstat_set(uint32_t data);
 	void busvid_intstat_clear(uint32_t data);
 
+	bool screen_to_frame(int32_t screen_x, int32_t screen_y, int32_t &frame_x, int32_t &frame_y, const rectangle &guest_viewport) const;
+
 protected:
 	// device-level overrides
 	virtual void device_start() override;
