@@ -15,6 +15,8 @@
 
 #include "interface/uievents.h"
 
+#include <functional>
+
 
 /***************************************************************************
     TYPE DEFINITIONS
@@ -89,6 +91,10 @@ public:
 
 	void mark_all_as_pressed();
 
+	// Optional scroll wheel handlers. Menu handlers keep their own events.
+	void set_mouse_wheel_handler(std::function<void (const ui_event &)> handler) { m_mouse_wheel_handler = std::move(handler); }
+	void handle_mouse_wheel(const ui_event &event) { if (m_mouse_wheel_handler) m_mouse_wheel_handler(event); }
+
 protected:
 	// construction/destruction
 	ui_input_manager(running_machine &machine);
@@ -115,6 +121,8 @@ private:
 	bool                m_presses_enabled;
 	osd_ticks_t         m_next_repeat[IPT_COUNT];
 	u8                  m_seqpressed[IPT_COUNT];
+
+	std::function<void (const ui_event &)> m_mouse_wheel_handler;
 
 	// ring buffer of ui_events
 	ui_event            m_events[EVENT_QUEUE_SIZE];
