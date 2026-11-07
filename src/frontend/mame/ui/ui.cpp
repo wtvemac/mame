@@ -1431,7 +1431,10 @@ void mame_ui_manager::process_ui_events()
 		case ui_event::type::NONE:
 		case ui_event::type::WINDOW_FOCUS:
 		case ui_event::type::WINDOW_DEFOCUS:
+			break;
+
 		case ui_event::type::MOUSE_WHEEL:
+			machine().ui_input().handle_mouse_wheel(event);
 			break;
 
 		case ui_event::type::POINTER_UPDATE:
