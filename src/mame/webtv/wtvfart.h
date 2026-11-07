@@ -20,6 +20,7 @@ static constexpr uint32_t DIRECTORY_ENTRY_SIZE  = 0x08;
 static constexpr uint32_t MAX_FEATURES          = 8;
 
 static constexpr uint32_t FEATURE_POINTER = 0x504e5452; // 'PNTR'
+static constexpr uint32_t FEATURE_NET     = 0x574e4554; // 'WNET'
 
 inline uint32_t read_word(address_space &space, uint32_t vaddr)
 {
