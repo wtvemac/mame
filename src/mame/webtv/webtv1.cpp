@@ -13,7 +13,7 @@
 #include "spot_asic.h"
 #include "wtvdbg.h"
 #include "wtvport.h"
-#include "wtvport_pronto.h"
+#include "wtvport_pekoe2.h"
 #include "wtvport_printer.h"
 #include "wtvlpthost.h"
 #include "wtvlptprinter.h"
@@ -259,7 +259,7 @@ void webtv1_state::build_webtv_device(machine_config &config, webtv1_state::cpu_
 		CENTRONICS(config, "pport", pport_device_options, nullptr);
 
 		auto wtvport_device = [] (device_slot_interface &slot) {
-			slot.option_add("pronto", WTVPORT_PRONTO);
+			slot.option_add("pekoe2", WTVPORT_PEKOE2);
 			slot.option_add("printer", WTVPORT_PRINTER).machine_config([] (::device_t *device) {
 				wtvport_printer_device::connect_machine_pport(device, "pport");
 			});
@@ -268,7 +268,7 @@ void webtv1_state::build_webtv_device(machine_config &config, webtv1_state::cpu_
 		const bool has_pekoedbg = (m_device_config & webtv1_state::PEKOE) != 0;
 		for (uint32_t slot = 0; slot < WTVPORT_MAX_DEVICES; slot++)
 		{
-			const char *default_card = (has_pekoedbg && slot == 0) ? "pronto" : nullptr;
+			const char *default_card = (has_pekoedbg && slot == 0) ? "pekoe2" : nullptr;
 			WTVPORT_SLOT(config, util::string_format("wtvport%u", slot + 1).c_str(), m_wtvport, slot, wtvport_device, default_card);
 		}
 	}

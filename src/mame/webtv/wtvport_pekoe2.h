@@ -24,8 +24,8 @@
 //   base+0x7ffff0: device ID (1)
 //
 
-#ifndef MAME_WEBTV_WTVPORT_PRONTO_H
-#define MAME_WEBTV_WTVPORT_PRONTO_H
+#ifndef MAME_WEBTV_WTVPORT_PEKOE2_H
+#define MAME_WEBTV_WTVPORT_PEKOE2_H
 
 #pragma once
 
@@ -35,12 +35,12 @@
 
 #include <array>
 
-class wtvport_pronto_device : public device_t, public device_wtvport_card_interface
+class wtvport_pekoe2_device : public device_t, public device_wtvport_card_interface
 {
 
 public:
 
-	wtvport_pronto_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+	wtvport_pekoe2_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	DECLARE_INPUT_CHANGED_MEMBER(diag_changed);
 
@@ -104,6 +104,6 @@ private:
 
 };
 
-DECLARE_DEVICE_TYPE(WTVPORT_PRONTO, wtvport_pronto_device)
+DECLARE_DEVICE_TYPE(WTVPORT_PEKOE2, wtvport_pekoe2_device)
 
-#endif // MAME_WEBTV_WTVPORT_PRONTO_H
+#endif // MAME_WEBTV_WTVPORT_PEKOE2_H
