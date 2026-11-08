@@ -16,6 +16,7 @@ solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, co
 	m_lspeaker(*this, "lspeaker"),
 	m_rspeaker(*this, "rspeaker"),
 	m_audio_in(*this, "audio_input"),
+	m_div_audio_in(*this, "div_audio_input"),
 	m_softmodem(*this, finder_base::DUMMY_TAG),
 	m_int_enable_cb(*this),
 	m_int_irq_cb(*this)
@@ -26,7 +27,10 @@ solo_asic_audio_device::solo_asic_audio_device(const machine_config &mconfig, co
 
 void solo_asic_audio_device::device_start()
 {
-	m_aud_stream = stream_alloc(1, 2, m_aud_clock);
+	// 0 = audUnit audio in (mono), 1/2 = divUnit audio in (left/right).
+	m_aud_stream = stream_alloc(3, 2, m_aud_clock);
+
+	div_audio_timer = timer_alloc(FUNC(solo_asic_audio_device::div_audio_transfer_done), this);
 
 	if (m_mod_enabled)
 	{
@@ -82,6 +86,9 @@ void solo_asic_audio_device::device_start()
 	save_item(NAME(m_div_csize));
 	save_item(NAME(m_div_nstart));
 	save_item(NAME(m_div_nsize));
+	save_item(NAME(m_div_cvalid));
+	save_item(NAME(m_div_ccnt));
+	save_item(NAME(m_div_cend));
 
 	save_item(NAME(m_spdif_unknown000));
 	save_item(NAME(m_spdif_unknown00c));
@@ -156,6 +163,10 @@ void solo_asic_audio_device::device_reset()
 	m_div_csize = 0x0;
 	m_div_nstart = 0x0;
 	m_div_nsize = 0x0;
+	m_div_cvalid = false;
+	m_div_ccnt = 0x0;
+	m_div_cend = 0x0;
+	div_audio_timer->adjust(attotime::never);
 
 	m_spdif_unknown000 = 0x0;
 	m_spdif_unknown00c = 0x0;
@@ -183,6 +194,11 @@ void solo_asic_audio_device::device_add_mconfig(machine_config &config)
 
 	MICROPHONE(config, m_audio_in, 1).front_center();
 	m_audio_in->add_route(0, *this, 1.0, 0);
+
+	// DIVIT serial PCM input (DIV_SDATA/DIV_LRCLK/DIV_BCLK). Seems to be only used on DishPlayer boxes. Fed by the L64005 MPEG decoder
+	MICROPHONE(config, m_div_audio_in, 2).front();
+	m_div_audio_in->add_route(0, *this, 1.0, 1);
+	m_div_audio_in->add_route(1, *this, 1.0, 2);
 }
 
 void solo_asic_audio_device::map(address_map &map)
@@ -460,7 +476,16 @@ uint32_t solo_asic_audio_device::reg_8040_r()
 
 void solo_asic_audio_device::reg_8040_w(uint32_t data)
 {
+	m_aud_stream->update();
+
 	m_div_audcntl = data;
+
+	if (m_div_audcntl & DIV_AUDCNTL_ENABLED)
+		solo_asic_audio_device::div_audio_load_next();
+	else if (!m_div_cvalid)
+		m_div_cvalid = false;
+
+	solo_asic_audio_device::div_audio_update_timer();
 }
 
 uint32_t solo_asic_audio_device::reg_8044_r()
@@ -470,7 +495,7 @@ uint32_t solo_asic_audio_device::reg_8044_r()
 
 void solo_asic_audio_device::reg_8044_w(uint32_t data)
 {
-	m_div_nstart = data & (~0xfc000003);
+	m_div_nstart = data & DIV_AUDADDR_MASK;
 }
 
 uint32_t solo_asic_audio_device::reg_8048_r()
@@ -480,7 +505,7 @@ uint32_t solo_asic_audio_device::reg_8048_r()
 
 void solo_asic_audio_device::reg_8048_w(uint32_t data)
 {
-	m_div_nsize = data;
+	m_div_nsize = data & DIV_AUDLEN_MASK;
 }
 
 uint32_t solo_asic_audio_device::reg_804c_r()
@@ -1016,6 +1041,108 @@ void solo_asic_audio_device::audio_input_update(sound_stream &stream)
 	}
 }
 
+bool solo_asic_audio_device::div_audio_load_next()
+{
+	if (m_div_audcntl & (DIV_AUDCNTL_NV | DIV_AUDCNTL_NVF))
+	{
+		uint32_t old_start = m_div_cstart;
+		uint32_t old_size = m_div_csize;
+
+		m_div_cstart = m_div_nstart;
+		m_div_csize = m_div_nsize;
+		m_div_cvalid = true;
+
+		m_div_ccnt = m_div_cstart;
+		m_div_cend = m_div_cstart + m_div_csize + DIV_AUDLEN_BIAS;
+
+		if (m_div_audcntl & DIV_AUDCNTL_PINGPONG)
+		{
+			// Alternate between the two buffers without the OS setting up the next buffer
+			m_div_nstart = old_start;
+			m_div_nsize = old_size;
+		}
+
+		if (!(m_div_audcntl & DIV_AUDCNTL_NVF))
+			m_div_audcntl &= ~DIV_AUDCNTL_NV;
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void solo_asic_audio_device::div_audio_update_timer()
+{
+	constexpr uint32_t RUNNING = DIV_AUDCNTL_ENABLED | DIV_AUDCNTL_CAPTURE;
+
+	if ((m_div_audcntl & RUNNING) != RUNNING || !m_div_cvalid)
+		div_audio_timer->adjust(attotime::never);
+	else if (!div_audio_timer->enabled())
+		div_audio_timer->adjust(m_aud_stream->sample_period() * ((m_div_cend - m_div_ccnt) >> 2));
+}
+
+TIMER_CALLBACK_MEMBER(solo_asic_audio_device::div_audio_transfer_done)
+{
+	m_aud_stream->update();
+
+	uint32_t ram_words = m_hostram.length();
+	for (; m_div_ccnt < m_div_cend; m_div_ccnt += 4)
+	{
+		if ((m_div_ccnt >> 0x02) < ram_words)
+			m_hostram[m_div_ccnt >> 0x02] = 0;
+	}
+
+	m_div_cvalid = false;
+	solo_asic_audio_device::div_audio_load_next();
+	solo_asic_audio_device::div_audio_update_timer();
+	solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_DIVUNIT, ASSERT_LINE);
+}
+
+void solo_asic_audio_device::div_audio_input_update(sound_stream &stream)
+{
+	const uint32_t is_running = (DIV_AUDCNTL_ENABLED | DIV_AUDCNTL_CAPTURE);
+
+	if ((m_div_audcntl & is_running) == is_running && m_div_cvalid)
+	{
+		uint32_t width = ((m_div_audcntl & DIV_AUDCNTL_WIDTH_MASK) >> DIV_AUDCNTL_WIDTH_SHIFT) + 2;
+		uint16_t keep_mask = (width < 16) ? uint16_t(0xffff << (16 - width)) : 0xffff;
+		uint32_t ram_words = m_hostram.length();
+
+		auto get_sample = [&stream, keep_mask](int input, int index) -> int16_t
+		{
+			long long rounded = std::llround(double(stream.get(input, index)) * 32768.0);
+
+			auto clamped = std::clamp(
+				rounded,
+				static_cast<long long>(std::numeric_limits<int16_t>::min()),
+				static_cast<long long>(std::numeric_limits<int16_t>::max())
+			);
+
+			return static_cast<int16_t>(static_cast<int16_t>(clamped) & keep_mask);
+		};
+
+		for (int i = 0; i < stream.samples() && m_div_ccnt < m_div_cend; i++)
+		{
+			int16_t lsample = get_sample(1, i);
+			int16_t rsample = get_sample(2, i);
+
+			if (m_div_audcntl & DIV_AUDCNTL_SWAPLR)
+				std::swap(lsample, rsample);
+
+			solo_asic_audio_device::sample_t sample;
+			sample.stereo16.left = lsample;
+			sample.stereo16.right = rsample;
+
+			if ((m_div_ccnt >> 0x02) < ram_words)
+				m_hostram[m_div_ccnt >> 0x02] = sample.val;
+
+			m_div_ccnt += 4;
+		}
+	}
+}
+
 void solo_asic_audio_device::set_audio_irq(uint32_t mask, int state)
 {
 	if (m_busaud_intenable & mask)
@@ -1042,4 +1169,5 @@ void solo_asic_audio_device::sound_stream_update(sound_stream &stream)
 
 	solo_asic_audio_device::audio_output_update(stream);
 	solo_asic_audio_device::audio_input_update(stream);
+	solo_asic_audio_device::div_audio_input_update(stream);
 }

@@ -38,6 +38,23 @@ constexpr uint32_t AUD_DMACNTL_DMAEN  = 1 << 2; // audUnit DMA channel enabled
 constexpr uint32_t AUD_DMACNTL_NV     = 1 << 1; // audUnit DMA next registers are valid
 constexpr uint32_t AUD_DMACNTL_NVF    = 1 << 0; // audUnit DMA next registers are always valid
 
+constexpr uint32_t DIV_AUDCNTL_BCLKEDGE    = 1 << 31; // capture on falling BCLK edge
+constexpr uint32_t DIV_AUDCNTL_FLIPBITS    = 1 << 30; // LSB first
+constexpr uint32_t DIV_AUDCNTL_INVERTMSB   = 1 << 29; // offset binary
+constexpr uint32_t DIV_AUDCNTL_INVERTLRCLK = 1 << 28; // manual: 0 = invert, 1 = don't invert
+constexpr uint32_t DIV_AUDCNTL_SWAPLR      = 1 << 27;
+constexpr uint32_t DIV_AUDCNTL_CAPTURE     = 1 << 26; // audCaptureEnable
+constexpr uint32_t DIV_AUDCNTL_WIDTH_MASK  = 0x1f << 16; // audWordWidth = bits per sample - 2 (DishPlayer writes 14)
+constexpr uint32_t DIV_AUDCNTL_WIDTH_SHIFT = 16;
+constexpr uint32_t DIV_AUDCNTL_PINGPONG    = 1 << 3; // Nex reloaded from CURR when CURR is loaded
+constexpr uint32_t DIV_AUDCNTL_ENABLED     = 1 << 2; // audEnabled
+constexpr uint32_t DIV_AUDCNTL_NV          = 1 << 1; // audNextValid
+constexpr uint32_t DIV_AUDCNTL_NVF         = 1 << 0; // audNextValidForever
+
+constexpr uint32_t DIV_AUDADDR_MASK = 0x03ffffe0; // bit 25 to bit 5
+constexpr uint32_t DIV_AUDLEN_MASK  = 0x007fffe0; // bit 22 to bit 5 (transfer is 'len + 0x20' bytes)
+constexpr uint32_t DIV_AUDLEN_BIAS  = 0x20;
+
 class solo_asic_audio_device : public device_t, public device_sound_interface
 {
 
@@ -136,6 +153,9 @@ protected:
 	uint32_t m_div_csize;
 	uint32_t m_div_nstart;
 	uint32_t m_div_nsize;
+	bool m_div_cvalid;
+	uint32_t m_div_ccnt;
+	uint32_t m_div_cend;
 
 	uint32_t m_spdif_unknown000;
 	uint32_t m_spdif_unknown00c;
@@ -171,6 +191,7 @@ private:
 	required_device<speaker_device> m_rspeaker;
 
 	required_device<microphone_device> m_audio_in;
+	required_device<microphone_device> m_div_audio_in;
 
 	optional_device<wtvsoftmodem_device> m_softmodem;
 
@@ -181,11 +202,17 @@ private:
 	TIMER_CALLBACK_MEMBER(play_modout_samples);
 	emu_timer *play_modin_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(play_modin_samples);
+	emu_timer *div_audio_timer = nullptr;
+	TIMER_CALLBACK_MEMBER(div_audio_transfer_done);
 
 	void adjust_audio_update_rate();
 
 	void audio_output_update(sound_stream &stream);
 	void audio_input_update(sound_stream &stream);
+
+	void div_audio_input_update(sound_stream &stream);
+	bool div_audio_load_next();
+	void div_audio_update_timer();
 
 	void set_audio_irq(uint32_t mask, int state);
 
