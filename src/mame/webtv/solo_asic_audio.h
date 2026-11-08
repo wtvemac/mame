@@ -38,6 +38,8 @@ constexpr uint32_t AUD_DMACNTL_DMAEN  = 1 << 2; // audUnit DMA channel enabled
 constexpr uint32_t AUD_DMACNTL_NV     = 1 << 1; // audUnit DMA next registers are valid
 constexpr uint32_t AUD_DMACNTL_NVF    = 1 << 0; // audUnit DMA next registers are always valid
 
+constexpr uint32_t AUD_IN_PENDING_FRAMES = 0x1000;
+
 constexpr uint32_t DIV_AUDCNTL_BCLKEDGE    = 1 << 31; // capture on falling BCLK edge
 constexpr uint32_t DIV_AUDCNTL_FLIPBITS    = 1 << 30; // LSB first
 constexpr uint32_t DIV_AUDCNTL_INVERTMSB   = 1 << 29; // offset binary
@@ -123,6 +125,10 @@ protected:
 	uint32_t m_aud_icend;
 	uint32_t m_aud_iccnt;
 	bool m_aud_icvalid;
+
+	uint32_t m_aud_in_pending[AUD_IN_PENDING_FRAMES];
+	uint32_t m_aud_in_pending_rd;
+	uint32_t m_aud_in_pending_count;
 	uint32_t m_aud_instart;
 	uint32_t m_aud_insize;
 	uint32_t m_aud_idmacntl;
@@ -209,6 +215,9 @@ private:
 
 	void audio_output_update(sound_stream &stream);
 	void audio_input_update(sound_stream &stream);
+	bool audio_input_load_next();
+	void audio_input_hold(uint32_t frame);
+	void audio_input_flush();
 
 	void div_audio_input_update(sound_stream &stream);
 	bool div_audio_load_next();
