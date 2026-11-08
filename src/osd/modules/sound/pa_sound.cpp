@@ -18,6 +18,7 @@
 #include "osdcore.h"
 
 #include <portaudio.h>
+#include <cstring>
 #include <mutex>
 #include <map>
 
@@ -150,6 +151,14 @@ int sound_pa::init(osd_interface &osd, osd_options const &options)
 		node.m_rate.m_default_rate = node.m_rate.m_min_rate = node.m_rate.m_max_rate = di->defaultSampleRate;
 		node.m_sinks = di->maxOutputChannels;
 		node.m_sources = di->maxInputChannels;
+
+		// ALSA plugin devices (pulse, default etc...) report a maximum of 32 channels but when we capture at the max it returns silence so open them as stereo.
+		if(ai->type == paALSA && node.m_sources > 8)
+			node.m_sources = 2;
+		
+		// upmix and vdownmix are playback-only but show up as inputs in ALSA. This fixes a crash issue when we try to open them as a capture source.
+		if(ai->type == paALSA && (!std::strcmp(di->name, "upmix") || !std::strcmp(di->name, "vdownmix")))
+			node.m_sources = 0;
 
 		// remove enters from possibly buggy device string
 		node.m_name = util::string_format("%s: %s", ai->name, di->name);
