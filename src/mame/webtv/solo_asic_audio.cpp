@@ -57,6 +57,9 @@ void solo_asic_audio_device::device_start()
 	save_item(NAME(m_aud_icsize));
 	save_item(NAME(m_aud_iccnt));
 	save_item(NAME(m_aud_icvalid));
+	save_item(NAME(m_aud_in_pending));
+	save_item(NAME(m_aud_in_pending_rd));
+	save_item(NAME(m_aud_in_pending_count));
 	save_item(NAME(m_aud_instart));
 	save_item(NAME(m_aud_insize));
 	save_item(NAME(m_aud_idmacntl));
@@ -134,6 +137,8 @@ void solo_asic_audio_device::device_reset()
 	m_aud_icend = 0x0;
 	m_aud_iccnt = 0x0;
 	m_aud_icvalid = false;
+	m_aud_in_pending_rd = 0;
+	m_aud_in_pending_count = 0;
 	m_aud_instart = 0x80000000;
 	m_aud_insize = 0x0;
 	m_aud_idmacntl = 0x0;
@@ -454,14 +459,11 @@ uint32_t solo_asic_audio_device::reg_203c_r()
 
 void solo_asic_audio_device::reg_203c_w(uint32_t data)
 {
-	if ((m_aud_idmacntl ^ data) & AUD_DMACNTL_DMAEN)
+	if ((m_aud_idmacntl & AUD_DMACNTL_DMAEN) && !(data & AUD_DMACNTL_DMAEN))
 	{
-		if (data & AUD_DMACNTL_DMAEN)
-		{
-		}
-		else
-		{
-		}
+		m_aud_icvalid = false;
+		m_aud_in_pending_rd = 0;
+		m_aud_in_pending_count = 0;
 	}
 
 	m_aud_idmacntl = data;
@@ -988,57 +990,113 @@ void solo_asic_audio_device::audio_output_update(sound_stream &stream)
 	}
 }
 
+bool solo_asic_audio_device::audio_input_load_next()
+{
+	if (!(m_aud_idmacntl & AUD_DMACNTL_NV) || m_aud_instart == 0x80000000)
+		return false;
+
+	m_aud_icstart = m_aud_instart;
+	m_aud_icsize = m_aud_insize;
+
+	m_aud_iccnt = m_aud_icstart;
+	m_aud_icend = (m_aud_icstart + m_aud_icsize);
+
+	m_aud_icvalid = true;
+
+	if ((m_aud_idmacntl & AUD_DMACNTL_NVF) == 0x0)
+		m_aud_idmacntl &= (~AUD_DMACNTL_NV);
+
+	solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_AUDDMAIN, ASSERT_LINE);
+
+	return true;
+}
+
 void solo_asic_audio_device::audio_input_update(sound_stream &stream)
 {
 	if (m_aud_idmacntl & AUD_DMACNTL_DMAEN)
 	{
-		// No current buffer ready for input samples. Check if there OS has anything lined up for us.
-		if (!m_aud_icvalid && (m_aud_idmacntl & AUD_DMACNTL_NV) && m_aud_instart != 0x80000000)
+		uint32_t ram_size_words = m_hostram.length();
+
+		for (int i = 0; i < stream.samples(); i++)
 		{
-			m_aud_icstart = m_aud_instart;
-			m_aud_icsize = m_aud_insize;
+			long long rounded = std::llround(double(stream.get(0, i)) * 32768.0);
 
-			m_aud_iccnt = m_aud_icstart;
-			m_aud_icend = (m_aud_icstart + m_aud_icsize);
+			auto clamped = std::clamp(
+				rounded,
+				static_cast<long long>(std::numeric_limits<int16_t>::min()),
+				static_cast<long long>(std::numeric_limits<int16_t>::max())
+			);
 
-			// Next buffer ready for input samples, so we will now push it
-			m_aud_icvalid = true;
-		}
+			// Mono host input, so the same sample goes to both channels.
+			solo_asic_audio_device::sample_t sample;
+			sample.stereo16.left = static_cast<int16_t>(clamped);
+			sample.stereo16.right = static_cast<int16_t>(clamped);
 
-		// If there's a buffer ready for input samples, then copy our input samples.
-		if (m_aud_icvalid)
-		{
-			for(int i = 0; i < stream.samples(); i++)
+			if (!m_aud_icvalid && m_aud_in_pending_count == 0 && !solo_asic_audio_device::audio_input_load_next())
 			{
-				int16_t sample = (int16_t)(stream.get(0, i) * (float)0x8000);
+				solo_asic_audio_device::audio_input_hold(sample.val);
+				continue;
+			}
 
-				// The buffer allows for stereo input but we're only have 1 input channel at the moment
-				// So we're just repeating the same value for the left and right channels.
-				m_hostram[m_aud_iccnt >> 0x02] = (sample << 0x10) | (sample << 0x00);
+			if (m_aud_in_pending_count > 0)
+			{
+				solo_asic_audio_device::audio_input_hold(sample.val);
+				solo_asic_audio_device::audio_input_flush();
+				continue;
+			}
 
-				m_aud_iccnt += 4;
+			if ((m_aud_iccnt >> 0x02) < ram_size_words)
+				m_hostram[m_aud_iccnt >> 0x02] = sample.val;
 
-				if (m_aud_iccnt >= m_aud_icend)
-				{
-					// We finished copying samples, so invalidate the buffer.
-					m_aud_icvalid = false;
+			m_aud_iccnt += 4;
 
-					// If next buffer isn't flagged as continous then tell the OS we've invalidated the buffer.
-					// The OS will tell us when the next buffer is ready.
-					if ((m_aud_idmacntl & AUD_DMACNTL_NVF) == 0x0)
-					{
-						m_aud_idmacntl &= (~AUD_DMACNTL_NV);
-					}
+			if (m_aud_iccnt >= m_aud_icend)
+			{
+				// We finished copying samples, so invalidate the buffer.
+				m_aud_icvalid = false;
 
-					// Ask the OS to process our input samples and to prepare a new buffer for us (if needed).
-					solo_asic_audio_device::set_audio_irq(BUS_INT_AUD_AUDDMAIN, ASSERT_LINE);
-
-					break;
-				}
-
+				solo_asic_audio_device::audio_input_load_next();
 			}
 		}
 	}
+}
+
+void solo_asic_audio_device::audio_input_hold(uint32_t frame)
+{
+	if (m_aud_in_pending_count == AUD_IN_PENDING_FRAMES)
+	{
+		// Too far behind so drop the oldest
+		m_aud_in_pending_rd = (m_aud_in_pending_rd + 1) % AUD_IN_PENDING_FRAMES;
+		m_aud_in_pending_count--;
+	}
+
+	m_aud_in_pending[(m_aud_in_pending_rd + m_aud_in_pending_count) % AUD_IN_PENDING_FRAMES] = frame;
+	m_aud_in_pending_count++;
+}
+
+void solo_asic_audio_device::audio_input_flush()
+{
+	uint32_t ram_words = m_hostram.length();
+
+	while (m_aud_in_pending_count > 0)
+	{
+		if (!m_aud_icvalid && !solo_asic_audio_device::audio_input_load_next())
+			return;
+
+		if ((m_aud_iccnt >> 0x02) < ram_words)
+			m_hostram[m_aud_iccnt >> 0x02] = m_aud_in_pending[m_aud_in_pending_rd];
+
+		m_aud_in_pending_rd = (m_aud_in_pending_rd + 1) % AUD_IN_PENDING_FRAMES;
+		m_aud_in_pending_count--;
+
+		m_aud_iccnt += 4;
+
+		if (m_aud_iccnt >= m_aud_icend)
+			m_aud_icvalid = false;
+	}
+
+	if (!m_aud_icvalid)
+		solo_asic_audio_device::audio_input_load_next();
 }
 
 bool solo_asic_audio_device::div_audio_load_next()
@@ -1062,6 +1120,8 @@ bool solo_asic_audio_device::div_audio_load_next()
 			m_div_nsize = old_size;
 		}
 
+		// If next buffer isn't flagged as continous then tell the OS we've invalidated the buffer.
+		// The OS will tell us when the next buffer is ready.
 		if (!(m_div_audcntl & DIV_AUDCNTL_NVF))
 			m_div_audcntl &= ~DIV_AUDCNTL_NV;
 
