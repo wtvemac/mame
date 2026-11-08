@@ -21,6 +21,10 @@ static INPUT_PORTS_START(wtvport_pronto)
 	PORT_CONFNAME(0x01, 0x00, "Boot into Pronto ROM (diag line)") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(wtvport_pronto_device::diag_changed), 0)
 	PORT_CONFSETTING(0x00, DEF_STR(Off))
 	PORT_CONFSETTING(0x01, DEF_STR(On))
+
+	// This might be the SW0600 "interrupt switch" on the Pekoe2 board (MAN_INT_N). Needs to be active to boot into pronto.o
+	PORT_START("BUTTON")
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_OTHER) PORT_NAME("Boot into Pronto ROM Button") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(wtvport_pronto_device::diag_changed), 0)
 INPUT_PORTS_END
 
 wtvport_pronto_device::wtvport_pronto_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
@@ -28,7 +32,8 @@ wtvport_pronto_device::wtvport_pronto_device(const machine_config &mconfig, cons
 	device_wtvport_card_interface(mconfig, *this),
 	m_pekoe(*this, "pekoe"),
 	m_stream(*this, "stream"),
-	m_config(*this, "CONFIG")
+	m_config(*this, "CONFIG"),
+	m_button(*this, "BUTTON")
 {
 }
 
@@ -75,12 +80,20 @@ void wtvport_pronto_device::device_reset()
 	m_strobe_state = STROBE_IDLE;
 	m_strobe_high_reads = 0;
 
-	set_diag((m_config->read() & CONFIG_DIAG) ? ASSERT_LINE : CLEAR_LINE);
+	wtvport_pronto_device::update_diag();
 }
 
 INPUT_CHANGED_MEMBER(wtvport_pronto_device::diag_changed)
 {
-	wtvport_pronto_device::set_diag((newval & CONFIG_DIAG) ? ASSERT_LINE : CLEAR_LINE);
+	wtvport_pronto_device::update_diag();
+}
+
+void wtvport_pronto_device::update_diag()
+{
+	// The diag line is held while the switch is on or the button is down.
+	const bool asserted = (m_config->read() & CONFIG_DIAG) || (m_button->read() & BUTTON_DIAG);
+
+	set_diag(asserted ? ASSERT_LINE : CLEAR_LINE);
 }
 
 void wtvport_pronto_device::map(address_map &map)
