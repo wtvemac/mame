@@ -16,6 +16,8 @@
 #include "han_asic.h"
 #include "fud_asic.h"
 #include "wtvdbg.h"
+#include "wtvport.h"
+#include "wtvport_pronto.h"
 #include "wtvlpthost.h"
 #include "wtvlptprinter.h"
 #include "bus/centronics/lptsocket.h"
@@ -35,6 +37,9 @@ class webtv2_state : public driver_device
 public:
 
 	static constexpr uint32_t FUD_GPIO_BASE    = 0x04860000;
+
+	static constexpr uint32_t WTVPORT_BASE        = 0x04800000;
+	static constexpr uint32_t WTVPORT_MAX_DEVICES = 3;
 
 	enum cpu_type_t : uint8_t
 	{
@@ -118,6 +123,7 @@ public:
 		m_bt827_in(*this, "bt827_in"),
 		m_bt835_in(*this, "bt835_in"),
 		m_pekoe(*this, "pekoe"),
+		m_wtvport(*this, "wtvport"),
 		m_pointer(*this, "pointer")
 	{
 	}
@@ -171,6 +177,8 @@ private:
 
 	optional_device<wtvdbg_pekoe_device> m_pekoe;
 
+	optional_device<wtvport_device> m_wtvport;
+
 	optional_device<wtvpointer_device> m_pointer;
 
 	webtv2_state::mem_size_t m_ram_size = webtv2_state::MEM_8MB;
@@ -185,6 +193,8 @@ private:
 	void base_addrmap(address_map &map);
 	
 	void reset_hack(int state);
+
+	void wtvport_timeout(offs_t offset, uint32_t data);
 	
 	uint8_t iic_sda_r();
 	void iic_sda_w(uint8_t sda);
@@ -368,6 +378,22 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	if (m_device_config & webtv2_state::PEKOE)
 		WTV_PEKOEDBG(config, m_pekoe);
 
+	if (m_device_config & webtv2_state::WEBTV_PORT)
+	{
+		WTVPORT(config, m_wtvport);
+		m_wtvport->set_space(m_maincpu, AS_PROGRAM, WTVPORT_BASE);
+		m_wtvport->irq_callback().set_inputline(m_maincpu, MIPS3_IRQ1);
+		m_wtvport->diag_callback().set_inputline(m_maincpu, MIPS3_IRQ4);
+		m_wtvport->timeout_callback().set(FUNC(webtv2_state::wtvport_timeout));
+
+		auto wtvport_device = [] (device_slot_interface &slot) {
+			slot.option_add("pronto", WTVPORT_PRONTO);
+		};
+
+		for (uint32_t slot = 0; slot < WTVPORT_MAX_DEVICES; slot++)
+			WTVPORT_SLOT(config, util::string_format("wtvport%u", slot + 1).c_str(), m_wtvport, slot, wtvport_device, nullptr);
+	}
+
 	if (config.options().wtvnet())
 	{
 		WTVNET(config, "wtvnet").set_hostcpu(m_maincpu);
@@ -513,6 +539,17 @@ void webtv2_state::reset_hack(int state)
 {
 	if (state && m_device_config & webtv2_state::HAN)
 		m_hanasic->prepare_for_reset();
+}
+
+// Nothing answered a WebTV Port access (empty slot).
+void webtv2_state::wtvport_timeout(offs_t offset, uint32_t data)
+{
+	const bool write = (data != 0);
+
+	m_soloasic->wtvport_timeout(offset, write);
+
+	if (!write)
+		m_maincpu->bus_error();
 }
 
 //
