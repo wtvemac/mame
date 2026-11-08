@@ -28,19 +28,15 @@ void wtvport_device::device_start()
 	save_item(NAME(m_diag_state));
 
 	// Nothing answers in an empty slot. Devices install their own handler over this when they start.
-	for (uint32_t slot = 0; slot < SLOT_COUNT; slot++)
-		install_empty(slot);
-}
-
-void wtvport_device::install_empty(uint32_t slot)
-{
-	const offs_t start = slot_base(slot);
-
-	m_space->install_readwrite_handler(start, start + SLOT_SIZE - 1, emu::rw_delegate(*this, FUNC(wtvport_device::empty_r)), emu::rw_delegate(*this, FUNC(wtvport_device::empty_w)));
+	m_space->install_readwrite_handler(m_base, m_base + (SLOT_COUNT * SLOT_SIZE) - 1, emu::rw_delegate(*this, FUNC(wtvport_device::empty_r)), emu::rw_delegate(*this, FUNC(wtvport_device::empty_w)));
 }
 
 void wtvport_device::device_reset()
 {
+	m_irq_state = 0;
+	m_diag_state = 0;
+	m_irq_cb(CLEAR_LINE);
+	m_diag_cb(CLEAR_LINE);
 }
 
 uint32_t wtvport_device::empty_r(offs_t offset, uint32_t mem_mask)

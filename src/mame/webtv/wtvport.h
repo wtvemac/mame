@@ -63,9 +63,6 @@ public:
 	void set_slot_irq(uint32_t slot, int state);
 	void set_slot_diag(uint32_t slot, int state);
 
-	// Puts a slot back to empty (accesses time out). For a card that can be switched off at reset.
-	void install_empty(uint32_t slot);
-
 protected:
 
 	virtual void device_start() override ATTR_COLD;
