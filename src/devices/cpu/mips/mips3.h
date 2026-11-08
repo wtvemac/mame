@@ -324,6 +324,9 @@ public:
 	void set_secondary_cache_line_size(uint8_t secondary_cache_line_size) { c_secondary_cache_line_size = secondary_cache_line_size; }
 	void set_system_clock(uint32_t system_clock) { c_system_clock = system_clock; }
 
+	// Called from a memory read handler to make the access end with a bus error (DBE for loads, IBE for instruction fetches) instead of returning data. Writes ignore it.
+	void bus_error() { if (m_core != nullptr) m_core->bus_error = 1; }
+
 	TIMER_CALLBACK_MEMBER(compare_int_callback);
 
 	void add_fastram(offs_t start, offs_t end, uint8_t readonly, void *base);
@@ -418,6 +421,7 @@ protected:
 
 		uint32_t        drc_cache_dirty;            /* true if we need to flush the cache */
 		uint32_t        drc_cached_invariant;       // true if we cached invariant code
+		uint32_t         bus_error;                 // set by bus_error() from a read handler
 	};
 
 	/* core state */
@@ -599,6 +603,7 @@ protected:
 	std::time_t m_last_ramdiag_print;
 
 	void generate_exception(int exception, int backup);
+	bool take_bus_error(bool insn = false);
 	void generate_tlb_exception(int exception, offs_t address);
 	void generate_address_error(int exception, offs_t address);
 	void set_link(offs_t address);
