@@ -188,6 +188,9 @@ public:
 	uint8_t scl_r();
 	void scl_w(uint8_t state);
 
+	// A WebTV Port access got no answer (empty slot)
+	void wtvport_timeout(offs_t address, bool write);
+
 protected:
 
 	virtual void device_add_mconfig(machine_config &config) override;
@@ -212,6 +215,7 @@ protected:
 
 	uint8_t m_errenable;
 	uint8_t m_errstat;
+	uint32_t m_erraddr;
 
 	uint16_t m_timeout_count;
 	uint16_t m_timeout_compare;

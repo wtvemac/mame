@@ -226,6 +226,7 @@ void spot_asic_device::device_start()
 	save_item(NAME(m_sccntl));
 	save_item(NAME(m_sc_inserted));
 	save_item(NAME(m_errstat));
+	save_item(NAME(m_erraddr));
 	save_item(NAME(m_vid_nstart));
 	save_item(NAME(m_vid_nsize));
 	save_item(NAME(m_vid_dmacntl));
@@ -279,6 +280,7 @@ void spot_asic_device::device_reset()
 	m_sccntl = 0x0;
 	m_sc_inserted = false;
 	m_errstat = 0x0;
+	m_erraddr = 0x0;
 	m_timeout_compare = 0xffff;
 	m_iiccntl = 0x0;
 	m_iic_sda = 0x0;
@@ -549,7 +551,20 @@ void spot_asic_device::reg_0114_w(uint32_t data)
 
 uint32_t spot_asic_device::reg_0018_r()
 {
-	return 0x00000000;
+	return m_erraddr;
+}
+
+void spot_asic_device::wtvport_timeout(offs_t address, bool write)
+{
+	// Another error came in before the CPU cleared the last one.
+	if (m_errstat & ~ERR_OW)
+		m_errstat |= ERR_OW;
+
+	m_errstat |= ERR_TIMEOUT;
+	m_erraddr = address;
+
+	// Read timeouts cause a CPU bus error which is raised by the WebTV Port device (synchronous)
+	// Unknown where write timeouts go. Solo has handling, nothing documented with Spot is known (probably some BUS_ error, doesn't seem important enough right now to dig in)
 }
 
 void spot_asic_device::reg_0118_w(uint32_t data)
