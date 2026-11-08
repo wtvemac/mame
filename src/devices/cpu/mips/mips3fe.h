@@ -59,6 +59,7 @@ public:
 	void set_can_expose_external_int() { m_extra_flags.set(CAN_EXPOSE_EXTERNAL_INT); }
 	void set_modifies_translation() { m_extra_flags.set(MODIFIES_TRANSLATION); }
 	void set_compiler_unmapped() { m_extra_flags.set(COMPILER_UNMAPPED); }
+	void set_compiler_bus_error() { m_extra_flags.set(COMPILER_BUS_ERROR); }
 	void set_can_change_modes() { m_extra_flags.set(CAN_CHANGE_MODES); }
 	void set_reads_memory() { m_extra_flags.set(READS_MEMORY); }
 	void set_writes_memory() { m_extra_flags.set(WRITES_MEMORY); }
@@ -67,6 +68,7 @@ public:
 	bool can_expose_external_int() { return m_extra_flags[CAN_EXPOSE_EXTERNAL_INT]; }
 	bool modifies_translation() const { return m_extra_flags[MODIFIES_TRANSLATION]; }
 	bool compiler_unmapped() const { return m_extra_flags[COMPILER_UNMAPPED]; }
+	bool compiler_bus_error() const { return m_extra_flags[COMPILER_BUS_ERROR]; }
 	bool can_change_modes() const { return m_extra_flags[CAN_CHANGE_MODES]; }
 	bool reads_memory() const { return m_extra_flags[READS_MEMORY]; }
 	bool writes_memory() const { return m_extra_flags[WRITES_MEMORY]; }
@@ -93,6 +95,7 @@ private:
 		CAN_EXPOSE_EXTERNAL_INT,
 		MODIFIES_TRANSLATION,
 		COMPILER_UNMAPPED,
+		COMPILER_BUS_ERROR,
 		CAN_CHANGE_MODES,
 		READS_MEMORY,
 		WRITES_MEMORY,

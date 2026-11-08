@@ -320,6 +320,8 @@ void mips3_device::generate_invariant()
 		static_generate_exception(block, label, EXCEPTION_TLBSTORE_FILL, true,  "exception_tlbstore_fill");
 		static_generate_exception(block, label, EXCEPTION_ADDRLOAD,      true,  "exception_addrload");
 		static_generate_exception(block, label, EXCEPTION_ADDRSTORE,     true,  "exception_addrstore");
+		static_generate_exception(block, label, EXCEPTION_BUSINST,       true,  "exception_businst");
+		static_generate_exception(block, label, EXCEPTION_BUSDATA,       true,  "exception_busdata");
 		static_generate_exception(block, label, EXCEPTION_SYSCALL,       true,  "exception_syscall");
 		static_generate_exception(block, label, EXCEPTION_BREAK,         true,  "exception_break");
 		static_generate_exception(block, label, EXCEPTION_INVALIDOP,     true,  "exception_invalidop");
@@ -486,6 +488,7 @@ void mips3_device::code_compile_block(uint8_t mode, offs_t pc)
 
 	/* get a description of this sequence */
 	desclist = m_drcfe->describe_code(pc);
+	m_core->bus_error = 0;
 	/* get last instruction of the code (potentially used in generate_checksum) */
 	codelast = m_drcfe->get_last();
 	if (m_drcuml->logging() || m_drcuml->logging_native())
@@ -1370,6 +1373,17 @@ void mips3_device::static_generate_memory_rw(drcuml_block &block, int &label, in
 		UML_CALLC(block, cfunc_log_slowram, this);
 	}
 
+	if (!iswrite)
+	{
+		// A read handler can call bus_error() to end the access with a bus error (DBE) instead of data.
+		uint32_t no_bus_error = label++;
+		UML_CMP(block, mem(&m_core->bus_error), 0);                                 // cmp     [bus_error],0
+		UML_JMPc(block, COND_E, no_bus_error);                                      // je      no_bus_error
+		UML_MOV(block, mem(&m_core->bus_error), 0);                                 // mov     [bus_error],0
+		UML_EXH(block, *m_exception[EXCEPTION_BUSDATA], I0);                        // exh     busdata,i0
+		UML_LABEL(block, no_bus_error);                                             // no_bus_error:
+	}
+
 	if (iswrite)
 	{
 		// Clear DRC cache when something is written to 0xa0000000. The DRC SMC hash check isn't fired (may look into why) but this is a good workaround.
@@ -1800,6 +1814,15 @@ void mips3_device::generate_sequence_instruction(drcuml_block &block, compiler_s
 		}
 		UML_EXH(block, *m_tlb_mismatch, 0);                      // exh     tlb_mismatch,0
 		// Unconditional tlb exception, no point going further
+		return;
+	}
+
+	// the opcode fetch ended in a bus error
+	if (desc->compiler_bus_error())
+	{
+		UML_EXH(block, *m_exception[EXCEPTION_BUSINST], desc->pc);          // exh     businst,desc->pc
+
+		// Unconditional exception, no point going further
 		return;
 	}
 

@@ -92,8 +92,24 @@ bool mips3_device::frontend::describe(opcode_desc &desc, const opcode_desc *prev
 	{
 		assert((desc.physpc & 3) == 0);
 	}
+
+	//clear the bus error flag first before we fetch the opcode
+	m_mips3->m_core->bus_error = 0;
+
 	// fetch the opcode
 	const uint32_t op = desc.opptr = m_mips3->m_pr32(desc.physpc);
+
+	// There's no instruction here if bus_error = 1 (from bus_error)
+	if (m_mips3->m_core->bus_error)
+	{
+		m_mips3->m_core->bus_error = 0;
+		desc.set_compiler_bus_error();
+		desc.set_will_cause_exception();
+		desc.set_virtual_noop();
+		desc.set_end_sequence();
+
+		return true;
+	}
 
 	// parse the instruction
 	const uint32_t opswitch = op >> 26;

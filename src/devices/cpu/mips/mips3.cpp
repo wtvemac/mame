@@ -371,6 +371,24 @@ void mips3_device::generate_tlb_exception(int exception, offs_t address)
 }
 
 
+bool mips3_device::take_bus_error(bool insn)
+{
+	if (!m_core->bus_error)
+	{
+		return false;
+	}
+	else
+	{
+		// The read timed out on the bus
+		// The CPU is handed a bus error exception for the bad access
+		m_core->bus_error = 0;
+		generate_exception(insn ? EXCEPTION_BUSINST : EXCEPTION_BUSDATA, 1);
+
+		return true;
+	}
+}
+
+
 void mips3_device::invalid_instruction(uint32_t op)
 {
 	fatalerror("Invalid instruction! %08x\n", op);
@@ -1094,6 +1112,7 @@ void mips3_device::device_reset()
 
 	/* initialize the state */
 	m_core->pc = 0xbfc00000;
+	m_core->bus_error = 0;
 	m_core->cpr[0][COP0_Status] = SR_BEV | SR_ERL;
 	if (m_flavor == MIPS3_TYPE_R4640 || m_flavor == MIPS3_TYPE_RM5230 || m_flavor == MIPS3_TYPE_R5900)
 	{
@@ -1260,6 +1279,9 @@ inline bool mips3_device::RBYTE(offs_t address, uint32_t *result)
 			return true;
 		}
 		*result = m_program->read_byte(tlbaddress);
+
+		if (take_bus_error())
+			return false;
 	}
 	else
 	{
@@ -1293,6 +1315,9 @@ inline bool mips3_device::RHALF(offs_t address, uint32_t *result)
 			return true;
 		}
 		*result = m_program->read_word(tlbaddress);
+
+		if (take_bus_error())
+			return false;
 	}
 	else
 	{
@@ -1326,6 +1351,9 @@ inline bool mips3_device::RWORD(offs_t address, uint32_t *result, bool insn)
 			return true;
 		}
 		*result = m_program->read_dword(tlbaddress);
+
+		if (take_bus_error(insn))
+			return false;
 	}
 	else
 	{
@@ -1349,6 +1377,9 @@ inline bool mips3_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_
 	if (tlbval & READ_ALLOWED)
 	{
 		*result = m_program->read_dword((tlbval & ~0xfff) | (address & 0xfff), mem_mask);
+
+		if (take_bus_error())
+			return false;
 	}
 	else
 	{
@@ -1372,6 +1403,9 @@ inline bool mips3_device::RDOUBLE(offs_t address, uint64_t *result)
 	if (tlbval & READ_ALLOWED)
 	{
 		*result = m_program->read_qword((tlbval & ~0xfff) | (address & 0xfff));
+
+		if (take_bus_error())
+			return false;
 	}
 	else
 	{
@@ -1395,6 +1429,9 @@ inline bool mips3_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint6
 	if (tlbval & READ_ALLOWED)
 	{
 		*result = m_program->read_qword((tlbval & ~0xfff) | (address & 0xfff), mem_mask);
+
+		if (take_bus_error())
+			return false;
 	}
 	else
 	{
@@ -1591,7 +1628,11 @@ inline bool r4650_device::RBYTE(offs_t address, uint32_t *result)
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
 		*result = m_program->read_byte(address);
-		return true;
+
+		if (take_bus_error())
+			return false;
+		else
+			return true;
 	}
 
 	if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4650_DBound])
@@ -1601,7 +1642,11 @@ inline bool r4650_device::RBYTE(offs_t address, uint32_t *result)
 		return false;
 	}
 	*result = m_program->read_byte(address + m_core->cpr[0][COP0_R4650_DBase]);
-	return true;
+
+	if (take_bus_error())
+		return false;
+	else
+		return true;
 }
 
 inline bool r4650_device::RHALF(offs_t address, uint32_t *result)
@@ -1609,7 +1654,11 @@ inline bool r4650_device::RHALF(offs_t address, uint32_t *result)
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
 		*result = m_program->read_word(address);
-		return true;
+
+		if (take_bus_error())
+			return false;
+		else
+			return true;
 	}
 
 	if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4650_DBound])
@@ -1619,7 +1668,10 @@ inline bool r4650_device::RHALF(offs_t address, uint32_t *result)
 		return false;
 	}
 	*result = m_program->read_word(address + m_core->cpr[0][COP0_R4650_DBase]);
-	return true;
+	if (take_bus_error())
+		return false;
+	else
+		return true;
 }
 
 inline bool r4650_device::RWORD(offs_t address, uint32_t *result, bool insn)
@@ -1627,7 +1679,10 @@ inline bool r4650_device::RWORD(offs_t address, uint32_t *result, bool insn)
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
 		*result = m_program->read_dword(address);
-		return true;
+		if (take_bus_error(insn))
+			return false;
+		else
+			return true;
 	}
 
 	static const uint32_t BASE_INDICES[2] = { COP0_R4650_DBase, COP0_R4650_IBase };
@@ -1641,7 +1696,10 @@ inline bool r4650_device::RWORD(offs_t address, uint32_t *result, bool insn)
 		return false;
 	}
 	*result = m_program->read_dword(address + base);
-	return true;
+	if (take_bus_error(insn))
+		return false;
+	else
+		return true;
 }
 
 inline bool r4650_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_t mem_mask)
@@ -1649,7 +1707,10 @@ inline bool r4650_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
 		*result = m_program->read_dword(address, mem_mask);
-		return true;
+		if (take_bus_error())
+			return false;
+		else
+			return true;
 	}
 
 	if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4650_DBound])
@@ -1659,7 +1720,10 @@ inline bool r4650_device::RWORD_MASKED(offs_t address, uint32_t *result, uint32_
 		return false;
 	}
 	*result = m_program->read_dword(address + m_core->cpr[0][COP0_R4650_DBase], mem_mask);
-	return true;
+	if (take_bus_error())
+		return false;
+	else
+		return true;
 }
 
 inline bool r4650_device::RDOUBLE(offs_t address, uint64_t *result)
@@ -1667,7 +1731,10 @@ inline bool r4650_device::RDOUBLE(offs_t address, uint64_t *result)
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
 		*result = m_program->read_qword(address);
-		return true;
+		if (take_bus_error())
+			return false;
+		else
+			return true;
 	}
 
 	if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4650_DBound])
@@ -1677,7 +1744,10 @@ inline bool r4650_device::RDOUBLE(offs_t address, uint64_t *result)
 		return false;
 	}
 	*result = m_program->read_qword(address + m_core->cpr[0][COP0_R4650_DBase]);
-	return true;
+	if (take_bus_error())
+		return false;
+	else
+		return true;
 }
 
 inline bool r4650_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint64_t mem_mask)
@@ -1685,7 +1755,10 @@ inline bool r4650_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint6
 	if ((SR & SR_KSU_USER) == SR_KSU_KERNEL)
 	{
 		*result = m_program->read_qword(address, mem_mask);
-		return true;
+		if (take_bus_error())
+			return false;
+		else
+			return true;
 	}
 
 	if ((address & 0xfffff000) > m_core->cpr[0][COP0_R4650_DBound])
@@ -1695,7 +1768,10 @@ inline bool r4650_device::RDOUBLE_MASKED(offs_t address, uint64_t *result, uint6
 		return false;
 	}
 	*result = m_program->read_qword(address + m_core->cpr[0][COP0_R4650_DBase], mem_mask);
-	return true;
+	if (take_bus_error())
+		return false;
+	else
+		return true;
 }
 
 inline void r4650_device::WBYTE(offs_t address, uint8_t data)
