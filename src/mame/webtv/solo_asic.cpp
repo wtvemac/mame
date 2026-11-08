@@ -147,6 +147,10 @@ void solo_asic_device::rom_unit_map(address_map &map)
 	map(0x000, 0x003).r(FUNC(solo_asic_device::reg_1000_r));                                      // ROM_SYSCONFIG
 	map(0x004, 0x007).rw(FUNC(solo_asic_device::reg_1004_r), FUNC(solo_asic_device::reg_1004_w)); // ROM_CNTL0
 	map(0x008, 0x00b).rw(FUNC(solo_asic_device::reg_1008_r), FUNC(solo_asic_device::reg_1008_w)); // ROM_CNTL1
+	map(0x00c, 0x00f).rw(FUNC(solo_asic_device::reg_100c_r), FUNC(solo_asic_device::reg_100c_w)); // DEV_CNTL0
+	map(0x010, 0x013).rw(FUNC(solo_asic_device::reg_1010_r), FUNC(solo_asic_device::reg_1010_w)); // DEV_CNTL1
+	map(0x01c, 0x01f).rw(FUNC(solo_asic_device::reg_101c_r), FUNC(solo_asic_device::reg_101c_w)); // WTV_CNTL
+	map(0x020, 0x023).rw(FUNC(solo_asic_device::reg_1020_r), FUNC(solo_asic_device::reg_1020_w)); // RIO_CNTL
 }
 
 void solo_asic_device::dev_unit_map(address_map &map)
@@ -404,6 +408,11 @@ void solo_asic_device::device_start()
 	save_item(NAME(m_ide1_dmarq_state));
 	save_item(NAME(m_rom_cntl0));
 	save_item(NAME(m_rom_cntl1));
+	save_item(NAME(m_dev_cntl0));
+	save_item(NAME(m_dev_cntl1));
+	save_item(NAME(m_wtvport_cntl));
+	save_item(NAME(m_rio_cntl));
+	save_item(NAME(m_erraddr));
 	save_item(NAME(m_ledstate));
 	save_item(NAME(m_dev_idcntl));
 	save_item(NAME(m_dev_id_state));
@@ -474,6 +483,12 @@ void solo_asic_device::device_reset()
 	
 	m_rom_cntl0 = 0x0;
 	m_rom_cntl1 = 0x0;
+	m_dev_cntl0 = 0x0;
+	m_dev_cntl1 = 0x0;
+	// Only a stored value. Like the memory regs, these aren't needed for emulation
+	m_wtvport_cntl = 0xf1; // [7:4] WebTV Port clock divisor=0x0f, [3:0] outstanding transactions allowed=0x01
+	m_rio_cntl = 0xe; // turnaround cycles
+	m_erraddr = 0x0;
 
 	m_ledstate = 0xFFFFFFFF;
 	m_power_led = 0;
@@ -751,7 +766,7 @@ void solo_asic_device::reg_0114_w(uint32_t data)
 
 uint32_t solo_asic_device::reg_0018_r()
 {
-	return 0x00000000;
+	return m_erraddr;
 }
 
 uint32_t solo_asic_device::reg_0030_r()
@@ -1270,6 +1285,62 @@ uint32_t solo_asic_device::reg_1008_r()
 void solo_asic_device::reg_1008_w(uint32_t data)
 {
 	m_rom_cntl1 = data;
+}
+
+uint32_t solo_asic_device::reg_100c_r()
+{
+	return m_dev_cntl0;
+}
+
+void solo_asic_device::reg_100c_w(uint32_t data)
+{
+	m_dev_cntl0 = data;
+}
+
+uint32_t solo_asic_device::reg_1010_r()
+{
+	return m_dev_cntl1;
+}
+
+void solo_asic_device::reg_1010_w(uint32_t data)
+{
+	m_dev_cntl1 = data;
+}
+
+uint32_t solo_asic_device::reg_101c_r()
+{
+	return m_wtvport_cntl;
+}
+
+void solo_asic_device::reg_101c_w(uint32_t data)
+{
+	m_wtvport_cntl = data & 0xff;
+}
+
+uint32_t solo_asic_device::reg_1020_r()
+{
+	return m_rio_cntl;
+}
+
+void solo_asic_device::reg_1020_w(uint32_t data)
+{
+	m_rio_cntl = data & 0xf;
+}
+
+void solo_asic_device::wtvport_timeout(offs_t address, bool write)
+{
+	// Another error came in before the CPU cleared the last one.
+	if (m_errstat & ~ERR_OW)
+		m_errstat |= ERR_OW;
+
+	m_errstat |= ERR_TIMEOUT;
+	m_erraddr = address;
+
+	// Read timeouts cause a CPU bus error which is raised by the WebTV Port device (synchronous)
+	// Write timeouts are reported through the bus time-out interrupt.
+	// "Read timeouts are synchronous, write timeouts are asynchronous."
+	if (write)
+		solo_asic_device::set_timer_irq(BUS_INT_TIM_BUSTOUT, ASSERT_LINE);
 }
 
 

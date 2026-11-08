@@ -161,6 +161,9 @@ public:
 	int ca_card_present() { return m_is_utv && !m_main_sc->mounted() && m_sc0.m_present; }
 	void dmarq_ide1_w(int state);
 
+	// A WebTV Port access got no answer (empty slot)
+	void wtvport_timeout(offs_t address, bool write);
+
 	uint8_t sda_r();
 	void sda_w(uint8_t state);
 	uint8_t scl_r();
@@ -227,6 +230,12 @@ protected:
 
 	uint32_t m_rom_cntl0;
 	uint32_t m_rom_cntl1;
+	uint32_t m_dev_cntl0;
+	uint32_t m_dev_cntl1;
+	uint32_t m_wtvport_cntl;
+	uint32_t m_rio_cntl;
+
+	uint32_t m_erraddr;
 
 	uint32_t m_aud_clock;
 
@@ -462,6 +471,14 @@ private:
 	void reg_1004_w(uint32_t data); // ROM_CNTL0 (write)
 	uint32_t reg_1008_r();          // ROM_CNTL1 (read)
 	void reg_1008_w(uint32_t data); // ROM_CNTL1 (write)
+	uint32_t reg_100c_r();          // DEV_CNTL0 (read)
+	void reg_100c_w(uint32_t data); // DEV_CNTL0 (write)
+	uint32_t reg_1010_r();          // DEV_CNTL1 (read)
+	void reg_1010_w(uint32_t data); // DEV_CNTL1 (write)
+	uint32_t reg_101c_r();          // WTV_CNTL (read)
+	void reg_101c_w(uint32_t data); // WTV_CNTL (write)
+	uint32_t reg_1020_r();          // RIO_CNTL (read)
+	void reg_1020_w(uint32_t data); // RIO_CNTL (write)
 
 	/* devUnit registers */
 
