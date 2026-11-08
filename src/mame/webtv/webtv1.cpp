@@ -12,6 +12,12 @@
 #include "machine/intelfsh.h"
 #include "spot_asic.h"
 #include "wtvdbg.h"
+#include "wtvport.h"
+#include "wtvport_pronto.h"
+#include "wtvport_printer.h"
+#include "wtvlpthost.h"
+#include "wtvlptprinter.h"
+#include "bus/centronics/lptsocket.h"
 #include "wtvpointer.h"
 #include "wtvnet.h"
 
@@ -55,6 +61,9 @@ public:
 	static constexpr uint32_t MAX_RAM_SIZE = mem_size_t::MEM_64MB;
 	static constexpr uint32_t MAX_ROM_SIZE = mem_size_t::MEM_8MB;
 
+	static constexpr uint32_t WTVPORT_BASE        = 0x00800000;
+	static constexpr uint32_t WTVPORT_MAX_DEVICES = 3;
+
 	enum device_t : uint32_t
 	{
 		NONE              = 0x00000000,
@@ -83,6 +92,7 @@ public:
 		m_bank1_flash0(*this, "bank1_flash0"), // labeled U0503, contains upper bits
 		m_bank1_flash1(*this, "bank1_flash1"), // labeled U0504, contains lower bits
 		m_pekoe(*this, "pekoe"),
+		m_wtvport(*this, "wtvport"),
 		m_pointer(*this, "pointer")
 	{ }
 
@@ -115,6 +125,7 @@ private:
 	optional_device<intelfsh16_device> m_bank1_flash1;
 
 	optional_device<wtvdbg_pekoe_device> m_pekoe;
+	optional_device<wtvport_device> m_wtvport;
 	optional_device<wtvpointer_device> m_pointer;
 
 	webtv1_state::mem_size_t m_ram_size = webtv1_state::MEM_8MB;
@@ -127,6 +138,8 @@ private:
 	void build_webtv_device(machine_config &config, webtv1_state::cpu_type_t cpu, XTAL cpu_clock, webtv1_state::mem_size_t ram_size, webtv1_state::mem_size_t rom_size, uint32_t chip_id, uint32_t sys_config, uint32_t device_config);
 
 	void base_addrmap(address_map &map);
+
+	void wtvport_timeout(offs_t offset, uint32_t data);
 
 	uint8_t iic_sda_r();
 	void iic_sda_w(uint8_t sda);
@@ -227,8 +240,42 @@ void webtv1_state::build_webtv_device(machine_config &config, webtv1_state::cpu_
 	m_spotasic->sda_r_callback().set(FUNC(webtv1_state::iic_sda_r));
 	m_spotasic->sda_w_callback().set(FUNC(webtv1_state::iic_sda_w));
 
-	if (m_device_config & webtv1_state::PEKOE)
+	if (m_device_config & webtv1_state::WEBTV_PORT)
+	{
+		WTVPORT(config, m_wtvport);
+		m_wtvport->set_space(m_maincpu, AS_PROGRAM, WTVPORT_BASE);
+		m_wtvport->irq_callback().set_inputline(m_maincpu, MIPS3_IRQ1);
+		m_wtvport->diag_callback().set_inputline(m_maincpu, MIPS3_IRQ4);
+		m_wtvport->timeout_callback().set(FUNC(webtv1_state::wtvport_timeout));
+
+		auto pport_device_options = [] (device_slot_interface &slot) {
+			centronics_devices(slot);
+			slot.option_add("socket", LPT_SOCKET);
+			slot.option_add("deskjet6xx", WTV_LPT_DESKJET);
+#if defined(__linux__)
+			slot.option_add("hostlpt", WTV_LPT_HOST);
+#endif
+		};
+		CENTRONICS(config, "pport", pport_device_options, nullptr);
+
+		auto wtvport_device = [] (device_slot_interface &slot) {
+			slot.option_add("pronto", WTVPORT_PRONTO);
+			slot.option_add("printer", WTVPORT_PRINTER).machine_config([] (::device_t *device) {
+				wtvport_printer_device::connect_machine_pport(device, "pport");
+			});
+		};
+
+		const bool has_pekoedbg = (m_device_config & webtv1_state::PEKOE) != 0;
+		for (uint32_t slot = 0; slot < WTVPORT_MAX_DEVICES; slot++)
+		{
+			const char *default_card = (has_pekoedbg && slot == 0) ? "pronto" : nullptr;
+			WTVPORT_SLOT(config, util::string_format("wtvport%u", slot + 1).c_str(), m_wtvport, slot, wtvport_device, default_card);
+		}
+	}
+	else if (m_device_config & webtv1_state::PEKOE)
+	{
 		WTV_PEKOEDBG(config, m_pekoe);
+	}
 
 	if (config.options().wtvnet())
 	{
@@ -257,7 +304,7 @@ void webtv1_state::base_addrmap(address_map &map)
 
 	map(0x04000000, 0x0400ffff).m(m_spotasic, FUNC(spot_asic_device::map));
 
-	if (m_device_config & webtv1_state::PEKOE)
+	if ((m_device_config & webtv1_state::PEKOE) && !(m_device_config & webtv1_state::WEBTV_PORT))
 	{
 		map(0x00f00000, 0x00f0001f).m(m_pekoe, FUNC(wtvdbg_pekoe_device::map));
 		map(0x04800000, 0x0480001f).m(m_pekoe, FUNC(wtvdbg_pekoe_device::map));
@@ -289,6 +336,17 @@ void webtv1_state::base_addrmap(address_map &map)
 	else
 		map(rom_adr_start, 0x1fffffff).rw(FUNC(webtv1_state::bank1_flash_r), FUNC(webtv1_state::bank1_flash_w)).mask(usable_rom_size - 1).share("bank1");
 
+}
+
+// Nothing answered a WebTV Port access (empty slot).
+void webtv1_state::wtvport_timeout(offs_t offset, uint32_t data)
+{
+	const bool write = (data != 0);
+
+	m_spotasic->wtvport_timeout(offset, write);
+
+	if (!write)
+		m_maincpu->bus_error();
 }
 
 void webtv1_state::base_init()
