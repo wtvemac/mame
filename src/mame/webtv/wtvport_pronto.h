@@ -66,6 +66,7 @@ private:
 	static constexpr uint32_t RX_BUFFER_SIZE = 0x1000;
 
 	static constexpr uint32_t CONFIG_DIAG = 0x01;
+	static constexpr uint32_t BUTTON_DIAG = 0x01;
 
 	enum strobe_state_t : uint8_t
 	{
@@ -77,6 +78,9 @@ private:
 	required_device<wtvdbg_pekoe_device> m_pekoe;
 	required_device<bitbanger_device> m_stream;
 	required_ioport m_config;
+	required_ioport m_button;
+
+	void update_diag();
 
 	uint32_t m_parallel_cntl;
 	uint8_t m_parallel_data;
