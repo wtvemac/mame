@@ -23,6 +23,7 @@
 
 // video options
 #define WINOPTION_ATTACH_WINDOW             "attach_window"
+#define WINOPTION_PARENT_WINDOW             "parent_window"
 
 // core post-processing options
 #define WINOPTION_HLSLPATH                  "hlslpath"
@@ -134,6 +135,7 @@ public:
 
 	// video options
 	const char *attach_window() const { return value(WINOPTION_ATTACH_WINDOW); }
+	const char *parent_window() const { return value(WINOPTION_PARENT_WINDOW); }
 
 	// core post-processing options
 	const char *screen_post_fx_dir() const { return value(WINOPTION_HLSLPATH); }

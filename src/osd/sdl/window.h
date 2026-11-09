@@ -63,6 +63,9 @@ public:
 
 	int xy_to_render_target(int x, int y, int *xt, int *yt);
 
+	bool parent_mode() const { return m_parent_window != 0; }
+	void focus_in_parent();
+
 	void mouse_entered(unsigned device);
 	void mouse_left(unsigned device);
 	void mouse_down(unsigned device, int x, int y, unsigned button);
@@ -101,6 +104,11 @@ private:
 	void set_fullscreen(int afullscreen) { m_fullscreen = afullscreen; }
 
 	void measure_fps(int update);
+
+	void fit_to_parent();
+
+	unsigned long       m_parent_window = 0;
+	int                 m_parent_check_frames = 0;
 
 	std::vector<sdl_pointer_info>::iterator map_pointer(SDL_FingerID finger, unsigned device);
 

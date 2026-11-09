@@ -866,6 +866,10 @@ void win_window_info::update()
 {
 	assert(GetCurrentThreadId() == main_threadid);
 
+	// follow the parent window's size
+	if (parent_mode())
+		fit_to_parent();
+
 	// see if the target has changed significantly in window mode
 	unsigned const targetview = target()->view();
 	int const targetorient = target()->orientation();
@@ -1058,6 +1062,25 @@ int win_window_info::wnd_extra_height()
 
 
 //============================================================
+//  fit_to_parent
+//  (main thread)
+//============================================================
+
+void win_window_info::fit_to_parent()
+{
+	if (!parent_mode() || !platform_window())
+		return;
+
+	RECT parent_client, client;
+	if (!GetClientRect(m_parent_window, &parent_client) || !GetClientRect(platform_window(), &client))
+		return;
+
+	if (rect_width(&parent_client) != rect_width(&client) || rect_height(&parent_client) != rect_height(&client))
+		SetWindowPos(platform_window(), nullptr, 0, 0, rect_width(&parent_client), rect_height(&parent_client), SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+
+//============================================================
 //  complete_create
 //  (window thread)
 //============================================================
@@ -1083,6 +1106,32 @@ int win_window_info::complete_create()
 		hwnd = (HWND)atoll(attach_window_name);
 		if (!hwnd)
 			hwnd = FindWindowEx(nullptr, nullptr, nullptr, osd::text::to_tstring(attach_window_name).c_str());
+	}
+	else if (const char *parent_window_name = downcast<windows_options &>(machine().options()).parent_window(); parent_window_name && *parent_window_name)
+	{
+		// -parent_window: our own window (so our window proc gets its mouse, pointer and keyboard messages) as a child of the parent.
+		// Unlike -attach_window, input works since the window is ours.
+		m_parent_window = (HWND)(uintptr_t)strtoull(parent_window_name, nullptr, 0);
+		if (!IsWindow(m_parent_window))
+		{
+			osd_printf_error("Invalid -parent_window value: %s\n", parent_window_name);
+			m_parent_window = nullptr;
+			return 1;
+		}
+
+		RECT parent_client;
+		GetClientRect(m_parent_window, &parent_client);
+		hwnd = win_create_window_ex_utf8(
+				0,
+				"MAME",
+				title().c_str(),
+				WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+				0, 0,
+				std::max<int>(1, rect_width(&parent_client)), std::max<int>(1, rect_height(&parent_client)),
+				m_parent_window,
+				nullptr,
+				GetModuleHandleUni(),
+				nullptr);
 	}
 	else
 	{
@@ -1115,6 +1164,18 @@ int win_window_info::complete_create()
 		renderer_create();
 		if (renderer().create())
 			return 1;
+		return 0;
+	}
+
+	// the parent window decides the size and position for '-parent_window'
+	if (parent_mode())
+	{
+		renderer_create();
+		if (renderer().create())
+			return 1;
+
+		ShowWindow(platform_window(), SW_SHOW);
+		SetFocus(platform_window());
 		return 0;
 	}
 
@@ -1258,6 +1319,9 @@ LRESULT CALLBACK win_window_info::video_window_proc(HWND wnd, UINT message, WPAR
 		break;
 
 	case WM_LBUTTONDOWN:
+		// Inside another application's window, take keyboard focus when clicked.
+		if (window->parent_mode())
+			SetFocus(wnd);
 		window->mouse_updated(wparam, lparam);
 		break;
 
@@ -1297,6 +1361,8 @@ LRESULT CALLBACK win_window_info::video_window_proc(HWND wnd, UINT message, WPAR
 	case WM_POINTERDOWN:
 	case WM_POINTERUP:
 	case WM_POINTERUPDATE:
+		if (message == WM_POINTERDOWN && window->parent_mode())
+			SetFocus(wnd);
 		window->pointer_updated(wparam, lparam);
 		break;
 	case WM_POINTERCAPTURECHANGED:
@@ -1796,6 +1862,10 @@ void win_window_info::minimize_window()
 {
 	assert(GetCurrentThreadId() == window_threadid);
 
+	// the parent window decides the size
+	if (parent_mode())
+		return;
+
 	osd_dim newsize = get_min_bounds(keepaspect());
 
 	// get the window rect
@@ -1818,6 +1888,10 @@ void win_window_info::minimize_window()
 void win_window_info::maximize_window()
 {
 	assert(GetCurrentThreadId() == window_threadid);
+
+	// the parent window decides the size
+	if (parent_mode())
+		return;
 
 	osd_dim newsize = get_max_bounds(keepaspect());
 
@@ -1842,6 +1916,10 @@ void win_window_info::adjust_window_position_after_major_change()
 	RECT oldrect;
 
 	assert(GetCurrentThreadId() == window_threadid);
+
+	// the parent window decides the size and position
+	if (parent_mode())
+		return;
 
 	// get the current size
 	GetWindowRect(platform_window(), &oldrect);
@@ -1901,6 +1979,10 @@ void win_window_info::adjust_window_position_after_major_change()
 void win_window_info::set_fullscreen(int fullscreen)
 {
 	assert(GetCurrentThreadId() == window_threadid);
+
+	// can't go full screen inside another window
+	if (parent_mode() && fullscreen)
+		return;
 
 	// if we're in the right state, punt
 	if (this->fullscreen() == fullscreen)

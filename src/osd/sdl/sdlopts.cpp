@@ -58,6 +58,7 @@ const options_entry f_sdl_option_entries[] =
 	{ nullptr,                               nullptr,        core_options::option_type::HEADER,     "SDL FULL SCREEN OPTIONS" },
 	{ SDLOPTION_USEALLHEADS,                 "0",            core_options::option_type::BOOLEAN,    "split full screen image across monitors" },
 	{ SDLOPTION_ATTACH_WINDOW,               "",             core_options::option_type::STRING,     "attach to arbitrary window" },
+	{ SDLOPTION_PARENT_WINDOW,               "",             core_options::option_type::STRING,     "create an owned window inside this window" },
 #endif // SDLMAME_X11
 
 	// keyboard mapping

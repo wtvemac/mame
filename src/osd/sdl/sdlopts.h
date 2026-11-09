@@ -16,6 +16,7 @@
 #define SDLOPTION_SDLVIDEOFPS           "sdlvideofps"
 #define SDLOPTION_USEALLHEADS           "useallheads"
 #define SDLOPTION_ATTACH_WINDOW         "attach_window"
+#define SDLOPTION_PARENT_WINDOW         "parent_window"
 #define SDLOPTION_CENTERH               "centerh"
 #define SDLOPTION_CENTERV               "centerv"
 
@@ -78,6 +79,7 @@ public:
 #if defined(SDLMAME_X11)
 	bool use_all_heads() const { return bool_value(SDLOPTION_USEALLHEADS); }
 	const char *attach_window() const { return value(SDLOPTION_ATTACH_WINDOW); }
+	const char *parent_window() const { return value(SDLOPTION_PARENT_WINDOW); }
 #endif // SDLMAME_X11
 
 	// keyboard mapping
