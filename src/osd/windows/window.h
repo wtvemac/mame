@@ -61,6 +61,7 @@ public:
 	win_window_info(running_machine &machine, render_module &renderprovider, int index, const std::shared_ptr<osd_monitor_info> &monitor, const osd_window_config *config);
 
 	bool attached_mode() const { return m_attached_mode; }
+	bool parent_mode() const { return m_parent_window != nullptr; }
 	win_window_focus focus() const;
 
 	void update() override;
@@ -170,8 +171,11 @@ private:
 	std::vector<win_pointer_info>::iterator map_mouse_pointer();
 	std::vector<win_pointer_info>::iterator find_mouse_pointer();
 
+	void fit_to_parent();
+
 	win_window_info *   m_main;
 	bool                m_attached_mode;
+	HWND                m_parent_window = nullptr;
 	bool                m_cursor_clipped;
 
 	// info on currently active pointers - 64 pointers ought to be enough for anyone

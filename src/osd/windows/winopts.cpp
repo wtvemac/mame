@@ -25,6 +25,7 @@ options_entry const f_win_option_entries[] =
 	// video options
 	{ nullptr,                                        nullptr,    core_options::option_type::HEADER,     "WINDOWS VIDEO OPTIONS" },
 	{ WINOPTION_ATTACH_WINDOW,                        "",         core_options::option_type::STRING,     "attach to arbitrary window" },
+	{ WINOPTION_PARENT_WINDOW,                        "",         core_options::option_type::STRING,     "create an owned window inside this window" },
 
 	// post-processing options
 	{ nullptr,                                                  nullptr,             core_options::option_type::HEADER,     "DIRECT3D POST-PROCESSING OPTIONS" },

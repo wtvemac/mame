@@ -582,6 +582,10 @@ void sdl_osd_interface::process_events()
 					break;
 				}
 
+				// Inside another application's window nothing gives us keyboard focus, so take it when clicked.
+				if (event.type == SDL_MOUSEBUTTONDOWN && window->parent_mode())
+					window->focus_in_parent();
+
 				int x, y;
 				window->xy_to_render_target(event.button.x, event.button.y, &x, &y);
 				unsigned button(event.button.button - 1);

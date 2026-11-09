@@ -206,6 +206,10 @@ void sdl_window_info::toggle_full_screen()
 	if (machine().debug_flags & DEBUG_FLAG_OSD_ENABLED)
 		return;
 
+	// the parent window decides the size when inside another window
+	if (parent_mode())
+		return;
+
 	// If we are going fullscreen (leaving windowed) remember our windowed size
 	if (!fullscreen())
 	{
@@ -718,6 +722,13 @@ void sdl_window_info::update()
 	// adjust the cursor state
 	update_cursor_state();
 
+	// follow the parent window's size (checked every few frames, it's a round trip to the X server)
+	if (parent_mode() && ++m_parent_check_frames >= 6)
+	{
+		m_parent_check_frames = 0;
+		fit_to_parent();
+	}
+
 	// if we're visible and running and not in the middle of a resize, draw
 	if (target() != nullptr)
 	{
@@ -856,9 +867,30 @@ int sdl_window_info::complete_create()
 	SDL_Window *sdlwindow;
 #ifdef SDLMAME_X11
 	const char *attach_window = downcast<sdl_options &>(machine().options()).attach_window();
+	const char *parent_window = downcast<sdl_options &>(machine().options()).parent_window();
 #else
 	const char *attach_window = nullptr;
+	const char *parent_window = nullptr;
 #endif
+
+	// -parent_window: create our own window (so we get all of its events) and move it inside the parent window before it's shown
+	// so the window manager never sees it. Unlike -attach_window, this keeps mouse buttons, the wheel and keyboard focus working.
+	m_parent_window = 0;
+	if (parent_window && *parent_window && !(attach_window && *attach_window))
+	{
+		try
+		{
+			m_parent_window = std::stoul(parent_window, nullptr, 0);
+		}
+		catch (std::exception &)
+		{
+			osd_printf_error("Invalid -parent_window value: %s\n", parent_window);
+			return 1;
+		}
+
+		m_extra_flags &= ~(SDL_WINDOW_FULLSCREEN | SDL_WINDOW_INPUT_FOCUS);
+		m_extra_flags |= SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN;
+	}
 	if (attach_window && *attach_window)
 	{
 		// we're attaching to an existing window; parse the argument
@@ -916,6 +948,26 @@ int sdl_window_info::complete_create()
 
 	//window().sdl_window() = SDL_CreateWindow(window().m_title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 	//      width, height, m_extra_flags);
+
+#ifdef SDLMAME_X11
+	if (sdlwindow != nullptr && parent_mode())
+	{
+		SDL_SysWMinfo swmi;
+		SDL_VERSION(&swmi.version);
+		if (SDL_GetWindowWMInfo(sdlwindow, &swmi) && swmi.subsystem == SDL_SYSWM_X11)
+		{
+			XReparentWindow(swmi.info.x11.display, swmi.info.x11.window, (Window)m_parent_window, 0, 0);
+			XSync(swmi.info.x11.display, False);
+			osd_printf_verbose("Window placed inside parent window 0x%lx\n", m_parent_window);
+		}
+		else
+		{
+			osd_printf_error("-parent_window needs X11, opening a normal window\n");
+			m_parent_window = 0;
+			SDL_SetWindowBordered(sdlwindow, SDL_TRUE);
+		}
+	}
+#endif
 
 	if  (sdlwindow == nullptr )
 	{
@@ -979,7 +1031,62 @@ int sdl_window_info::complete_create()
 	SDL_ShowCursor(SDL_DISABLE);
 	SDL_ShowCursor(SDL_ENABLE);
 
+	if (parent_mode())
+	{
+		fit_to_parent();
+		focus_in_parent();
+	}
+
 	return 0;
+}
+
+
+//============================================================
+//  fit_to_parent
+//  (main thread)
+//============================================================
+
+void sdl_window_info::fit_to_parent()
+{
+#ifdef SDLMAME_X11
+	SDL_SysWMinfo swmi;
+	SDL_VERSION(&swmi.version);
+	if (!parent_mode() || !SDL_GetWindowWMInfo(platform_window(), &swmi) || swmi.subsystem != SDL_SYSWM_X11)
+		return;
+
+	Window root;
+	int x, y;
+	unsigned int width, height, border, depth;
+	if (!XGetGeometry(swmi.info.x11.display, (Window)m_parent_window, &root, &x, &y, &width, &height, &border, &depth))
+		return;
+
+	osd_dim size = get_size();
+	if (width > 0 && height > 0 && (int(width) != size.width() || int(height) != size.height()))
+	{
+		SDL_SetWindowPosition(platform_window(), 0, 0);
+		SDL_SetWindowSize(platform_window(), width, height);
+		renderer().notify_changed();
+	}
+#endif
+}
+
+
+//============================================================
+//  focus_in_parent
+//  (main thread)
+//============================================================
+
+void sdl_window_info::focus_in_parent()
+{
+#ifdef SDLMAME_X11
+	SDL_SysWMinfo swmi;
+	SDL_VERSION(&swmi.version);
+	if (!parent_mode() || !SDL_GetWindowWMInfo(platform_window(), &swmi) || swmi.subsystem != SDL_SYSWM_X11)
+		return;
+
+	XSetInputFocus(swmi.info.x11.display, swmi.info.x11.window, RevertToParent, CurrentTime);
+	XFlush(swmi.info.x11.display);
+#endif
 }
 
 
