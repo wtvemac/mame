@@ -51,16 +51,16 @@
 	</element>
 
 	<group name="status_leds">
-		<element ref="text_power"><bounds x="0" y="5" width="30" height="10" /></element>
-		<element name="power_led" ref="power_led"><bounds x="5" y="15" width="20" height="10" /></element>
+		<element ref="text_power"><bounds x="0" y="5.5" width="52" height="8" /></element>
+		<element name="power_led" ref="power_led"><bounds x="14" y="15" width="24" height="9" /></element>
 
-		<element ref="text_connect"><bounds x="35" y="5" width="30" height="10" /></element>
-		<element name="connect_led" ref="connect_led"><bounds x="40" y="15" width="20" height="10" /></element>
+		<element ref="text_connect"><bounds x="52" y="5.5" width="52" height="8" /></element>
+		<element name="connect_led" ref="connect_led"><bounds x="66" y="15" width="24" height="9" /></element>
 
-		<element ref="text_message"><bounds x="70" y="5" width="30" height="10" /></element>
-		<element name="message_led" ref="message_led"><bounds x="75" y="15" width="20" height="10" /></element>
+		<element ref="text_message"><bounds x="104" y="5.5" width="52" height="8" /></element>
+		<element name="message_led" ref="message_led"><bounds x="118" y="15" width="24" height="9" /></element>
 
-		<element name="spacer" ref="spacer"><bounds x="0" y="25" width="100" height="2" /></element>
+		<element name="spacer" ref="spacer"><bounds x="0" y="25" width="156" height="2" /></element>
 	</group>
 
 	<group name="power_button">
@@ -87,7 +87,7 @@
 		-->
 		<collection name="Status LEDs" visible="yes">
 			<group ref="status_leds">
-				<bounds x="0" y="~scr0height~" width="105" height="22" />
+				<bounds x="0" y="~scr0height~" width="156" height="22" />
 			</group>
 			<group ref="power_button">
 				<bounds xc="~scr0width~" y="~scr0height~" width="70" height="22" />
