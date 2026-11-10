@@ -18,6 +18,7 @@
 #include "wtvdbg.h"
 #include "wtvport.h"
 #include "wtvport_pekoe2.h"
+#include "wtvport_printer.h"
 #include "wtvlpthost.h"
 #include "wtvlptprinter.h"
 #include "bus/centronics/lptsocket.h"
@@ -387,6 +388,7 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 		m_wtvport->timeout_callback().set(FUNC(webtv2_state::wtvport_timeout));
 
 		auto wtvport_device = [] (device_slot_interface &slot) {
+			slot.option_add("printer", WTVPORT_PRINTER);
 			slot.option_add("pekoe2", WTVPORT_PEKOE2);
 		};
 
