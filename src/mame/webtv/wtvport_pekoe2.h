@@ -72,7 +72,7 @@ private:
 	{
 		STROBE_IDLE, // no byte presented
 		STROBE_HIGH, // byte latched, strobe asserted
-		STROBE_LOW   // strobe dropped, waiting for the ack
+		STROBE_LOW   // strobe dropped, waiting for an ack of 0x00
 	};
 
 	required_device<wtvdbg_pekoe_device> m_pekoe;

@@ -155,8 +155,12 @@ uint32_t wtvport_pekoe2_device::parallel_status_r()
 
 void wtvport_pekoe2_device::parallel_ack_w(uint32_t data)
 {
-	// The WebTV OS acks once the strobe has dropped, then reads the data. The latch holds until the next strobe.
-	if (m_strobe_state == STROBE_LOW)
+	// PekoeParallelGetByte from the WebTV OS:
+	//   reads data after two high reads
+	//   acks 0x1f
+	//   waits for two low reads then acks 0x00
+	//   then it reads the data
+	if (m_strobe_state == STROBE_LOW && data == 0x00)
 		m_strobe_state = STROBE_IDLE;
 }
 
