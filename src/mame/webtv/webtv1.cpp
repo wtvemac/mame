@@ -250,8 +250,8 @@ void webtv1_state::build_webtv_device(machine_config &config, webtv1_state::cpu_
 
 		auto pport_device_options = [] (device_slot_interface &slot) {
 			centronics_devices(slot);
-			slot.option_add("socket", LPT_SOCKET);
 			slot.option_add("deskjet6xx", WTV_LPT_DESKJET);
+			slot.option_add("socket", LPT_SOCKET);
 #if defined(__linux__)
 			slot.option_add("hostlpt", WTV_LPT_HOST);
 #endif
@@ -259,10 +259,10 @@ void webtv1_state::build_webtv_device(machine_config &config, webtv1_state::cpu_
 		CENTRONICS(config, "pport", pport_device_options, nullptr);
 
 		auto wtvport_device = [] (device_slot_interface &slot) {
-			slot.option_add("pekoe2", WTVPORT_PEKOE2);
 			slot.option_add("printer", WTVPORT_PRINTER).machine_config([] (::device_t *device) {
 				wtvport_printer_device::connect_machine_pport(device, "pport");
 			});
+			slot.option_add("pekoe2", WTVPORT_PEKOE2);
 		};
 
 		const bool has_pekoedbg = (m_device_config & webtv1_state::PEKOE) != 0;
