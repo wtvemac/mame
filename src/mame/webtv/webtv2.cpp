@@ -355,8 +355,8 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 
 	auto pport_device_options = [] (device_slot_interface &slot) {
 		centronics_devices(slot);
-		slot.option_add("socket", LPT_SOCKET);
 		slot.option_add("deskjet6xx", WTV_LPT_DESKJET);
+		slot.option_add("socket", LPT_SOCKET);
 #if defined(__linux__)
 		slot.option_add("hostlpt", WTV_LPT_HOST);
 #endif
