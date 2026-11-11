@@ -21,7 +21,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-DEFINE_DEVICE_TYPE(WTV_LPT_HOST, wtv_lpt_host_device, "wtv_lpt_host", "Host parallel port (pin passthrough)")
+DEFINE_DEVICE_TYPE(WTV_LPT_HOST, wtv_lpt_host_device, "wtv_lpt_host", "Host parallel port")
 
 wtv_lpt_host_device::wtv_lpt_host_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, WTV_LPT_HOST, tag, owner, clock),
