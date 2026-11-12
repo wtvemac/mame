@@ -644,6 +644,30 @@ private:
 		bool operator==(const gfx_frame_state &) const = default;
 	};
 
+	struct vid_frame_state
+	{
+		uint32_t screen_width;
+		uint32_t screen_height;
+		bool screen_enabled;
+		uint32_t draw_hstart;
+		uint32_t draw_hsize;
+		uint32_t draw_vstart;
+		uint32_t draw_vsize;
+		uint32_t blank_rgb32[2];
+		uint32_t nstart;
+		uint32_t draw_nstart;
+		bool dma_interlaced;
+		bool progressive;
+
+		bool operator==(const vid_frame_state &) const = default;
+	};
+
+	static constexpr size_t VID_FRAME_CACHE_MAX_WORDS = 0x80000;
+	std::vector<uint32_t> m_vid_frame_snapshot;
+	vid_frame_state m_vid_frame_state;
+	uint32_t m_vid_frame_ccnt = 0;
+	bool m_vid_frame_valid = false;
+
 	std::vector<std::pair<uint32_t, uint32_t>> m_gfx_frame_reads;
 	std::vector<uint32_t> m_gfx_frame_snapshot;
 	gfx_frame_state m_gfx_frame_state;
@@ -686,6 +710,9 @@ private:
 
 	uint32_t gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	uint32_t vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	inline void vidunit_draw_line(const uint32_t *in, uint32_t words, uint32_t *out);
+	uint32_t vid_line_scale() const;
+	uint32_t vid_buffer_line(uint32_t frame_line, uint32_t frame_lines) const;
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
