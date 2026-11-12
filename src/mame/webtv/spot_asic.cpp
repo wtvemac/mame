@@ -267,6 +267,8 @@ void spot_asic_device::device_start()
 
 void spot_asic_device::device_reset()
 {
+	m_vid_frame_valid = false;
+
 	m_memcntl = 0b11;
 	m_memrefcnt = 0x0400;
 	m_memdata = 0x0;
@@ -359,13 +361,10 @@ void spot_asic_device::validate_active_area()
 	// The active v size can't be larger than the screen height or smaller than 2 pixels.
 	m_vid_draw_vsize = std::clamp(m_vid_vsize, (uint32_t)0x2, (uint32_t)m_screen->height());
 
-	uint32_t screen_lines = m_vid_draw_vsize;
+	uint32_t screen_lines = (m_vid_draw_vsize * 2);
+	uint32_t line_scale = spot_asic_device::vid_line_scale();
 
-	// Interlace mode splits the buffer into two halfs. We can capture both halfs if we double the line count.
-	if (m_vid_fcntl & VID_FCNTL_INTERLACE)
-		screen_lines = (screen_lines * 2);
-
-	m_vid_draw_nstart = m_vid_nstart + (2 * (m_vid_draw_hsize * VID_BYTES_PER_PIXEL));
+	m_vid_draw_nstart = m_vid_nstart + ((2 / line_scale) * (m_vid_draw_hsize * VID_BYTES_PER_PIXEL));
 	m_vid_draw_vsize  = screen_lines - 3;
 
 	// The active h start can't be smaller than 2
@@ -399,7 +398,10 @@ bool spot_asic_device::screen_to_frame(int32_t screen_x, int32_t screen_y, int32
 	frame_y = screen_y - m_vid_draw_vstart;
 
 	if (m_vid_draw_hsize != 0)
+	{
+		frame_y /= (int32_t)spot_asic_device::vid_line_scale();
 		frame_y += (m_vid_draw_nstart - m_vid_nstart) / (m_vid_draw_hsize * VID_BYTES_PER_PIXEL);
+	}
 
 	return true;
 }
@@ -790,7 +792,12 @@ uint32_t spot_asic_device::reg_3018_r()
 
 void spot_asic_device::reg_3018_w(uint32_t data)
 {
+	bool has_changed = ((m_vid_fcntl ^ data) & VID_FCNTL_INTERLACE);
+
 	m_vid_fcntl = data;
+
+	if (has_changed)
+		spot_asic_device::validate_active_area();
 }
 
 uint32_t spot_asic_device::reg_301c_r()
@@ -1515,30 +1522,131 @@ inline void spot_asic_device::blank_fill(uint32_t **dest, uint32_t count, bool u
 		*dest = *dest + count;
 }
 
+uint32_t spot_asic_device::vid_line_scale() const
+{
+	return (m_vid_fcntl & VID_FCNTL_INTERLACE) ? 1 : 2;
+}
+
+uint32_t spot_asic_device::vid_buffer_offset(uint32_t frame_line, uint32_t frame_lines, uint32_t line_bytes) const
+{
+	bool dma_interlaced = (m_vid_dmacntl & VID_DMACNTL_ITRLEN);
+	bool display_interlaced = (m_vid_fcntl & VID_FCNTL_INTERLACE);
+	uint32_t field_lines = (frame_lines + 1) / 2;
+
+	if (dma_interlaced == display_interlaced)
+	{
+		return frame_line * line_bytes;
+	}
+	else if (display_interlaced)
+	{
+		uint32_t offset = (((frame_line & 1) * field_lines) + (frame_line >> 1)) * line_bytes;
+
+		if (m_vid_nsize >= line_bytes)
+			offset %= (m_vid_nsize - (m_vid_nsize % line_bytes));
+
+		return offset;
+	}
+	else
+	{
+		return ((frame_line < field_lines) ? (frame_line * 2) : (((frame_line - field_lines) * 2) + 1)) * line_bytes;
+	}
+}
+
+inline void spot_asic_device::vid_draw_line(const uint32_t *in, uint32_t words, uint32_t *out)
+{
+	const vid_tables &t = s_vid_tables;
+
+	for (uint32_t i = 0; i < words; i++, out += 2)
+	{
+		uint32_t pixels = in[i];
+
+		int32_t r = t.cr_r[(pixels >> 0x00) & 0xff];
+		int32_t b = t.cb_b[(pixels >> 0x10) & 0xff];
+		int32_t g = ((0x32 * b) + (0x83 * r) + VID_UV_OFFSET) >> 8;
+
+		const uint32_t *clamp_r = t.clamp_r + vid_tables::CLAMP_BIAS + r;
+		const uint32_t *clamp_g = t.clamp_g + vid_tables::CLAMP_BIAS - g;
+		const uint32_t *clamp_b = t.clamp_b + vid_tables::CLAMP_BIAS + b;
+
+		int32_t y1 = t.y[(pixels >> 0x18) & 0xff];
+		int32_t y2 = t.y[(pixels >> 0x08) & 0xff];
+
+		out[0] = clamp_r[y1] | clamp_g[y1] | clamp_b[y1];
+		out[1] = clamp_r[y2] | clamp_g[y2] | clamp_b[y2];
+	}
+}
+
 uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	auto profile = g_profiler.start(PROFILER_VIDEO);
 
 	uint32_t screen_width = bitmap.width();
 	uint32_t screen_height = bitmap.height();
-	uint8_t vid_step = (2 * VID_BYTES_PER_PIXEL);
 	bool screen_enabled = (m_vid_fcntl & VID_FCNTL_VIDENAB) && (m_vid_dmacntl & VID_DMACNTL_DMAEN);
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_vid_draw_nstart;
 
 	uint32_t active_x_start = std::min(screen_width, (m_vid_draw_hstart + 1)                    & ~1u);
 	uint32_t active_x_end   = std::min(screen_width, (m_vid_draw_hstart + m_vid_draw_hsize + 1) & ~1u);
+	uint32_t active_words   = (active_x_end - active_x_start) / 2;
+
+	uint32_t line_scale = spot_asic_device::vid_line_scale();
+	uint32_t line_bytes = m_vid_draw_hsize * VID_BYTES_PER_PIXEL;
+	uint32_t skipped_rows = ((line_bytes != 0) ? ((m_vid_draw_nstart - m_vid_nstart) / line_bytes) : 0) * line_scale;
+	uint32_t frame_lines = (m_vid_draw_vsize + skipped_rows + (line_scale - 1)) / line_scale;
+
+	uint32_t active_y_start = std::min(screen_height, m_vid_draw_vstart);
+	uint32_t active_y_end   = std::min(screen_height, m_vid_draw_vstart + m_vid_draw_vsize);
+	bool draw_dma = screen_enabled && (m_vid_nstart != 0x80000000) && (active_y_start < active_y_end);
+
+	const uint32_t *ram = &m_hostram[0];
+	uint32_t ram_words = m_hostram.length();
+	uint32_t dma_first = m_vid_nstart >> 0x2;
+	uint64_t dma_end = (uint64_t)dma_first + ((((uint64_t)std::max(frame_lines, 1u) - 1) * line_bytes) >> 0x2) + active_words;
+
+	m_vid_cline = screen_height - 1;
+	if (m_vid_hintline < screen_height)
+		spot_asic_device::set_vid_irq(VID_INT_HSYNC, 1);
+
+	const vid_frame_state frame_state = {
+		.screen_width   = screen_width,
+		.screen_height  = screen_height,
+		.screen_enabled = screen_enabled,
+		.draw_hstart    = m_vid_draw_hstart,
+		.draw_hsize     = m_vid_draw_hsize,
+		.draw_vstart    = m_vid_draw_vstart,
+		.draw_vsize     = m_vid_draw_vsize,
+		.blank_rgb32    = { m_cached_blank_rgb32[0], m_cached_blank_rgb32[1] },
+		.nstart         = m_vid_nstart,
+		.nsize          = m_vid_nsize,
+		.draw_nstart    = m_vid_draw_nstart,
+		.dmacntl        = m_vid_dmacntl & VID_DMACNTL_ITRLEN,
+		.fcntl          = m_vid_fcntl & (VID_FCNTL_INTERLACE | VID_FCNTL_BLNKCOLEN)
+	};
+
+	bool can_cache = !draw_dma || (dma_end <= ram_words && (dma_end - dma_first) <= VID_FRAME_CACHE_MAX_WORDS);
+	size_t dma_words = draw_dma ? (size_t)(dma_end - dma_first) : 0;
+
+	if (
+		can_cache
+		&& m_vid_frame_valid
+		&& frame_state == m_vid_frame_state
+		&& m_vid_frame_snapshot.size() == dma_words
+		&& (dma_words == 0 || std::memcmp(&ram[dma_first], m_vid_frame_snapshot.data(), dma_words * sizeof(uint32_t)) == 0)
+	)
+	{
+		m_vid_ccnt = m_vid_frame_ccnt;
+		spot_asic_device::set_vid_irq(VID_INT_DMA, 1);
+
+		return UPDATE_HAS_NOT_CHANGED;
+	}
+
+	m_vid_ccnt = m_vid_draw_nstart;
 
 	for (uint32_t y = 0; y < screen_height; y++)
 	{
 		uint32_t *line = &bitmap.pix(y);
-
-		m_vid_cline = y;
-
-		if (m_vid_cline == m_vid_hintline)
-			spot_asic_device::set_vid_irq(VID_INT_HSYNC, 1);
 
 		bool row_is_active = (
 			screen_enabled
@@ -1549,33 +1657,38 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 		if (row_is_active)
 		{
 			// Non-active area uses blank color (left)
-			spot_asic_device::blank_fill(&line, active_x_start, true);
+			spot_asic_device::blank_fill(&line, active_x_start, false);
 
-			// Draw active area
-			for (uint32_t x = 0; x < screen_width; x += 2)
+			if (m_vid_nstart != 0x80000000)
 			{
-				bool is_active_area = (
-					x >= m_vid_draw_hstart
-					&& x < (m_vid_draw_hstart + m_vid_draw_hsize)
-				);
+				uint32_t frame_line = ((y - m_vid_draw_vstart) + skipped_rows) / line_scale;
+				uint32_t line_start = m_vid_nstart + spot_asic_device::vid_buffer_offset(frame_line, frame_lines, line_bytes);
+				uint32_t line_first = line_start >> 0x2;
 
-				if (is_active_area && m_vid_ccnt != 0x80000000)
-				{
-					spot_asic_device::draw422(m_hostram[m_vid_ccnt >> 0x2], &line);
-					m_vid_ccnt += vid_step;
-				}
+				if ((uint64_t)line_first + active_words <= ram_words)
+					spot_asic_device::vid_draw_line(&ram[line_first], active_words, line + active_x_start);
+				else
+					std::fill_n(line + active_x_start, active_words * 2, 0x00000000);
+
+				m_vid_ccnt = line_start + (active_words * 4);
 			}
 
 			// Non-active area uses blank color (right)
 			uint32_t *line_right_ptr = line + active_x_end;
-			spot_asic_device::blank_fill(&line_right_ptr, (screen_width - active_x_end), true);
+			spot_asic_device::blank_fill(&line_right_ptr, (screen_width - active_x_end), false);
 		}
 		else
 		{
 			// Whole line isn't active so blank the whole thing
-			spot_asic_device::blank_fill(&line, screen_width, true);
+			spot_asic_device::blank_fill(&line, screen_width, false);
 		}
 	}
+
+	m_vid_frame_state = frame_state;
+	m_vid_frame_ccnt = m_vid_ccnt;
+	m_vid_frame_valid = can_cache;
+	if (can_cache)
+		m_vid_frame_snapshot.assign(&ram[dma_first], &ram[dma_first] + dma_words);
 
 	spot_asic_device::set_vid_irq(VID_INT_DMA, 1);
 

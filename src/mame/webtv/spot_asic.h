@@ -259,6 +259,63 @@ protected:
 	uint32_t m_vid_draw_vsize;
 	uint32_t m_cached_blank_rgb32[2];
 
+	struct vid_tables
+	{
+		static constexpr int32_t CLAMP_BIAS = 512;
+
+		int16_t y[256];
+		int16_t cr_r[256];
+		int16_t cb_b[256];
+		uint32_t clamp_r[1024];
+		uint32_t clamp_g[1024];
+		uint32_t clamp_b[1024];
+
+		vid_tables()
+		{
+			for (int32_t i = 0; i < 256; i++)
+			{
+				y[i] = ((((i - VID_Y_BLACK) << 8) + VID_UV_OFFSET) / VID_Y_RANGE);
+				cr_r[i] = ((0x166 * (i - VID_UV_OFFSET)) + VID_UV_OFFSET) >> 8;
+				cb_b[i] = ((0x1C7 * (i - VID_UV_OFFSET)) + VID_UV_OFFSET) >> 8;
+			}
+
+			for (int32_t i = 0; i < 1024; i++)
+			{
+				uint32_t c = std::clamp(i - CLAMP_BIAS, 0x00, 0xff);
+				clamp_r[i] = c << 0x10;
+				clamp_g[i] = c << 0x08;
+				clamp_b[i] = c << 0x00;
+			}
+		}
+	};
+
+	static inline const vid_tables s_vid_tables;
+
+	struct vid_frame_state
+	{
+		uint32_t screen_width;
+		uint32_t screen_height;
+		bool screen_enabled;
+		uint32_t draw_hstart;
+		uint32_t draw_hsize;
+		uint32_t draw_vstart;
+		uint32_t draw_vsize;
+		uint32_t blank_rgb32[2];
+		uint32_t nstart;
+		uint32_t nsize;
+		uint32_t draw_nstart;
+		uint32_t dmacntl;
+		uint32_t fcntl;
+
+		bool operator==(const vid_frame_state &) const = default;
+	};
+
+	static constexpr size_t VID_FRAME_CACHE_MAX_WORDS = 0x80000;
+	std::vector<uint32_t> m_vid_frame_snapshot;
+	vid_frame_state m_vid_frame_state;
+	uint32_t m_vid_frame_ccnt = 0;
+	bool m_vid_frame_valid = false;
+
 	int16_t m_aud_lsample;
 	int16_t m_aud_rsample;
 	uint32_t m_aud_max_sval;
@@ -366,6 +423,9 @@ private:
 	void blank_fill(uint32_t **dest, uint32_t count, bool update_cursor = false);
 	void draw422(uint32_t in, uint32_t **out);
 
+	inline void vid_draw_line(const uint32_t *in, uint32_t words, uint32_t *out);
+	uint32_t vid_line_scale() const;
+	uint32_t vid_buffer_offset(uint32_t frame_line, uint32_t frame_lines, uint32_t line_bytes) const;
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	/* busUnit registers */

@@ -118,6 +118,7 @@ void solo_asic_video_device::device_start()
 void solo_asic_video_device::device_reset()
 {
 	m_gfx_frame_valid = false;
+	m_vid_frame_valid = false;
 
 	m_busvid_intenable = 0x0;
 	m_busvid_intstat = 0x0;
@@ -430,7 +431,11 @@ void solo_asic_video_device::validate_active_area()
 	}
 	else
 	{
-		m_vid_draw_nstart += 2 * (m_pot_draw_hsize * BYTES_PER_PIXEL);
+		uint32_t line_scale = solo_asic_video_device::vid_line_scale();
+
+		m_pot_draw_vsize = std::clamp(m_pot_vsize * line_scale, (uint32_t)0x2, (uint32_t)m_screen->height());
+
+		m_vid_draw_nstart += (2 / line_scale) * (m_pot_draw_hsize * BYTES_PER_PIXEL);
 		m_pot_draw_vsize = m_pot_draw_vsize - 2;
 	}
 
@@ -471,7 +476,10 @@ bool solo_asic_video_device::screen_to_frame(int32_t screen_x, int32_t screen_y,
 		frame_y -= int32_t(m_pot_draw_vsize / 2) - guest_viewport.height() / 2 + guest_viewport.top();
 	}
 	if (!(m_pot_cntl & POT_FCNTL_USEGFX) && m_pot_draw_hsize != 0)
+	{
+		frame_y /= (int32_t)solo_asic_video_device::vid_line_scale();
 		frame_y += (m_vid_draw_nstart - m_vid_nstart) / (m_pot_draw_hsize * BYTES_PER_PIXEL);
+	}
 
 	return true;
 }
@@ -1198,7 +1206,7 @@ uint32_t solo_asic_video_device::reg_9094_r()
 
 void solo_asic_video_device::reg_9094_w(uint32_t data)
 {
-	bool has_changed = ((m_pot_cntl ^ data) & POT_FCNTL_USEGFX && data & POT_FCNTL_USEGFX);
+	bool has_changed = (((m_pot_cntl ^ data) & POT_FCNTL_USEGFX && data & POT_FCNTL_USEGFX) || ((m_pot_cntl ^ data) & POT_FCNTL_PROGRESSIVE));
 
 	m_pot_cntl = data;
 
@@ -2104,6 +2112,8 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
 
+	m_vid_frame_valid = false;
+
 	m_vid_cline = screen_height - 1;
 	if (m_pot_draw_hintline < screen_height)
 		solo_asic_video_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
@@ -2173,6 +2183,58 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 	return 0;
 }
 
+uint32_t solo_asic_video_device::vid_line_scale() const
+{
+	return (!(m_pot_cntl & POT_FCNTL_USEGFX) && (m_pot_cntl & POT_FCNTL_PROGRESSIVE)) ? 2 : 1;
+}
+
+uint32_t solo_asic_video_device::vid_buffer_line(uint32_t frame_line, uint32_t frame_lines) const
+{
+	bool dma_interlaced = (m_vid_dmacntl & VID_DMACNTL_ITRLEN);
+	bool display_interlaced = !(m_pot_cntl & POT_FCNTL_PROGRESSIVE);
+
+	uint32_t field_lines = (frame_lines + 1) / 2;
+
+	if (dma_interlaced == display_interlaced)
+		return frame_line;
+	else if (display_interlaced)
+		return (frame_line & 1) ? (field_lines + (frame_line >> 1)) : (frame_line >> 1);
+	else
+		return (frame_line < field_lines) ? (frame_line * 2) : (((frame_line - field_lines) * 2) + 1);
+}
+
+inline void solo_asic_video_device::vidunit_draw_line(const uint32_t *in, uint32_t words, uint32_t *out)
+{
+	const gfx_tables &t = s_gfx_tables;
+
+	for (uint32_t i = 0; i < words; i++, out += 2)
+	{
+		uint32_t pixels = in[i];
+
+		int32_t r = t.cr_r[(pixels >> 0x00) & 0xff];
+		int32_t b = t.cb_b[(pixels >> 0x10) & 0xff];
+		int32_t g = ((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08;
+
+		const uint32_t *clamp_r = t.clamp_r + gfx_tables::CLAMP_BIAS + r;
+		const uint32_t *clamp_g = t.clamp_g + gfx_tables::CLAMP_BIAS - g;
+		const uint32_t *clamp_b = t.clamp_b + gfx_tables::CLAMP_BIAS + b;
+
+		uint8_t y0 = (pixels >> 0x18) & 0xff;
+		if (y0 != Y_TRANSPARENT)
+		{
+			int32_t yy = t.y422[y0];
+			out[0] = clamp_r[yy] | clamp_g[yy] | clamp_b[yy];
+		}
+
+		uint8_t y1 = (pixels >> 0x08) & 0xff;
+		if (y1 != Y_TRANSPARENT)
+		{
+			int32_t yy = t.y422[y1];
+			out[1] = clamp_r[yy] | clamp_g[yy] | clamp_b[yy];
+		}
+	}
+}
+
 uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	auto profile = g_profiler.start(PROFILER_VIDEO);
@@ -2181,24 +2243,70 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 
 	uint32_t screen_width = bitmap.width();
 	uint32_t screen_height = bitmap.height();
-	uint8_t vid_step = (2 * BYTES_PER_PIXEL);
 	bool screen_enabled = (m_pot_cntl & POT_FCNTL_EN) && (m_vid_dmacntl & VID_DMACNTL_DMAEN);
 
 	m_vid_cstart = m_vid_nstart;
 	m_vid_csize = m_vid_nsize;
-	m_vid_ccnt = m_vid_draw_nstart;
 
 	uint32_t active_x_start = std::min(screen_width, (m_pot_draw_hstart + 1)                    & ~1u);
 	uint32_t active_x_end   = std::min(screen_width, (m_pot_draw_hstart + m_pot_draw_hsize + 1) & ~1u);
+	uint32_t active_words   = (active_x_end - active_x_start) / 2;
+
+	uint32_t line_scale = solo_asic_video_device::vid_line_scale();
+	uint32_t line_bytes = m_pot_draw_hsize * BYTES_PER_PIXEL;
+	uint32_t skipped_rows = ((line_bytes != 0) ? ((m_vid_draw_nstart - m_vid_nstart) / line_bytes) : 0) * line_scale;
+	uint32_t frame_lines = (m_pot_draw_vsize + skipped_rows + (line_scale - 1)) / line_scale;
+
+	uint32_t active_y_start = std::min(screen_height, m_pot_draw_vstart);
+	uint32_t active_y_end   = std::min(screen_height, m_pot_draw_vstart + m_pot_draw_vsize);
+	bool draw_dma = screen_enabled && (m_vid_nstart != 0x80000000) && (active_y_start < active_y_end);
+
+	const uint32_t *ram = &m_hostram[0];
+	uint32_t ram_words = m_hostram.length();
+	uint32_t dma_first = m_vid_nstart >> 0x2;
+	uint64_t dma_end = (uint64_t)dma_first + ((((uint64_t)std::max(frame_lines, 1u) - 1) * line_bytes) >> 0x2) + active_words;
+
+	m_vid_cline = screen_height - 1;
+	if (m_pot_draw_hintline < screen_height)
+		solo_asic_video_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
+
+	const vid_frame_state frame_state = {
+		.screen_width   = screen_width,
+		.screen_height  = screen_height,
+		.screen_enabled = screen_enabled,
+		.draw_hstart    = m_pot_draw_hstart,
+		.draw_hsize     = m_pot_draw_hsize,
+		.draw_vstart    = m_pot_draw_vstart,
+		.draw_vsize     = m_pot_draw_vsize,
+		.blank_rgb32    = { m_cached_blank_rgb32[0], m_cached_blank_rgb32[1] },
+		.nstart         = m_vid_nstart,
+		.draw_nstart    = m_vid_draw_nstart,
+		.dma_interlaced = (m_vid_dmacntl & VID_DMACNTL_ITRLEN) != 0,
+		.progressive    = (m_pot_cntl & POT_FCNTL_PROGRESSIVE) != 0
+	};
+
+	bool can_cache = !draw_dma || (dma_end <= ram_words && (dma_end - dma_first) <= VID_FRAME_CACHE_MAX_WORDS);
+	size_t dma_words = draw_dma ? (size_t)(dma_end - dma_first) : 0;
+
+	if (
+		can_cache
+		&& m_vid_frame_valid
+		&& frame_state == m_vid_frame_state
+		&& m_vid_frame_snapshot.size() == dma_words
+		&& (dma_words == 0 || std::memcmp(&ram[dma_first], m_vid_frame_snapshot.data(), dma_words * sizeof(uint32_t)) == 0)
+	)
+	{
+		m_vid_ccnt = m_vid_frame_ccnt;
+		solo_asic_video_device::set_video_irq(BUS_INT_VID_VIDUNIT, VID_INT_DMA, 1);
+
+		return UPDATE_HAS_NOT_CHANGED;
+	}
+
+	m_vid_ccnt = m_vid_draw_nstart;
 
 	for (uint32_t y = 0; y < screen_height; y++)
 	{
 		uint32_t *line = &bitmap.pix(y);
-
-		m_vid_cline = y;
-
-		if (m_vid_cline == m_pot_draw_hintline)
-			solo_asic_video_device::set_video_irq(BUS_INT_VID_POTUNIT, POT_INT_HSYNC, 1);
 
 		bool row_is_active = (
 			screen_enabled
@@ -2209,33 +2317,38 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 		if (row_is_active)
 		{
 			// Non-active area uses blank color (left)
-			solo_asic_video_device::blank_fill(&line, active_x_start, true);
+			solo_asic_video_device::blank_fill(&line, active_x_start, false);
 
-			// Draw active area
-			for (uint32_t x = 0; x < screen_width; x += 2)
+			if (m_vid_nstart != 0x80000000)
 			{
-				bool is_active_area = (
-					x >= m_pot_draw_hstart
-					&& x < (m_pot_draw_hstart + m_pot_draw_hsize)
-				);
+				uint32_t frame_line = ((y - m_pot_draw_vstart) + skipped_rows) / line_scale;
+				uint32_t line_start = m_vid_nstart + (solo_asic_video_device::vid_buffer_line(frame_line, frame_lines) * line_bytes);
+				uint32_t line_first = line_start >> 0x2;
 
-				if (is_active_area && m_vid_ccnt != 0x80000000)
-				{
-					solo_asic_video_device::draw422(NULL, 0, m_hostram[m_vid_ccnt >> 0x2], &line);
-					m_vid_ccnt += vid_step;
-				}
+				if ((uint64_t)line_first + active_words <= ram_words)
+					solo_asic_video_device::vidunit_draw_line(&ram[line_first], active_words, line + active_x_start);
+				else
+					std::fill_n(line + active_x_start, active_words * 2, 0x00000000);
+
+				m_vid_ccnt = line_start + (active_words * 4);
 			}
 
 			// Non-active area uses blank color (right)
 			uint32_t *line_right_ptr = line + active_x_end;
-			solo_asic_video_device::blank_fill(&line_right_ptr, (screen_width - active_x_end), true);
+			solo_asic_video_device::blank_fill(&line_right_ptr, (screen_width - active_x_end), false);
 		}
 		else
 		{
 			// Whole line isn't active so blank the whole thing
-			solo_asic_video_device::blank_fill(&line, screen_width, true);
+			solo_asic_video_device::blank_fill(&line, screen_width, false);
 		}
 	}
+
+	m_vid_frame_state = frame_state;
+	m_vid_frame_ccnt = m_vid_ccnt;
+	m_vid_frame_valid = can_cache;
+	if (can_cache)
+		m_vid_frame_snapshot.assign(&ram[dma_first], &ram[dma_first] + dma_words);
 
 	solo_asic_video_device::set_video_irq(BUS_INT_VID_VIDUNIT, VID_INT_DMA, 1);
 
