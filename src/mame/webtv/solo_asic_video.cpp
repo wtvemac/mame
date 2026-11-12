@@ -2219,19 +2219,11 @@ inline void solo_asic_video_device::vidunit_draw_line(const uint32_t *in, uint32
 		const uint32_t *clamp_g = t.clamp_g + gfx_tables::CLAMP_BIAS - g;
 		const uint32_t *clamp_b = t.clamp_b + gfx_tables::CLAMP_BIAS + b;
 
-		uint8_t y0 = (pixels >> 0x18) & 0xff;
-		if (y0 != Y_TRANSPARENT)
-		{
-			int32_t yy = t.y422[y0];
-			out[0] = clamp_r[yy] | clamp_g[yy] | clamp_b[yy];
-		}
+		int32_t y0 = t.y422[(pixels >> 0x18) & 0xff];
+		int32_t y1 = t.y422[(pixels >> 0x08) & 0xff];
 
-		uint8_t y1 = (pixels >> 0x08) & 0xff;
-		if (y1 != Y_TRANSPARENT)
-		{
-			int32_t yy = t.y422[y1];
-			out[1] = clamp_r[yy] | clamp_g[yy] | clamp_b[yy];
-		}
+		out[0] = clamp_r[y0] | clamp_g[y0] | clamp_b[y0];
+		out[1] = clamp_r[y1] | clamp_g[y1] | clamp_b[y1];
 	}
 }
 
