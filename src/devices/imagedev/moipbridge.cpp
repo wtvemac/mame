@@ -1379,7 +1379,6 @@ void sip_client::sip_audio_push(const int16_t *sample, uint32_t sample_count)
 // ----------------------------------------------------------------------------
 
 sip_account::sip_account(sip_client &sip)
-	: m_sip(sip)
 {
 
 }
