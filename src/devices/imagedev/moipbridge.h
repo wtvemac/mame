@@ -302,8 +302,6 @@ public:
 
 	void onRegState(pj::OnRegStateParam &prm) override;
 	void onIncomingCall(pj::OnIncomingCallParam &) override;
-private:
-	sip_client &m_sip;
 };
 
 
