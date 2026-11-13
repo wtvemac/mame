@@ -383,7 +383,7 @@ mips3_device::page_variant_entry mips3_device::make_page_variant(drcuml_state::h
 		.physpcs = {} 
 	};
 
-	auto add = [this, &variant, tlbtable] (const opcode_desc *desc)
+	auto add = [&variant, tlbtable] (const opcode_desc *desc)
 	{
 		const bool addr_can_tlb_map = (desc->pc < 0x80000000 || desc->pc >= 0xc0000000);
 		if (addr_can_tlb_map)
