@@ -1517,7 +1517,7 @@ bool wtvsoftmodem_v34data::put_symbol(point_t rx)
 {
 	finish_shared_geometry();
 
-	if (m_rx_trellis && !m_rx_trellis.unique())
+	if (m_rx_trellis && m_rx_trellis.use_count() != 1)
 		m_rx_trellis = std::make_shared<rx_trellis_state>(*m_rx_trellis);
 
 	if (m_rx_trellis && m_rx_trellis->pending_symbols)
