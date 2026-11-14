@@ -497,11 +497,10 @@ u8 ins8250_uart_device::ins8250_r(offs_t offset)
 			break;
 		case 5:
 			data = m_regs.lsr;
-			if (!machine().side_effects_disabled() && (m_regs.lsr & (INS8250_LSR_BI | INS8250_LSR_FE | INS8250_LSR_PE | INS8250_LSR_OE)) != 0)
+			if (!machine().side_effects_disabled())
 			{
 				m_regs.lsr &= 0xe1; /* clear FE, PE and OE and BREAK bits */
 
-				/* reading line status register clears int */
 				clear_int(COM_INT_PENDING_RECEIVER_LINE_STATUS);
 			}
 			break;
