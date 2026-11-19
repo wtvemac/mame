@@ -115,6 +115,7 @@ constexpr uint32_t GFX_WB_SIZE_MASK = 0x000003ff; // WBDLSIZE, WBSTRIDE and ACTI
 constexpr uint16_t GFX_TERMINATION_LINE = 0x1ff;
 constexpr uint8_t  GFX_MAX_YMAPS        = 255;
 constexpr uint8_t  GFX_MAX_CELS         = 255;
+constexpr uint8_t  GFX_CODEBOOK_SIZE    = 16;  // internal VQ4 codebook, loaded by a LOADDATA_TYPE_CODEBOOK cel
 
 constexpr uint32_t POT_INT_VSYNCE = 1 << 5; // even field VSYNC
 constexpr uint32_t POT_INT_VSYNCO = 1 << 4; // odd field VSYNC
@@ -329,6 +330,12 @@ typedef struct gfx_cel // 384 bits / 48 bytes
 		data[6] = (data[6] & 0xffff0000) | (((data[2] >> 0x10) & 0xff) << 0x4);
 	}
 
+	inline void rowbytes_to_xrightstart()
+	{
+		// A micro-cel has no xRightStart. A VQ4 row holds two pixels per byte, so the right edge is rowBytes * 2 pixels past xLeftStart.
+		data[2] = (data[2] & ~0x3ffu) | ((xleftstart_sint() + (rowbytes() * 2)) & 0x3ff);
+	}
+
 	inline uint32_t texdata_index()
 	{
 		int32_t base = -1;
@@ -470,6 +477,7 @@ protected:
 	uint32_t m_gfx_wbdconfig;
 	uint32_t m_gfx_intenable;
 	uint32_t m_gfx_intstat;
+	std::array<uint32_t, GFX_CODEBOOK_SIZE> m_gfx_codebook;
 
 	uint32_t m_div_synccntl;
 	uint32_t m_div_nvbitb;
@@ -651,6 +659,7 @@ private:
 		uint32_t init_color;
 		uint32_t ymap_base_master;
 		uint32_t cels_base_master;
+		std::array<uint32_t, GFX_CODEBOOK_SIZE> codebook;
 
 		bool operator==(const gfx_frame_state &) const = default;
 	};

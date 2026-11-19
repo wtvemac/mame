@@ -70,6 +70,7 @@ void solo_asic_video_device::device_start()
 	save_item(NAME(m_gfx_wbdconfig));
 	save_item(NAME(m_gfx_intenable));
 	save_item(NAME(m_gfx_intstat));
+	save_item(NAME(m_gfx_codebook));
 
 	save_item(NAME(m_div_synccntl));
 	save_item(NAME(m_div_nvbitb));
@@ -158,6 +159,7 @@ void solo_asic_video_device::device_reset()
 	m_gfx_wbdconfig = 0x0;
 	m_gfx_intenable = 0x0;
 	m_gfx_intstat = 0x0;
+	m_gfx_codebook.fill(0x0);
 	m_gfx_writeback_timer->adjust(attotime::never);
 
 	m_div_synccntl = 0x0;
@@ -1552,7 +1554,7 @@ inline uint32_t solo_asic_video_device::texdata_index(const gfx_cel_rasterctx &c
 	else if constexpr (Type == TEXDATA_TYPE_VQ8_444)
 		base += solo_asic_video_device::gfx_masked(u, ctx.umask) * 0x01;
 	else if constexpr (Type == TEXDATA_TYPE_VQ4_444)
-		base += solo_asic_video_device::gfx_masked(u, ctx.umask) / 0x02;
+		base += solo_asic_video_device::gfx_masked(u, ctx.umask) >> 0x01;
 	else
 		base += solo_asic_video_device::gfx_masked(u, ctx.umask) * 0x02;
 
@@ -1563,12 +1565,25 @@ template <gfx_texdata_type_t Type>
 inline solo_asic_video_device::gfx_texel solo_asic_video_device::fetch_texel(gfx_cel_rasterctx &ctx, auto &u, auto &v)
 {
 	uint32_t index = texdata_index<Type>(ctx, u, v);
-	ctx.advance_x(u, v);
 
-	if constexpr (Type == TEXDATA_TYPE_DIR_444)
-		return fetch444(ctx.read(index >> 0x2), ctx.global_alpha);
+	if constexpr (Type == TEXDATA_TYPE_VQ4_444)
+	{
+		const bool low_nibble = solo_asic_video_device::gfx_masked(u, ctx.umask) & 0x1;
+		ctx.advance_x(u, v);
+
+		uint8_t color_idx = ctx.read(index >> 0x2) >> (((~index) & 0x3) << 0x3);
+
+		return ctx.codebook[low_nibble ? (color_idx & 0xf) : (color_idx >> 0x4)];
+	}
 	else
-		return ctx.codebook[(uint8_t)(ctx.read(index >> 0x2) >> (((~index) & 0x3) << 0x3))];
+	{
+		ctx.advance_x(u, v);
+
+		if constexpr (Type == TEXDATA_TYPE_DIR_444)
+			return fetch444(ctx.read(index >> 0x2), ctx.global_alpha);
+		else
+			return ctx.codebook[(uint8_t)(ctx.read(index >> 0x2) >> (((~index) & 0x3) << 0x3))];
+	}	
 }
 
 template <gfx_texdata_type_t Type, solo_asic_video_device::gfx_blend_t Blend>
@@ -1598,21 +1613,8 @@ inline void solo_asic_video_device::draw_pair(gfx_cel_rasterctx &ctx, uint32_t *
 	}
 	else
 	{
-		gfx_texel texel0, texel1;
-
-		if constexpr (Type == TEXDATA_TYPE_VQ4_444)
-		{
-			uint32_t index = solo_asic_video_device::texdata_index<Type>(ctx, u, v);
-			ctx.advance_x(u, v);
-			uint8_t color_idx = ctx.read(index >> 0x2) >> (((~index) & 0x3) << 0x3);
-			texel0 = ctx.codebook[color_idx >> 0x4];
-			texel1 = ctx.codebook[color_idx & 0xf];
-		}
-		else
-		{
-			texel0 = solo_asic_video_device::fetch_texel<Type>(ctx, u, v);
-			texel1 = solo_asic_video_device::fetch_texel<Type>(ctx, u, v);
-		}
+		gfx_texel texel0 = solo_asic_video_device::fetch_texel<Type>(ctx, u, v);
+		gfx_texel texel1 = solo_asic_video_device::fetch_texel<Type>(ctx, u, v);
 
 		if (!texel0.transparent)
 			solo_asic_video_device::draw_pixel_ycbcr<Blend>(out, texel0.y, texel0.cb, texel0.cr, texel0.a, ctx.brighten);
@@ -1676,7 +1678,7 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 {
 	constexpr bool IS_VQ = (Type == TEXDATA_TYPE_VQ8_444 || Type == TEXDATA_TYPE_VQ4_444);
 	constexpr uint32_t CODEBOOK_SIZE = (Type == TEXDATA_TYPE_VQ8_444) ? 256 : 16;
-	constexpr int64_t STEPS_PER_PAIR = (Type == TEXDATA_TYPE_VQ4_444) ? 1 : 2;
+	constexpr int64_t STEPS_PER_PAIR = 2;
 
 	const int32_t hstart = m_pot_draw_hstart;
 	const int32_t hsize = m_pot_draw_hsize;
@@ -1707,10 +1709,23 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 	if constexpr (IS_VQ)
 	{
 		uint32_t codebook_base = cel->codebook_base();
-		for (uint32_t i = 0; i < CODEBOOK_SIZE; i++)
-			ctx.codebook[i] = solo_asic_video_device::fetch444(((codebook_base + i) < ctx.ram_words) ? ctx.ram[codebook_base + i] : 0, ctx.global_alpha);
 
-		solo_asic_video_device::gfx_add_read(codebook_base, codebook_base + CODEBOOK_SIZE - 1);
+		// A VQ4 Cel with no codebook base uses the internal codebook.
+		const bool internal_codebook = (Type == TEXDATA_TYPE_VQ4_444) && (codebook_base == 0);
+
+		for (uint32_t i = 0; i < CODEBOOK_SIZE; i++)
+		{
+			uint32_t entry;
+			if (internal_codebook)
+				entry = m_gfx_codebook[i];
+			else
+				entry = ((codebook_base + i) < ctx.ram_words) ? ctx.ram[codebook_base + i] : 0;
+
+			ctx.codebook[i] = solo_asic_video_device::fetch444(entry, ctx.global_alpha);
+		}
+
+		if (!internal_codebook)
+			solo_asic_video_device::gfx_add_read(codebook_base, codebook_base + CODEBOOK_SIZE - 1);
 	}
 
 	for (int32_t y = y_top; y < y_bottom; y++)
@@ -2031,11 +2046,18 @@ inline void solo_asic_video_device::gfxunit_exec_cel_loaddata(gfx_cel_t *cel)
 	switch (cel->loaddata_type())
 	{
 		case LOADDATA_TYPE_CODEBOOK:
-			// Internal codebook not implemented.
+		{
+			const uint32_t base = cel->texdata_base();
+
+			for (uint32_t i = 0; i < GFX_CODEBOOK_SIZE; i++)
+				m_gfx_codebook[i] = ((base + i) < m_hostram.length()) ? m_hostram[base + i] : 0;
+
+			if (base < m_hostram.length())
+				solo_asic_video_device::gfx_add_read(base, std::min<uint32_t>(base + GFX_CODEBOOK_SIZE - 1, m_hostram.length() - 1));
 			break;
+		}
 
 		case LOADDATA_TYPE_INIT_COLOR:
-			// Init color not used.
 			m_gfx_initcolor = cel->texdata_base();
 			break;
 
@@ -2127,6 +2149,9 @@ inline void solo_asic_video_device::gfxunit_draw_cels(bitmap_rgb32 &bitmap)
 				memcpy(cel.data, &m_hostram[cel_ptr], cel_size);
 				solo_asic_video_device::gfx_add_read(cel_ptr, cel_ptr + (cel_size >> 0x2) - 1);
 
+				if (cel_size == CELRECORD_SIZE_MICRO_CEL && cel.texdata_type() == TEXDATA_TYPE_VQ4_444)
+					cel.rowbytes_to_xrightstart();
+
 				if (m_video_debug_capture && m_video_debug_cels++ < DBG_GFX_MAX_CAPTURE_CELS)
 				{
 					static const char *const formats[] = {
@@ -2157,10 +2182,9 @@ inline void solo_asic_video_device::gfxunit_draw_cels(bitmap_rgb32 &bitmap)
 					if (cel.texdata_type() == TEXDATA_TYPE_LOADDATA)
 					{
 						osd_printf_info(
-							"\t\t\tload type=%u value=0x%06x%s\n",
+							"\t\t\tload type=%u value=0x%06x\n",
 							uint32_t(cel.loaddata_type()),
-							cel.texdata_base(),
-							cel.loaddata_type() == LOADDATA_TYPE_CODEBOOK ? " (internal codebook unimplemented)" : ""
+							cel.texdata_base()
 						);
 					}
 					else
@@ -2373,7 +2397,8 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 		.blank_rgb32      = { m_cached_blank_rgb32[0], m_cached_blank_rgb32[1] },
 		.init_color       = m_gfx_initcolor,
 		.ymap_base_master = m_gfx_ymap_base_master,
-		.cels_base_master = m_gfx_cels_base_master
+		.cels_base_master = m_gfx_cels_base_master,
+		.codebook         = m_gfx_codebook
 	};
 
 	if (machine().options().wtvvid_debug())
