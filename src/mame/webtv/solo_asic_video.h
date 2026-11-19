@@ -32,6 +32,8 @@ constexpr uint16_t Y_BLACK         = 0x10;
 constexpr uint16_t Y_WHITE         = 0xeb;
 constexpr uint16_t Y_RANGE         = (Y_WHITE - Y_BLACK);
 constexpr uint16_t UV_OFFSET       = 0x80;
+constexpr uint16_t UV_MIN          = 0x10;
+constexpr uint16_t UV_MAX          = 0xf0;
 constexpr uint8_t  BYTES_PER_PIXEL = 2;
 
 constexpr uint32_t VID_DMACNTL_ITRLEN = 1 << 3; // interlaced video in DMA channel
@@ -552,7 +554,6 @@ private:
 		static constexpr int32_t CLAMP_BIAS = 512;
 
 		int16_t y422[256];
-		int16_t y444[256];
 		int16_t cr_r[256];
 		int16_t cb_b[256];
 		uint32_t clamp_r[1024];
@@ -564,7 +565,6 @@ private:
 			for (int32_t i = 0; i < 256; i++)
 			{
 				y422[i] = ((((i - Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
-				y444[i] = ((((i + Y_BLACK) << 0x08) + UV_OFFSET) / Y_RANGE);
 				cr_r[i] = ((0x166 * (i - UV_OFFSET)) + UV_OFFSET) >> 0x08;
 				cb_b[i] = ((0x1C7 * (i - UV_OFFSET)) + UV_OFFSET) >> 0x08;
 			}
@@ -583,11 +583,11 @@ private:
 
 	struct gfx_texel
 	{
-		int32_t r;
-		int32_t g;
-		int32_t b;
-		uint32_t packed;
+		int32_t y;
+		int32_t cb;
+		int32_t cr;
 		uint8_t a;
+		bool transparent;
 	};
 
 	struct gfx_cel_rasterctx
@@ -599,7 +599,6 @@ private:
 
 		uint8_t global_alpha;
 		bool is_direct_422;
-		bool wb_native_ycbcr;
 		int32_t texdata_base;
 		int32_t rowbytes;
 		uint8_t umask;
@@ -649,6 +648,7 @@ private:
 		uint32_t draw_vstart;
 		uint32_t draw_vsize;
 		uint32_t blank_rgb32[2];
+		uint32_t init_color;
 		uint32_t ymap_base_master;
 		uint32_t cels_base_master;
 
@@ -684,7 +684,6 @@ private:
 	gfx_frame_state m_gfx_frame_state;
 	bool m_gfx_frame_valid = false;
 
-	bool m_gfx_wb_native = false;  // write-back bitmaps hold biased Y/Cb/Cr, not host RGB
 	int32_t m_gfx_wb_yshift = 0;
 
 	std::string m_video_debug_summary;
@@ -696,13 +695,14 @@ private:
 	void set_video_irq(uint32_t mask, uint32_t sub_mask, int state);
 
 	static inline uint32_t gfx_pack(int32_t r, int32_t g, int32_t b);
-	static inline int32_t gfx_wb_luma(int32_t y);
+	static inline int32_t gfx_output_luma(int32_t y);
+	inline uint32_t gfx_init_color() const;
 	static inline int32_t gfx_masked(int32_t fx, uint8_t mask);
 	static inline int32_t gfx_masked(float f, uint8_t mask);
 	inline void gfx_add_read(uint32_t first, uint32_t last);
 
 	inline void draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out);
-	template <gfx_blend_t Blend> static inline void draw_pixel(uint32_t *out, int32_t r, int32_t g, int32_t b, uint8_t a, uint32_t packed, const int32_t *brighten);
+	template <gfx_blend_t Blend> static inline void draw_pixel_ycbcr(uint32_t *out, int32_t y, int32_t cb, int32_t cr, uint8_t a, const int32_t *brighten);
 	
 	template <gfx_texdata_type_t Type> static inline uint32_t texdata_index(const gfx_cel_rasterctx &ctx, auto u, auto v);
 	template <gfx_texdata_type_t Type> static inline gfx_texel fetch_texel(gfx_cel_rasterctx &ctx, auto &u, auto &v);
@@ -713,10 +713,10 @@ private:
 	template <gfx_texdata_type_t Type> void draw_lines_by_alpha(gfx_cel_t *cel, bitmap_rgb32 &bitmap, int32_t y_top, int32_t y_bottom);
 
 	inline void draw444(gfx_cel_t *cel, int8_t offset, uint32_t in0, uint32_t in1, uint32_t **out);
-	static inline gfx_texel fetch444(uint32_t in, uint8_t global_alpha, bool wb_native_ycbcr);
+	static inline gfx_texel fetch444(uint32_t in, uint8_t global_alpha);
 	
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
-	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422, bool wb_native_ycbcr);
+	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422);
 
 	bool gfxunit_frame_unchanged();
 	bool gfxunit_frame_snapshot();
@@ -730,6 +730,7 @@ private:
 
 	uint32_t gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	uint32_t vidunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	inline void gfxunit_draw_line_rgb(uint32_t *line, uint32_t count);
 	inline void vidunit_draw_line(const uint32_t *in, uint32_t words, uint32_t *out);
 	uint32_t vid_line_scale() const;
 	uint32_t vid_buffer_line(uint32_t frame_line, uint32_t frame_lines) const;
