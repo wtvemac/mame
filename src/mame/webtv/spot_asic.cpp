@@ -4,6 +4,7 @@
 // Description here
 
 #include "emu.h"
+#include "emuopts.h"
 
 #include "machine/input_merger.h"
 #include "render.h"
@@ -1624,6 +1625,38 @@ uint32_t spot_asic_device::screen_update(screen_device &screen, bitmap_rgb32 &bi
 		.dmacntl        = m_vid_dmacntl & VID_DMACNTL_ITRLEN,
 		.fcntl          = m_vid_fcntl & (VID_FCNTL_INTERLACE | VID_FCNTL_BLNKCOLEN)
 	};
+
+	if (machine().options().wtvvid_debug())
+	{
+		std::string summary = util::string_format(
+			"SPOT vidUnit enabled=%u dma_active=%u screen=%ux%u viewport=%u,%u %ux%u control=0x%08x dma=0x%08x start=0x%08x draw_start=0x%08x size=0x%08x line_scale=%u irq=0x%08x/0x%08x%s",
+			screen_enabled,
+			draw_dma,
+			screen_width, screen_height,
+			m_vid_draw_hstart, m_vid_draw_vstart,
+			m_vid_draw_hsize, m_vid_draw_vsize,
+			m_vid_fcntl,
+			m_vid_dmacntl,
+			m_vid_nstart,
+			m_vid_draw_nstart,
+			m_vid_nsize,
+			line_scale,
+			m_vid_intstat,
+			m_vid_intenable,
+			(draw_dma && dma_end > ram_words) ? " estimated DMA span exceeds RAM" : ""
+		);
+
+		if (summary != m_vid_debug_summary)
+		{
+			osd_printf_info(
+				"wtvvid[frame=%llu]: %s\n",
+				uint64_t(screen.frame_number()),
+				summary
+			);
+
+			m_vid_debug_summary = std::move(summary);
+		}
+	}
 
 	bool can_cache = !draw_dma || (dma_end <= ram_words && (dma_end - dma_first) <= VID_FRAME_CACHE_MAX_WORDS);
 	size_t dma_words = draw_dma ? (size_t)(dma_end - dma_first) : 0;

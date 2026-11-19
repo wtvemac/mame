@@ -4,6 +4,7 @@
 // Description here
 
 #include "emu.h"
+#include "emuopts.h"
 
 #include "screen.h"
 #include "solo_asic_video.h"
@@ -2066,6 +2067,18 @@ inline void solo_asic_video_device::gfxunit_draw_cels(bitmap_rgb32 &bitmap)
 
 		ymap.index = ymidx;
 
+		if (m_video_debug_capture && !ymap.disabled())
+			osd_printf_info(
+				"\tymap[%u] addr=0x%08x raw=0x%08x top=%d lines=%u cel_size=%u block=0x%03x\n",
+				ymidx,
+				ymap_ptr << 2,
+				ymap.data[0],
+				ymap.line_top(),
+				ymap.line_cnt(),
+				uint32_t(ymap.cel_size()),
+				ymap.celblk_ptr()
+			);
+
 		if (ymap.disabled())
 		{
 			continue;
@@ -2102,6 +2115,85 @@ inline void solo_asic_video_device::gfxunit_draw_cels(bitmap_rgb32 &bitmap)
 
 				memcpy(cel.data, &m_hostram[cel_ptr], cel_size);
 				solo_asic_video_device::gfx_add_read(cel_ptr, cel_ptr + (cel_size >> 0x2) - 1);
+
+				if (m_video_debug_capture && m_video_debug_cels++ < DBG_GFX_MAX_CAPTURE_CELS)
+				{
+					static const char *const formats[] = {
+						"VQ8_422 (unimplemented)",
+						"DIR_422",
+						"VQ8_444",
+						"DIR_444",
+						"DIR_422O",
+						"DIR_422A",
+						"LOADDATA",
+						"VQ4_444"
+					};
+
+					osd_printf_info(
+						"\t\tcel[%u:%u] addr=0x%08x mode=0x%02x format=%s last=%u raw=0x%08x 0x%08x 0x%08x 0x%08x\n",
+						ymidx,
+						clidx,
+						cel_ptr << 2,
+						cel.mode(),
+						formats[cel.texdata_type()],
+						cel.islast(),
+						cel.data[0],
+						cel.data[1],
+						cel.data[2],
+						cel.data[3]
+					);
+
+					if (cel.texdata_type() == TEXDATA_TYPE_LOADDATA)
+					{
+						osd_printf_info(
+							"\t\t\tload type=%u value=0x%06x%s\n",
+							uint32_t(cel.loaddata_type()),
+							cel.texdata_base(),
+							cel.loaddata_type() == LOADDATA_TYPE_CODEBOOK ? " (internal codebook unimplemented)" : ""
+						);
+					}
+					else
+					{
+						osd_printf_info(
+							"\t\t\ttexture=0x%08x source=%u rowbytes=%u offsets=%u,%u x=%.3f..%.3f dx=%.3f,%.3f\n",
+							cel.texdata_base() << 2,
+							uint32_t(cel.texdata_src()),
+							cel.rowbytes(),
+							cel.top_offset(),
+							cel.bottom_offset(),
+							cel.xleftstart(),
+							cel.xrightstart(),
+							cel.dx_left(),
+							cel.dx_right()
+						);
+
+						osd_printf_info(
+							"\t\t\tuv=(%.3f,%.3f) dx=(%.3f,%.3f) drow=(%.3f,%.3f) mask=0x%02x,0x%02x alpha=%u blend=%u color=0x%02x,0x%02x,0x%02x\n",
+							cel.ustart(),
+							cel.vstart(),
+							cel.dux(),
+							cel.dvx(),
+							cel.durow_adjust(),
+							cel.dvrow_adjust(),
+							cel.umask(),
+							cel.vmask(),
+							cel.global_alpha(),
+							uint32_t(cel.alpha_type()),
+							cel.y_blend_color(),
+							cel.cb_blend_color(),
+							cel.cr_blend_color()
+						);
+
+						if (cel.texdata_type() == TEXDATA_TYPE_VQ8_444 || cel.texdata_type() == TEXDATA_TYPE_VQ4_444)
+							osd_printf_info(
+								"\t\t\tcodebook=0x%08x entries=%u%s\n",
+								cel.codebook_base() << 2,
+								cel.texdata_type() == TEXDATA_TYPE_VQ8_444 ? 256 : 16,
+								(uint64_t(cel.codebook_base()) + (cel.texdata_type() == TEXDATA_TYPE_VQ8_444 ? 256 : 16) > m_hostram.length()) ? " (outside RAM)" : ""
+							);
+					}
+				}
+
 				
 				if (cel.texdata_type() == gfx_texdata_type_t::TEXDATA_TYPE_LOADDATA)
 					solo_asic_video_device::gfxunit_exec_cel_loaddata(&cel);
@@ -2151,7 +2243,47 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 		.cels_base_master = m_gfx_cels_base_master
 	};
 
-	if (m_gfx_frame_valid && frame_state == m_gfx_frame_state && solo_asic_video_device::gfxunit_frame_unchanged())
+	if (machine().options().wtvvid_debug())
+	{
+		std::string summary = util::string_format(
+			"SOLO gfxUnit enabled=%u screen=%ux%u viewport=%u,%u %ux%u pot=0x%08x gfx=0x%08x ymap=0x%08x cels=0x%08x irq=0x%08x/0x%08x",
+			screen_enabled,
+			screen_width, screen_height,
+			m_pot_draw_hstart, m_pot_draw_vstart,
+			m_pot_draw_hsize, m_pot_draw_vsize,
+			m_pot_cntl,
+			m_gfx_cntl,
+			m_gfx_ymap_base_master,
+			m_gfx_cels_base_master,
+			m_gfx_intstat,
+			m_gfx_intenable
+		);
+
+		if (summary != m_video_debug_summary)
+		{
+			osd_printf_info(
+				"wtvvid[frame=%llu]: %s\n",
+				uint64_t(screen.frame_number()),
+				summary
+			);
+
+			m_video_debug_summary = std::move(summary);
+		}
+	}
+
+	const bool should_capture_debug =
+		machine().options().wtvvid_debug() >= 2
+		&& !m_video_debug_captured
+		&& screen_enabled
+		&& draw_cels
+		&& screen.frame_number() >= uint64_t(machine().options().wtvvid_gfx_startframe());
+
+	const bool frame_unchanged =
+		m_gfx_frame_valid
+		&& frame_state == m_gfx_frame_state
+		&& solo_asic_video_device::gfxunit_frame_unchanged();
+
+	if (!should_capture_debug && frame_unchanged)
 		return UPDATE_HAS_NOT_CHANGED;
 
 	uint32_t active_x_start = std::min(screen_width, (m_pot_draw_hstart + 1)                    & ~1u);
@@ -2189,7 +2321,37 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 	m_gfx_frame_reads.clear();
 
 	if (draw_cels)
+	{
+		m_video_debug_capture =
+			machine().options().wtvvid_debug() >= 2
+			&& !m_video_debug_captured
+			&& screen_enabled
+			&& screen.frame_number() >= uint64_t(machine().options().wtvvid_gfx_startframe());
+
+		if (m_video_debug_capture)
+		{
+			m_video_debug_cels = 0;
+			osd_printf_info(
+				"wtvvid[frame=%llu]: SOLO gfxUnit Cels (maximum %u cels)\n",
+				uint64_t(screen.frame_number()),
+				DBG_GFX_MAX_CAPTURE_CELS
+			);
+		}
+
 		solo_asic_video_device::gfxunit_draw_cels(bitmap);
+
+		if (m_video_debug_capture)
+		{
+			osd_printf_info(
+				"\tcapture complete, cels=%u%s\n",
+				m_video_debug_cels,
+				m_video_debug_cels > DBG_GFX_MAX_CAPTURE_CELS ? " (details truncated)" : ""
+			);
+
+			m_video_debug_captured = true;
+			m_video_debug_capture = false;
+		}
+	}
 
 	m_gfx_frame_state = frame_state;
 	m_gfx_frame_valid = solo_asic_video_device::gfxunit_frame_snapshot();
@@ -2294,6 +2456,37 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 		.progressive    = (m_pot_cntl & POT_FCNTL_PROGRESSIVE) != 0
 	};
 
+	if (machine().options().wtvvid_debug())
+	{
+		std::string summary = util::string_format(
+			"SOLO vidUnit enabled=%u dma_active=%u screen=%ux%u viewport=%u,%u %ux%u pot=0x%08x dma=0x%08x start=0x%08x draw_start=0x%08x size=0x%08x line_scale=%u irq=0x%08x/0x%08x%s",
+			screen_enabled,
+			draw_dma,
+			screen_width, screen_height,
+			m_pot_draw_hstart, m_pot_draw_vstart,
+			m_pot_draw_hsize, m_pot_draw_vsize,
+			m_pot_cntl,
+			m_vid_dmacntl,
+			m_vid_nstart,
+			m_vid_draw_nstart,
+			m_vid_nsize,
+			line_scale,
+			m_vid_intstat,
+			m_vid_intenable,
+			(draw_dma && dma_end > ram_words) ? " DMA outside RAM" : ""
+		);
+
+		if (summary != m_video_debug_summary)
+		{
+			osd_printf_info("wtvvid[frame=%llu]: %s\n",
+				uint64_t(screen.frame_number()),
+				summary
+			);
+
+			m_video_debug_summary = std::move(summary);
+		}
+	}
+
 	bool can_cache = !draw_dma || (dma_end <= ram_words && (dma_end - dma_first) <= VID_FRAME_CACHE_MAX_WORDS);
 	size_t dma_words = draw_dma ? (size_t)(dma_end - dma_first) : 0;
 
@@ -2367,11 +2560,7 @@ uint32_t solo_asic_video_device::vidunit_screen_update(screen_device &screen, bi
 uint32_t solo_asic_video_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	if (m_pot_cntl & POT_FCNTL_USEGFX)
-	{
 		return gfxunit_screen_update(screen, bitmap, cliprect);
-	}
 	else
-	{
 		return vidunit_screen_update(screen, bitmap, cliprect);
-	}
 }

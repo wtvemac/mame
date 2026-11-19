@@ -315,6 +315,7 @@ protected:
 	vid_frame_state m_vid_frame_state;
 	uint32_t m_vid_frame_ccnt = 0;
 	bool m_vid_frame_valid = false;
+	std::string m_vid_debug_summary;
 
 	int16_t m_aud_lsample;
 	int16_t m_aud_rsample;

@@ -155,6 +155,8 @@ const options_entry emu_options::s_option_entries[] =
 	{ OPTION_CTRLR,                                      nullptr,     core_options::option_type::STRING,     "preconfigure for specified controller" },
 	{ OPTION_WTVNET,                                     "0",         core_options::option_type::BOOLEAN,    "enable IP network support for pre-patched WebTV ROMs" },
 	{ OPTION_WTVPOINTER,                                 "0",         core_options::option_type::BOOLEAN,    "enable pointer support for pre-patched WebTV ROMs" },
+	{ OPTION_WTVVID_DEBUG "(0-2)",                       "0",         core_options::option_type::INTEGER,    "WebTV video diagnostics: 1 = state changes, 2 = also capture active gfxUnit cels" },
+	{ OPTION_WTVVID_GFX_STARTFRAME "(0-2147483647)",     "0",         core_options::option_type::INTEGER,    "first frame eligible for gfxUnit diagnostics capture" },
 	{ OPTION_MOUSE,                                      "0",         core_options::option_type::BOOLEAN,    "enable mouse input" },
 	{ OPTION_JOYSTICK ";joy",                            "1",         core_options::option_type::BOOLEAN,    "enable joystick input" },
 	{ OPTION_LIGHTGUN ";gun",                            "0",         core_options::option_type::BOOLEAN,    "enable lightgun input" },

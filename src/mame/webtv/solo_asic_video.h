@@ -137,6 +137,8 @@ constexpr int32_t ALPHA_MASK        = 0xff;
 constexpr uint8_t ALPHA_TRANSPARENT = 0x00;
 constexpr uint8_t ALPHA_OPAQUE      = 0xff;
 
+constexpr unsigned DBG_GFX_MAX_CAPTURE_CELS = 256;
+
 enum gfx_celrecord_size_t : uint8_t
 {
 	CELRECORD_SIZE_MICRO_CEL = 0x08, // 64 bits /  8 bytes
@@ -673,6 +675,11 @@ private:
 	std::vector<uint32_t> m_gfx_frame_snapshot;
 	gfx_frame_state m_gfx_frame_state;
 	bool m_gfx_frame_valid = false;
+
+	std::string m_video_debug_summary;
+	bool m_video_debug_captured = false;
+	bool m_video_debug_capture = false;
+	unsigned m_video_debug_cels = 0;
 
 	void vblank_irq(int state);
 	void set_video_irq(uint32_t mask, uint32_t sub_mask, int state);

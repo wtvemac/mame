@@ -133,6 +133,8 @@
 #define OPTION_MOUSE                "mouse"
 #define OPTION_WTVNET               "wtvnet"
 #define OPTION_WTVPOINTER           "wtvpointer"
+#define OPTION_WTVVID_DEBUG         "wtvvid_debug"
+#define OPTION_WTVVID_GFX_STARTFRAME "wtvvid_gfx_startframe"
 #define OPTION_JOYSTICK             "joystick"
 #define OPTION_LIGHTGUN             "lightgun"
 #define OPTION_MULTIKEYBOARD        "multikeyboard"
@@ -429,6 +431,8 @@ public:
 	bool mouse() const { return bool_value(OPTION_MOUSE); }
 	bool wtvnet() const { return bool_value(OPTION_WTVNET); }
 	bool wtvpointer() const { return bool_value(OPTION_WTVPOINTER); }
+	int wtvvid_debug() const { return int_value(OPTION_WTVVID_DEBUG); }
+	int wtvvid_gfx_startframe() const { return int_value(OPTION_WTVVID_GFX_STARTFRAME); }
 	bool joystick() const { return bool_value(OPTION_JOYSTICK); }
 	bool lightgun() const { return bool_value(OPTION_LIGHTGUN); }
 	bool multi_keyboard() const { return bool_value(OPTION_MULTIKEYBOARD); }
