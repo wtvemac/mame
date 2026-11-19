@@ -1397,12 +1397,12 @@ inline int32_t solo_asic_video_device::gfx_masked(float f, uint8_t mask)
 	return MASKED_INTF_TRUNC(f, mask);
 }
 
-inline int32_t solo_asic_video_device::gfx_vq422_masked(int32_t fx, uint8_t mask)
+inline int32_t solo_asic_video_device::gfx_422_masked(int32_t fx, uint8_t mask)
 {
 	return (int8_t)((fx >> 0x08) & mask);
 }
 
-inline int32_t solo_asic_video_device::gfx_vq422_masked(float f, uint8_t mask)
+inline int32_t solo_asic_video_device::gfx_422_masked(float f, uint8_t mask)
 {
 	return (int8_t)((int32_t)std::floor(f) & mask);
 }
@@ -1563,8 +1563,13 @@ inline uint32_t solo_asic_video_device::texdata_index(const gfx_cel_rasterctx &c
 	if constexpr (Type == TEXDATA_TYPE_VQ8_422)
 	{
 		// One index byte covers a 2x2 texel block.
-		texel_u = solo_asic_video_device::gfx_vq422_masked(u, ctx.umask) / 0x02;
-		texel_v = solo_asic_video_device::gfx_vq422_masked(v, ctx.vmask) / 0x02;
+		texel_u = solo_asic_video_device::gfx_422_masked(u, ctx.umask) / 0x02;
+		texel_v = solo_asic_video_device::gfx_422_masked(v, ctx.vmask) / 0x02;
+	}
+	else if constexpr (Type == TEXDATA_TYPE_DIR_422)
+	{
+		texel_u = solo_asic_video_device::gfx_422_masked(u, ctx.umask);
+		texel_v = solo_asic_video_device::gfx_422_masked(v, ctx.vmask);
 	}
 	else
 	{
@@ -1626,10 +1631,10 @@ inline void solo_asic_video_device::draw_pair(gfx_cel_rasterctx &ctx, uint32_t *
 			{
 				// A vector is a 2x2 texel block. v selects the codebook word, u selects its Y byte. Both pixels share chroma
 				uint8_t vector = ctx.read(index >> 0x2) >> (((~index) & 0x3) << 0x3);
-				uint32_t entry = ctx.vq422_codebook_base + (vector * 2) + (solo_asic_video_device::gfx_vq422_masked(v, ctx.vmask) & 0x1);
+				uint32_t entry = ctx.vq422_codebook_base + (vector * 2) + (solo_asic_video_device::gfx_422_masked(v, ctx.vmask) & 0x1);
 
 				in = (entry < ctx.ram_words) ? ctx.ram[entry] : 0;
-				odd_texel = solo_asic_video_device::gfx_vq422_masked(u, ctx.umask) & 0x1;
+				odd_texel = solo_asic_video_device::gfx_422_masked(u, ctx.umask) & 0x1;
 			}
 			else
 			{
@@ -1643,7 +1648,7 @@ inline void solo_asic_video_device::draw_pair(gfx_cel_rasterctx &ctx, uint32_t *
 			if (odd_texel)
 				in = (in & 0x00ffffff) | ((in & 0x0000ff00) << 0x10);
 
-			draw422<Blend>(in, std::false_type(), dest, ctx.global_alpha, ctx.brighten, ctx.is_direct_422);
+			draw422<Blend>(in, std::false_type(), dest, ctx.global_alpha, ctx.brighten, ctx.is_direct_422, ctx.transparent_422);
 		};
 
 		draw_422_single(out);
@@ -1681,7 +1686,7 @@ inline void solo_asic_video_device::draw_span(gfx_cel_rasterctx &ctx, uint32_t *
 template <solo_asic_video_device::gfx_blend_t Blend>
 inline uint32_t *solo_asic_video_device::draw_unscaled422(gfx_cel_rasterctx &ctx, uint32_t *out, uint32_t const *out_pairs_end, int32_t &u, int32_t v)
 {
-	const int32_t row = ctx.texdata_base + (solo_asic_video_device::gfx_masked(v, ctx.vmask) * ctx.rowbytes);
+	const int32_t row = ctx.texdata_base + (solo_asic_video_device::gfx_422_masked(v, ctx.vmask) * ctx.rowbytes);
 	int32_t i = u >> 0x08;
 
 	while (out < out_pairs_end)
@@ -1706,7 +1711,7 @@ inline uint32_t *solo_asic_video_device::draw_unscaled422(gfx_cel_rasterctx &ctx
 		ctx.track_read(src - ctx.ram, (src - ctx.ram) + ((pixelpair_cnt - 1) * src_step));
 
 		for (int32_t k = 0; k < pixelpair_cnt; k++, out += 2, src += src_step)
-			solo_asic_video_device::draw422<Blend>(*src, std::true_type(), out, ctx.global_alpha, ctx.brighten, ctx.is_direct_422);
+			solo_asic_video_device::draw422<Blend>(*src, std::true_type(), out, ctx.global_alpha, ctx.brighten, ctx.is_direct_422, ctx.transparent_422);
 
 		i += 2 * pixelpair_cnt;
 	}
@@ -1729,7 +1734,8 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 	ctx.ram = &m_hostram[0];
 	ctx.ram_words = m_hostram.length();
 	ctx.global_alpha = cel->global_alpha();
-	ctx.is_direct_422 = (cel->texdata_type() == TEXDATA_TYPE_DIR_422) || (Type == TEXDATA_TYPE_VQ8_422); // VQ8_422 vectors are DIR_422 words
+	ctx.is_direct_422 = (cel->texdata_type() == TEXDATA_TYPE_DIR_422) || (cel->texdata_type() == TEXDATA_TYPE_DIR_422A) || (Type == TEXDATA_TYPE_VQ8_422);
+	ctx.transparent_422 = (cel->texdata_type() == TEXDATA_TYPE_DIR_422) || (Type == TEXDATA_TYPE_VQ8_422);
 	ctx.vq422_codebook_base = cel->codebook_base();
 	ctx.texdata_base = (int32_t)cel->c.texdata_base;
 	ctx.rowbytes = cel->c.rowbytes;
@@ -1946,7 +1952,7 @@ inline void solo_asic_video_device::draw422(gfx_cel_t *cel, int8_t offset, uint3
 }
 
 template <solo_asic_video_device::gfx_blend_t Blend>
-inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422)
+inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422, bool transparent_422)
 {
 	const uint32_t chroma_bias = is_direct_422 ? 0x80 : 0;
 
@@ -1954,18 +1960,18 @@ inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *
 	int32_t cr = ((in >> 0x00) & 0xff) ^ chroma_bias;
 
 	uint8_t y0 = (in >> 0x18) & 0xff;
-	if (!is_direct_422 || y0 != Y_TRANSPARENT)
+	if (!transparent_422 || y0 != Y_TRANSPARENT)
 	{
-		int32_t yy = is_direct_422 ? solo_asic_video_device::gfx_output_luma(y0) : y0;
+		int32_t yy = is_direct_422 ? (transparent_422 ? solo_asic_video_device::gfx_output_luma(y0) : y0 + Y_BLACK) : (y0 < Y_BLACK ? y0 + 256 : y0);
 		solo_asic_video_device::draw_pixel_ycbcr<Blend>(out, yy, cb, cr, global_alpha, brighten);
 	}
 
 	if constexpr (decltype(second)::value)
 	{
 		uint8_t y1 = (in >> 0x08) & 0xff;
-		if (!is_direct_422 || y1 != Y_TRANSPARENT)
+		if (!transparent_422 || y1 != Y_TRANSPARENT)
 		{
-			int32_t yy = is_direct_422 ? solo_asic_video_device::gfx_output_luma(y1) : y1;
+			int32_t yy = is_direct_422 ? (transparent_422 ? solo_asic_video_device::gfx_output_luma(y1) : y1 + Y_BLACK) : (y1 < Y_BLACK ? y1 + 256 : y1);
 			solo_asic_video_device::draw_pixel_ycbcr<Blend>(out + 1, yy, cb, cr, global_alpha, brighten);
 		}
 	}

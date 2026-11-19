@@ -609,6 +609,7 @@ private:
 
 		uint8_t global_alpha;
 		bool is_direct_422;
+		bool transparent_422;
 		int32_t texdata_base;
 		int32_t rowbytes;
 		uint8_t umask;
@@ -711,8 +712,8 @@ private:
 	inline uint32_t gfx_init_color() const;
 	static inline int32_t gfx_masked(int32_t fx, uint8_t mask);
 	static inline int32_t gfx_masked(float f, uint8_t mask);
-	static inline int32_t gfx_vq422_masked(int32_t fx, uint8_t mask);
-	static inline int32_t gfx_vq422_masked(float f, uint8_t mask);
+	static inline int32_t gfx_422_masked(int32_t fx, uint8_t mask);
+	static inline int32_t gfx_422_masked(float f, uint8_t mask);
 	inline void gfx_add_read(uint32_t first, uint32_t last);
 
 	inline void draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out);
@@ -730,7 +731,7 @@ private:
 	static inline gfx_texel fetch444(uint32_t in, uint8_t global_alpha);
 	
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
-	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422);
+	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422, bool transparent_422);
 
 	bool gfxunit_frame_unchanged();
 	bool gfxunit_frame_snapshot();
