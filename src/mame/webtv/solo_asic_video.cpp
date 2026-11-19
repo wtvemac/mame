@@ -1397,6 +1397,16 @@ inline int32_t solo_asic_video_device::gfx_masked(float f, uint8_t mask)
 	return MASKED_INTF_TRUNC(f, mask);
 }
 
+inline int32_t solo_asic_video_device::gfx_vq422_masked(int32_t fx, uint8_t mask)
+{
+	return (int8_t)((fx >> 0x08) & mask);
+}
+
+inline int32_t solo_asic_video_device::gfx_vq422_masked(float f, uint8_t mask)
+{
+	return (int8_t)((int32_t)std::floor(f) & mask);
+}
+
 inline void solo_asic_video_device::gfx_add_read(uint32_t first, uint32_t last)
 {
 	if (!m_gfx_frame_reads.empty() && first >= m_gfx_frame_reads.back().first && first <= (m_gfx_frame_reads.back().second + 1))
@@ -1547,16 +1557,31 @@ inline void solo_asic_video_device::draw_pixel_ycbcr(uint32_t *out, int32_t y, i
 template <gfx_texdata_type_t Type>
 inline uint32_t solo_asic_video_device::texdata_index(const gfx_cel_rasterctx &ctx, auto u, auto v)
 {
-	int32_t base = ctx.texdata_base + (solo_asic_video_device::gfx_masked(v, ctx.vmask) * ctx.rowbytes);
+	int32_t texel_u;
+	int32_t texel_v;
+
+	if constexpr (Type == TEXDATA_TYPE_VQ8_422)
+	{
+		// One index byte covers a 2x2 texel block.
+		texel_u = solo_asic_video_device::gfx_vq422_masked(u, ctx.umask) / 0x02;
+		texel_v = solo_asic_video_device::gfx_vq422_masked(v, ctx.vmask) / 0x02;
+	}
+	else
+	{
+		texel_u = solo_asic_video_device::gfx_masked(u, ctx.umask);
+		texel_v = solo_asic_video_device::gfx_masked(v, ctx.vmask);
+	}
+
+	int32_t base = ctx.texdata_base + (texel_v * ctx.rowbytes);
 
 	if constexpr (Type == TEXDATA_TYPE_DIR_444)
-		base += solo_asic_video_device::gfx_masked(u, ctx.umask) * 0x04;
-	else if constexpr (Type == TEXDATA_TYPE_VQ8_444)
-		base += solo_asic_video_device::gfx_masked(u, ctx.umask) * 0x01;
+		base += texel_u * 0x04;
+	else if constexpr (Type == TEXDATA_TYPE_VQ8_444 || Type == TEXDATA_TYPE_VQ8_422)
+		base += texel_u;
 	else if constexpr (Type == TEXDATA_TYPE_VQ4_444)
-		base += solo_asic_video_device::gfx_masked(u, ctx.umask) >> 0x01;
+		base += texel_u >> 0x01;
 	else
-		base += solo_asic_video_device::gfx_masked(u, ctx.umask) * 0x02;
+		base += texel_u * 0x02;
 
 	return (base < 0) ? (uint32_t)ctx.texdata_base : (uint32_t)base;
 }
@@ -1589,16 +1614,33 @@ inline solo_asic_video_device::gfx_texel solo_asic_video_device::fetch_texel(gfx
 template <gfx_texdata_type_t Type, solo_asic_video_device::gfx_blend_t Blend>
 inline void solo_asic_video_device::draw_pair(gfx_cel_rasterctx &ctx, uint32_t *out, auto &u, auto &v, auto second)
 {
-	if constexpr (Type == TEXDATA_TYPE_DIR_422)
+	if constexpr (Type == TEXDATA_TYPE_DIR_422 || Type == TEXDATA_TYPE_VQ8_422)
 	{
 		auto draw_422_single = [&](uint32_t *dest)
 		{
 			uint32_t index = solo_asic_video_device::texdata_index<Type>(ctx, u, v);
-			uint32_t in = ctx.read(index >> 0x2);
+			uint32_t in;
+			bool odd_texel;
+
+			if constexpr (Type == TEXDATA_TYPE_VQ8_422)
+			{
+				// A vector is a 2x2 texel block. v selects the codebook word, u selects its Y byte. Both pixels share chroma
+				uint8_t vector = ctx.read(index >> 0x2) >> (((~index) & 0x3) << 0x3);
+				uint32_t entry = ctx.vq422_codebook_base + (vector * 2) + (solo_asic_video_device::gfx_vq422_masked(v, ctx.vmask) & 0x1);
+
+				in = (entry < ctx.ram_words) ? ctx.ram[entry] : 0;
+				odd_texel = solo_asic_video_device::gfx_vq422_masked(u, ctx.umask) & 0x1;
+			}
+			else
+			{
+				in = ctx.read(index >> 0x2);
+				odd_texel = index & 0x2;
+			}
 
 			ctx.advance_x(u, v);
 
-			if (index & 0x2)
+			// Move Y1 into Y0 so the odd texel is drawn as the first pixel
+			if (odd_texel)
 				in = (in & 0x00ffffff) | ((in & 0x0000ff00) << 0x10);
 
 			draw422<Blend>(in, std::false_type(), dest, ctx.global_alpha, ctx.brighten, ctx.is_direct_422);
@@ -1687,7 +1729,8 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 	ctx.ram = &m_hostram[0];
 	ctx.ram_words = m_hostram.length();
 	ctx.global_alpha = cel->global_alpha();
-	ctx.is_direct_422 = (cel->texdata_type() == TEXDATA_TYPE_DIR_422);
+	ctx.is_direct_422 = (cel->texdata_type() == TEXDATA_TYPE_DIR_422) || (Type == TEXDATA_TYPE_VQ8_422); // VQ8_422 vectors are DIR_422 words
+	ctx.vq422_codebook_base = cel->codebook_base();
 	ctx.texdata_base = (int32_t)cel->c.texdata_base;
 	ctx.rowbytes = cel->c.rowbytes;
 	ctx.umask = cel->c.umask;
@@ -1727,6 +1770,15 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 		if (!internal_codebook)
 			solo_asic_video_device::gfx_add_read(codebook_base, codebook_base + CODEBOOK_SIZE - 1);
 	}
+	else if constexpr (Type == TEXDATA_TYPE_VQ8_422)
+	{
+		if (ctx.vq422_codebook_base < ctx.ram_words)
+			solo_asic_video_device::gfx_add_read(ctx.vq422_codebook_base, std::min<uint32_t>(ctx.vq422_codebook_base + GFX_VQ422_CODEBOOK_WORDS - 1, ctx.ram_words - 1));
+	}
+
+	const bool vq422_odd_field = (Type == TEXDATA_TYPE_VQ8_422) && m_gfx_wb_vq422_odd;
+	const float u_adjust = vq422_odd_field ? cel->c.durow_adjust : 0.0f;
+	const float v_adjust = vq422_odd_field ? cel->c.dvrow_adjust : 0.0f;
 
 	for (int32_t y = y_top; y < y_bottom; y++)
 	{
@@ -1755,8 +1807,11 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 				return (std::abs((int64_t)start) + (steps * std::abs((int64_t)step))) < (1 << 24);
 			};
 
-			int32_t u = (int32_t)(cel->u * 256.0f);
-			int32_t v = (int32_t)(cel->v * 256.0f);
+			const float u_start = cel->u + u_adjust;
+			const float v_start = cel->v + v_adjust;
+
+			int32_t u = (int32_t)(u_start * 256.0f);
+			int32_t v = (int32_t)(v_start * 256.0f);
 
 			if (fits(u, ctx.dux) && fits(v, ctx.dvx))
 			{
@@ -1770,8 +1825,8 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 			}
 			else
 			{
-				float uf = cel->u;
-				float vf = cel->v;
+				float uf = u_start;
+				float vf = v_start;
 
 				solo_asic_video_device::draw_span<Type, Blend>(ctx, out, out_pairs_end, odd, uf, vf);
 			}
@@ -2026,6 +2081,10 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t
 			solo_asic_video_device::draw_lines_by_alpha<TEXDATA_TYPE_VQ8_444>(cel, bitmap, y_top, y_bottom);
 			break;
 
+		case TEXDATA_TYPE_VQ8_422:
+			solo_asic_video_device::draw_lines_by_alpha<TEXDATA_TYPE_VQ8_422>(cel, bitmap, y_top, y_bottom);
+			break;
+
 		case TEXDATA_TYPE_VQ4_444:
 			solo_asic_video_device::draw_lines_by_alpha<TEXDATA_TYPE_VQ4_444>(cel, bitmap, y_top, y_bottom);
 			break;
@@ -2034,9 +2093,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t
 			solo_asic_video_device::draw_lines_by_alpha<TEXDATA_TYPE_DIR_444>(cel, bitmap, y_top, y_bottom);
 			break;
 
-		case TEXDATA_TYPE_VQ8_422:
 		default:
-			// VQ8_422 is not implemented.
 			break;
 	}
 }
@@ -2155,7 +2212,7 @@ inline void solo_asic_video_device::gfxunit_draw_cels(bitmap_rgb32 &bitmap)
 				if (m_video_debug_capture && m_video_debug_cels++ < DBG_GFX_MAX_CAPTURE_CELS)
 				{
 					static const char *const formats[] = {
-						"VQ8_422 (unimplemented)",
+						"VQ8_422",
 						"DIR_422",
 						"VQ8_444",
 						"DIR_444",
@@ -2328,7 +2385,9 @@ TIMER_CALLBACK_MEMBER(solo_asic_video_device::gfxunit_writeback)
 			m_gfx_frame_reads.clear();
 			if (m_gfx_ymap_base_master != 0x80000000)
 			{
+				m_gfx_wb_vq422_odd = (!frame && !even);
 				solo_asic_video_device::gfxunit_draw_cels(fields[0]);
+				m_gfx_wb_vq422_odd = false;
 
 				if (frame)
 				{

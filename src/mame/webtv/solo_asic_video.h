@@ -112,10 +112,11 @@ constexpr uint32_t GFX_WB_ODD       = 1 << 0; // Write back the odd field
 constexpr uint32_t GFX_WB_ENABLES   = (GFX_WB_SCREEN | GFX_WB_EVEN | GFX_WB_ODD);
 constexpr uint32_t GFX_WB_SIZE_MASK = 0x000003ff; // WBDLSIZE, WBSTRIDE and ACTIVELINES are 10-bit counts
 
-constexpr uint16_t GFX_TERMINATION_LINE = 0x1ff;
-constexpr uint8_t  GFX_MAX_YMAPS        = 255;
-constexpr uint8_t  GFX_MAX_CELS         = 255;
-constexpr uint8_t  GFX_CODEBOOK_SIZE    = 16;  // internal VQ4 codebook, loaded by a LOADDATA_TYPE_CODEBOOK cel
+constexpr uint16_t GFX_TERMINATION_LINE     = 0x1ff;
+constexpr uint8_t  GFX_MAX_YMAPS            = 255;
+constexpr uint8_t  GFX_MAX_CELS             = 255;
+constexpr uint8_t  GFX_CODEBOOK_SIZE        = 16;      // internal VQ4 codebook, loaded by a LOADDATA_TYPE_CODEBOOK cel
+constexpr uint16_t GFX_VQ422_CODEBOOK_WORDS = 256 * 2; // VQ8_422 256 vectors, each two 4:2:2 words (a 2x2 texel block)
 
 constexpr uint32_t POT_INT_VSYNCE = 1 << 5; // even field VSYNC
 constexpr uint32_t POT_INT_VSYNCO = 1 << 4; // odd field VSYNC
@@ -604,6 +605,7 @@ private:
 		uint32_t read_lo = UINT32_MAX;
 		uint32_t read_hi = 0;
 		uint32_t ram_words;
+		uint32_t vq422_codebook_base;
 
 		uint8_t global_alpha;
 		bool is_direct_422;
@@ -694,6 +696,7 @@ private:
 	bool m_gfx_frame_valid = false;
 
 	int32_t m_gfx_wb_yshift = 0;
+	bool m_gfx_wb_vq422_odd = false; // compositing an odd-field-only write-back (VQ8_422 starts one texture row down)
 
 	std::string m_video_debug_summary;
 	bool m_video_debug_captured = false;
@@ -708,6 +711,8 @@ private:
 	inline uint32_t gfx_init_color() const;
 	static inline int32_t gfx_masked(int32_t fx, uint8_t mask);
 	static inline int32_t gfx_masked(float f, uint8_t mask);
+	static inline int32_t gfx_vq422_masked(int32_t fx, uint8_t mask);
+	static inline int32_t gfx_vq422_masked(float f, uint8_t mask);
 	inline void gfx_add_read(uint32_t first, uint32_t last);
 
 	inline void draw_pixel(gfx_cel_t *cel, uint8_t a, int32_t r, int32_t g, int32_t b, uint32_t **out);
