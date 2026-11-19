@@ -9,6 +9,10 @@
 
 #include "lirc.h"
 
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+
 DEFINE_DEVICE_TYPE(LIRC, lirc_device, "lirc", "LIRC IR Device")
 
 /*-------------------------------------------------
