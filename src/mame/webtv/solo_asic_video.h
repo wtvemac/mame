@@ -103,6 +103,13 @@ constexpr uint32_t GFX_INT_RANGEINT_WBEOFL = 1 << 4; // Writeback has finished f
 constexpr uint32_t GFX_INT_RANGEINT_OOT    = 1 << 3; // qfxUnit ran out of time compositing line
 constexpr uint32_t GFX_INT_RANGEINT_WBEOF  = 1 << 2; // Writeback has finished frame
 
+constexpr uint32_t GFX_WB_REPEAT    = 1 << 3; // Keep writing back every frame/field instead of a one-shot
+constexpr uint32_t GFX_WB_SCREEN    = 1 << 2; // Write back a full frame (takes precedence over EVEN/ODD)
+constexpr uint32_t GFX_WB_EVEN      = 1 << 1; // Write back the even field
+constexpr uint32_t GFX_WB_ODD       = 1 << 0; // Write back the odd field
+constexpr uint32_t GFX_WB_ENABLES   = (GFX_WB_SCREEN | GFX_WB_EVEN | GFX_WB_ODD);
+constexpr uint32_t GFX_WB_SIZE_MASK = 0x000003ff; // WBDLSIZE, WBSTRIDE and ACTIVELINES are 10-bit counts
+
 constexpr uint16_t GFX_TERMINATION_LINE = 0x1ff;
 constexpr uint8_t  GFX_MAX_YMAPS        = 255;
 constexpr uint8_t  GFX_MAX_CELS         = 255;
@@ -592,6 +599,7 @@ private:
 
 		uint8_t global_alpha;
 		bool is_direct_422;
+		bool wb_native_ycbcr;
 		int32_t texdata_base;
 		int32_t rowbytes;
 		uint8_t umask;
@@ -676,6 +684,9 @@ private:
 	gfx_frame_state m_gfx_frame_state;
 	bool m_gfx_frame_valid = false;
 
+	bool m_gfx_wb_native = false;  // write-back bitmaps hold biased Y/Cb/Cr, not host RGB
+	int32_t m_gfx_wb_yshift = 0;
+
 	std::string m_video_debug_summary;
 	bool m_video_debug_captured = false;
 	bool m_video_debug_capture = false;
@@ -685,6 +696,7 @@ private:
 	void set_video_irq(uint32_t mask, uint32_t sub_mask, int state);
 
 	static inline uint32_t gfx_pack(int32_t r, int32_t g, int32_t b);
+	static inline int32_t gfx_wb_luma(int32_t y);
 	static inline int32_t gfx_masked(int32_t fx, uint8_t mask);
 	static inline int32_t gfx_masked(float f, uint8_t mask);
 	inline void gfx_add_read(uint32_t first, uint32_t last);
@@ -701,10 +713,10 @@ private:
 	template <gfx_texdata_type_t Type> void draw_lines_by_alpha(gfx_cel_t *cel, bitmap_rgb32 &bitmap, int32_t y_top, int32_t y_bottom);
 
 	inline void draw444(gfx_cel_t *cel, int8_t offset, uint32_t in0, uint32_t in1, uint32_t **out);
-	static inline gfx_texel fetch444(uint32_t in, uint8_t global_alpha);
+	static inline gfx_texel fetch444(uint32_t in, uint8_t global_alpha, bool wb_native_ycbcr);
 	
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
-	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422);
+	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422, bool wb_native_ycbcr);
 
 	bool gfxunit_frame_unchanged();
 	bool gfxunit_frame_snapshot();
@@ -730,6 +742,13 @@ private:
 
 	emu_timer *m_div_field_timer;
 	TIMER_CALLBACK_MEMBER(div_field_end);
+
+	bool gfxunit_writeback_enabled() const;
+	void gfxunit_writeback_schedule();
+	void gfxunit_writeback_store(const bitmap_rgb32 &field, uint32_t first_line, uint64_t base);
+
+	emu_timer *m_gfx_writeback_timer;
+	TIMER_CALLBACK_MEMBER(gfxunit_writeback);
 
 	/* gfxUnit registers */
 

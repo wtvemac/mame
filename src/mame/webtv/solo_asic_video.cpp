@@ -30,6 +30,7 @@ void solo_asic_video_device::device_start()
 		throw device_missing_dependencies();
 
 	m_div_field_timer = timer_alloc(FUNC(solo_asic_video_device::div_field_end), this);
+	m_gfx_writeback_timer = timer_alloc(FUNC(solo_asic_video_device::gfxunit_writeback), this);
 
 	solo_asic_video_device::device_reset();
 
@@ -157,6 +158,7 @@ void solo_asic_video_device::device_reset()
 	m_gfx_wbdconfig = 0x0;
 	m_gfx_intenable = 0x0;
 	m_gfx_intstat = 0x0;
+	m_gfx_writeback_timer->adjust(attotime::never);
 
 	m_div_synccntl = 0x0;
 	m_div_nvbitb = 0x0;
@@ -599,6 +601,8 @@ uint32_t solo_asic_video_device::reg_6004_r()
 void solo_asic_video_device::reg_6004_w(uint32_t data)
 {
 	m_gfx_cntl = data;
+
+	solo_asic_video_device::gfxunit_writeback_schedule();
 }
 
 uint32_t solo_asic_video_device::reg_6010_r()
@@ -844,6 +848,8 @@ uint32_t solo_asic_video_device::reg_6090_r()
 void solo_asic_video_device::reg_6090_w(uint32_t data)
 {
 	m_gfx_wbdconfig = data;
+
+	solo_asic_video_device::gfxunit_writeback_schedule();
 }
 
 uint32_t solo_asic_video_device::reg_6094_r()
@@ -1290,16 +1296,16 @@ void solo_asic_video_device::set_video_irq(uint32_t mask, uint32_t sub_mask, int
 				break;
 
 			case BUS_INT_VID_GFXUNIT:
-				if (m_gfx_intenable & sub_mask)
+				if (state)
 				{
-					if (state)
-						m_gfx_intstat |= sub_mask;
-					else
-						m_gfx_intstat &= (~sub_mask);
+					sub_mask &= m_gfx_intenable;
+					m_gfx_intstat |= sub_mask;
+					state = (sub_mask != 0);
 				}
 				else
 				{
-					state = 0;
+					// Always allow clearing, even if the source was disabled after it was raised.
+					m_gfx_intstat &= (~sub_mask);
 				}
 				sub_intstat = m_gfx_intstat;
 				break;
@@ -1360,6 +1366,11 @@ inline uint32_t solo_asic_video_device::gfx_pack(int32_t r, int32_t g, int32_t b
 		| std::clamp(g, 0x00, 0xff) << 0x08
 		| std::clamp(b, 0x00, 0xff) << 0x00
 	);
+}
+
+inline int32_t solo_asic_video_device::gfx_wb_luma(int32_t y)
+{
+	return std::min<int32_t>(y + Y_BLACK, 0xff);
 }
 
 inline int32_t solo_asic_video_device::gfx_masked(int32_t fx, uint8_t mask)
@@ -1536,7 +1547,7 @@ inline solo_asic_video_device::gfx_texel solo_asic_video_device::fetch_texel(gfx
 	ctx.advance_x(u, v);
 
 	if constexpr (Type == TEXDATA_TYPE_DIR_444)
-		return fetch444(ctx.read(index >> 0x2), ctx.global_alpha);
+		return fetch444(ctx.read(index >> 0x2), ctx.global_alpha, ctx.wb_native_ycbcr);
 	else
 		return ctx.codebook[(uint8_t)(ctx.read(index >> 0x2) >> (((~index) & 0x3) << 0x3))];
 }
@@ -1556,7 +1567,7 @@ inline void solo_asic_video_device::draw_pair(gfx_cel_rasterctx &ctx, uint32_t *
 			if (index & 0x2)
 				in = (in & 0x00ffffff) | ((in & 0x0000ff00) << 0x10);
 
-			draw422<Blend>(in, std::false_type(), dest, ctx.global_alpha, ctx.brighten, ctx.is_direct_422);
+			draw422<Blend>(in, std::false_type(), dest, ctx.global_alpha, ctx.brighten, ctx.is_direct_422, ctx.wb_native_ycbcr);
 		};
 
 		draw_422_single(out);
@@ -1627,7 +1638,7 @@ inline uint32_t *solo_asic_video_device::draw_unscaled422(gfx_cel_rasterctx &ctx
 		ctx.track_read(src - ctx.ram, (src - ctx.ram) + ((pixelpair_cnt - 1) * src_step));
 
 		for (int32_t k = 0; k < pixelpair_cnt; k++, out += 2, src += src_step)
-			solo_asic_video_device::draw422<Blend>(*src, std::true_type(), out, ctx.global_alpha, ctx.brighten, ctx.is_direct_422);
+			solo_asic_video_device::draw422<Blend>(*src, std::true_type(), out, ctx.global_alpha, ctx.brighten, ctx.is_direct_422, ctx.wb_native_ycbcr);
 
 		i += 2 * pixelpair_cnt;
 	}
@@ -1653,6 +1664,7 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 	ctx.ram_words = m_hostram.length();
 	ctx.global_alpha = cel->global_alpha();
 	ctx.is_direct_422 = (cel->texdata_type() == TEXDATA_TYPE_DIR_422);
+	ctx.wb_native_ycbcr = m_gfx_wb_native;
 	ctx.texdata_base = (int32_t)cel->c.texdata_base;
 	ctx.rowbytes = cel->c.rowbytes;
 	ctx.umask = cel->c.umask;
@@ -1666,17 +1678,26 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 
 	if constexpr (Blend == GFX_BLEND_BRIGHTEN)
 	{
-		int32_t y = t.y444[cel->y_blend_color()];
-		ctx.brighten[0] = y + t.cr_r[cel->cr_blend_color() ^ 0x80];
-		ctx.brighten[2] = y - t.cb_b[cel->cb_blend_color() ^ 0x80];
-		ctx.brighten[1] = y + (((0x32 * ctx.brighten[2]) + (0x83 * ctx.brighten[0]) + UV_OFFSET) >> 0x08);
+		if (ctx.wb_native_ycbcr)
+		{
+			ctx.brighten[0] = solo_asic_video_device::gfx_wb_luma(cel->y_blend_color());
+			ctx.brighten[1] = cel->cb_blend_color() ^ 0x80;
+			ctx.brighten[2] = cel->cr_blend_color() ^ 0x80;
+		}
+		else
+		{
+			int32_t y = t.y444[cel->y_blend_color()];
+			ctx.brighten[0] = y + t.cr_r[cel->cr_blend_color() ^ 0x80];
+			ctx.brighten[2] = y - t.cb_b[cel->cb_blend_color() ^ 0x80];
+			ctx.brighten[1] = y + (((0x32 * ctx.brighten[2]) + (0x83 * ctx.brighten[0]) + UV_OFFSET) >> 0x08);
+		}
 	}
 
 	if constexpr (IS_VQ)
 	{
 		uint32_t codebook_base = cel->codebook_base();
 		for (uint32_t i = 0; i < CODEBOOK_SIZE; i++)
-			ctx.codebook[i] = solo_asic_video_device::fetch444(((codebook_base + i) < ctx.ram_words) ? ctx.ram[codebook_base + i] : 0, ctx.global_alpha);
+			ctx.codebook[i] = solo_asic_video_device::fetch444(((codebook_base + i) < ctx.ram_words) ? ctx.ram[codebook_base + i] : 0, ctx.global_alpha, ctx.wb_native_ycbcr);
 
 		solo_asic_video_device::gfx_add_read(codebook_base, codebook_base + CODEBOOK_SIZE - 1);
 	}
@@ -1797,21 +1818,32 @@ inline void solo_asic_video_device::draw444(gfx_cel_t *cel, int8_t offset, uint3
 	(*out)++;
 }
 
-inline solo_asic_video_device::gfx_texel solo_asic_video_device::fetch444(uint32_t in, uint8_t global_alpha)
+inline solo_asic_video_device::gfx_texel solo_asic_video_device::fetch444(uint32_t in, uint8_t global_alpha, bool wb_native_ycbcr)
 {
 	const gfx_tables &t = s_gfx_tables;
 	gfx_texel texel;
 
 	uint8_t a = (in >> 0x08) & 0xff;
 	uint8_t y = (in >> 0x18) & 0xff;
-	int32_t yy = t.y444[y];
-	int32_t r = t.cr_r[((in >> 0x00) & 0xff) ^ 0x80];
-	int32_t b = t.cb_b[((in >> 0x10) & 0xff) ^ 0x80];
-	int32_t g = (((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08);
 
-	texel.r = yy + r;
-	texel.g = yy - g;
-	texel.b = yy + b;
+	if (wb_native_ycbcr)
+	{
+		texel.r = solo_asic_video_device::gfx_wb_luma(y);
+		texel.g = ((in >> 0x10) & 0xff) ^ 0x80;
+		texel.b = ((in >> 0x00) & 0xff) ^ 0x80;
+	}
+	else
+	{
+		int32_t yy = t.y444[y];
+		int32_t r = t.cr_r[((in >> 0x00) & 0xff) ^ 0x80];
+		int32_t b = t.cb_b[((in >> 0x10) & 0xff) ^ 0x80];
+		int32_t g = (((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08);
+
+		texel.r = yy + r;
+		texel.g = yy - g;
+		texel.b = yy + b;
+	}
+
 	texel.packed = solo_asic_video_device::gfx_pack(texel.r, texel.g, texel.b);
 
 	if (a == ALPHA_TRANSPARENT || y == Y_TRANSPARENT)
@@ -1853,39 +1885,64 @@ inline void solo_asic_video_device::draw422(gfx_cel_t *cel, int8_t offset, uint3
 }
 
 template <solo_asic_video_device::gfx_blend_t Blend>
-inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422)
+inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422, bool wb_native_ycbcr)
 {
 	const gfx_tables &t = s_gfx_tables;
-
-	if constexpr (Blend != GFX_BLEND_OPAQUE)
-	{
-		if (global_alpha == ALPHA_TRANSPARENT)
-			return;
-	}
-
 	const uint32_t chroma_bias = is_direct_422 ? 0x80 : 0;
-	int32_t r = t.cr_r[((in >> 0x00) & 0xff) ^ chroma_bias];
-	int32_t b = t.cb_b[((in >> 0x10) & 0xff) ^ chroma_bias];
-	int32_t g = ((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08;
 
-	const uint32_t *clamp_r = t.clamp_r + gfx_tables::CLAMP_BIAS + r;
-	const uint32_t *clamp_g = t.clamp_g + gfx_tables::CLAMP_BIAS - g;
-	const uint32_t *clamp_b = t.clamp_b + gfx_tables::CLAMP_BIAS + b;
-
-	uint8_t y0 = (in >> 0x18) & 0xff;
-	if (y0 != Y_TRANSPARENT)
+	if (wb_native_ycbcr)
 	{
-		int32_t yy = is_direct_422 ? (((std::min<int32_t>(y0, Y_RANGE) << 8) + UV_OFFSET) / Y_RANGE) : t.y422[y0];
-		draw_pixel<Blend>(out, yy + r, yy - g, yy + b, global_alpha, clamp_r[yy] | clamp_g[yy] | clamp_b[yy], brighten);
-	}
+		int32_t cb = ((in >> 0x10) & 0xff) ^ chroma_bias;
+		int32_t cr = ((in >> 0x00) & 0xff) ^ chroma_bias;
 
-	if constexpr (decltype(second)::value)
-	{
-		uint8_t y1 = (in >> 0x08) & 0xff;
-		if (y1 != Y_TRANSPARENT)
+		uint8_t y0 = (in >> 0x18) & 0xff;
+		if (y0 != Y_TRANSPARENT)
 		{
-			int32_t yy = is_direct_422 ? (((std::min<int32_t>(y1, Y_RANGE) << 8) + UV_OFFSET) / Y_RANGE) : t.y422[y1];
-			draw_pixel<Blend>(out + 1, yy + r, yy - g, yy + b, global_alpha, clamp_r[yy] | clamp_g[yy] | clamp_b[yy], brighten);
+			int32_t yy = is_direct_422 ? solo_asic_video_device::gfx_wb_luma(y0) : y0;
+			draw_pixel<Blend>(out, yy, cb, cr, global_alpha, solo_asic_video_device::gfx_pack(yy, cb, cr), brighten);
+		}
+
+		if constexpr (decltype(second)::value)
+		{
+			uint8_t y1 = (in >> 0x08) & 0xff;
+			if (y1 != Y_TRANSPARENT)
+			{
+				int32_t yy = is_direct_422 ? solo_asic_video_device::gfx_wb_luma(y1) : y1;
+				draw_pixel<Blend>(out + 1, yy, cb, cr, global_alpha, solo_asic_video_device::gfx_pack(yy, cb, cr), brighten);
+			}
+		}
+	}
+	else
+	{
+		if constexpr (Blend != GFX_BLEND_OPAQUE)
+		{
+			if (global_alpha == ALPHA_TRANSPARENT)
+				return;
+		}
+
+		int32_t r = t.cr_r[((in >> 0x00) & 0xff) ^ chroma_bias];
+		int32_t b = t.cb_b[((in >> 0x10) & 0xff) ^ chroma_bias];
+		int32_t g = ((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08;
+
+		const uint32_t *clamp_r = t.clamp_r + gfx_tables::CLAMP_BIAS + r;
+		const uint32_t *clamp_g = t.clamp_g + gfx_tables::CLAMP_BIAS - g;
+		const uint32_t *clamp_b = t.clamp_b + gfx_tables::CLAMP_BIAS + b;
+
+		uint8_t y0 = (in >> 0x18) & 0xff;
+		if (y0 != Y_TRANSPARENT)
+		{
+			int32_t yy = is_direct_422 ? (((std::min<int32_t>(y0, Y_RANGE) << 8) + UV_OFFSET) / Y_RANGE) : t.y422[y0];
+			draw_pixel<Blend>(out, yy + r, yy - g, yy + b, global_alpha, clamp_r[yy] | clamp_g[yy] | clamp_b[yy], brighten);
+		}
+
+		if constexpr (decltype(second)::value)
+		{
+			uint8_t y1 = (in >> 0x08) & 0xff;
+			if (y1 != Y_TRANSPARENT)
+			{
+				int32_t yy = is_direct_422 ? (((std::min<int32_t>(y1, Y_RANGE) << 8) + UV_OFFSET) / Y_RANGE) : t.y422[y1];
+				draw_pixel<Blend>(out + 1, yy + r, yy - g, yy + b, global_alpha, clamp_r[yy] | clamp_g[yy] | clamp_b[yy], brighten);
+			}
 		}
 	}
 }
@@ -1973,7 +2030,7 @@ inline void solo_asic_video_device::gfxunit_draw_cel(gfx_ymap_t *ymap, gfx_cel_t
 {
 	cel->texdata_start();
 
-	int32_t y_top    = (int32_t)m_pot_draw_vstart + (((int32_t)m_pot_draw_vsize / 2) + ymap->line_top()) + cel->top_offset();
+	int32_t y_top    = (int32_t)m_pot_draw_vstart + (((int32_t)m_pot_draw_vsize / 2) + ymap->line_top()) + cel->top_offset() + m_gfx_wb_yshift;
 	int32_t y_bottom = std::min((int32_t)(m_pot_draw_vstart + m_pot_draw_vsize), y_top + (ymap->line_cnt() - cel->bottom_offset()));
 
 	if (y_top < (int32_t)m_pot_draw_vstart)
@@ -2209,6 +2266,135 @@ inline void solo_asic_video_device::gfxunit_draw_cels(bitmap_rgb32 &bitmap)
 	}
 }
 
+bool solo_asic_video_device::gfxunit_writeback_enabled() const
+{
+	constexpr uint32_t WB_CNTL = (GFX_FCNTL_EN | GFX_FCNTL_WRITEBACKEN);
+
+	return ((m_gfx_cntl & (WB_CNTL | GFX_FCNTL_SOFTRESET)) == WB_CNTL) && (m_gfx_wbdconfig & GFX_WB_ENABLES);
+}
+
+void solo_asic_video_device::gfxunit_writeback_schedule()
+{
+	if (solo_asic_video_device::gfxunit_writeback_enabled())
+		m_gfx_writeback_timer->adjust(attotime::zero);
+	else
+		m_gfx_writeback_timer->adjust(attotime::never);
+}
+
+void solo_asic_video_device::gfxunit_writeback_store(const bitmap_rgb32 &field, uint32_t first_line, uint64_t base)
+{
+	// Converts the composited 4:4:4 lines back to 4:2:2 (Y0 Cb Y1 Cr) in host RAM.
+
+	const uint32_t width = field.width();
+	const uint32_t height = field.height();
+	const uint64_t field_step = uint64_t(width + (m_gfx_wbstride & GFX_WB_SIZE_MASK)) * BYTES_PER_PIXEL * 2;
+
+	for (uint32_t y = first_line; y < height; y += 2)
+	{
+		const uint64_t line = base + ((y / 2) * field_step);
+		const uint32_t *src = &field.pix(y);
+
+		for (uint32_t x = 0; x < width; x += 2)
+		{
+			const uint64_t word = (line + (x * BYTES_PER_PIXEL)) >> 2;
+			if (word >= m_hostram.length())
+				break;
+
+			const uint32_t p0 = src[x + 0];
+			const uint32_t p1 = src[x + 1];
+			const uint32_t y0 = (p0 >> 0x10) & 0xff;
+			const uint32_t y1 = (p1 >> 0x10) & 0xff;
+			const uint32_t cb = (((p0 >> 0x08) & 0xff) + ((p1 >> 0x08) & 0xff)) / 2;
+			const uint32_t cr = (((p0 >> 0x00) & 0xff) + ((p1 >> 0x00) & 0xff)) / 2;
+
+			m_hostram[word] = (y0 << 0x18) | (cb << 0x10) | (y1 << 0x08) | cr;
+		}
+	}
+}
+
+TIMER_CALLBACK_MEMBER(solo_asic_video_device::gfxunit_writeback)
+{
+	if (solo_asic_video_device::gfxunit_writeback_enabled())
+	{
+		const uint32_t mode = m_gfx_wbdconfig & GFX_WB_ENABLES;
+		const bool frame = (mode & GFX_WB_SCREEN);
+		const bool even = !frame && (mode & GFX_WB_EVEN);
+
+		if (!(m_gfx_wbdconfig & GFX_WB_REPEAT))
+			m_gfx_wbdconfig &= (~mode);
+
+		const uint32_t width = m_gfx_wbdlsize & GFX_WB_SIZE_MASK & ~1u;
+		const uint32_t height = m_gfx_activelines & GFX_WB_SIZE_MASK;
+
+		if (width && height)
+		{
+			const uint32_t init_color = solo_asic_video_device::gfx_pack(
+				solo_asic_video_device::gfx_wb_luma((m_gfx_initcolor >> 0x10) & 0xff),
+				((m_gfx_initcolor >> 0x08) & 0xff) ^ 0x80,
+				((m_gfx_initcolor >> 0x00) & 0xff) ^ 0x80
+			);
+
+			bitmap_rgb32 fields[2];
+			for (int i = 0; i < (frame ? 2 : 1); i++)
+			{
+				fields[i].allocate(width, height);
+				fields[i].fill(init_color);
+			}
+
+			const uint32_t pot_draw_hstart = m_pot_draw_hstart;
+			const uint32_t pot_draw_hsize = m_pot_draw_hsize;
+			const uint32_t pot_draw_vstart = m_pot_draw_vstart;
+			const uint32_t pot_draw_vsize = m_pot_draw_vsize;
+
+			m_pot_draw_hstart = 0;
+			m_pot_draw_hsize = width;
+			m_pot_draw_vstart = 0;
+			m_pot_draw_vsize = height;
+
+			m_gfx_frame_reads.clear();
+			m_gfx_wb_native = true;
+
+			if (m_gfx_ymap_base_master != 0x80000000)
+			{
+				solo_asic_video_device::gfxunit_draw_cels(fields[0]);
+
+				if (frame)
+				{
+					m_gfx_wb_yshift = -1;
+					solo_asic_video_device::gfxunit_draw_cels(fields[1]);
+					m_gfx_wb_yshift = 0;
+				}
+			}
+
+			m_gfx_wb_native = false;
+
+			m_pot_draw_hstart = pot_draw_hstart;
+			m_pot_draw_hsize = pot_draw_hsize;
+			m_pot_draw_vstart = pot_draw_vstart;
+			m_pot_draw_vsize = pot_draw_vsize;
+
+			m_gfx_frame_valid = false;
+
+			if (frame)
+			{
+				const uint64_t line_step = uint64_t(width + (m_gfx_wbstride & GFX_WB_SIZE_MASK)) * BYTES_PER_PIXEL;
+
+				solo_asic_video_device::gfxunit_writeback_store(fields[0], 0, m_gfx_wbdstart);
+				solo_asic_video_device::gfxunit_writeback_store(fields[1], 1, m_gfx_wbdstart + line_step);
+			}
+			else
+			{
+				solo_asic_video_device::gfxunit_writeback_store(fields[0], even ? 1 : 0, m_gfx_wbdstart);
+			}
+		}
+
+		solo_asic_video_device::set_video_irq(BUS_INT_VID_GFXUNIT, GFX_INT_RANGEINT_WBEOFL | ((frame || even) ? GFX_INT_RANGEINT_WBEOF : 0), 1);
+
+		if (m_gfx_wbdconfig & GFX_WB_REPEAT)
+			m_gfx_writeback_timer->adjust(m_screen->frame_period() * (frame ? 2 : 1));
+	}
+}
+
 uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	auto profile = g_profiler.start(PROFILER_DRAWGFX);
@@ -2355,9 +2541,6 @@ uint32_t solo_asic_video_device::gfxunit_screen_update(screen_device &screen, bi
 
 	m_gfx_frame_state = frame_state;
 	m_gfx_frame_valid = solo_asic_video_device::gfxunit_frame_snapshot();
-
-	// Write back would happen here (would need to push to a buffer rather than direct to the screen)
-	//solo_asic_video_device::set_video_irq(BUS_INT_VID_GFXUNIT, GFX_INT_RANGEINT_WBEOF, 1);
 
 	return 0;
 }
