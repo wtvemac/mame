@@ -589,6 +589,7 @@ private:
 		uint32_t ram_words;
 
 		uint8_t global_alpha;
+		bool is_direct_422;
 		int32_t texdata_base;
 		int32_t rowbytes;
 		uint8_t umask;
@@ -696,7 +697,7 @@ private:
 	static inline gfx_texel fetch444(uint32_t in, uint8_t global_alpha);
 	
 	inline void draw422(gfx_cel_t *cel, int8_t offset, uint32_t in, uint32_t **out);
-	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten);
+	template <gfx_blend_t Blend> static inline void draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422);
 
 	bool gfxunit_frame_unchanged();
 	bool gfxunit_frame_snapshot();

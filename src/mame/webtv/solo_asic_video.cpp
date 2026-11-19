@@ -1545,10 +1545,25 @@ inline void solo_asic_video_device::draw_pair(gfx_cel_rasterctx &ctx, uint32_t *
 {
 	if constexpr (Type == TEXDATA_TYPE_DIR_422)
 	{
-		uint32_t in = ctx.read(solo_asic_video_device::texdata_index<Type>(ctx, u, v) >> 0x2);
-		ctx.advance_x(u, v);
-		ctx.advance_x(u, v);
-		draw422<Blend>(in, second, out, ctx.global_alpha, ctx.brighten);
+		auto draw_422_single = [&](uint32_t *dest)
+		{
+			uint32_t index = solo_asic_video_device::texdata_index<Type>(ctx, u, v);
+			uint32_t in = ctx.read(index >> 0x2);
+
+			ctx.advance_x(u, v);
+
+			if (index & 0x2)
+				in = (in & 0x00ffffff) | ((in & 0x0000ff00) << 0x10);
+
+			draw422<Blend>(in, std::false_type(), dest, ctx.global_alpha, ctx.brighten, ctx.is_direct_422);
+		};
+
+		draw_422_single(out);
+
+		if constexpr (decltype(second)::value)
+			draw_422_single(out + 1);
+		else
+			ctx.advance_x(u, v);
 	}
 	else
 	{
@@ -1611,7 +1626,7 @@ inline uint32_t *solo_asic_video_device::draw_unscaled422(gfx_cel_rasterctx &ctx
 		ctx.track_read(src - ctx.ram, (src - ctx.ram) + ((pixelpair_cnt - 1) * src_step));
 
 		for (int32_t k = 0; k < pixelpair_cnt; k++, out += 2, src += src_step)
-			solo_asic_video_device::draw422<Blend>(*src, std::true_type(), out, ctx.global_alpha, ctx.brighten);
+			solo_asic_video_device::draw422<Blend>(*src, std::true_type(), out, ctx.global_alpha, ctx.brighten, ctx.is_direct_422);
 
 		i += 2 * pixelpair_cnt;
 	}
@@ -1636,6 +1651,7 @@ void solo_asic_video_device::draw_lines(gfx_cel_t *cel, bitmap_rgb32 &bitmap, in
 	ctx.ram = &m_hostram[0];
 	ctx.ram_words = m_hostram.length();
 	ctx.global_alpha = cel->global_alpha();
+	ctx.is_direct_422 = (cel->texdata_type() == TEXDATA_TYPE_DIR_422);
 	ctx.texdata_base = (int32_t)cel->c.texdata_base;
 	ctx.rowbytes = cel->c.rowbytes;
 	ctx.umask = cel->c.umask;
@@ -1836,7 +1852,7 @@ inline void solo_asic_video_device::draw422(gfx_cel_t *cel, int8_t offset, uint3
 }
 
 template <solo_asic_video_device::gfx_blend_t Blend>
-inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten)
+inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *out, uint8_t global_alpha, const int32_t *brighten, bool is_direct_422)
 {
 	const gfx_tables &t = s_gfx_tables;
 
@@ -1846,8 +1862,9 @@ inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *
 			return;
 	}
 
-	int32_t r = t.cr_r[(in >> 0x00) & 0xff];
-	int32_t b = t.cb_b[(in >> 0x10) & 0xff];
+	const uint32_t chroma_bias = is_direct_422 ? 0x80 : 0;
+	int32_t r = t.cr_r[((in >> 0x00) & 0xff) ^ chroma_bias];
+	int32_t b = t.cb_b[((in >> 0x10) & 0xff) ^ chroma_bias];
 	int32_t g = ((0x32 * b) + (0x83 * r) + UV_OFFSET) >> 0x08;
 
 	const uint32_t *clamp_r = t.clamp_r + gfx_tables::CLAMP_BIAS + r;
@@ -1857,7 +1874,7 @@ inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *
 	uint8_t y0 = (in >> 0x18) & 0xff;
 	if (y0 != Y_TRANSPARENT)
 	{
-		int32_t yy = t.y422[y0];
+		int32_t yy = is_direct_422 ? (((std::min<int32_t>(y0, Y_RANGE) << 8) + UV_OFFSET) / Y_RANGE) : t.y422[y0];
 		draw_pixel<Blend>(out, yy + r, yy - g, yy + b, global_alpha, clamp_r[yy] | clamp_g[yy] | clamp_b[yy], brighten);
 	}
 
@@ -1866,7 +1883,7 @@ inline void solo_asic_video_device::draw422(uint32_t in, auto second, uint32_t *
 		uint8_t y1 = (in >> 0x08) & 0xff;
 		if (y1 != Y_TRANSPARENT)
 		{
-			int32_t yy = t.y422[y1];
+			int32_t yy = is_direct_422 ? (((std::min<int32_t>(y1, Y_RANGE) << 8) + UV_OFFSET) / Y_RANGE) : t.y422[y1];
 			draw_pixel<Blend>(out + 1, yy + r, yy - g, yy + b, global_alpha, clamp_r[yy] | clamp_g[yy] | clamp_b[yy], brighten);
 		}
 	}
