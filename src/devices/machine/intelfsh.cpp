@@ -242,7 +242,7 @@ fujitsu_29lv160b_device::fujitsu_29lv160b_device(const machine_config &mconfig, 
 	: intelfsh16_device(mconfig, FUJITSU_29LV160B, tag, owner, clock, 0x200000, MFG_FUJITSU, 0x2249) { m_bot_boot_sector = true; m_has_reset_pin = true; }
 	
 fujitsu_29f400t_16bit_device::fujitsu_29f400t_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, FUJITSU_29F400T_16BIT, tag, owner, clock, 0x100000, MFG_FUJITSU, 0x2223) { m_top_boot_sector = true; }
+	: intelfsh16_device(mconfig, FUJITSU_29F400T_16BIT, tag, owner, clock, 0x80000, MFG_FUJITSU, 0x2223) { m_top_boot_sector = true; }
 
 sharp_lh28f016s_device::sharp_lh28f016s_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, SHARP_LH28F016S, tag, owner, clock, 0x200000, MFG_INTEL, 0xaa) { m_has_reset_pin = true; }
@@ -314,7 +314,7 @@ macronix_29f1610mc_16bit_device::macronix_29f1610mc_16bit_device(const machine_c
 	: intelfsh16_device(mconfig, MACRONIX_29F1610MC_16BIT, tag, owner, clock, 0x100000, MFG_MACRONIX, 0xfa) { }
 
 macronix_29f1610_16bit_device::macronix_29f1610_16bit_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: intelfsh16_device(mconfig, MACRONIX_29F1610_16BIT, tag, owner, clock, 0x200000, MFG_MACRONIX, 0xf1) { m_page_size = 0x40; }
+	: intelfsh16_device(mconfig, MACRONIX_29F1610_16BIT, tag, owner, clock, 0x200000, MFG_MACRONIX, 0xf1) { m_page_size = 0x40; m_page_timeout_usec = 100; }
 
 macronix_29l001mc_device::macronix_29l001mc_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: intelfsh8_device(mconfig, MACRONIX_29L001MC, tag, owner, clock, 0x20000, MFG_MACRONIX, 0x51) { }
@@ -810,7 +810,7 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 		case 0x90:
 			// AM29F800B, AM29LV800B, MBM29F400T and MX29F1610 don't support the 0x90 ID command.
 			if (
-				!(m_maker_id == MFG_FUJITSU && m_device_id == 0x22d6)
+				!(m_maker_id == MFG_FUJITSU && m_device_id == 0x2223)
 				&& !(m_maker_id == MFG_AMD && m_device_id == 0x2258)
 				&& !(m_maker_id == MFG_AMD && m_device_id == 0x22da)
 				&& !(m_maker_id == MFG_AMD && m_device_id == 0x22c4)
@@ -1156,6 +1156,13 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 					m_timer->adjust( attotime::from_msec( 500 ) );
 				}
 			}
+			else if (m_maker_id == MFG_MACRONIX && m_device_id == 0x00f1)
+			{
+				// MX29F1610 has 16 uniform 128KB sectors
+				memset(&m_data[base & ~0x1ffff], 0xff, 128 * 1024);
+				m_erase_sector = address & ((m_bits == 16) ? ~0xffff : ~0x1ffff);
+				m_timer->adjust( attotime::from_msec( 125 ) );
+			}
 			else if (m_maker_id == MFG_FUJITSU && m_device_id == 0x40)
 			{
 				constexpr u32 sectors[] = { 0x10000, 0x10000, 0x10000, 0x08000, 0x02000, 0x02000, 0x4000 };
@@ -1178,7 +1185,7 @@ void intelfsh_device::write_full(uint32_t address, uint32_t data)
 				memset(&m_data[base & ~0xffff], 0xff, 64 * 1024);
 				m_erase_sector = address & ((m_bits == 16) ? ~0x7fff : ~0xffff);
 				if (
-					(m_maker_id == MFG_FUJITSU && m_device_id == 0x22d6)
+					(m_maker_id == MFG_FUJITSU && m_device_id == 0x2223)
 					|| (m_maker_id == MFG_AMD && m_device_id == 0x2258)
 					|| (m_maker_id == MFG_AMD && m_device_id == 0x22da)
 					|| (m_maker_id == MFG_AMD && m_device_id == 0x22c4)

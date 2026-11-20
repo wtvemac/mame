@@ -316,10 +316,10 @@ void webtv1_state::base_addrmap(address_map &map)
 	{
 		if (m_device_config & webtv1_state::BANK0_IS_DIAG)
 			map(0x1f400000, 0x1fffffff).rw(FUNC(webtv1_state::bank0_flash_r), FUNC(webtv1_state::bank0_flash_w)).mask(m_flash_size - 1).share("bank0");
-		if (m_device_config & webtv1_state::BANK0_IS_BFE)
+		else if (m_device_config & webtv1_state::BANK0_IS_BFE)
 			map(0x1fe00000, 0x1fffffff).rw(FUNC(webtv1_state::bank0_flash_r), FUNC(webtv1_state::bank0_flash_w)).mask(m_flash_size - 1).share("bank0");
 		else
-			map(0x1f000000, 0x1f4fffff).rw(FUNC(webtv1_state::bank0_flash_r), FUNC(webtv1_state::bank0_flash_w)).share("bank0");
+			map(0x1f000000, 0x1f4fffff).rw(FUNC(webtv1_state::bank0_flash_r), FUNC(webtv1_state::bank0_flash_w)).mask(m_flash_size - 1).share("bank0");
 	}
 
 	uint32_t usable_rom_size = std::min((uint32_t)m_rom_size, MAX_ROM_SIZE);
