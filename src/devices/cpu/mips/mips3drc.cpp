@@ -2611,6 +2611,13 @@ bool mips3_device::generate_opcode(drcuml_block &block, compiler_state &compiler
 			}
 			else if ((RTREG & 3) == 0)
 			{
+				const bool is_idt = (m_flavor == MIPS3_TYPE_R4640 || m_flavor == MIPS3_TYPE_R4650);
+				const bool is_invalidate = (CACHE_OP == 0 || CACHE_OP == 4); // Index_Invalidate_I || Hit_Invalidate_I
+				const bool is_skipped = (std::find(m_cacheinval_skip_pcs.begin(), m_cacheinval_skip_pcs.end(), desc->pc) != m_cacheinval_skip_pcs.end());
+
+				if (is_idt && is_invalidate && !is_skipped)
+					UML_MOV(block, mem(&m_core->drc_cache_dirty), 1);       // mov     [drc_cache_dirty], 1
+
 				generate_icache_op(block, compiler, desc);
 			}
 			return true;
