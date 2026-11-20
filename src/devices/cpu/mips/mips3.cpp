@@ -1513,13 +1513,12 @@ void mips3_device::dcache_line_writeback(unsigned line)
 void mips3_device::icache_op(offs_t address)
 {
 	// the instruction cache is not modelled, but invalidating a line that holds translated code means the code changed
-	const uint32_t tlbval = vtlb_table()[address >> 12];
-	if (!(tlbval & READ_ALLOWED))
-	{
+	offs_t physaddr = address;
+	address_space *tspace;
+	if (!memory_translate(AS_PROGRAM, device_memory_interface::TR_FETCH, physaddr, tspace))
 		return;
-	}
 
-	const offs_t page = tlbval >> 12;
+	const offs_t page = physaddr >> 12;
 	if (BIT(m_dcache_code_pages[page >> 3], page & 7))
 	{
 		// drop the translations reaching the line and leave the running block
