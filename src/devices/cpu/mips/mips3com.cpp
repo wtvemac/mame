@@ -40,10 +40,10 @@ void mips3_device::execute_set_input(int inputnum, int state)
     counts and the timers
 -------------------------------------------------*/
 
-void mips3_device::mips3com_update_cycle_counting()
+void mips3_device::mips3com_update_cycle_counting(bool retime_pending)
 {
 	/* a Count write has to re-time an armed compare as well */
-	if (m_core->compare_armed || m_compare_int_timer->enabled())
+	if (m_core->compare_armed || (retime_pending && m_compare_int_timer->enabled()))
 	{
 		uint32_t count = (total_cycles() - m_core->count_zero_time) / 2;
 		uint32_t compare = m_core->cpr[0][COP0_Compare];

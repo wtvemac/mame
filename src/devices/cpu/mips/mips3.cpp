@@ -2743,7 +2743,7 @@ void mips3_device::set_cop0_reg(int idx, uint64_t val)
 			m_core->cpr[0][idx] = val;
 			m_core->count_zero_time = total_cycles() - ((uint64_t)(uint32_t)val * 2);
 			// a Count write re-times a pending compare, but only a Compare write starts one
-			mips3com_update_cycle_counting();
+			mips3com_update_cycle_counting(true);
 			break;
 
 		case COP0_Compare:

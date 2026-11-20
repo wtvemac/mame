@@ -672,6 +672,11 @@ static void cfunc_mips3com_update_cycle_counting(void *param)
 	((mips3_device *)param)->mips3com_update_cycle_counting();
 }
 
+static void cfunc_mips3com_retime_count(void *param)
+{
+	((mips3_device *)param)->mips3com_update_cycle_counting(true);
+}
+
 static void cfunc_mips3com_asid_changed(void *param)
 {
 	((mips3_device *)param)->mips3com_asid_changed();
@@ -3432,7 +3437,7 @@ bool mips3_device::generate_set_cop0_reg(drcuml_block &block, compiler_state &co
 			UML_DSUB(block, mem(&m_core->count_zero_time), mem(&m_core->numcycles), I0);
 																				// dsub    [count_zero_time],[m_numcycles],i0
 			// a Count write re-times a pending compare, but only a Compare write starts one
-			UML_CALLC(block, cfunc_mips3com_update_cycle_counting, this);       // callc   mips3com_update_cycle_counting,mips.core
+			UML_CALLC(block, cfunc_mips3com_retime_count, this);                // callc   mips3com_retime_count,mips.core
 			compiler.cycles++;
 			return true;
 

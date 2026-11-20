@@ -620,7 +620,7 @@ protected:
 	void handle_vr5500_mul(uint32_t op);
 
 public:
-	void mips3com_update_cycle_counting();
+	void mips3com_update_cycle_counting(bool retime_pending = false);
 	void mips3com_asid_changed();
 	void mips3com_tlbr();
 	void mips3com_tlbwi();
