@@ -4390,7 +4390,7 @@ void mips3_device::handle_idt(uint32_t op)
 		return;
 	}
 
-	if (m_flavor != MIPS3_TYPE_R4650)
+	if (m_flavor != MIPS3_TYPE_R4650 && m_flavor != MIPS3_TYPE_R4640 && m_flavor != MIPS3_TYPE_RM5230)
 	{
 		invalid_instruction(op);
 		return;
