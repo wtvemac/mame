@@ -561,6 +561,7 @@ private:
 	struct gfx_tables
 	{
 		static constexpr int32_t CLAMP_BIAS = 512;
+		static constexpr double OUTPUT_GAMMA = 1.2;
 
 		int16_t y422[256];
 		int16_t cr_r[256];
@@ -581,9 +582,10 @@ private:
 			for (int32_t i = 0; i < 1024; i++)
 			{
 				uint32_t c = std::clamp(i - CLAMP_BIAS, 0x00, 0xff);
-				clamp_r[i] = c << 0x10;
-				clamp_g[i] = c << 0x08;
-				clamp_b[i] = c << 0x00;
+				uint32_t gc = (uint32_t)std::lround(std::pow((double)c / 255.0, 1.0 / OUTPUT_GAMMA) * 255.0);
+				clamp_r[i] = gc << 0x10;
+				clamp_g[i] = gc << 0x08;
+				clamp_b[i] = gc << 0x00;
 			}
 		}
 	};
