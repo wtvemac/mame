@@ -16,6 +16,7 @@
 #include "han_asic.h"
 #include "fud_asic.h"
 #include "utv_pci_host.h"
+#include "utv_ohci.h"
 #include "wtvdbg.h"
 #include "wtvport.h"
 #include "wtvport_pekoe2.h"
@@ -119,6 +120,7 @@ public:
 		m_hanasic(*this, "han"),
 		m_pcihost(*this, "pci:host"),
 		m_fudasic(*this, "pci:13.0"),
+		m_usb(*this, "pci:14.0"),
 		m_tuner(*this, "tuner"),
 		m_l64734_tun0(*this, "l64734_tun0"),
 		m_l64734_tun1(*this, "l64734_tun1"),
@@ -170,6 +172,7 @@ private:
 	optional_device<han_asic_device> m_hanasic;
 	optional_device<utv_pci_host_device> m_pcihost;
 	optional_device<fud_asic_device> m_fudasic;
+	optional_device<utv_ohci_device> m_usb;
 
 	optional_device<generic_tuner_device> m_tuner;
 	optional_device<l64734_tuner_device> m_l64734_tun0;
@@ -379,6 +382,12 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 
 		FUD_ASIC(config, m_fudasic);
 		m_fudasic->ca_card_present_callback().set(m_soloasic, FUNC(solo_asic_device::ca_card_present));
+
+		if (m_device_config & webtv2_state::USB)
+		{
+			UTV_OHCI(config, m_usb);
+			m_usb->irq_callback().set(m_fudasic, FUNC(fud_asic_device::set_usb_irq));
+		}
 	}
 
 	if (m_device_config & webtv2_state::PEKOE)
