@@ -94,6 +94,7 @@ public:
 		BT827_MEDIA_IN    = 0x00010000,
 		BT835_MEDIA_IN    = 0x00020000,
 		FUD               = 0x00080000,
+		USB               = 0x00100000,
 		PEKOE             = 0x00200000,
 		BANK0_IS_DIAG     = 0x10000000,
 		BANK0_IS_BFE      = 0x20000000,
@@ -1064,7 +1065,7 @@ void webtv2_state::webtv2_utv(machine_config& config)
 		MEM_2MB,
 		0x04120000,
 		0x034dea33,
-		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::SWMODEM | webtv2_state::HWMODEM | webtv2_state::DTV01_SAT_TUNER | webtv2_state::BT835_MEDIA_IN | webtv2_state::FUD,
+		webtv2_state::ROM | webtv2_state::DISK | webtv2_state::SWMODEM | webtv2_state::HWMODEM | webtv2_state::DTV01_SAT_TUNER | webtv2_state::BT835_MEDIA_IN | webtv2_state::FUD | webtv2_state::USB,
 		AUD_48kHZ
 	);
 }
