@@ -5,6 +5,7 @@
 
 #include "emu.h"
 #include "wtvusb.h"
+#include "wtvusb_adm8511.h"
 
 DEFINE_DEVICE_TYPE(WTVUSB_PORT, wtvusb_port_device, "wtvusb_port", "WebTV USB port")
 
@@ -397,5 +398,5 @@ void wtvusb_port_device::device_start()
 
 void wtvusb_devices(device_slot_interface &device)
 {
-	//
+	device.option_add("adm8511", WTVUSB_ADM8511);
 }

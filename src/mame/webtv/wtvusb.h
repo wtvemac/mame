@@ -46,6 +46,12 @@ public:
 	static constexpr uint8_t DESC_DEVICE        = 0x01;
 	static constexpr uint8_t DESC_CONFIGURATION = 0x02;
 	static constexpr uint8_t DESC_STRING        = 0x03;
+	static constexpr uint8_t DESC_INTERFACE     = 0x04;
+	static constexpr uint8_t DESC_ENDPOINT      = 0x05;
+
+	static constexpr uint8_t EP_DIR_IN       = 0x80;
+	static constexpr uint8_t EP_ATTR_BULK    = 0x02;
+	static constexpr uint8_t EP_ATTR_INTR    = 0x03;
 
 	enum usb_pid_t : uint8_t
 	{

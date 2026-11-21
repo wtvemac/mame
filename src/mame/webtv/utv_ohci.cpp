@@ -31,7 +31,7 @@ utv_ohci_device::utv_ohci_device(const machine_config &mconfig, const char *tag,
 
 void utv_ohci_device::device_add_mconfig(machine_config &config)
 {
-	WTVUSB_PORT(config, m_ports[0], wtvusb_devices, nullptr);
+	WTVUSB_PORT(config, m_ports[0], wtvusb_devices, "adm8511");
 	WTVUSB_PORT(config, m_ports[1], wtvusb_devices, nullptr);
 }
 
