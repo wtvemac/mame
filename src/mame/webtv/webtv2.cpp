@@ -15,6 +15,7 @@
 #include "solo_asic.h"
 #include "han_asic.h"
 #include "fud_asic.h"
+#include "utv_pci_host.h"
 #include "wtvdbg.h"
 #include "wtvport.h"
 #include "wtvport_pekoe2.h"
@@ -36,8 +37,6 @@ class webtv2_state : public driver_device
 {
 
 public:
-
-	static constexpr uint32_t FUD_GPIO_BASE    = 0x04860000;
 
 	static constexpr uint32_t WTVPORT_BASE        = 0x04800000;
 	static constexpr uint32_t WTVPORT_MAX_DEVICES = 3;
@@ -118,7 +117,8 @@ public:
 		m_mdoc(*this, "mdoc"),
 		m_ata(*this, "ata"),
 		m_hanasic(*this, "han"),
-		m_fudasic(*this, "fud"),
+		m_pcihost(*this, "pci:host"),
+		m_fudasic(*this, "pci:13.0"),
 		m_tuner(*this, "tuner"),
 		m_l64734_tun0(*this, "l64734_tun0"),
 		m_l64734_tun1(*this, "l64734_tun1"),
@@ -168,6 +168,7 @@ private:
 	optional_device<ata_interface_device> m_ata;
 
 	optional_device<han_asic_device> m_hanasic;
+	optional_device<utv_pci_host_device> m_pcihost;
 	optional_device<fud_asic_device> m_fudasic;
 
 	optional_device<generic_tuner_device> m_tuner;
@@ -373,7 +374,10 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 
 	if (m_device_config & webtv2_state::FUD)
 	{
-		FUD_ASIC(config, m_fudasic, FUD_GPIO_BASE);
+		PCI_ROOT(config, "pci", 0);
+		UTV_PCI_HOST(config, m_pcihost, 0, "maincpu");
+
+		FUD_ASIC(config, m_fudasic);
 		m_fudasic->ca_card_present_callback().set(m_soloasic, FUNC(solo_asic_device::ca_card_present));
 	}
 
@@ -451,10 +455,8 @@ void webtv2_state::base_addrmap(address_map &map)
 
 	if (m_device_config & webtv2_state::FUD)
 	{
-		map(0x00800cf0, 0x00800cff).m(m_fudasic, FUNC(fud_asic_device::cntl_map));
-		map(0x10000cf0, 0x10000cff).m(m_fudasic, FUNC(fud_asic_device::cntl_map));
-		map(FUD_GPIO_BASE, FUD_GPIO_BASE + 0x3f).m(m_fudasic, FUNC(fud_asic_device::gpio_map));
-		map(fud_asic_device::TP_BASE, fud_asic_device::TP_BASE + fud_asic_device::TP_SIZE - 1).m(m_fudasic, FUNC(fud_asic_device::transport_map));
+		map(0x00800cf0, 0x00800cff).m(m_pcihost, FUNC(utv_pci_host_device::config_access_map));
+		map(0x10000cf0, 0x10000cff).m(m_pcihost, FUNC(utv_pci_host_device::config_access_map));
 	}
 
 	if (m_flash_size > 0)
@@ -1049,14 +1051,6 @@ ROM_END
 
 void webtv2_state::webtv2_utv(machine_config& config)
 {
-	// Configuring with HWMODEM just in case someone wants to run a modified UTV build that can interact with the hardware modem.
-	// serial.dll may be used from the wtv2wld box but significant modifications are required so the correct kernel calls are made.
-
-	// The UTV has a PCI and USB bus that can be implemented in fud_asic. From there you can implement a USB to ethernet driver.
-	// You'll need to add an entry in the NVRAM to enable the USB ethernet driver (usually activated by connecting to the servie via the modem)
-
-	// Or you can create your own method to get connected with a custom Windows CE driver.
-
 	build_webtv_device(
 		config,
 		MIPS_RM5231_BE,

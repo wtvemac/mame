@@ -9,26 +9,38 @@
 
 DEFINE_DEVICE_TYPE(FUD_ASIC, fud_asic_device, "fud_asic_device", "WebTV FUD ASIC")
 
-fud_asic_device::fud_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t gpio_base_address, uint32_t clock) :
-	device_t(mconfig, FUD_ASIC, tag, owner, clock),
-	m_hostcpu(*owner, "maincpu"),
+fud_asic_device::fud_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, uint32_t main_id, uint32_t revision) :
+	pci_device(mconfig, FUD_ASIC, tag, owner, clock),
+	m_hostcpu(*this, ":maincpu"),
 	m_ca_card_present(*this, 0)
 {
-	m_gpio_base = gpio_base_address;
+	// The device class is unknown to me but it doesn't look important on the software side.
+	// Will need a custom .exe or approm to read the PCI config to get the true value.
+
+	// 0x04: Multimedia Controller; 0x80xx=Other
+	uint32_t device_class = 0x048000;
+
+	set_ids(main_id, revision, device_class, 0x00000000);
 }
 
 void fud_asic_device::device_start()
 {
+	pci_device::device_start();
+
+	// The first BAR isn't mapped as far as I can see right now. Uses the second BAR for MPEG transport.
+	skip_map_regs(2);
+	add_map(BAR2_SIZE, M_MEM, FUNC(fud_asic_device::bar2_map));
+
 	tuner_lock_timer = timer_alloc(FUNC(fud_asic_device::set_tuner_lock), this);
 	m_guide_timer = timer_alloc(FUNC(fud_asic_device::guide_tick), this);
 
 	m_tp_regs = std::make_unique<uint32_t[]>(TP_SIZE / 4);
 
-	save_item(NAME(m_fud_cntl));
-	save_item(NAME(m_gpio_base));
+	save_item(NAME(m_cfg_0040));
 	save_item(NAME(m_gpio_intenable));
 	save_item(NAME(m_gpio_intstat));
 	save_item(NAME(m_gpio_level));
+	save_item(NAME(m_gpio_inputs));
 	save_pointer(NAME(m_tp_regs), TP_SIZE / 4);
 	save_item(STRUCT_MEMBER(m_tp_dma, active));
 	save_item(STRUCT_MEMBER(m_tp_dma, start));
@@ -40,10 +52,13 @@ void fud_asic_device::device_start()
 
 void fud_asic_device::device_reset()
 {
-	m_fud_cntl = 0x0;
+	pci_device::device_reset();
+
+	m_cfg_0040 = 0x0;
 	m_gpio_intenable = 0x0;
 	m_gpio_intstat = 0x0;
 	m_gpio_level = 0x0;
+	m_gpio_inputs = 0x0;
 
 	std::fill_n(m_tp_regs.get(), TP_SIZE / 4, 0);
 
@@ -64,28 +79,45 @@ void fud_asic_device::device_reset()
 	fud_asic_device::update_gpio_irq();
 }
 
-void fud_asic_device::cntl_map(address_map &map)
+void fud_asic_device::config_map(address_map &map)
 {
-	map(0x008, 0x00b).rw(FUNC(fud_asic_device::cntl_0008_r), FUNC(fud_asic_device::cntl_0008_w));
-	map(0x00c, 0x00f).rw(FUNC(fud_asic_device::cntl_000c_r), FUNC(fud_asic_device::cntl_000c_w));
+	pci_device::config_map(map);
+
+	map(0x18, 0x1b).r(FUNC(fud_asic_device::bar2_cfg_r));
+	map(0x40, 0x43).rw(FUNC(fud_asic_device::cfg_0040_r), FUNC(fud_asic_device::cfg_0040_w));
 }
 
-void fud_asic_device::gpio_map(address_map &map)
-{
-	map(0x02c, 0x02f).rw(FUNC(fud_asic_device::gpio_002c_r), FUNC(fud_asic_device::gpio_002c_w));
-	map(0x030, 0x033).rw(FUNC(fud_asic_device::gpio_0030_r), FUNC(fud_asic_device::gpio_0030_w));
-	map(0x034, 0x037).rw(FUNC(fud_asic_device::gpio_0034_r), FUNC(fud_asic_device::gpio_0034_w));
-	map(0x03c, 0x03f).rw(FUNC(fud_asic_device::gpio_003c_r), FUNC(fud_asic_device::gpio_003c_w));
-}
-
-void fud_asic_device::transport_map(address_map &map)
+void fud_asic_device::bar2_map(address_map &map)
 {
 	map(0x0000, TP_SIZE - 1).rw(FUNC(fud_asic_device::tp_r), FUNC(fud_asic_device::tp_w));
+
+	map(0x002c, 0x002f).rw(FUNC(fud_asic_device::gpio_002c_r), FUNC(fud_asic_device::gpio_002c_w));
+	map(0x0030, 0x0033).rw(FUNC(fud_asic_device::gpio_0030_r), FUNC(fud_asic_device::gpio_0030_w));
+	map(0x0034, 0x0037).rw(FUNC(fud_asic_device::gpio_0034_r), FUNC(fud_asic_device::gpio_0034_w));
+	map(0x003c, 0x003f).rw(FUNC(fud_asic_device::gpio_003c_r), FUNC(fud_asic_device::gpio_003c_w));
+}
+
+uint32_t fud_asic_device::bar2_cfg_r(offs_t offset, uint32_t mem_mask)
+{
+	if ((command & fud_asic_device::BAR2_CFG_ENABLE_TUNER) && !machine().side_effects_disabled() && !tuner_lock_timer->enabled())
+		tuner_lock_timer->adjust(attotime::from_hz(fud_asic_device::TUNER_LOCK_HZ), 0, attotime::from_hz(fud_asic_device::TUNER_LOCK_HZ));
+
+	return address_base_r(2);
+}
+
+uint32_t fud_asic_device::cfg_0040_r()
+{
+	return m_cfg_0040;
+}
+
+void fud_asic_device::cfg_0040_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	COMBINE_DATA(&m_cfg_0040);
 }
 
 TIMER_CALLBACK_MEMBER(fud_asic_device::set_tuner_lock)
 {
-	uint32_t gpio_tuner_lock = GPIO_TUNER0_LOCK | GPIO_TUNER1_LOCK;
+	uint32_t gpio_tuner_lock = fud_asic_device::GPIO_TUNER0_LOCK | fud_asic_device::GPIO_TUNER1_LOCK;
 
 	m_gpio_intenable |= gpio_tuner_lock;
 
@@ -105,46 +137,10 @@ void fud_asic_device::set_gpio_irq(uint32_t mask, int state)
 
 void fud_asic_device::update_gpio_irq()
 {
-	if ((m_gpio_intstat | m_gpio_level) & m_gpio_intenable)
+	if ((m_gpio_intstat | m_gpio_level | m_gpio_inputs) & m_gpio_intenable)
 		m_hostcpu->set_input_line(MIPS3_IRQ2, ASSERT_LINE);
 	else
 		m_hostcpu->set_input_line(MIPS3_IRQ2, CLEAR_LINE);
-}
-
-uint32_t fud_asic_device::cntl_0008_r()
-{
-	return 0x00000000;
-}
-
-void fud_asic_device::cntl_0008_w(uint32_t data)
-{
-	m_fud_cntl = data;
-}
-
-uint32_t fud_asic_device::cntl_000c_r()
-{
-	// Hacked PCI regs, may add a proper PCI interface (needed for USB) later but right now this is "good enough"
-
-	if (m_fud_cntl == 0x80009818)
-	{
-		// DVR Transport BAR
-		return TP_BASE;
-	}
-	else if (m_fud_cntl == 0x80000018)
-	{
-		tuner_lock_timer->adjust(attotime::from_hz(TUNER_LOCK_HZ), 0, attotime::from_hz(TUNER_LOCK_HZ));
-
-		return m_gpio_base;
-	}
-	else
-	{
-		return 0x80201414;
-	}
-}
-
-void fud_asic_device::cntl_000c_w(uint32_t data)
-{
-	//
 }
 
 uint32_t fud_asic_device::gpio_002c_r()
@@ -161,7 +157,7 @@ void fud_asic_device::gpio_002c_w(uint32_t data)
 
 uint32_t fud_asic_device::gpio_0030_r()
 {
-	return m_gpio_intstat | m_gpio_level;
+	return m_gpio_intstat | m_gpio_level | m_gpio_inputs;
 }
 
 void fud_asic_device::gpio_0030_w(uint32_t data)
@@ -173,7 +169,7 @@ void fud_asic_device::gpio_0030_w(uint32_t data)
 
 uint32_t fud_asic_device::gpio_0034_r()
 {
-	return (m_gpio_intstat | m_gpio_level) & m_gpio_intenable;
+	return (m_gpio_intstat | m_gpio_level | m_gpio_inputs) & m_gpio_intenable;
 }
 
 void fud_asic_device::gpio_0034_w(uint32_t data)

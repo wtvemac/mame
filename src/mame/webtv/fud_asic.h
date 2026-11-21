@@ -9,26 +9,24 @@
 #pragma once
 
 #include "cpu/mips/mips3.h"
+#include "machine/pci.h"
 
-constexpr uint32_t GPIO_TUNER0_LOCK = 0x00000002;
-constexpr uint32_t GPIO_TUNER1_LOCK = 0x00000004;
-
-constexpr uint32_t TUNER_LOCK_HZ       = 2;
-
-class fud_asic_device : public device_t
+class fud_asic_device : public pci_device
 {
 
 public:
 
-	// Transport PCI BAR
-	static constexpr uint32_t TP_BASE        = 0x04870000;
+	static constexpr uint32_t GPIO_TUNER0_LOCK = 0x00000002;
+	static constexpr uint32_t GPIO_TUNER1_LOCK = 0x00000004;
+
+	static constexpr uint32_t TUNER_LOCK_HZ = 2;
+
+	static constexpr uint32_t BAR2_SIZE      = 0x02000000;
+	// MPEG Transport on BAR2
 	static constexpr uint32_t TP_SIZE        = 0x10000;
 
-	fud_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t gpio_base_address, uint32_t clock = 0);
+	fud_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t main_id = 0x14148020, uint32_t revision = 0x00);
 
-	void cntl_map(address_map &map);
-	void gpio_map(address_map &map);
-	void transport_map(address_map &map);
 	auto ca_card_present_callback() { return m_ca_card_present.bind(); }
 
 protected:
@@ -36,10 +34,20 @@ protected:
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
 
+	virtual void config_map(address_map &map) override ATTR_COLD;
+
 private:
+
+	void bar2_map(address_map &map) ATTR_COLD;
+
+	uint32_t bar2_cfg_r(offs_t offset, uint32_t mem_mask = ~0);
+	uint32_t cfg_0040_r();
+	void cfg_0040_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 
 	static constexpr uint32_t GPIO_INT_TP0     = 1 << 8;
 	static constexpr uint32_t GPIO_INT_TP1     = 1 << 10;
+
+	static constexpr uint32_t BAR2_CFG_ENABLE_TUNER = 0x0002;
 
 	static constexpr uint32_t TP_PROC_BASE     = 0x1000;
 	static constexpr uint32_t TP_PROC_STRIDE   = 0x2000;
@@ -121,17 +129,12 @@ private:
 	emu_timer *m_guide_timer = nullptr;
 	TIMER_CALLBACK_MEMBER(guide_tick);
 
-	uint32_t m_fud_cntl;
+	uint32_t m_cfg_0040;
 
-	uint32_t cntl_0008_r();          //
-	void cntl_0008_w(uint32_t data); //
-	uint32_t cntl_000c_r();          //
-	void cntl_000c_w(uint32_t data); //
-
-	uint32_t m_gpio_base;
 	uint32_t m_gpio_intenable;
 	uint32_t m_gpio_intstat;
 	uint32_t m_gpio_level;
+	uint32_t m_gpio_inputs;
 
 	void set_gpio_irq(uint32_t mask, int state);
 	void update_gpio_irq();
