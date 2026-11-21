@@ -59,6 +59,9 @@ void fud_asic_device::device_reset()
 	m_guide_time_next = attotime::zero;
 
 	m_guide_timer->adjust(attotime::from_hz(GUIDE_HZ), 0, attotime::from_hz(GUIDE_HZ));
+
+	tuner_lock_timer->reset();
+	fud_asic_device::update_gpio_irq();
 }
 
 void fud_asic_device::cntl_map(address_map &map)
