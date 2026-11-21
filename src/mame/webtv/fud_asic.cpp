@@ -115,6 +115,16 @@ void fud_asic_device::cfg_0040_w(offs_t offset, uint32_t data, uint32_t mem_mask
 	COMBINE_DATA(&m_cfg_0040);
 }
 
+void fud_asic_device::set_usb_irq(int state)
+{
+	if (state)
+		m_gpio_inputs |= fud_asic_device::GPIO_USB_IRQ;
+	else
+		m_gpio_inputs &= ~fud_asic_device::GPIO_USB_IRQ;
+
+	fud_asic_device::update_gpio_irq();
+}
+
 TIMER_CALLBACK_MEMBER(fud_asic_device::set_tuner_lock)
 {
 	uint32_t gpio_tuner_lock = fud_asic_device::GPIO_TUNER0_LOCK | fud_asic_device::GPIO_TUNER1_LOCK;

@@ -25,9 +25,14 @@ public:
 	// MPEG Transport on BAR2
 	static constexpr uint32_t TP_SIZE        = 0x10000;
 
+	// FUD GPIO bit for the OHCI interrupt
+	static constexpr uint32_t GPIO_USB_IRQ   = 1 << 5;
+
 	fud_asic_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0, uint32_t main_id = 0x14148020, uint32_t revision = 0x00);
 
 	auto ca_card_present_callback() { return m_ca_card_present.bind(); }
+
+	void set_usb_irq(int state);
 
 protected:
 
