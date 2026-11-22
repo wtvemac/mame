@@ -188,7 +188,6 @@ private:
 	uint32_t m_regs[HC_RH_PORT_STATUS];
 	root_port_t m_port[PORT_COUNT];
 	uint16_t m_frame_number;
-	uint32_t m_last_logged_td = 0; // LOG_TD only logs a TD once, not on every NAK retry
 	uint8_t m_done_counter;
 	int m_budget;
 	bool m_irq_state;

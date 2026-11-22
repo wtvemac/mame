@@ -52,7 +52,7 @@ private:
 	static constexpr uint32_t GPIO_INT_TP0     = 1 << 8;
 	static constexpr uint32_t GPIO_INT_TP1     = 1 << 10;
 
-	static constexpr uint32_t BAR2_CFG_ENABLE_TUNER = 0x0002;
+	static constexpr uint32_t PCI_COMMAND_MEMORY_ENABLE = 0x0002;
 
 	static constexpr uint32_t TP_PROC_BASE     = 0x1000;
 	static constexpr uint32_t TP_PROC_STRIDE   = 0x2000;

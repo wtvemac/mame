@@ -343,7 +343,8 @@ int32_t wtvusb_adm8511_device::usb_endpoint_in(int32_t endpoint, uint8_t *buffer
 		{
 			m_rx_current.clear();
 			m_rx_pos = 0;
-			m_rx_zlp = (count == max_length);
+			// Sends a zero length packet when the frame ended with a full wMaxPacketSize packet
+			m_rx_zlp = (count == BULK_MAX_PACKET);
 		}
 
 		return count;

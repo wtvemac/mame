@@ -99,7 +99,7 @@ void fud_asic_device::bar2_map(address_map &map)
 
 uint32_t fud_asic_device::bar2_cfg_r(offs_t offset, uint32_t mem_mask)
 {
-	if ((command & fud_asic_device::BAR2_CFG_ENABLE_TUNER) && !machine().side_effects_disabled() && !tuner_lock_timer->enabled())
+	if ((command & fud_asic_device::PCI_COMMAND_MEMORY_ENABLE) && !machine().side_effects_disabled() && !tuner_lock_timer->enabled())
 		tuner_lock_timer->adjust(attotime::from_hz(fud_asic_device::TUNER_LOCK_HZ), 0, attotime::from_hz(fud_asic_device::TUNER_LOCK_HZ));
 
 	return address_base_r(2);

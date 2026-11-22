@@ -41,7 +41,7 @@ protected:
 
 private:
 
-	// From default.reg
+	// From default.reg (and Linux)
 	static constexpr uint16_t VENDOR_ID  = 0x050d;
 	static constexpr uint16_t PRODUCT_ID = 0x0122;
 

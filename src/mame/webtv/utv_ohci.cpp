@@ -637,9 +637,6 @@ utv_ohci_device::td_result_t utv_ohci_device::process_transfer_descriptor(uint32
 
 	pid = wtvusb_device_interface::usb_pid_t(dp); // 0=setup, 1=out, 2=in
 
-	if (td != m_last_logged_td)
-		m_last_logged_td = td;
-
 	wtvusb_device_interface *function = utv_ohci_device::find_function(function_address);
 	if (!function)
 		return finish(utv_ohci_device::CC_DEVICE_NOT_RESPONDING, cbp, true);

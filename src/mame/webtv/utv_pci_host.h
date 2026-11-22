@@ -22,7 +22,7 @@ public:
 	// PCI's "I/O" BAR as physical memory addresses (MIPS doesn't have I/O ports like x86)
 	static constexpr uint32_t IO_OFFSET       = 0x10000000;
 	static constexpr uint32_t IO_WINDOW_START = IO_OFFSET + 0x1000; // skipping over the host config ports @ 0xcfX
-	static constexpr uint32_t IO_WINDOW_SIZE  = 60 * 1024; // 60kB. UTV nk.exe only scans 32kB of this, allowing up to 32 PCI devices.
+	static constexpr uint32_t IO_WINDOW_SIZE  = 60 * 1024; // 60kB. UTV nk.exe only scans 32kB of this up to 32 PCI devices.
 	static constexpr uint32_t IO_WINDOW_END   = IO_WINDOW_START + (IO_WINDOW_SIZE - 1);
 
 	template <typename T>
