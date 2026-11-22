@@ -87,7 +87,7 @@ void wtvusb_device_interface::usb_bus_reset()
 	m_control_pos = 0;
 	m_control_short = false;
 
-	wtvusb_device_interface::usb_reset();
+	usb_reset();
 }
 
 int32_t wtvusb_device_interface::usb_transaction(wtvusb_device_interface::usb_pid_t pid, int32_t endpoint, uint8_t *buffer, uint32_t length)
@@ -102,9 +102,9 @@ int32_t wtvusb_device_interface::usb_transaction(wtvusb_device_interface::usb_pi
 	else if (pid == wtvusb_device_interface::usb_pid_t::PID_SETUP || !m_configuration || (m_halted & (1 << endpoint)))
 		return wtvusb_device_interface::USB_STALL;
 	else if (pid == wtvusb_device_interface::usb_pid_t::PID_IN)
-		return wtvusb_device_interface::usb_endpoint_in(endpoint, buffer, length);
+		return usb_endpoint_in(endpoint, buffer, length);
 	else
-		return wtvusb_device_interface::usb_endpoint_out(endpoint, buffer, length);
+		return usb_endpoint_out(endpoint, buffer, length);
 }
 
 int32_t wtvusb_device_interface::control_transaction(wtvusb_device_interface::usb_pid_t pid, uint8_t *buffer, uint32_t length)
@@ -150,7 +150,7 @@ int32_t wtvusb_device_interface::control_transaction(wtvusb_device_interface::us
 						if (standard)
 							ok = false;
 						else
-							ok = (wtvusb_device_interface::usb_control_out(m_setup, m_control_data.data()) >= 0);
+							ok = (usb_control_out(m_setup, m_control_data.data()) >= 0);
 
 						m_control_state = ok ? wtvusb_device_interface::control_state_t::CONTROL_STATUS_IN : wtvusb_device_interface::control_state_t::CONTROL_STALLED;
 					}
@@ -231,13 +231,13 @@ int32_t wtvusb_device_interface::get_setup_packet(uint8_t *buffer, uint32_t leng
 
 		if (m_setup.request_type & REQTYPE_DIR_IN)
 		{
-			m_control_data.resize(std::max<uint16_t>(m_setup.length, 1));
+			m_control_data.resize(std::max<uint16_t>(m_setup.length, 2));
 
 			int32_t result;
 			if (standard)
 				result = wtvusb_device_interface::standard_request_in(m_setup, m_control_data.data());
 			else
-				result = wtvusb_device_interface::usb_control_in(m_setup, m_control_data.data());
+				result = usb_control_in(m_setup, m_control_data.data());
 
 			if (result < 0)
 			{
@@ -255,7 +255,7 @@ int32_t wtvusb_device_interface::get_setup_packet(uint8_t *buffer, uint32_t leng
 			if (standard)
 				ok = wtvusb_device_interface::standard_request_out(m_setup);
 			else
-				ok = (wtvusb_device_interface::usb_control_out(m_setup, nullptr) >= 0);
+				ok = (usb_control_out(m_setup, nullptr) >= 0);
 
 			m_control_state = ok ? wtvusb_device_interface::control_state_t::CONTROL_STATUS_IN : wtvusb_device_interface::CONTROL_STALLED;
 		}
@@ -371,7 +371,7 @@ bool wtvusb_device_interface::standard_request_out(const setup_packet_t &setup)
 					else
 						m_halted &= ~(1 << endpoint);
 
-					wtvusb_device_interface::usb_endpoint_halt(endpoint, halt);
+					usb_endpoint_halt(endpoint, halt);
 				}
 			}
 
