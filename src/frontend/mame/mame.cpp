@@ -22,6 +22,7 @@
 #include "fileio.h"
 #include "luaengine.h"
 #include "mameopts.h"
+#include "natkeyboard.h"
 #include "pluginopts.h"
 #include "rendlay.h"
 #include "validity.h"
@@ -74,7 +75,9 @@ mame_machine_manager::mame_machine_manager(emu_options &options,osd_interface &o
 
 mame_machine_manager::~mame_machine_manager()
 {
+#ifndef WTV_RELEASE
 	m_autoboot_script.reset();
+#endif
 	m_lua.reset();
 	s_manager = nullptr;
 }
@@ -105,8 +108,10 @@ void mame_machine_manager::schedule_new_driver(const game_driver &driver)
 
 void mame_machine_manager::update_machine()
 {
+#ifndef WTV_RELEASE
 	m_lua->set_machine(m_machine);
 	m_lua->attach_notifiers();
+#endif
 }
 
 
@@ -114,6 +119,7 @@ void mame_machine_manager::update_machine()
 //  split
 //-------------------------------------------------
 
+#ifndef WTV_RELEASE
 static std::vector<std::string> split(const std::string &text, char sep)
 {
 	std::vector<std::string> tokens;
@@ -134,8 +140,14 @@ static std::vector<std::string> split(const std::string &text, char sep)
 //  start_luaengine
 //-------------------------------------------------
 
+#endif
+
 void mame_machine_manager::start_luaengine()
 {
+#ifdef WTV_RELEASE
+	if (*options().autoboot_script() || options().console() || *options().plugin())
+		throw emu_fatalerror(EMU_ERR_INVALID_CONFIG, "Lua scripting and plugins are unavailable in this WebTV release build.");
+#else
 	if (options().plugins())
 	{
 		// scan all plugin directories
@@ -225,6 +237,7 @@ void mame_machine_manager::start_luaengine()
 			}
 		}
 	}
+#endif
 }
 
 
@@ -316,6 +329,10 @@ int mame_machine_manager::execute()
 
 TIMER_CALLBACK_MEMBER(mame_machine_manager::autoboot_callback)
 {
+#ifdef WTV_RELEASE
+	if (*options().autoboot_command())
+		machine()->natkeyboard().post_utf8(options().autoboot_command());
+#else
 	if (*options().autoboot_script())
 	{
 		assert(m_autoboot_script);
@@ -339,6 +356,7 @@ TIMER_CALLBACK_MEMBER(mame_machine_manager::autoboot_callback)
 		auto &l(*lua());
 		l.invoke(l.load_string(val).get<sol::protected_function>());
 	}
+#endif
 }
 
 void mame_machine_manager::reset()
@@ -362,13 +380,17 @@ void mame_machine_manager::ui_initialize(running_machine& machine)
 	m_ui->initialize(machine);
 
 	// display the startup screens
+#ifndef WTV_RELEASE
 	m_lua->on_machine_before_startup_screens();
+#endif
 	m_ui->display_startup_screens(m_firstrun);
 }
 
 void mame_machine_manager::before_load_settings(running_machine& machine)
 {
+#ifndef WTV_RELEASE
 	m_lua->on_machine_before_load_settings();
+#endif
 }
 
 void mame_machine_manager::create_custom(running_machine &machine)
@@ -382,6 +404,7 @@ void mame_machine_manager::create_custom(running_machine &machine)
 	// start favorite manager
 	m_favorite = std::make_unique<favorite_manager>(m_ui->options());
 
+#ifndef WTV_RELEASE
 	// attempt to load the autoboot script if configured
 	m_autoboot_script.reset();
 	if (*options().autoboot_script())
@@ -400,6 +423,7 @@ void mame_machine_manager::create_custom(running_machine &machine)
 		sol::protected_function func = *m_autoboot_script;
 		sol::set_environment(lua()->make_environment(), func);
 	}
+#endif
 }
 
 void mame_machine_manager::load_cheatfiles(running_machine& machine)
@@ -425,8 +449,10 @@ std::vector<std::reference_wrapper<const std::string>> mame_machine_manager::mis
 		{
 			if (m_machine->options().image_option(image.instance_name()).value().empty())
 			{
+#ifndef WTV_RELEASE
 				// this is a missing image; give LUA plugins a chance to handle it
 				if (!lua()->on_missing_mandatory_image(image.instance_name()))
+#endif
 					results.push_back(std::reference_wrapper<const std::string>(image.instance_name()));
 			}
 		}
@@ -467,21 +493,30 @@ bool emulator_info::draw_user_interface(running_machine& machine)
 
 void emulator_info::periodic_check()
 {
-	return mame_machine_manager::instance()->lua()->on_periodic();
+#ifndef WTV_RELEASE
+	mame_machine_manager::instance()->lua()->on_periodic();
+#endif
 }
 
 bool emulator_info::frame_hook()
 {
+#ifdef WTV_RELEASE
+	return false;
+#else
 	return mame_machine_manager::instance()->lua()->frame_hook();
+#endif
 }
 
 void emulator_info::sound_hook(const std::map<std::string, std::vector<std::pair<const float *, int>>> &sound)
 {
-	return mame_machine_manager::instance()->lua()->on_sound_update(sound);
+#ifndef WTV_RELEASE
+	mame_machine_manager::instance()->lua()->on_sound_update(sound);
+#endif
 }
 
 void emulator_info::layout_script_cb(layout_file &file, const char *script)
 {
+#ifndef WTV_RELEASE
 	// TODO: come up with a better way to pass multiple arguments to plugin
 	//mame_machine_manager::instance()->lua()->call_plugin_set("layout", std::make_tuple(&file, script->get_value()));
 	auto &lua(mame_machine_manager::instance()->lua()->sol());
@@ -495,6 +530,7 @@ void emulator_info::layout_script_cb(layout_file &file, const char *script)
 			osd_printf_error("[LUA ERROR] in call_plugin: %s\n", err.what());
 		}
 	}
+#endif
 }
 
 bool emulator_info::standalone() { return false; }

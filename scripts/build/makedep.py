@@ -740,6 +740,7 @@ def parse_command_line():
     subparser = subparsers.add_parser('sourcesproject', help='generate project directives for source files')
     subparser.add_argument('-t', '--target', metavar='<target>', required=True, help='generated emulator target name')
     subparser.add_argument('-l', '--list', metavar='<lstfile>', required=True, help='master driver list file')
+    subparser.add_argument('--defined', metavar='<macro>', help='treat simple #ifdef/#ifndef tests for this macro as known')
     subparser.add_argument('sources', metavar='<srcfile>', nargs='+', help='source files to include')
 
     subparser = subparsers.add_parser('filterproject', help='generate project directives using filter file')
@@ -794,7 +795,7 @@ def collect_lua_directives(options):
     return result
 
 
-def scan_source_dependencies(root, sources):
+def scan_source_dependencies(root, sources, defined=None):
     def locate_include(path):
         split = [ ]
         forward = 0
@@ -834,10 +835,29 @@ def scan_source_dependencies(root, sources):
                 remaining.append((path, depth))
                 seen.add(path)
 
+    conditions = []
+
     def line_hook(text):
         text = text.lstrip()
         if text.startswith('#'):
             text = text[1:].lstrip()
+            if defined:
+                tokens = text.split(None, 2)
+                if tokens:
+                    directive = tokens[0]
+                    if directive in ('if', 'ifdef', 'ifndef'):
+                        if directive != 'if' and len(tokens) >= 2 and tokens[1] == defined:
+                            conditions.append(directive == 'ifdef')
+                        else:
+                            conditions.append(None)
+                    elif directive == 'elif' and conditions:
+                        conditions[-1] = None
+                    elif directive == 'else' and conditions and conditions[-1] is not None:
+                        conditions[-1] = not conditions[-1]
+                    elif directive == 'endif' and conditions:
+                        conditions.pop()
+                if False in conditions:
+                    return
             if text.startswith('include'):
                 text = text[7:]
                 if text[:1].isspace():
@@ -865,6 +885,7 @@ def scan_source_dependencies(root, sources):
     default_roots = ((('src', 'devices'), 0), (('src', 'mame', 'shared'), 0), (('src', 'lib'), 0))
     while remaining:
         source, depth = remaining.pop()
+        conditions.clear()
         components = tuple(source.split('/'))
         roots = ((components[:-1], depth), ) + default_roots
         try:
@@ -1030,7 +1051,7 @@ def write_sources_project(options, projectfile):
     if not state['havedrivers']:
         sys.stderr.write('None of the specified source files contain system drivers\n')
         sys.exit(1)
-    source_dependencies = scan_source_dependencies(options.root, sources)
+    source_dependencies = scan_source_dependencies(options.root, sources, options.defined)
     write_project(options, projectfile, header_to_optional, source_dependencies, True)
 
 

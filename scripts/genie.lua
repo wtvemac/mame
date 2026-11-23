@@ -435,6 +435,13 @@ newoption {
 	description = "Select projects to be built. Will look into project folder for files.",
 }
 
+newoption {
+	trigger = "WTV_RELEASE",
+	description = "Build the compact WebTV release binary",
+}
+
+local wtv_release = _OPTIONS["WTV_RELEASE"] == "1"
+
 -- Use system (3rdparty/pjproject) by default unless --NO_USE_PJSUA2=1 is set at compile time
 function pjsua2_pkgconfigcmd()
 	local pkgconfig = os.getenv("PKG_CONFIG")
@@ -971,6 +978,16 @@ else
 	}
 end
 
+if wtv_release then
+	defines { "WTV_RELEASE" }
+
+	configuration { "linux-*" }
+		buildoptions { "-ffunction-sections", "-fdata-sections" }
+		linkoptions { "-Wl,--gc-sections" }
+
+	configuration { }
+end
+
 if _OPTIONS["LDOPTS"] then
 	linkoptions {
 		_OPTIONS["LDOPTS"]
@@ -1394,8 +1411,9 @@ if _OPTIONS["SOURCES"] ~= nil then
 	local driverlist = path.join(MAME_DIR, "src", _OPTIONS["target"], _OPTIONS["target"] .. ".lst")
 	local OUT_STR = os.outputof(
 		string.format(
-			"%s %s -r %s sourcesproject -t %s -l %s %s",
-			PYTHON, makedep, MAME_DIR, _OPTIONS["subtarget"], driverlist, sourceargs))
+			"%s %s -r %s sourcesproject -t %s -l %s %s %s",
+			PYTHON, makedep, MAME_DIR, _OPTIONS["subtarget"], driverlist,
+			wtv_release and "--defined WTV_RELEASE" or "", sourceargs))
 	if #OUT_STR == 0 then
 		error("Error creating projects from specified source files")
 	end

@@ -6,6 +6,7 @@
 #include "emu.h"
 #include "pci_slot.h"
 
+#ifndef WTV_RELEASE
 #include "aha2940au.h"
 #include "audiowerk2.h"
 #include "clgd543x_alpine.h"
@@ -39,6 +40,7 @@
 #include "wd9710_pci.h"
 #include "ymf740c.h"
 #include "zr36057.h"
+#endif
 
 
 DEFINE_DEVICE_TYPE(PCI_SLOT, pci_slot_device, "pci_slot", "PCI extension motherboard port")
@@ -115,6 +117,7 @@ void pci_card_device::irq_pin_w(offs_t line, int state)
 	m_pci_root->irq_pin_w(m_irq_map[line], state);
 }
 
+#ifndef WTV_RELEASE
 void pci_cards(device_slot_interface &device)
 {
 	// 0x00 - backward compatible pre-class code
@@ -207,3 +210,4 @@ void agp_cards(device_slot_interface &device)
 	device.option_add("sis6326_agp",    SIS6326_AGP);
 	device.option_add("sis6326_dvd",    SIS6326_DVD);
 }
+#endif // WTV_RELEASE

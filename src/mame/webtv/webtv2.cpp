@@ -360,7 +360,9 @@ void webtv2_state::build_webtv_device(machine_config &config, webtv2_state::cpu_
 	m_soloasic->sda_w_callback().set(FUNC(webtv2_state::iic_sda_w));
 
 	auto pport_device_options = [] (device_slot_interface &slot) {
+#ifndef WTV_RELEASE
 		centronics_devices(slot);
+#endif
 		slot.option_add("deskjet6xx", WTV_LPT_DESKJET);
 		slot.option_add("socket", LPT_SOCKET);
 #if defined(__linux__)

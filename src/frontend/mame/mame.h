@@ -14,11 +14,13 @@
 #include "main.h"
 
 
+#ifndef WTV_RELEASE
 namespace sol {
 
 struct load_result;
 
 } // namespace sol
+#endif
 
 class plugin_options;
 class osd_interface;
@@ -86,7 +88,9 @@ private:
 	bool                    m_firstrun;
 
 	emu_timer *                        m_autoboot_timer;    // auto-boot timer
+#ifndef WTV_RELEASE
 	std::unique_ptr<sol::load_result>  m_autoboot_script;   // auto-boot script
+#endif
 	std::unique_ptr<mame_ui_manager>   m_ui;                // internal data from ui.cpp
 	std::unique_ptr<cheat_manager>     m_cheat;             // internal data from cheat.cpp
 	std::unique_ptr<inifile_manager>   m_inifile;           // internal data from inifile.c for INIs

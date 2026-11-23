@@ -43,10 +43,6 @@ files {
 	MAME_DIR .. "src/devices/imagedev/cdromimg.h",
 	MAME_DIR .. "src/devices/imagedev/diablo.cpp",
 	MAME_DIR .. "src/devices/imagedev/diablo.h",
-	MAME_DIR .. "src/devices/imagedev/flopdrv.cpp",
-	MAME_DIR .. "src/devices/imagedev/flopdrv.h",
-	MAME_DIR .. "src/devices/imagedev/floppy.cpp",
-	MAME_DIR .. "src/devices/imagedev/floppy.h",
 	MAME_DIR .. "src/devices/imagedev/harddriv.cpp",
 	MAME_DIR .. "src/devices/imagedev/harddriv.h",
 	MAME_DIR .. "src/devices/imagedev/lirc.cpp",
@@ -83,6 +79,15 @@ files {
 	MAME_DIR .. "src/devices/imagedev/videocap.h",
 }
 
+
+if _OPTIONS["WTV_RELEASE"] ~= "1" then
+	files {
+		MAME_DIR .. "src/devices/imagedev/floppy.cpp",
+		MAME_DIR .. "src/devices/imagedev/floppy.h",
+		MAME_DIR .. "src/devices/imagedev/flopdrv.cpp",
+		MAME_DIR .. "src/devices/imagedev/flopdrv.h",
+	}
+end
 
 ---------------------------------------------------
 --

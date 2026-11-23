@@ -180,6 +180,7 @@ void menu_main::populate()
 	if (machine().options().cheat())
 		item_append(_("menu-main", "Cheat Options"), 0, (void *)CHEAT);
 
+#ifndef WTV_RELEASE
 	if (machine_phase::RESET <= m_phase)
 	{
 		if (machine().options().plugins() && !mame_machine_manager::instance()->lua()->get_menu().empty())
@@ -188,6 +189,7 @@ void menu_main::populate()
 		if (mame_machine_manager::instance()->lua()->call_plugin_check<const char *>("data_list", "", true))
 			item_append(_("menu-main", "External DAT View"), 0, (void *)EXTERNAL_DATS);
 	}
+#endif
 
 	item_append(menu_item_type::SEPARATOR);
 
@@ -299,9 +301,11 @@ bool menu_main::handle(event const *ev)
 			menu::stack_push<menu_cheat>(ui(), target());
 			break;
 
+#ifndef WTV_RELEASE
 		case PLUGINS:
 			menu::stack_push<menu_plugin>(ui(), target());
 			break;
+#endif
 
 		case SELECT_GAME:
 			if (machine().options().ui() == emu_options::UI_SIMPLE)

@@ -270,6 +270,7 @@ bool menu_file_create::handle(event const *ev)
 }
 
 
+#ifndef WTV_RELEASE
 /***************************************************************************
 SELECT FORMAT MENU
 ***************************************************************************/
@@ -401,5 +402,7 @@ bool menu_select_floppy_init::handle(event const *ev)
 	return false;
 }
 
+
+#endif // WTV_RELEASE
 
 } // namespace ui

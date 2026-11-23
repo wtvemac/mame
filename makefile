@@ -19,6 +19,7 @@
 
 # TARGET = mame
 # SUBTARGET = tiny
+# WTV_RELEASE = 1
 # TOOLS = 1
 # EMULATOR = 1
 # TESTS = 1
@@ -279,6 +280,36 @@ ifndef TARGET
 TARGET := mame
 endif
 
+ifeq ($(WTV_RELEASE),1)
+ifneq ($(TARGET),mame)
+$(error WTV_RELEASE requires TARGET=mame)
+endif
+ifneq ($(strip $(filter-out 0,$(DEBUG) $(TESTS) $(TOOLS)) $(PROFILE) $(filter 0,$(EMULATOR))),)
+$(error WTV_RELEASE builds the release binary only)
+endif
+WTV_RELEASE_SOURCES := src/mame/webtv/msntv2.cpp,src/mame/webtv/webtv1.cpp,src/mame/webtv/webtv2.cpp
+ifneq ($(strip $(SOURCEFILTER)),)
+$(error WTV_RELEASE selects its own WebTV sources and cannot use SOURCEFILTER)
+endif
+ifneq ($(strip $(SOURCES)),)
+ifneq ($(strip $(SOURCES)),src/mame/webtv)
+wtv_release_comma := ,
+ifneq ($(sort $(subst $(wtv_release_comma), ,$(SOURCES))),$(sort $(subst $(wtv_release_comma), ,$(WTV_RELEASE_SOURCES))))
+$(error WTV_RELEASE requires all three WebTV driver sources or src/mame/webtv)
+endif
+endif
+endif
+SUBTARGET ?= wtvmame
+override SOURCES := $(WTV_RELEASE_SOURCES)
+BUILDDIR ?= build/wtv-release
+override SYMBOLS := 0
+override STRIP_SYMBOLS := 1
+OPTIMIZE ?= s
+NO_USE_MIDI ?= 1
+NO_USE_PORTAUDIO ?= 0
+PARAMS += --WTV_RELEASE=1
+endif
+
 ifndef SUBTARGET
 SUBTARGET := $(TARGET)
 endif
@@ -438,6 +469,12 @@ ifndef PYTHON_EXECUTABLE
 PYTHON := python3
 else
 PYTHON := $(PYTHON_EXECUTABLE)
+endif
+
+ifeq ($(WTV_RELEASE):$(TARGETOS):$(CROSS_BUILD),1:linux:)
+ifneq ($(shell command -v mold 2>/dev/null),)
+LDOPTS ?= -fuse-ld=mold -Wl,--icf=safe
+endif
 endif
 
 ifneq ($(TARGETOS),asmjs)

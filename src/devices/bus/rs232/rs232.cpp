@@ -154,6 +154,14 @@ device_rs232_port_interface::~device_rs232_port_interface()
 }
 
 
+#ifdef WTV_RELEASE
+#include "null_modem.h"
+
+void default_rs232_devices(device_slot_interface &device)
+{
+	device.option_add("null_modem", NULL_MODEM);
+}
+#else
 #include "adsp2181ekl.h"
 #include "auto3a.h"
 #include "cgp220.h"
@@ -205,3 +213,4 @@ void default_rs232_devices(device_slot_interface &device)
 	device.option_add("terminal",      SERIAL_TERMINAL);
 	device.option_add("votraxtnt",     SERIAL_VOTRAXTNT);
 }
+#endif // WTV_RELEASE

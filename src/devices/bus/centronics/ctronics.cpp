@@ -117,6 +117,7 @@ device_centronics_peripheral_interface::~device_centronics_peripheral_interface(
 }
 
 
+#ifndef WTV_RELEASE
 #include "adaptator.h"
 #include "cgp220.h"
 #include "chessmec.h"
@@ -172,3 +173,4 @@ void centronics_devices(device_slot_interface &device)
 	// TODO: will become option_add_internal when misc/neomania.cpp will have a working chipset
 	device.option_add("neomania", NEOMANIA_ADAPTER);
 }
+#endif // WTV_RELEASE

@@ -210,7 +210,7 @@ public:
 		, m_file(std::move(file))
 	{
 	}
-	~core_osd_file() override;
+	~core_osd_file() override = default;
 
 	virtual std::error_condition read_some(void *buffer, std::size_t length, std::size_t &actual) noexcept override;
 	virtual std::error_condition read_some_at(std::uint64_t offset, void *buffer, std::size_t length, std::size_t &actual) noexcept override;
@@ -602,16 +602,6 @@ std::error_condition core_in_memory_file::truncate(std::uint64_t offset)
 //**************************************************************************
 //  core_osd_file
 //**************************************************************************
-
-//-------------------------------------------------
-//  closes a file
-//-------------------------------------------------
-
-core_osd_file::~core_osd_file()
-{
-	// close files and free memory
-}
-
 
 //-------------------------------------------------
 //  read - read from a file

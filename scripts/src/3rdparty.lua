@@ -942,7 +942,7 @@ end
 --------------------------------------------------
 -- LUA library objects
 --------------------------------------------------
-if (STANDALONE~=true) then
+if (STANDALONE~=true) and _OPTIONS["WTV_RELEASE"] ~= "1" then
 
 if _OPTIONS["with-system-lua"] ~= "1" then
 project "lua"
@@ -1781,6 +1781,7 @@ end
 -- linenoise library
 --------------------------------------------------
 
+if _OPTIONS["WTV_RELEASE"] ~= "1" then
 project "linenoise"
 	uuid "7320ffc8-2748-4add-8864-ae29b72a8511"
 	kind (LIBTYPE)
@@ -1809,6 +1810,7 @@ end
 		MAME_DIR .. "3rdparty/linenoise/stringbuf.c",
 		MAME_DIR .. "3rdparty/linenoise/utf8.c",
 	}
+end
 
 
 --------------------------------------------------

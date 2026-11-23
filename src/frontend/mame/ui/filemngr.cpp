@@ -15,7 +15,9 @@
 #include "ui/filemngr.h"
 
 #include "ui/filesel.h"
+#ifndef WTV_RELEASE
 #include "ui/floppycntrl.h"
+#endif
 #include "ui/imgcntrl.h"
 #include "ui/prscntrl.h"
 #include "ui/miscmenu.h"
@@ -274,10 +276,12 @@ bool menu_file_manager::handle(event const *ev)
 				}
 				else
 				{
+#ifndef WTV_RELEASE
 					floppy_image_device *floppy_device = dynamic_cast<floppy_image_device *>(m_selected_device);
 					if (floppy_device)
 						menu::stack_push<menu_control_floppy_image>(ui(), target(), *floppy_device);
 					else
+#endif
 						menu::stack_push<menu_control_device_image>(ui(), target(), *m_selected_device);
 				}
 			}

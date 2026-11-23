@@ -1794,7 +1794,14 @@ end
 --@src/devices/bus/centronics/hardlock.h,BUSES["CENTRONICS"] = true
 ---------------------------------------------------
 
-if BUSES["CENTRONICS"] then
+if BUSES["CENTRONICS"] and _OPTIONS["WTV_RELEASE"] == "1" then
+	files {
+		MAME_DIR .. "src/devices/bus/centronics/ctronics.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/ctronics.h",
+		MAME_DIR .. "src/devices/bus/centronics/lptsocket.cpp",
+		MAME_DIR .. "src/devices/bus/centronics/lptsocket.h",
+	}
+elseif BUSES["CENTRONICS"] then
 	files {
 		MAME_DIR .. "src/devices/bus/centronics/adaptator.cpp",
 		MAME_DIR .. "src/devices/bus/centronics/adaptator.h",
@@ -3174,7 +3181,12 @@ end
 --@src/devices/bus/isa/isa.h,BUSES["ISA"] = true
 ---------------------------------------------------
 
-if BUSES["ISA"] then
+if BUSES["ISA"] and _OPTIONS["WTV_RELEASE"] == "1" then
+	files {
+		MAME_DIR .. "src/devices/bus/isa/isa.cpp",
+		MAME_DIR .. "src/devices/bus/isa/isa.h",
+	}
+elseif BUSES["ISA"] then
 	files {
 		MAME_DIR .. "src/devices/bus/isa/isa.cpp",
 		MAME_DIR .. "src/devices/bus/isa/isa.h",
@@ -4856,7 +4868,12 @@ end
 --@src/devices/bus/pci/pci_slot.h,BUSES["PCI"] = true
 ---------------------------------------------------
 
-if BUSES["PCI"] then
+if BUSES["PCI"] and _OPTIONS["WTV_RELEASE"] == "1" then
+	files {
+		MAME_DIR .. "src/devices/bus/pci/pci_slot.cpp",
+		MAME_DIR .. "src/devices/bus/pci/pci_slot.h",
+	}
+elseif BUSES["PCI"] then
 	files {
 		MAME_DIR .. "src/devices/bus/pci/pci_slot.cpp",
 		MAME_DIR .. "src/devices/bus/pci/pci_slot.h",
@@ -5323,7 +5340,14 @@ end
 --@src/devices/bus/rs232/rs232.h,BUSES["RS232"] = true
 ---------------------------------------------------
 
-if BUSES["RS232"] then
+if BUSES["RS232"] and _OPTIONS["WTV_RELEASE"] == "1" then
+	files {
+		MAME_DIR .. "src/devices/bus/rs232/rs232.cpp",
+		MAME_DIR .. "src/devices/bus/rs232/rs232.h",
+		MAME_DIR .. "src/devices/bus/rs232/null_modem.cpp",
+		MAME_DIR .. "src/devices/bus/rs232/null_modem.h",
+	}
+elseif BUSES["RS232"] then
 	files {
 		MAME_DIR .. "src/devices/bus/rs232/adsp2181ekl.cpp",
 		MAME_DIR .. "src/devices/bus/rs232/adsp2181ekl.h",

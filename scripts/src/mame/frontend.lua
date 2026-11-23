@@ -64,13 +64,6 @@ files {
 	MAME_DIR .. "src/frontend/mame/iptseqpoll.h",
 	MAME_DIR .. "src/frontend/mame/language.cpp",
 	MAME_DIR .. "src/frontend/mame/language.h",
-	MAME_DIR .. "src/frontend/mame/luaengine.cpp",
-	MAME_DIR .. "src/frontend/mame/luaengine.h",
-	MAME_DIR .. "src/frontend/mame/luaengine.ipp",
-	MAME_DIR .. "src/frontend/mame/luaengine_debug.cpp",
-	MAME_DIR .. "src/frontend/mame/luaengine_input.cpp",
-	MAME_DIR .. "src/frontend/mame/luaengine_mem.cpp",
-	MAME_DIR .. "src/frontend/mame/luaengine_render.cpp",
 	MAME_DIR .. "src/frontend/mame/mame.cpp",
 	MAME_DIR .. "src/frontend/mame/mame.h",
 	MAME_DIR .. "src/frontend/mame/mameopts.cpp",
@@ -121,8 +114,6 @@ files {
 	MAME_DIR .. "src/frontend/mame/ui/filemngr.h",
 	MAME_DIR .. "src/frontend/mame/ui/filesel.cpp",
 	MAME_DIR .. "src/frontend/mame/ui/filesel.h",
-	MAME_DIR .. "src/frontend/mame/ui/floppycntrl.cpp",
-	MAME_DIR .. "src/frontend/mame/ui/floppycntrl.h",
 	MAME_DIR .. "src/frontend/mame/ui/icorender.cpp",
 	MAME_DIR .. "src/frontend/mame/ui/icorender.h",
 	MAME_DIR .. "src/frontend/mame/ui/imgcntrl.cpp",
@@ -157,8 +148,6 @@ files {
 	MAME_DIR .. "src/frontend/mame/ui/moptions.h",
 	MAME_DIR .. "src/frontend/mame/ui/optsmenu.cpp",
 	MAME_DIR .. "src/frontend/mame/ui/optsmenu.h",
-	MAME_DIR .. "src/frontend/mame/ui/pluginopt.cpp",
-	MAME_DIR .. "src/frontend/mame/ui/pluginopt.h",
 	MAME_DIR .. "src/frontend/mame/ui/prscntrl.cpp",
 	MAME_DIR .. "src/frontend/mame/ui/prscntrl.h",
 	MAME_DIR .. "src/frontend/mame/ui/quitmenu.cpp",
@@ -205,6 +194,22 @@ files {
 	MAME_DIR .. "src/frontend/mame/ui/widgets.cpp",
 	MAME_DIR .. "src/frontend/mame/ui/widgets.h",
 }
+
+if _OPTIONS["WTV_RELEASE"] ~= "1" then
+	files {
+		MAME_DIR .. "src/frontend/mame/luaengine.cpp",
+		MAME_DIR .. "src/frontend/mame/luaengine.h",
+		MAME_DIR .. "src/frontend/mame/luaengine.ipp",
+		MAME_DIR .. "src/frontend/mame/luaengine_debug.cpp",
+		MAME_DIR .. "src/frontend/mame/luaengine_input.cpp",
+		MAME_DIR .. "src/frontend/mame/luaengine_mem.cpp",
+		MAME_DIR .. "src/frontend/mame/luaengine_render.cpp",
+		MAME_DIR .. "src/frontend/mame/ui/pluginopt.cpp",
+		MAME_DIR .. "src/frontend/mame/ui/pluginopt.h",
+		MAME_DIR .. "src/frontend/mame/ui/floppycntrl.cpp",
+		MAME_DIR .. "src/frontend/mame/ui/floppycntrl.h",
+	}
+end
 
 pchsource(MAME_DIR .. "src/frontend/mame/audit.cpp")
 

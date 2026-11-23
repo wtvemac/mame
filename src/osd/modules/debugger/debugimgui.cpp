@@ -5,6 +5,7 @@
 #include "emu.h"
 #include "debug_module.h"
 
+#ifndef WTV_RELEASE
 #include "imgui/imgui.h"
 
 #include "imagedev/floppy.h"
@@ -1645,5 +1646,11 @@ void debug_imgui::debugger_update()
 } // anonymous namespace
 
 } // namespace osd
+
+#else
+#include "modules/osdmodule.h"
+
+namespace osd { namespace { MODULE_NOT_SUPPORTED(debug_imgui, OSD_DEBUG_PROVIDER, "imgui") } }
+#endif
 
 MODULE_DEFINITION(DEBUG_IMGUI, osd::debug_imgui)

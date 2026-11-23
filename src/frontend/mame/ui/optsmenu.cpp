@@ -81,8 +81,10 @@ void menu_simple_game_options::populate()
 	item_append(_(submenu::control_options()[0].description), 0, (void *)(uintptr_t)CONTROLLER_MENU);
 	item_append(_("Input Assignments"), 0, (void *)(uintptr_t)INPUTASSIGN_MENU);
 	item_append(_(submenu::advanced_options()[0].description), 0, (void *)(uintptr_t)ADVANCED_MENU);
+#ifndef WTV_RELEASE
 	if (machine().options().plugins())
 		item_append(_("Plugins"), 0, (void *)(uintptr_t)PLUGINS_MENU);
+#endif
 	item_append(menu_item_type::SEPARATOR);
 	item_append(_("Input Devices"), 0, (void *)(uintptr_t)INPUTDEV_MENU);
 	item_append(menu_item_type::SEPARATOR);
@@ -121,9 +123,11 @@ bool menu_simple_game_options::handle_item_event(event const &menu_event)
 			menu::stack_push<submenu>(ui(), target(), submenu::advanced_options());
 			ui_globals::reset = true;
 			break;
+#ifndef WTV_RELEASE
 		case PLUGINS_MENU:
 			menu::stack_push<menu_plugins_configure>(ui(), target());
 			break;
+#endif
 		case INPUTDEV_MENU:
 			menu::stack_push<menu_input_devices>(ui(), target());
 			break;

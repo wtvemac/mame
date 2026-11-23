@@ -42,12 +42,12 @@ end
 	configuration {  }
 
 	addprojectflags()
-	flags {
-		"NoManifest",
-		"Symbols", -- always include minimum symbols for executables
-	}
+	flags { "NoManifest" }
+	if _OPTIONS["WTV_RELEASE"] ~= "1" then
+		flags { "Symbols" } -- always include minimum symbols for executables
+	end
 
-	if _OPTIONS["SYMBOLS"]~=nil and _OPTIONS["SYMBOLS"]~=0 and (_OPTIONS["PDB_SYMBOLS"]==nil or _OPTIONS["PDB_SYMBOLS"]==0) then
+	if _OPTIONS["WTV_RELEASE"] ~= "1" and _OPTIONS["SYMBOLS"]~=nil and _OPTIONS["SYMBOLS"]~=0 and (_OPTIONS["PDB_SYMBOLS"]==nil or _OPTIONS["PDB_SYMBOLS"]==0) then
 		local llvm_obdjump = false
 		local objdump_ver = backtick('objdump --version')
 		if string.match(objdump_ver, 'LLVM version ') then
@@ -172,7 +172,7 @@ if CPU_INCLUDE_DRC_NATIVE then
 		"asmjit",
 	}
 end
-if (STANDALONE~=true) then
+if (STANDALONE~=true) and _OPTIONS["WTV_RELEASE"] ~= "1" then
 	links {
 		ext_lib("lua"),
 		"lualibs",
@@ -185,7 +185,7 @@ end
 		ext_lib("flac"),
 		ext_lib("utf8proc"),
 	}
-if (STANDALONE~=true) then
+if (STANDALONE~=true) and _OPTIONS["WTV_RELEASE"] ~= "1" then
 	links {
 		ext_lib("sqlite3"),
 	}

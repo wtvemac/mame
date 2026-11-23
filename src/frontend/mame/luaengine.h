@@ -22,6 +22,17 @@
 #include <tuple>
 #include <vector>
 
+#ifdef WTV_RELEASE
+
+class lua_engine
+{
+public:
+	template <typename T, typename U>
+	bool call_plugin(const std::string &, T &&, U &) { return false; }
+};
+
+#else
+
 #define SOL_USING_CXX_LUA 1
 #ifdef MAME_DEBUG
 #define SOL_ALL_SAFETIES_ON 1
@@ -212,5 +223,7 @@ private:
 	void initialize_memory(sol::table &emu);
 	void initialize_render(sol::table &emu);
 };
+
+#endif // WTV_RELEASE
 
 #endif // MAME_FRONTEND_MAME_LUAENGINE_H
