@@ -531,12 +531,14 @@ function osdmodulestargetconf()
 		end
 	end
 
+	if _OPTIONS["targetos"]=="linux" and (_OPTIONS["NO_USE_MIDI"]~="1" or _OPTIONS["NO_USE_PORTAUDIO"]~="1") then
+		local str = backtick(pkgconfigcmd() .. " --libs alsa")
+		addlibfromstring(str)
+		addoptionsfromstring(str)
+	end
+
 	if _OPTIONS["NO_USE_MIDI"]~="1" then
-		if _OPTIONS["targetos"]=="linux" then
-			local str = backtick(pkgconfigcmd() .. " --libs alsa")
-			addlibfromstring(str)
-			addoptionsfromstring(str)
-		elseif _OPTIONS["targetos"]=="macosx" then
+		if _OPTIONS["targetos"]=="macosx" then
 			links {
 				"CoreMIDI.framework",
 			}
